@@ -35,7 +35,7 @@ Now initialize Beans in your project:
 beans init
 ```
 
-This will create a `.beans/` directory in your project alongside a `beans.toml` configuration file. Everything inside this directory is meant to be tracked in your version control system.
+This will create a `.beans/` directory in your project alongside a `config.yaml` configuration file. Everything inside this directory is meant to be tracked in your version control system.
 
 You can interact with your Beans through the `beans` CLI. To get a list of available commands:
 

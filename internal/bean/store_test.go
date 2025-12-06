@@ -168,7 +168,7 @@ func TestFindAllIgnoresNonMdFiles(t *testing.T) {
 	createTestBean(t, store, "abc1", "Real Bean", "open")
 
 	// Create non-.md files that should be ignored
-	os.WriteFile(filepath.Join(beansDir, "beans.toml"), []byte("config"), 0644)
+	os.WriteFile(filepath.Join(beansDir, "config.yaml"), []byte("config"), 0644)
 	os.WriteFile(filepath.Join(beansDir, "README.txt"), []byte("readme"), 0644)
 	os.Mkdir(filepath.Join(beansDir, "subdir"), 0755)
 

@@ -210,8 +210,8 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	configPath := filepath.Join(tmpDir, ConfigFile)
 
 	// Write minimal config (missing id_length, default_status, statuses)
-	minimalConfig := `[beans]
-prefix = "my-"
+	minimalConfig := `beans:
+  prefix: "my-"
 `
 	if err := os.WriteFile(configPath, []byte(minimalConfig), 0644); err != nil {
 		t.Fatalf("WriteFile error = %v", err)

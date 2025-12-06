@@ -5,10 +5,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pelletier/go-toml/v2"
+	"gopkg.in/yaml.v3"
 )
 
-const ConfigFile = "beans.toml"
+const ConfigFile = "config.yaml"
 
 // DefaultStatuses defines the default status configuration.
 var DefaultStatuses = []StatusConfig{
@@ -27,29 +27,29 @@ var DefaultTypes = []TypeConfig{
 
 // StatusConfig defines a single status with its display color.
 type StatusConfig struct {
-	Name    string `toml:"name"`
-	Color   string `toml:"color"`
-	Archive bool   `toml:"archive,omitempty"`
+	Name    string `yaml:"name"`
+	Color   string `yaml:"color"`
+	Archive bool   `yaml:"archive,omitempty"`
 }
 
 // TypeConfig defines a single bean type with its display color.
 type TypeConfig struct {
-	Name  string `toml:"name"`
-	Color string `toml:"color"`
+	Name  string `yaml:"name"`
+	Color string `yaml:"color"`
 }
 
 // Config holds the beans configuration.
 type Config struct {
-	Beans    BeansConfig    `toml:"beans"`
-	Statuses []StatusConfig `toml:"statuses"`
-	Types    []TypeConfig   `toml:"types,omitempty"`
+	Beans    BeansConfig    `yaml:"beans"`
+	Statuses []StatusConfig `yaml:"statuses"`
+	Types    []TypeConfig   `yaml:"types,omitempty"`
 }
 
 // BeansConfig defines settings for bean creation.
 type BeansConfig struct {
-	Prefix        string `toml:"prefix"`
-	IDLength      int    `toml:"id_length"`
-	DefaultStatus string `toml:"default_status,omitempty"`
+	Prefix        string `yaml:"prefix"`
+	IDLength      int    `yaml:"id_length"`
+	DefaultStatus string `yaml:"default_status,omitempty"`
 }
 
 // Default returns a Config with default values.
@@ -86,7 +86,7 @@ func Load(root string) (*Config, error) {
 	}
 
 	var cfg Config
-	if err := toml.Unmarshal(data, &cfg); err != nil {
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, err
 	}
 
@@ -117,7 +117,7 @@ func Load(root string) (*Config, error) {
 func (c *Config) Save(root string) error {
 	path := filepath.Join(root, ConfigFile)
 
-	data, err := toml.Marshal(c)
+	data, err := yaml.Marshal(c)
 	if err != nil {
 		return err
 	}

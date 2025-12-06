@@ -13,7 +13,7 @@ All commands support --json for machine-readable output. Use this flag to parse 
 - Use `beans create` to create issues, not TodoWrite tool
 - When completing work, mark the bean as done using `beans update <bean-id> --status done`. If you're about to create a commit, do this first.
 - Lean towards using sub-agents for interacting with beans.
-- You can inspect `.beans/beans.toml` to learn about the different issue types and statuses configured for this project.
+- You can inspect `.beans/config.yaml` to learn about the different issue types and statuses configured for this project.
 
 ## Finding work
 
