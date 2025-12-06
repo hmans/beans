@@ -1,5 +1,6 @@
 [tools]
 go = "latest"
+svu = "latest"
 
 [tasks.build]
 run = """
@@ -13,3 +14,36 @@ go build -ldflags "\
 [tasks.install]
 depends = "build"
 run = "cp beans ~/.local/bin/beans"
+
+[tasks."release:patch"]
+description = "Create and push a patch version tag (e.g., v0.1.4 → v0.1.5)"
+run = """
+set -e
+NEW_VERSION=$(svu patch)
+echo "Creating tag: $NEW_VERSION"
+git tag "$NEW_VERSION"
+git push origin "$NEW_VERSION"
+echo "Released $NEW_VERSION"
+"""
+
+[tasks."release:minor"]
+description = "Create and push a minor version tag (e.g., v0.1.4 → v0.2.0)"
+run = """
+set -e
+NEW_VERSION=$(svu minor)
+echo "Creating tag: $NEW_VERSION"
+git tag "$NEW_VERSION"
+git push origin "$NEW_VERSION"
+echo "Released $NEW_VERSION"
+"""
+
+[tasks."release:major"]
+description = "Create and push a major version tag (e.g., v0.1.4 → v1.0.0)"
+run = """
+set -e
+NEW_VERSION=$(svu major)
+echo "Creating tag: $NEW_VERSION"
+git tag "$NEW_VERSION"
+git push origin "$NEW_VERSION"
+echo "Released $NEW_VERSION"
+"""

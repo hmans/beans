@@ -1,9 +1,11 @@
 ---
 title: Add version bumping tool for releases
-status: open
+status: done
 created_at: 2025-12-06T16:56:48Z
-updated_at: 2025-12-06T16:56:48Z
+updated_at: 2025-12-06T17:15:02Z
 ---
+
+
 
 ## Context
 

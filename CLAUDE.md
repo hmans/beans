@@ -45,3 +45,13 @@ All commands support `--json` for machine-readable output.
 
 - Use `go run .` instead of building the executable first.
 - All commands support the `--beans-path` flag to specify a custom path to the `.beans/` directory. Use this for testing (instead of spamming the real `.beans/` directory).
+
+# Releasing
+
+Releases are managed using **svu** (Semantic Version Utility) via mise tasks. svu is installed automatically via mise.
+
+- `mise release:patch` - Bump patch version (e.g., v0.1.4 → v0.1.5)
+- `mise release:minor` - Bump minor version (e.g., v0.1.4 → v0.2.0)
+- `mise release:major` - Bump major version (e.g., v0.1.4 → v1.0.0)
+
+These tasks create and push the git tag, which triggers goreleaser to build and publish the release.
