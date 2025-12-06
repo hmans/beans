@@ -1,2 +1,4 @@
 /beans
 /.vscode/settings.json
+# Added by goreleaser init:
+dist/
