@@ -1,3 +1,17 @@
 [beans]
 prefix = 'beans-'
 id_length = 4
+default_status = 'open'
+archive_status = 'done'
+
+[[statuses]]
+name = 'open'
+color = 'green'
+
+[[statuses]]
+name = 'in-progress'
+color = 'yellow'
+
+[[statuses]]
+name = 'done'
+color = 'gray'

@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 	"hmans.dev/beans/internal/bean"
-	"hmans.dev/beans/internal/config"
 	"hmans.dev/beans/internal/output"
 	"hmans.dev/beans/internal/ui"
 )
@@ -33,14 +32,14 @@ var createCmd = &cobra.Command{
 		status := createStatus
 
 		// Validate status if provided
-		if status != "" && !config.IsValidStatus(status) {
+		if status != "" && !cfg.IsValidStatus(status) {
 			if createJSON {
-				return output.Error(output.ErrInvalidStatus, fmt.Sprintf("invalid status: %s (must be %s)", status, config.StatusList()))
+				return output.Error(output.ErrInvalidStatus, fmt.Sprintf("invalid status: %s (must be %s)", status, cfg.StatusList()))
 			}
-			return fmt.Errorf("invalid status: %s (must be %s)", status, config.StatusList())
+			return fmt.Errorf("invalid status: %s (must be %s)", status, cfg.StatusList())
 		}
 		if status == "" {
-			status = config.DefaultStatus
+			status = cfg.GetDefaultStatus()
 		}
 
 		// Determine description content
@@ -59,7 +58,7 @@ var createCmd = &cobra.Command{
 		if title == "" && !scriptingMode {
 			// Build status options
 			var statusOptions []huh.Option[string]
-			for _, s := range config.ValidStatuses {
+			for _, s := range cfg.StatusNames() {
 				statusOptions = append(statusOptions, huh.NewOption(formatStatusLabel(s), s))
 			}
 

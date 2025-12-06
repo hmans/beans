@@ -53,10 +53,17 @@ var showCmd = &cobra.Command{
 		}
 
 		// Default: styled human-friendly output
+		statusCfg := cfg.GetStatus(b.Status)
+		statusColor := "gray"
+		if statusCfg != nil {
+			statusColor = statusCfg.Color
+		}
+		isArchive := b.Status == cfg.GetArchiveStatus()
+
 		var header strings.Builder
 		header.WriteString(ui.ID.Render(b.ID))
 		header.WriteString(" ")
-		header.WriteString(ui.RenderStatus(b.Status))
+		header.WriteString(ui.RenderStatusWithColor(b.Status, statusColor, isArchive))
 		header.WriteString("\n")
 		header.WriteString(ui.Title.Render(b.Title))
 		header.WriteString("\n")

@@ -10,30 +10,43 @@ import (
 
 const ConfigFile = "beans.toml"
 
-// ValidStatuses defines the fixed set of allowed status values.
-var ValidStatuses = []string{"open", "in-progress", "done"}
+// DefaultStatuses defines the default status configuration.
+var DefaultStatuses = []StatusConfig{
+	{Name: "open", Color: "green"},
+	{Name: "in-progress", Color: "yellow"},
+	{Name: "done", Color: "gray"},
+}
 
-// DefaultStatus is the status assigned to new beans when not specified.
-const DefaultStatus = "open"
+// StatusConfig defines a single status with its display color.
+type StatusConfig struct {
+	Name  string `toml:"name"`
+	Color string `toml:"color"`
+}
 
 // Config holds the beans configuration.
 type Config struct {
-	Beans BeansConfig `toml:"beans"`
+	Beans    BeansConfig    `toml:"beans"`
+	Statuses []StatusConfig `toml:"statuses"`
 }
 
 // BeansConfig defines settings for bean creation.
 type BeansConfig struct {
-	Prefix   string `toml:"prefix"`
-	IDLength int    `toml:"id_length"`
+	Prefix        string `toml:"prefix"`
+	IDLength      int    `toml:"id_length"`
+	DefaultStatus string `toml:"default_status,omitempty"`
+	ArchiveStatus string `toml:"archive_status,omitempty"`
 }
 
 // Default returns a Config with default values.
 func Default() *Config {
 	return &Config{
 		Beans: BeansConfig{
-			Prefix:   "",
-			IDLength: 4,
+			Prefix:        "",
+			IDLength:      4,
+			DefaultStatus: "open",
+			ArchiveStatus: "done",
 		},
+		Statuses: DefaultStatuses,
 	}
 }
 
@@ -67,6 +80,19 @@ func Load(root string) (*Config, error) {
 		cfg.Beans.IDLength = 4
 	}
 
+	// Apply default statuses if none defined
+	if len(cfg.Statuses) == 0 {
+		cfg.Statuses = DefaultStatuses
+	}
+
+	// Apply default status values if not specified
+	if cfg.Beans.DefaultStatus == "" {
+		cfg.Beans.DefaultStatus = cfg.Statuses[0].Name
+	}
+	if cfg.Beans.ArchiveStatus == "" {
+		cfg.Beans.ArchiveStatus = "done"
+	}
+
 	return &cfg, nil
 }
 
@@ -82,10 +108,10 @@ func (c *Config) Save(root string) error {
 	return os.WriteFile(path, data, 0644)
 }
 
-// IsValidStatus returns true if the status is in the allowed list.
-func IsValidStatus(status string) bool {
-	for _, s := range ValidStatuses {
-		if s == status {
+// IsValidStatus returns true if the status is in the config's allowed list.
+func (c *Config) IsValidStatus(status string) bool {
+	for _, s := range c.Statuses {
+		if s.Name == status {
 			return true
 		}
 	}
@@ -93,6 +119,39 @@ func IsValidStatus(status string) bool {
 }
 
 // StatusList returns a comma-separated list of valid statuses.
-func StatusList() string {
-	return strings.Join(ValidStatuses, ", ")
+func (c *Config) StatusList() string {
+	names := make([]string, len(c.Statuses))
+	for i, s := range c.Statuses {
+		names[i] = s.Name
+	}
+	return strings.Join(names, ", ")
+}
+
+// StatusNames returns a slice of valid status names.
+func (c *Config) StatusNames() []string {
+	names := make([]string, len(c.Statuses))
+	for i, s := range c.Statuses {
+		names[i] = s.Name
+	}
+	return names
+}
+
+// GetStatus returns the StatusConfig for a given status name, or nil if not found.
+func (c *Config) GetStatus(name string) *StatusConfig {
+	for i := range c.Statuses {
+		if c.Statuses[i].Name == name {
+			return &c.Statuses[i]
+		}
+	}
+	return nil
+}
+
+// GetDefaultStatus returns the default status name for new beans.
+func (c *Config) GetDefaultStatus() string {
+	return c.Beans.DefaultStatus
+}
+
+// GetArchiveStatus returns the status name used by archive command.
+func (c *Config) GetArchiveStatus() string {
+	return c.Beans.ArchiveStatus
 }

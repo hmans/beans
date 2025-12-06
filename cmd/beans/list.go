@@ -8,7 +8,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"hmans.dev/beans/internal/bean"
-	"hmans.dev/beans/internal/config"
 	"hmans.dev/beans/internal/output"
 	"hmans.dev/beans/internal/ui"
 )
@@ -38,7 +37,7 @@ var listCmd = &cobra.Command{
 		beans = filterBeans(beans, listStatus)
 
 		// Sort beans
-		sortBeans(beans, listSort)
+		sortBeans(beans, listSort, cfg.StatusNames())
 
 		// JSON output
 		if listJSON {
@@ -86,9 +85,17 @@ var listCmd = &cobra.Command{
 		fmt.Println(ui.Muted.Render(strings.Repeat("─", maxIDWidth+14+30)))
 
 		for _, b := range beans {
+			// Get status color from config
+			statusCfg := cfg.GetStatus(b.Status)
+			statusColor := "gray"
+			if statusCfg != nil {
+				statusColor = statusCfg.Color
+			}
+			isArchive := b.Status == cfg.GetArchiveStatus()
+
 			row := lipgloss.JoinHorizontal(lipgloss.Top,
 				idStyle.Render(ui.ID.Render(b.ID)),
-				statusStyle.Render(ui.RenderStatusText(b.Status)),
+				statusStyle.Render(ui.RenderStatusTextWithColor(b.Status, statusColor, isArchive)),
 				titleStyle.Render(truncate(b.Title, 50)),
 			)
 			fmt.Println(row)
@@ -98,7 +105,7 @@ var listCmd = &cobra.Command{
 	},
 }
 
-func sortBeans(beans []*bean.Bean, sortBy string) {
+func sortBeans(beans []*bean.Bean, sortBy string, statusNames []string) {
 	switch sortBy {
 	case "created":
 		sort.Slice(beans, func(i, j int) bool {
@@ -127,9 +134,9 @@ func sortBeans(beans []*bean.Bean, sortBy string) {
 			return beans[i].UpdatedAt.After(*beans[j].UpdatedAt)
 		})
 	case "status":
-		// Build status order from fixed statuses
+		// Build status order from configured statuses
 		statusOrder := make(map[string]int)
-		for i, s := range config.ValidStatuses {
+		for i, s := range statusNames {
 			statusOrder[s] = i
 		}
 		sort.Slice(beans, func(i, j int) bool {
