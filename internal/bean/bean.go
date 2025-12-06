@@ -12,18 +12,18 @@ import (
 // Bean represents an issue stored as a markdown file with front matter.
 type Bean struct {
 	// ID is the unique NanoID identifier (from filename).
-	ID string `yaml:"-"`
+	ID string `yaml:"-" json:"id"`
 	// Slug is the optional human-readable part of the filename.
-	Slug string `yaml:"-"`
+	Slug string `yaml:"-" json:"slug,omitempty"`
 	// Path is the relative path from .beans/ root (e.g., "epic-auth/abc123-login.md").
-	Path string `yaml:"-"`
+	Path string `yaml:"-" json:"path"`
 
 	// Front matter fields
-	Title  string `yaml:"title"`
-	Status string `yaml:"status"`
+	Title  string `yaml:"title" json:"title"`
+	Status string `yaml:"status" json:"status"`
 
 	// Body is the markdown content after the front matter.
-	Body string `yaml:"-"`
+	Body string `yaml:"-" json:"body"`
 }
 
 // frontMatter is the subset of Bean that gets serialized to YAML front matter.

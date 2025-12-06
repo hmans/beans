@@ -2,14 +2,22 @@ package beans
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
-	"github.com/olekukonko/tablewriter"
-	"github.com/olekukonko/tablewriter/renderer"
-	"github.com/olekukonko/tablewriter/tw"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
+	"hmans.dev/beans/internal/bean"
+	"hmans.dev/beans/internal/output"
+	"hmans.dev/beans/internal/ui"
+)
+
+var (
+	listJSON     bool
+	listStatus   []string
+	listPath     string
+	listQuiet    bool
 )
 
 var listCmd = &cobra.Command{
@@ -20,49 +28,106 @@ var listCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		beans, err := store.FindAll()
 		if err != nil {
+			if listJSON {
+				return output.Error(output.ErrFileError, err.Error())
+			}
 			return fmt.Errorf("failed to list beans: %w", err)
 		}
 
-		if len(beans) == 0 {
-			fmt.Println("No beans found")
-			return nil
-		}
+		// Apply filters
+		beans = filterBeans(beans, listStatus, listPath)
 
 		// Sort by path for grouping
 		sort.Slice(beans, func(i, j int) bool {
 			return beans[i].Path < beans[j].Path
 		})
 
-		table := tablewriter.NewTable(os.Stdout,
-			tablewriter.WithRenderer(renderer.NewBlueprint(tw.Rendition{
-				Borders: tw.BorderNone,
-				Settings: tw.Settings{
-					Separators: tw.Separators{
-						BetweenRows:    tw.Off,
-						BetweenColumns: tw.Off,
-					},
-				},
-			})),
-			tablewriter.WithRowAlignment(tw.AlignLeft),
-			tablewriter.WithHeaderAlignment(tw.AlignLeft),
-			tablewriter.WithPadding(tw.Padding{Left: "", Right: "  "}),
-		)
+		// JSON output
+		if listJSON {
+			return output.SuccessMultiple(beans)
+		}
 
-		table.Header("ID", "Status", "Path", "Title")
+		// Quiet mode: just IDs
+		if listQuiet {
+			for _, b := range beans {
+				fmt.Println(b.ID)
+			}
+			return nil
+		}
+
+		// Human-friendly output
+		if len(beans) == 0 {
+			fmt.Println(ui.Muted.Render("No beans found. Create one with: beans new <title>"))
+			return nil
+		}
+
+		// Column styles with fixed widths for alignment
+		idStyle := lipgloss.NewStyle().Width(10)
+		statusStyle := lipgloss.NewStyle().Width(14)
+		pathStyle := lipgloss.NewStyle().Width(20).Foreground(ui.ColorMuted)
+		titleStyle := lipgloss.NewStyle()
+
+		// Header style
+		headerCol := lipgloss.NewStyle().Foreground(ui.ColorMuted)
+
+		// Header
+		header := lipgloss.JoinHorizontal(lipgloss.Top,
+			idStyle.Render(headerCol.Render("ID")),
+			statusStyle.Render(headerCol.Render("STATUS")),
+			pathStyle.Render(headerCol.Render("PATH")),
+			titleStyle.Render(headerCol.Render("TITLE")),
+		)
+		fmt.Println(header)
+		fmt.Println(ui.Muted.Render(strings.Repeat("─", 70)))
 
 		for _, b := range beans {
-			// Show directory path without filename for cleaner output
 			dir := filepath.Dir(b.Path)
 			if dir == "." {
 				dir = ""
 			}
 
-			table.Append(b.ID, b.Status, dir, truncate(b.Title, 50))
+			row := lipgloss.JoinHorizontal(lipgloss.Top,
+				idStyle.Render(ui.ID.Render(b.ID)),
+				statusStyle.Render(ui.RenderStatusText(b.Status)),
+				pathStyle.Render(truncate(dir, 18)),
+				titleStyle.Render(truncate(b.Title, 50)),
+			)
+			fmt.Println(row)
 		}
 
-		table.Render()
 		return nil
 	},
+}
+
+func filterBeans(beans []*bean.Bean, statuses []string, pathPrefix string) []*bean.Bean {
+	if len(statuses) == 0 && pathPrefix == "" {
+		return beans
+	}
+
+	var filtered []*bean.Bean
+	for _, b := range beans {
+		// Filter by status
+		if len(statuses) > 0 {
+			matched := false
+			for _, s := range statuses {
+				if b.Status == s {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
+		}
+
+		// Filter by path prefix
+		if pathPrefix != "" && !strings.HasPrefix(b.Path, pathPrefix) {
+			continue
+		}
+
+		filtered = append(filtered, b)
+	}
+	return filtered
 }
 
 func truncate(s string, maxLen int) string {
@@ -73,5 +138,10 @@ func truncate(s string, maxLen int) string {
 }
 
 func init() {
+	listCmd.Flags().BoolVar(&listJSON, "json", false, "Output as JSON")
+	listCmd.Flags().StringArrayVarP(&listStatus, "status", "s", nil, "Filter by status (can be repeated)")
+	listCmd.Flags().StringVarP(&listPath, "path", "p", "", "Filter by path prefix")
+	listCmd.Flags().BoolVarP(&listQuiet, "quiet", "q", false, "Only output IDs (one per line)")
+	listCmd.MarkFlagsMutuallyExclusive("json", "quiet")
 	rootCmd.AddCommand(listCmd)
 }
