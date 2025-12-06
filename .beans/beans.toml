@@ -15,3 +15,19 @@ color = 'yellow'
 name = 'done'
 color = 'gray'
 archive = true
+
+[[types]]
+name = 'task'
+color = 'blue'
+
+[[types]]
+name = 'feature'
+color = 'green'
+
+[[types]]
+name = 'bug'
+color = 'red'
+
+[[types]]
+name = 'epic'
+color = 'purple'
