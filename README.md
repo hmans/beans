@@ -6,28 +6,43 @@ This gives your robot friends a juicy upgrade: now they get a complete view of y
 
 You've been programming all your life; now you get to be a product manager. Let's go! 🚀
 
+## Features
+
+- Beans are just Markdown files stored in a `.beans/` directory in your project. View and edit them directly if you want!
+- Use the `beans` CLI to create, list, view, update, and archive beans; or let your coding agent do it for you!
+- All CLI commands have optional `--json` output for accurate machine readability. Your agent will love it.
+
+This project was inspired by Steve Yegge's great [Beads](https://github.com/steveyegge/beads). The main differences:
+
+- Beans is significantly simpler and more lightweight.
+- Most importantly, your data is just Markdown files, readable and editable by humans and machines alike. No separate databases to sync.
+- It is much more customizable, allowing you to define your own bean types, statuses, and workflows.
+
 ## Installation
 
-### Homebrew
+Either download Beans from the [Releases section](https://github.com/hmans/beans/releases), or install it via Homebrew:
 
 ```bash
 brew install hmans/beans/beans
 ```
 
-## Usage
+Now initialize Beans in your project:
 
 ```bash
-beans init          # Initialize a .beans/ directory
-beans list          # List all beans
-beans show <id>     # Show a bean's contents
-beans create "Title" # Create a new bean
-beans status <id> <status>  # Change status (open, in-progress, done)
-beans archive       # Delete all done beans
+beans init
 ```
 
-All commands support `--json` for machine-readable output.
+Get a list of available commands:
 
-## Using with Claude Code
+```bash
+beans help
+```
+
+But more importantly, get your coding agent set up to use Beans!
+
+## Agent Configuration
+
+### Claude Code
 
 Beans integrates with [Claude Code](https://claude.ai/code) via hooks. Add this to your `.claude/settings.json`:
 
@@ -53,7 +68,7 @@ Beans integrates with [Claude Code](https://claude.ai/code) via hooks. Add this 
 
 This runs `beans prompt` at session start and before context compaction, injecting instructions that teach Claude to use Beans for task tracking instead of its built-in TodoWrite tool.
 
-## Using with other Agents
+### Other Agents
 
 You can use Beans with other coding agents by configuring them to run `beans prompt` to get the prompt instructions for task management. We'll add specific integrations for popular agents over time.
 
