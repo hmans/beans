@@ -56,7 +56,7 @@ var statusCmd = &cobra.Command{
 		if newStatusCfg != nil {
 			newColor = newStatusCfg.Color
 		}
-		isArchive := newStatus == cfg.GetArchiveStatus()
+		isArchive := cfg.IsArchiveStatus(newStatus)
 
 		fmt.Printf("%s %s → %s\n",
 			ui.ID.Render(b.ID),

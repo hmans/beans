@@ -15,8 +15,8 @@ var (
 
 var archiveCmd = &cobra.Command{
 	Use:   "archive",
-	Short: "Delete all beans with the archive status",
-	Long:  `Deletes all beans that have the archive status (default: "done"). Asks for confirmation unless --force is provided.`,
+	Short: "Delete all beans with an archive status",
+	Long:  `Deletes all beans that have a status marked with archive=true in beans.toml. Asks for confirmation unless --force is provided.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		beans, err := store.FindAll()
 		if err != nil {
@@ -26,12 +26,10 @@ var archiveCmd = &cobra.Command{
 			return fmt.Errorf("failed to list beans: %w", err)
 		}
 
-		archiveStatus := cfg.GetArchiveStatus()
-
-		// Find beans with archive status
+		// Find beans with any archive status
 		var archiveBeans []string
 		for _, b := range beans {
-			if b.Status == archiveStatus {
+			if cfg.IsArchiveStatus(b.Status) {
 				archiveBeans = append(archiveBeans, b.ID)
 			}
 		}
@@ -40,7 +38,7 @@ var archiveCmd = &cobra.Command{
 			if archiveJSON {
 				return output.SuccessMessage("No beans to archive")
 			}
-			fmt.Printf("No beans with status '%s' to archive.\n", archiveStatus)
+			fmt.Println("No beans with archive status to archive.")
 			return nil
 		}
 
@@ -48,7 +46,7 @@ var archiveCmd = &cobra.Command{
 		if !archiveForce && !archiveJSON {
 			var confirm bool
 			err := huh.NewConfirm().
-				Title(fmt.Sprintf("Archive %d bean(s) with status '%s'?", len(archiveBeans), archiveStatus)).
+				Title(fmt.Sprintf("Archive %d bean(s)?", len(archiveBeans))).
 				Affirmative("Yes").
 				Negative("No").
 				Value(&confirm).

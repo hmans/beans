@@ -91,7 +91,7 @@ var listCmd = &cobra.Command{
 			if statusCfg != nil {
 				statusColor = statusCfg.Color
 			}
-			isArchive := b.Status == cfg.GetArchiveStatus()
+			isArchive := cfg.IsArchiveStatus(b.Status)
 
 			row := lipgloss.JoinHorizontal(lipgloss.Top,
 				idStyle.Render(ui.ID.Render(b.ID)),

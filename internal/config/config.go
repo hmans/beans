@@ -14,13 +14,14 @@ const ConfigFile = "beans.toml"
 var DefaultStatuses = []StatusConfig{
 	{Name: "open", Color: "green"},
 	{Name: "in-progress", Color: "yellow"},
-	{Name: "done", Color: "gray"},
+	{Name: "done", Color: "gray", Archive: true},
 }
 
 // StatusConfig defines a single status with its display color.
 type StatusConfig struct {
-	Name  string `toml:"name"`
-	Color string `toml:"color"`
+	Name    string `toml:"name"`
+	Color   string `toml:"color"`
+	Archive bool   `toml:"archive,omitempty"`
 }
 
 // Config holds the beans configuration.
@@ -34,7 +35,6 @@ type BeansConfig struct {
 	Prefix        string `toml:"prefix"`
 	IDLength      int    `toml:"id_length"`
 	DefaultStatus string `toml:"default_status,omitempty"`
-	ArchiveStatus string `toml:"archive_status,omitempty"`
 }
 
 // Default returns a Config with default values.
@@ -44,7 +44,6 @@ func Default() *Config {
 			Prefix:        "",
 			IDLength:      4,
 			DefaultStatus: "open",
-			ArchiveStatus: "done",
 		},
 		Statuses: DefaultStatuses,
 	}
@@ -88,9 +87,6 @@ func Load(root string) (*Config, error) {
 	// Apply default status values if not specified
 	if cfg.Beans.DefaultStatus == "" {
 		cfg.Beans.DefaultStatus = cfg.Statuses[0].Name
-	}
-	if cfg.Beans.ArchiveStatus == "" {
-		cfg.Beans.ArchiveStatus = "done"
 	}
 
 	return &cfg, nil
@@ -151,7 +147,10 @@ func (c *Config) GetDefaultStatus() string {
 	return c.Beans.DefaultStatus
 }
 
-// GetArchiveStatus returns the status name used by archive command.
-func (c *Config) GetArchiveStatus() string {
-	return c.Beans.ArchiveStatus
+// IsArchiveStatus returns true if the given status is marked for archiving.
+func (c *Config) IsArchiveStatus(name string) bool {
+	if s := c.GetStatus(name); s != nil {
+		return s.Archive
+	}
+	return false
 }

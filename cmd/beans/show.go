@@ -58,7 +58,7 @@ var showCmd = &cobra.Command{
 		if statusCfg != nil {
 			statusColor = statusCfg.Color
 		}
-		isArchive := b.Status == cfg.GetArchiveStatus()
+		isArchive := cfg.IsArchiveStatus(b.Status)
 
 		var header strings.Builder
 		header.WriteString(ui.ID.Render(b.ID))
