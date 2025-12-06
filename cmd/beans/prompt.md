@@ -26,5 +26,7 @@ All commands support --json for machine-readable output. Use this flag to parse 
 ## Creating new beans
 
 - `beans create --help`
-- When creating new beans, include a useful description. If you're not sure what to write, ask the user.
 - Example: `beans create "Fix login bug" -d "Users cannot log in when..." -s open --no-edit`
+- When creating new beans, include a useful description. If you're not sure what to write, ask the user.
+- Make the description as detailed as possible, similar to a plan that you would create for yourself.
+- If possible, split the work into a checklist of GitHub-Formatted-Markdown tasks. Use a `## Checklist` header to precede it.
