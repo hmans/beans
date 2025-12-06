@@ -17,21 +17,21 @@ All commands support --json for machine-readable output. Use this flag to parse 
 
 ## Finding work
 
-- `beans list --json` to list all beans (bodies not included by default)
-- `beans list --json --include-body` to include full body content
+- `beans list --json` to list all beans (descriptions not included by default)
+- `beans list --json --full` to include full description content
 
 ## Working on a bean
 
 - `beans update <bean-id> --status in-progress --json` to mark a bean as in-progress
-- `beans show <bean-id> --json` to see full details including body
-- Adhere to the instructions in the bean's body when working on it
+- `beans show <bean-id> --json` to see full details including description
+- Adhere to the instructions in the bean's description when working on it
 
 ## Creating new beans
 
 - `beans create --help`
 - Example: `beans create "Fix login bug" -d "Users cannot log in when..." -s open --no-edit`
-- When creating new beans, include a useful body. If you're not sure what to write, ask the user.
-- Make the body as detailed as possible, similar to a plan that you would create for yourself.
+- When creating new beans, include a useful description. If you're not sure what to write, ask the user.
+- Make the description as detailed as possible, similar to a plan that you would create for yourself.
 - If possible, split the work into a checklist of GitHub-Formatted-Markdown tasks. Use a `## Checklist` header to precede it.
 
 ## Cleaning up beans

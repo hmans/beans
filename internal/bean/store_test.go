@@ -71,11 +71,11 @@ func TestSave(t *testing.T) {
 	store, beansDir := setupTestStore(t)
 
 	bean := &Bean{
-		ID:     "abc1",
-		Slug:   "test-bean",
-		Title:  "Test Bean",
-		Status: "open",
-		Body:   "Some content here.",
+		ID:          "abc1",
+		Slug:        "test-bean",
+		Title:       "Test Bean",
+		Status:      "open",
+		Description: "Some content here.",
 	}
 
 	err := store.Save(bean)
@@ -315,11 +315,11 @@ func TestLoadBeanParsesCorrectly(t *testing.T) {
 
 	// Create a bean with specific content
 	original := &Bean{
-		ID:     "load1",
-		Slug:   "load-test",
-		Title:  "Load Test Bean",
-		Status: "in-progress",
-		Body:   "This is the body content.\n\nWith multiple paragraphs.",
+		ID:          "load1",
+		Slug:        "load-test",
+		Title:       "Load Test Bean",
+		Status:      "in-progress",
+		Description: "This is the description content.\n\nWith multiple paragraphs.",
 	}
 	if err := store.Save(original); err != nil {
 		t.Fatalf("Save() error = %v", err)

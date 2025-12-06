@@ -9,12 +9,12 @@ import (
 
 func TestParse(t *testing.T) {
 	tests := []struct {
-		name           string
-		input          string
-		expectedTitle  string
-		expectedStatus string
-		expectedBody   string
-		wantErr        bool
+		name                string
+		input               string
+		expectedTitle       string
+		expectedStatus      string
+		expectedDescription string
+		wantErr             bool
 	}{
 		{
 			name: "basic bean",
@@ -23,10 +23,10 @@ title: Test Bean
 status: open
 ---
 
-This is the body.`,
-			expectedTitle:  "Test Bean",
-			expectedStatus: "open",
-			expectedBody:   "\nThis is the body.",
+This is the description.`,
+			expectedTitle:       "Test Bean",
+			expectedStatus:      "open",
+			expectedDescription: "\nThis is the description.",
 		},
 		{
 			name: "with timestamps",
@@ -37,23 +37,23 @@ created_at: 2024-01-15T10:30:00Z
 updated_at: 2024-01-16T14:45:00Z
 ---
 
-Body content here.`,
-			expectedTitle:  "With Times",
-			expectedStatus: "in-progress",
-			expectedBody:   "\nBody content here.",
+Description content here.`,
+			expectedTitle:       "With Times",
+			expectedStatus:      "in-progress",
+			expectedDescription: "\nDescription content here.",
 		},
 		{
-			name: "empty body",
+			name: "empty description",
 			input: `---
-title: No Body
+title: No Description
 status: done
 ---`,
-			expectedTitle:  "No Body",
-			expectedStatus: "done",
-			expectedBody:   "",
+			expectedTitle:       "No Description",
+			expectedStatus:      "done",
+			expectedDescription: "",
 		},
 		{
-			name: "multiline body",
+			name: "multiline description",
 			input: `---
 title: Multi Line
 status: open
@@ -65,16 +65,16 @@ status: open
 - Item 2
 
 Paragraph text.`,
-			expectedTitle:  "Multi Line",
-			expectedStatus: "open",
-			expectedBody:   "\n# Header\n\n- Item 1\n- Item 2\n\nParagraph text.",
+			expectedTitle:       "Multi Line",
+			expectedStatus:      "open",
+			expectedDescription: "\n# Header\n\n- Item 1\n- Item 2\n\nParagraph text.",
 		},
 		{
 			name: "plain text without frontmatter",
-			input: `Just plain text without any YAML frontmatter.`,
-			expectedTitle:  "",
-			expectedStatus: "",
-			expectedBody:   "Just plain text without any YAML frontmatter.",
+			input:               `Just plain text without any YAML frontmatter.`,
+			expectedTitle:       "",
+			expectedStatus:      "",
+			expectedDescription: "Just plain text without any YAML frontmatter.",
 		},
 	}
 
@@ -97,8 +97,8 @@ Paragraph text.`,
 			if bean.Status != tt.expectedStatus {
 				t.Errorf("Status = %q, want %q", bean.Status, tt.expectedStatus)
 			}
-			if bean.Body != tt.expectedBody {
-				t.Errorf("Body = %q, want %q", bean.Body, tt.expectedBody)
+			if bean.Description != tt.expectedDescription {
+				t.Errorf("Description = %q, want %q", bean.Description, tt.expectedDescription)
 			}
 		})
 	}
@@ -179,14 +179,14 @@ func TestRender(t *testing.T) {
 			},
 		},
 		{
-			name: "with body",
+			name: "with description",
 			bean: &Bean{
-				Title:  "With Body",
-				Status: "done",
-				Body:   "This is content.",
+				Title:       "With Description",
+				Status:      "done",
+				Description: "This is content.",
 			},
 			contains: []string{
-				"title: With Body",
+				"title: With Description",
 				"status: done",
 				"This is content.",
 			},
@@ -253,30 +253,30 @@ func TestParseRenderRoundtrip(t *testing.T) {
 			},
 		},
 		{
-			name: "with body",
+			name: "with description",
 			bean: &Bean{
-				Title:  "Bean With Body",
-				Status: "in-progress",
-				Body:   "This is the body content.\n\nWith multiple paragraphs.",
+				Title:       "Bean With Description",
+				Status:      "in-progress",
+				Description: "This is the description content.\n\nWith multiple paragraphs.",
 			},
 		},
 		{
 			name: "with timestamps",
 			bean: &Bean{
-				Title:     "Timestamped Bean",
-				Status:    "done",
-				CreatedAt: &now,
-				UpdatedAt: &later,
-				Body:      "Some content.",
+				Title:       "Timestamped Bean",
+				Status:      "done",
+				CreatedAt:   &now,
+				UpdatedAt:   &later,
+				Description: "Some content.",
 			},
 		},
 		{
 			name: "with type",
 			bean: &Bean{
-				Title:  "Typed Bean",
-				Status: "open",
-				Type:   "bug",
-				Body:   "Bug description.",
+				Title:       "Typed Bean",
+				Status:      "open",
+				Type:        "bug",
+				Description: "Bug description.",
 			},
 		},
 	}
@@ -306,13 +306,13 @@ func TestParseRenderRoundtrip(t *testing.T) {
 				t.Errorf("Type roundtrip: got %q, want %q", parsed.Type, tt.bean.Type)
 			}
 
-			// Body comparison (parse adds newline prefix for non-empty body)
-			wantBody := tt.bean.Body
-			if wantBody != "" {
-				wantBody = "\n" + wantBody
+			// Description comparison (parse adds newline prefix for non-empty description)
+			wantDescription := tt.bean.Description
+			if wantDescription != "" {
+				wantDescription = "\n" + wantDescription
 			}
-			if parsed.Body != wantBody {
-				t.Errorf("Body roundtrip: got %q, want %q", parsed.Body, wantBody)
+			if parsed.Description != wantDescription {
+				t.Errorf("Description roundtrip: got %q, want %q", parsed.Description, wantDescription)
 			}
 
 			// Timestamp comparison
@@ -335,12 +335,12 @@ func TestParseRenderRoundtrip(t *testing.T) {
 }
 
 func TestBeanJSONSerialization(t *testing.T) {
-	t.Run("body omitted when empty", func(t *testing.T) {
+	t.Run("description omitted when empty", func(t *testing.T) {
 		bean := &Bean{
-			ID:     "test-123",
-			Title:  "Test Bean",
-			Status: "open",
-			Body:   "",
+			ID:          "test-123",
+			Title:       "Test Bean",
+			Status:      "open",
+			Description: "",
 		}
 
 		data, err := json.Marshal(bean)
@@ -349,17 +349,17 @@ func TestBeanJSONSerialization(t *testing.T) {
 		}
 
 		jsonStr := string(data)
-		if strings.Contains(jsonStr, `"body"`) {
-			t.Errorf("JSON should not contain 'body' field when empty, got: %s", jsonStr)
+		if strings.Contains(jsonStr, `"description"`) {
+			t.Errorf("JSON should not contain 'description' field when empty, got: %s", jsonStr)
 		}
 	})
 
-	t.Run("body included when non-empty", func(t *testing.T) {
+	t.Run("description included when non-empty", func(t *testing.T) {
 		bean := &Bean{
-			ID:     "test-123",
-			Title:  "Test Bean",
-			Status: "open",
-			Body:   "This is the body content.",
+			ID:          "test-123",
+			Title:       "Test Bean",
+			Status:      "open",
+			Description: "This is the description content.",
 		}
 
 		data, err := json.Marshal(bean)
@@ -368,8 +368,8 @@ func TestBeanJSONSerialization(t *testing.T) {
 		}
 
 		jsonStr := string(data)
-		if !strings.Contains(jsonStr, `"body":"This is the body content."`) {
-			t.Errorf("JSON should contain 'body' field with content, got: %s", jsonStr)
+		if !strings.Contains(jsonStr, `"description":"This is the description content."`) {
+			t.Errorf("JSON should contain 'description' field with content, got: %s", jsonStr)
 		}
 	})
 }

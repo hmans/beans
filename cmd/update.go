@@ -85,7 +85,7 @@ Use flags to specify which properties to update:
 				}
 				return err
 			}
-			b.Body = body
+			b.Description = body
 			changes = append(changes, "description")
 		}
 

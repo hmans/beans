@@ -112,7 +112,7 @@ var createCmd = &cobra.Command{
 			Title:  title,
 			Status: status,
 			Type:   beanType,
-			Body:   description,
+			Description: description,
 		}
 
 		// Set path if provided
