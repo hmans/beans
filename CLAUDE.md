@@ -20,9 +20,35 @@ This is going to be a small CLI app that interacts with a .beans/ directory that
 - Each bean is a markdown file with front matter.
 - The front matter contains metadata about the bean, including:
   - `title`: a human-readable, one-line title for the bean
-  - `status`: one of `open`, `in-progress`, or `done`
+  - `status`: must be one of the statuses defined in `beans.toml`
   - `created_at`: timestamp of when the bean was created
   - `updated_at`: timestamp of the last update to the bean
+
+# Configuration
+
+The `.beans/beans.toml` file configures the project:
+
+```toml
+[beans]
+prefix = 'myapp-'        # prefix for generated IDs
+id_length = 4            # length of the random ID portion
+default_status = 'open'  # status for new beans
+
+[[statuses]]
+name = 'open'
+color = 'green'
+
+[[statuses]]
+name = 'in-progress'
+color = 'yellow'
+
+[[statuses]]
+name = 'done'
+color = 'gray'
+archive = true  # cleaned up by `beans archive`
+```
+
+Colors can be named (`green`, `yellow`, `red`, `gray`, `blue`, `purple`) or hex codes (`#FF6B6B`).
 
 # CLI Commands
 
@@ -32,7 +58,8 @@ This is going to be a small CLI app that interacts with a .beans/ directory that
 - `beans create "Title"` - Create a new bean (supports `-d`, `-s`, `--no-edit` flags)
 - `beans status <id> <status>` - Change a bean's status
 - `beans delete <id>` - Delete a bean
-- `beans archive` - Delete all beans with status `done`
+- `beans archive` - Delete all beans with an archive status (`archive = true`)
+- `beans check` - Validate `beans.toml` configuration
 - `beans prompt` - Output instructions for AI coding agents
 
 All commands support `--json` for machine-readable output.

@@ -39,6 +39,16 @@ func ResolveColor(color string) lipgloss.Color {
 	return ColorMuted
 }
 
+// IsValidColor returns true if the color is a valid named color or hex code.
+func IsValidColor(color string) bool {
+	if strings.HasPrefix(color, "#") {
+		// Valid hex: #RGB or #RRGGBB
+		return len(color) == 4 || len(color) == 7
+	}
+	_, ok := NamedColors[strings.ToLower(color)]
+	return ok
+}
+
 // Status badge styles (for inline use, like in show command)
 var (
 	StatusOpen = lipgloss.NewStyle().
