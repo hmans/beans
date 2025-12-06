@@ -57,6 +57,12 @@ homebrew_casks:
     homepage: "https://github.com/hmans/beans"
     description: "Agentic-first issue tracker"
     license: "Apache-2.0"
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/beans"]
+          end
 
 release:
   footer: >-
