@@ -127,7 +127,11 @@ func sortBeans(beans []*bean.Bean, sortBy string) {
 			return beans[i].UpdatedAt.After(*beans[j].UpdatedAt)
 		})
 	case "status":
-		statusOrder := map[string]int{"in-progress": 0, "open": 1, "done": 2}
+		// Build status order from config
+		statusOrder := make(map[string]int)
+		for i, s := range cfg.Statuses.Available {
+			statusOrder[s] = i
+		}
 		sort.Slice(beans, func(i, j int) bool {
 			oi, oj := statusOrder[beans[i].Status], statusOrder[beans[j].Status]
 			if oi != oj {
@@ -186,7 +190,7 @@ func init() {
 	listCmd.Flags().StringArrayVarP(&listStatus, "status", "s", nil, "Filter by status (can be repeated)")
 	listCmd.Flags().StringVarP(&listPath, "path", "p", "", "Filter by path prefix")
 	listCmd.Flags().BoolVarP(&listQuiet, "quiet", "q", false, "Only output IDs (one per line)")
-	listCmd.Flags().StringVar(&listSort, "sort", "", "Sort by: created, updated, status, path (default: path)")
+	listCmd.Flags().StringVar(&listSort, "sort", "status", "Sort by: created, updated, status, path (default: status)")
 	listCmd.MarkFlagsMutuallyExclusive("json", "quiet")
 	rootCmd.AddCommand(listCmd)
 }
