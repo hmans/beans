@@ -17,6 +17,14 @@ var DefaultStatuses = []StatusConfig{
 	{Name: "done", Color: "gray", Archive: true},
 }
 
+// DefaultTypes defines the default type configuration.
+var DefaultTypes = []TypeConfig{
+	{Name: "task", Color: "blue"},
+	{Name: "feature", Color: "green"},
+	{Name: "bug", Color: "red"},
+	{Name: "epic", Color: "purple"},
+}
+
 // StatusConfig defines a single status with its display color.
 type StatusConfig struct {
 	Name    string `toml:"name"`
@@ -24,10 +32,17 @@ type StatusConfig struct {
 	Archive bool   `toml:"archive,omitempty"`
 }
 
+// TypeConfig defines a single bean type with its display color.
+type TypeConfig struct {
+	Name  string `toml:"name"`
+	Color string `toml:"color"`
+}
+
 // Config holds the beans configuration.
 type Config struct {
 	Beans    BeansConfig    `toml:"beans"`
 	Statuses []StatusConfig `toml:"statuses"`
+	Types    []TypeConfig   `toml:"types,omitempty"`
 }
 
 // BeansConfig defines settings for bean creation.
@@ -46,6 +61,7 @@ func Default() *Config {
 			DefaultStatus: "open",
 		},
 		Statuses: DefaultStatuses,
+		Types:    DefaultTypes,
 	}
 }
 
@@ -82,6 +98,11 @@ func Load(root string) (*Config, error) {
 	// Apply default statuses if none defined
 	if len(cfg.Statuses) == 0 {
 		cfg.Statuses = DefaultStatuses
+	}
+
+	// Apply default types if none defined
+	if len(cfg.Types) == 0 {
+		cfg.Types = DefaultTypes
 	}
 
 	// Apply default status values if not specified
@@ -153,4 +174,42 @@ func (c *Config) IsArchiveStatus(name string) bool {
 		return s.Archive
 	}
 	return false
+}
+
+// GetType returns the TypeConfig for a given type name, or nil if not found.
+func (c *Config) GetType(name string) *TypeConfig {
+	for i := range c.Types {
+		if c.Types[i].Name == name {
+			return &c.Types[i]
+		}
+	}
+	return nil
+}
+
+// TypeNames returns a slice of configured type names.
+func (c *Config) TypeNames() []string {
+	names := make([]string, len(c.Types))
+	for i, t := range c.Types {
+		names[i] = t.Name
+	}
+	return names
+}
+
+// IsValidType returns true if the type is in the config's allowed list.
+func (c *Config) IsValidType(typeName string) bool {
+	for _, t := range c.Types {
+		if t.Name == typeName {
+			return true
+		}
+	}
+	return false
+}
+
+// TypeList returns a comma-separated list of valid types.
+func (c *Config) TypeList() string {
+	names := make([]string, len(c.Types))
+	for i, t := range c.Types {
+		names[i] = t.Name
+	}
+	return strings.Join(names, ", ")
 }

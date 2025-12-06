@@ -21,6 +21,9 @@ func TestDefault(t *testing.T) {
 	if len(cfg.Statuses) != 3 {
 		t.Errorf("len(Statuses) = %d, want 3", len(cfg.Statuses))
 	}
+	if len(cfg.Types) != 4 {
+		t.Errorf("len(Types) = %d, want 4", len(cfg.Types))
+	}
 }
 
 func TestDefaultWithPrefix(t *testing.T) {
@@ -271,5 +274,122 @@ func TestCustomStatuses(t *testing.T) {
 	s := cfg.GetStatus("active")
 	if s == nil || s.Color != "#FF6B6B" {
 		t.Error("Custom hex color not preserved")
+	}
+}
+
+func TestIsValidType(t *testing.T) {
+	cfg := Default()
+
+	tests := []struct {
+		typeName string
+		want     bool
+	}{
+		{"task", true},
+		{"feature", true},
+		{"bug", true},
+		{"epic", true},
+		{"invalid", false},
+		{"", false},
+		{"TASK", false}, // case sensitive
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.typeName, func(t *testing.T) {
+			got := cfg.IsValidType(tt.typeName)
+			if got != tt.want {
+				t.Errorf("IsValidType(%q) = %v, want %v", tt.typeName, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTypeList(t *testing.T) {
+	cfg := Default()
+	got := cfg.TypeList()
+	want := "task, feature, bug, epic"
+
+	if got != want {
+		t.Errorf("TypeList() = %q, want %q", got, want)
+	}
+}
+
+func TestGetType(t *testing.T) {
+	cfg := &Config{
+		Types: []TypeConfig{
+			{Name: "bug", Color: "red"},
+			{Name: "feature", Color: "green"},
+			{Name: "epic", Color: "purple"},
+		},
+	}
+
+	t.Run("existing type", func(t *testing.T) {
+		typ := cfg.GetType("bug")
+		if typ == nil {
+			t.Fatal("GetType(\"bug\") = nil, want non-nil")
+		}
+		if typ.Name != "bug" {
+			t.Errorf("Name = %q, want \"bug\"", typ.Name)
+		}
+		if typ.Color != "red" {
+			t.Errorf("Color = %q, want \"red\"", typ.Color)
+		}
+	})
+
+	t.Run("non-existing type", func(t *testing.T) {
+		// Backwards compatibility: GetType returns nil for unknown types
+		// but this should not cause errors - callers handle nil gracefully
+		typ := cfg.GetType("deprecated-type-no-longer-in-config")
+		if typ != nil {
+			t.Errorf("GetType(\"deprecated-type-no-longer-in-config\") = %v, want nil", typ)
+		}
+	})
+
+	t.Run("default types config", func(t *testing.T) {
+		defaultCfg := Default()
+		typ := defaultCfg.GetType("bug")
+		if typ == nil {
+			t.Fatal("GetType(\"bug\") on default config = nil, want non-nil")
+		}
+		if typ.Color != "red" {
+			t.Errorf("bug color = %q, want \"red\"", typ.Color)
+		}
+	})
+}
+
+func TestTypesConfig(t *testing.T) {
+	// Create temp directory
+	tmpDir := t.TempDir()
+
+	// Create a config with types
+	cfg := &Config{
+		Beans: BeansConfig{
+			Prefix:        "test-",
+			IDLength:      4,
+			DefaultStatus: "open",
+		},
+		Statuses: DefaultStatuses,
+		Types: []TypeConfig{
+			{Name: "bug", Color: "red"},
+			{Name: "feature", Color: "blue"},
+		},
+	}
+
+	// Save it
+	if err := cfg.Save(tmpDir); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	// Load it back
+	loaded, err := Load(tmpDir)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Verify types were preserved
+	if len(loaded.Types) != 2 {
+		t.Errorf("len(Types) = %d, want 2", len(loaded.Types))
+	}
+	if loaded.Types[0].Name != "bug" || loaded.Types[0].Color != "red" {
+		t.Errorf("Types[0] = %+v, want {Name:bug Color:red}", loaded.Types[0])
 	}
 }

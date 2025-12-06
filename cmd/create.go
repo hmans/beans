@@ -15,6 +15,7 @@ import (
 
 var (
 	createStatus          string
+	createType            string
 	createDescription     string
 	createDescriptionFile string
 	createNoEdit          bool
@@ -41,6 +42,14 @@ var createCmd = &cobra.Command{
 			status = cfg.GetDefaultStatus()
 		}
 
+		// Validate type if provided
+		if createType != "" && !cfg.IsValidType(createType) {
+			if createJSON {
+				return output.Error(output.ErrValidation, fmt.Sprintf("invalid type: %s (must be %s)", createType, cfg.TypeList()))
+			}
+			return fmt.Errorf("invalid type: %s (must be %s)", createType, cfg.TypeList())
+		}
+
 		// Determine description content
 		description, err := resolveContent(createDescription, createDescriptionFile)
 		if err != nil {
@@ -51,7 +60,10 @@ var createCmd = &cobra.Command{
 		}
 
 		// Check if we're in scripting mode (any flag that suggests non-interactive use)
-		scriptingMode := createDescription != "" || createDescriptionFile != "" || createJSON || createNoEdit || cmd.Flags().Changed("status")
+		scriptingMode := createDescription != "" || createDescriptionFile != "" || createJSON || createNoEdit || cmd.Flags().Changed("status") || cmd.Flags().Changed("type")
+
+		// Track the type selection (use flag value if provided)
+		beanType := createType
 
 		// If no title provided and not in scripting mode, show interactive form
 		if title == "" && !scriptingMode {
@@ -59,6 +71,12 @@ var createCmd = &cobra.Command{
 			var statusOptions []huh.Option[string]
 			for _, s := range cfg.StatusNames() {
 				statusOptions = append(statusOptions, huh.NewOption(formatStatusLabel(s), s))
+			}
+
+			// Build type options
+			var typeOptions []huh.Option[string]
+			for _, t := range cfg.TypeNames() {
+				typeOptions = append(typeOptions, huh.NewOption(formatStatusLabel(t), t))
 			}
 
 			form := huh.NewForm(
@@ -72,6 +90,10 @@ var createCmd = &cobra.Command{
 						Title("Status").
 						Options(statusOptions...).
 						Value(&status),
+					huh.NewSelect[string]().
+						Title("Type").
+						Options(typeOptions...).
+						Value(&beanType),
 				),
 			)
 
@@ -89,6 +111,7 @@ var createCmd = &cobra.Command{
 			Slug:   bean.Slugify(title),
 			Title:  title,
 			Status: status,
+			Type:   beanType,
 			Body:   description,
 		}
 
@@ -145,6 +168,7 @@ func formatStatusLabel(status string) string {
 
 func init() {
 	createCmd.Flags().StringVarP(&createStatus, "status", "s", "", "Initial status (open, in-progress, done)")
+	createCmd.Flags().StringVarP(&createType, "type", "t", "", "Bean type (e.g., task, bug, epic)")
 	createCmd.Flags().StringVarP(&createDescription, "description", "d", "", "Description content (use '-' to read from stdin)")
 	createCmd.Flags().StringVar(&createDescriptionFile, "description-file", "", "Read description from file")
 	createCmd.Flags().BoolVar(&createNoEdit, "no-edit", false, "Skip opening $EDITOR")

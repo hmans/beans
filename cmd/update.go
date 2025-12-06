@@ -12,6 +12,7 @@ import (
 
 var (
 	updateStatus          string
+	updateType            string
 	updateTitle           string
 	updateDescription     string
 	updateDescriptionFile string
@@ -26,6 +27,7 @@ var updateCmd = &cobra.Command{
 
 Use flags to specify which properties to update:
   --status        Change the status
+  --type          Change the type
   --title         Change the title
   --description   Change the description (use '-' to read from stdin)`,
 	Args: cobra.ExactArgs(1),
@@ -56,6 +58,18 @@ Use flags to specify which properties to update:
 			changes = append(changes, "status")
 		}
 
+		// Update type if provided
+		if cmd.Flags().Changed("type") {
+			if !cfg.IsValidType(updateType) {
+				if updateJSON {
+					return output.Error(output.ErrValidation, fmt.Sprintf("invalid type: %s (must be %s)", updateType, cfg.TypeList()))
+				}
+				return fmt.Errorf("invalid type: %s (must be %s)", updateType, cfg.TypeList())
+			}
+			b.Type = updateType
+			changes = append(changes, "type")
+		}
+
 		// Update title if provided
 		if cmd.Flags().Changed("title") {
 			b.Title = updateTitle
@@ -80,7 +94,7 @@ Use flags to specify which properties to update:
 			if updateJSON {
 				return output.Error(output.ErrValidation, "no changes specified")
 			}
-			return fmt.Errorf("no changes specified (use --status, --title, or --description)")
+			return fmt.Errorf("no changes specified (use --status, --type, --title, or --description)")
 		}
 
 		// Save the bean
@@ -119,6 +133,7 @@ Use flags to specify which properties to update:
 
 func init() {
 	updateCmd.Flags().StringVarP(&updateStatus, "status", "s", "", "New status")
+	updateCmd.Flags().StringVar(&updateType, "type", "", "New type (e.g., task, bug, epic)")
 	updateCmd.Flags().StringVarP(&updateTitle, "title", "t", "", "New title")
 	updateCmd.Flags().StringVarP(&updateDescription, "description", "d", "", "New description (use '-' to read from stdin)")
 	updateCmd.Flags().StringVar(&updateDescriptionFile, "description-file", "", "Read description from file")

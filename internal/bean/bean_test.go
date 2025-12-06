@@ -103,6 +103,60 @@ Paragraph text.`,
 	}
 }
 
+func TestParseWithType(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        string
+		expectedType string
+	}{
+		{
+			name: "with type field",
+			input: `---
+title: Bug Report
+status: open
+type: bug
+---
+
+Description of the bug.`,
+			expectedType: "bug",
+		},
+		{
+			name: "without type field",
+			input: `---
+title: No Type
+status: open
+---
+
+No type specified.`,
+			expectedType: "",
+		},
+		{
+			// Backwards compatibility: beans with types not in current config
+			// should still be readable without error
+			name: "with unknown type (backwards compatibility)",
+			input: `---
+title: Legacy Bean
+status: open
+type: deprecated-type-no-longer-in-config
+---`,
+			expectedType: "deprecated-type-no-longer-in-config",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bean, err := Parse(strings.NewReader(tt.input))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if bean.Type != tt.expectedType {
+				t.Errorf("Type = %q, want %q", bean.Type, tt.expectedType)
+			}
+		})
+	}
+}
+
 func TestRender(t *testing.T) {
 	now := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
 
@@ -148,6 +202,19 @@ func TestRender(t *testing.T) {
 				"title: Timed",
 				"created_at:",
 				"updated_at:",
+			},
+		},
+		{
+			name: "with type",
+			bean: &Bean{
+				Title:  "Typed Bean",
+				Status: "open",
+				Type:   "bug",
+			},
+			contains: []string{
+				"title: Typed Bean",
+				"status: open",
+				"type: bug",
 			},
 		},
 	}
@@ -202,6 +269,15 @@ func TestParseRenderRoundtrip(t *testing.T) {
 				Body:      "Some content.",
 			},
 		},
+		{
+			name: "with type",
+			bean: &Bean{
+				Title:  "Typed Bean",
+				Status: "open",
+				Type:   "bug",
+				Body:   "Bug description.",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -224,6 +300,9 @@ func TestParseRenderRoundtrip(t *testing.T) {
 			}
 			if parsed.Status != tt.bean.Status {
 				t.Errorf("Status roundtrip: got %q, want %q", parsed.Status, tt.bean.Status)
+			}
+			if parsed.Type != tt.bean.Type {
+				t.Errorf("Type roundtrip: got %q, want %q", parsed.Type, tt.bean.Type)
 			}
 
 			// Body comparison (parse adds newline prefix for non-empty body)

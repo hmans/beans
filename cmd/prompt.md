@@ -7,13 +7,13 @@ All commands support --json for machine-readable output. Use this flag to parse 
 
 ## Core Rules
 
+- After compaction or clear, run `beans prompt` to re-sync
 - Track ALL work using beans (no TodoWrite tool, no markdown TODOs). If you identify something that should be tracked, create a bean for it.
 - All bean commands support the `--json` flag for machine-readable output.
 - Use `beans create` to create issues, not TodoWrite tool
-- Never interact with the data inside the `.beans/` directory directly, except for updating an existing bean.
-- After compaction or clear, run `beans prompt` to re-sync
 - When completing work, mark the bean as done using `beans update <bean-id> --status done`. If you're about to create a commit, do this first.
-- Lean towards using sub-agents for interacting with beans
+- Lean towards using sub-agents for interacting with beans.
+- You can inspect `.beans/beans.toml` to learn about the different issue types and statuses configured for this project.
 
 ## Finding work
 

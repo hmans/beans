@@ -1,9 +1,11 @@
 ---
 title: Add issue type field
-status: open
+status: done
 created_at: 2025-12-06T22:04:38Z
-updated_at: 2025-12-06T22:04:38Z
+updated_at: 2025-12-06T22:11:32Z
 ---
+
+
 
 Add a `type` field to bean frontmatter for categorizing beans (task, bug, epic, etc.).
 

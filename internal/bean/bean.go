@@ -22,6 +22,7 @@ type Bean struct {
 	// Front matter fields
 	Title     string     `yaml:"title" json:"title"`
 	Status    string     `yaml:"status" json:"status"`
+	Type      string     `yaml:"type,omitempty" json:"type,omitempty"`
 	CreatedAt *time.Time `yaml:"created_at,omitempty" json:"created_at,omitempty"`
 	UpdatedAt *time.Time `yaml:"updated_at,omitempty" json:"updated_at,omitempty"`
 
@@ -33,6 +34,7 @@ type Bean struct {
 type frontMatter struct {
 	Title     string     `yaml:"title"`
 	Status    string     `yaml:"status"`
+	Type      string     `yaml:"type,omitempty"`
 	CreatedAt *time.Time `yaml:"created_at,omitempty"`
 	UpdatedAt *time.Time `yaml:"updated_at,omitempty"`
 }
@@ -48,6 +50,7 @@ func Parse(r io.Reader) (*Bean, error) {
 	return &Bean{
 		Title:     fm.Title,
 		Status:    fm.Status,
+		Type:      fm.Type,
 		CreatedAt: fm.CreatedAt,
 		UpdatedAt: fm.UpdatedAt,
 		Body:      string(body),
@@ -59,6 +62,7 @@ func (b *Bean) Render() ([]byte, error) {
 	fm := frontMatter{
 		Title:     b.Title,
 		Status:    b.Status,
+		Type:      b.Type,
 		CreatedAt: b.CreatedAt,
 		UpdatedAt: b.UpdatedAt,
 	}
