@@ -21,8 +21,8 @@ All commands support --json for machine-readable output. Use this flag to parse 
 
 ## Working on a bean
 
-- `beans update <bean-id> --status in-progress` to mark a bean as in-progress
-- `beans show <bean-id>` to see details about a bean
+- `beans update <bean-id> --status in-progress --json` to mark a bean as in-progress
+- `beans show <bean-id> --json` to see details about a bean
 - Adhere to the instructions in the bean's descriptions when working on it
 
 ## Creating new beans
