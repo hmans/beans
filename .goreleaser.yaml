@@ -43,21 +43,28 @@ archives:
 
 changelog:
   sort: asc
+  use: github
   filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
-      - "^data:"
+    # Only include conventional commits (feat, fix, perf, refactor)
+    # This filters out non-conventional commits from merged branches
+    include:
+      - "^feat"
+      - "^fix"
+      - "^perf"
+      - "^refactor"
   groups:
     - title: "⚠️ Breaking Changes"
-      regexp: '^.*?[[:word:]]+(\([[:word:]]+\))?!:.+$'
+      regexp: "!:"
       order: 0
     - title: Features
-      regexp: '^.*?feat(\([[:word:]]+\))??:.+$'
+      regexp: "^feat"
       order: 1
     - title: Bug Fixes
-      regexp: '^.*?fix(\([[:word:]]+\))??:.+$'
+      regexp: "^fix"
       order: 2
+    - title: Performance
+      regexp: "^perf"
+      order: 3
     - title: Other
       order: 999
 
