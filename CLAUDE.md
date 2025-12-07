@@ -32,7 +32,7 @@ This is going to be a small CLI app that interacts with a .beans/ directory that
 ## Manual CLI Testing
 
 - Use `go run .` instead of building the executable first.
-- All commands support the `--beans-path` flag to specify a custom path to the `.beans/` directory. Use this for testing (instead of spamming the real `.beans/` directory).
+- When testing read-only functionality, feel free to use this project's own `.beans/` directory. But for anything that modifies data, create a separate test project directory. All commands support the `--beans-path` flag to specify a custom path.
 
 # Releasing
 
