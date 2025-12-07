@@ -17,7 +17,7 @@ You've been programming all your life; now you get to be a product manager. Let'
 
 This project was inspired by Steve Yegge's great [Beads](https://github.com/steveyegge/beads). The main differences:
 
-- Beans is significantly simpler and more lightweight.
+- Beans is significantly simpler and more lightweight. Its simplicity is a feature.
 - Most importantly, your data is just Markdown files, readable and editable by humans and machines alike. No separate databases to sync.
 - It is much more customizable, allowing you to define your own bean types, statuses, and workflows.
 
