@@ -65,7 +65,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case selectBeanMsg:
 		a.state = viewDetail
-		a.detail = newDetailModel(msg.bean, a.config, a.width, a.height)
+		a.detail = newDetailModel(msg.bean, a.store, a.config, a.width, a.height)
 		return a, a.detail.Init()
 
 	case backToListMsg:

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -16,29 +17,53 @@ import (
 // backToListMsg signals navigation back to the list
 type backToListMsg struct{}
 
-// detailModel displays a single bean's details
-type detailModel struct {
-	viewport viewport.Model
+// resolvedLink represents a link with the target bean resolved
+type resolvedLink struct {
+	linkType string
 	bean     *bean.Bean
-	config   *config.Config
-	width    int
-	height   int
-	ready    bool
+	incoming bool // true if another bean links TO this one
 }
 
-func newDetailModel(b *bean.Bean, cfg *config.Config, width, height int) detailModel {
-	headerHeight := 6
+// detailModel displays a single bean's details
+type detailModel struct {
+	viewport     viewport.Model
+	bean         *bean.Bean
+	store        *bean.Store
+	config       *config.Config
+	width        int
+	height       int
+	ready        bool
+	links        []resolvedLink // combined outgoing + incoming links
+	selectedLink int            // -1 = none selected, 0+ = index in links
+	linksActive  bool           // true = links section focused
+}
+
+func newDetailModel(b *bean.Bean, store *bean.Store, cfg *config.Config, width, height int) detailModel {
+	m := detailModel{
+		bean:         b,
+		store:        store,
+		config:       cfg,
+		width:        width,
+		height:       height,
+		ready:        true,
+		selectedLink: -1,
+		linksActive:  false,
+	}
+
+	// Resolve all links
+	m.links = m.resolveAllLinks()
+
+	// If there are links, select first one by default
+	if len(m.links) > 0 {
+		m.selectedLink = 0
+		m.linksActive = true
+	}
+
+	// Calculate header height dynamically
+	headerHeight := m.calculateHeaderHeight()
 	footerHeight := 2
 	vpWidth := width - 4
 	vpHeight := height - headerHeight - footerHeight
-
-	m := detailModel{
-		bean:   b,
-		config: cfg,
-		width:  width,
-		height: height,
-		ready:  true,
-	}
 
 	m.viewport = viewport.New(vpWidth, vpHeight)
 	m.viewport.SetContent(m.renderBody(vpWidth))
@@ -58,7 +83,7 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-		headerHeight := 6
+		headerHeight := m.calculateHeaderHeight()
 		footerHeight := 2
 		vpWidth := msg.Width - 4
 		vpHeight := msg.Height - headerHeight - footerHeight
@@ -79,10 +104,48 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 			return m, func() tea.Msg {
 				return backToListMsg{}
 			}
+
+		case "tab":
+			// Toggle focus between links and body
+			if len(m.links) > 0 {
+				m.linksActive = !m.linksActive
+				if m.linksActive && m.selectedLink < 0 {
+					m.selectedLink = 0
+				}
+			}
+			return m, nil
+
+		case "enter":
+			// Navigate to selected link
+			if m.linksActive && m.selectedLink >= 0 && m.selectedLink < len(m.links) {
+				targetBean := m.links[m.selectedLink].bean
+				return m, func() tea.Msg {
+					return selectBeanMsg{bean: targetBean}
+				}
+			}
+
+		case "up", "k":
+			if m.linksActive && len(m.links) > 0 {
+				if m.selectedLink > 0 {
+					m.selectedLink--
+				}
+				return m, nil
+			}
+
+		case "down", "j":
+			if m.linksActive && len(m.links) > 0 {
+				if m.selectedLink < len(m.links)-1 {
+					m.selectedLink++
+				}
+				return m, nil
+			}
 		}
 	}
 
-	m.viewport, cmd = m.viewport.Update(msg)
+	// Only forward to viewport if links are not active
+	if !m.linksActive {
+		m.viewport, cmd = m.viewport.Update(msg)
+	}
 	return m, cmd
 }
 
@@ -95,24 +158,64 @@ func (m detailModel) View() string {
 	header := m.renderHeader()
 
 	// Body
+	bodyBorderColor := ui.ColorMuted
+	if !m.linksActive {
+		bodyBorderColor = ui.ColorPrimary
+	}
 	bodyBorder := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(ui.ColorMuted).
+		BorderForeground(bodyBorderColor).
 		Width(m.width - 4)
 	body := bodyBorder.Render(m.viewport.View())
 
 	// Footer
 	scrollPct := int(m.viewport.ScrollPercent() * 100)
-	footer := helpStyle.Render(fmt.Sprintf("%d%%", scrollPct)) + "  " +
-		helpKeyStyle.Render("j/k") + " " + helpStyle.Render("scroll") + "  " +
+	footer := helpStyle.Render(fmt.Sprintf("%d%%", scrollPct)) + "  "
+	if len(m.links) > 0 {
+		footer += helpKeyStyle.Render("tab") + " " + helpStyle.Render("switch") + "  "
+		footer += helpKeyStyle.Render("enter") + " " + helpStyle.Render("go to") + "  "
+	}
+	footer += helpKeyStyle.Render("j/k") + " " + helpStyle.Render("scroll") + "  " +
 		helpKeyStyle.Render("esc") + " " + helpStyle.Render("back") + "  " +
 		helpKeyStyle.Render("q") + " " + helpStyle.Render("quit")
 
 	return header + "\n" + body + "\n" + footer
 }
 
+func (m detailModel) calculateHeaderHeight() int {
+	// Base: title line + ID/status line + borders/padding = ~6
+	baseHeight := 6
+
+	// Add lines for links
+	if len(m.links) > 0 {
+		// Count outgoing and incoming separately
+		outgoing := 0
+		incoming := 0
+		for _, l := range m.links {
+			if l.incoming {
+				incoming++
+			} else {
+				outgoing++
+			}
+		}
+
+		// Add link lines
+		baseHeight += outgoing + incoming
+
+		// Add separator if we have both types
+		if outgoing > 0 && incoming > 0 {
+			baseHeight += 1
+		}
+
+		// Add top separator
+		baseHeight += 1
+	}
+
+	return baseHeight
+}
+
 func (m detailModel) renderHeader() string {
-	// Title badge
+	// Title
 	title := detailTitleStyle.Render(m.bean.Title)
 
 	// ID
@@ -127,19 +230,225 @@ func (m detailModel) renderHeader() string {
 	isArchive := m.config.IsArchiveStatus(m.bean.Status)
 	status := ui.RenderStatusWithColor(m.bean.Status, statusColor, isArchive)
 
-	// Header box
-	headerContent := title + "\n" + id + "  " + status
+	// Build header content
+	var headerContent strings.Builder
+	headerContent.WriteString(title)
+	headerContent.WriteString("\n")
+	headerContent.WriteString(id + "  " + status)
+
+	// Add relationships section if there are any
+	if len(m.links) > 0 {
+		headerContent.WriteString("\n")
+		headerContent.WriteString(ui.Muted.Render(strings.Repeat("─", m.width-8)))
+		headerContent.WriteString("\n")
+		headerContent.WriteString(m.renderLinks())
+	}
+
+	// Header box - highlight border when links are active
+	borderColor := ui.ColorMuted
+	if m.linksActive {
+		borderColor = ui.ColorPrimary
+	}
+
 	headerBox := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(ui.ColorPrimary).
+		BorderForeground(borderColor).
 		Padding(0, 1).
 		Width(m.width - 4)
 
-	return headerBox.Render(headerContent)
+	return headerBox.Render(headerContent.String())
+}
+
+func (m detailModel) renderLinks() string {
+	if len(m.links) == 0 {
+		return ""
+	}
+
+	var lines []string
+	currentIndex := 0
+
+	// Render outgoing links first
+	for _, link := range m.links {
+		if link.incoming {
+			continue
+		}
+		lines = append(lines, m.renderLinkLine(link, currentIndex))
+		currentIndex++
+	}
+
+	// Count incoming for separator
+	hasIncoming := false
+	for _, link := range m.links {
+		if link.incoming {
+			hasIncoming = true
+			break
+		}
+	}
+
+	// Add separator between outgoing and incoming
+	if len(lines) > 0 && hasIncoming {
+		lines = append(lines, ui.Muted.Render(strings.Repeat("─", m.width-8)))
+	}
+
+	// Render incoming links
+	for _, link := range m.links {
+		if !link.incoming {
+			continue
+		}
+		lines = append(lines, m.renderLinkLine(link, currentIndex))
+		currentIndex++
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func (m detailModel) renderLinkLine(link resolvedLink, index int) string {
+	// Cursor indicator
+	cursor := "  "
+	if m.linksActive && index == m.selectedLink {
+		cursor = ui.Primary.Render("▸ ")
+	}
+
+	// Format the link type label
+	label := m.formatLinkLabel(link.linkType, link.incoming)
+
+	// Build the line
+	line := cursor +
+		ui.Muted.Render(label+": ") +
+		ui.ID.Render(link.bean.ID) +
+		ui.Muted.Render(" - ") +
+		link.bean.Title
+
+	return line
+}
+
+// formatLinkLabel returns a human-readable label for the link type
+func (m detailModel) formatLinkLabel(linkType string, incoming bool) string {
+	if incoming {
+		switch linkType {
+		case "blocks":
+			return "Blocked by"
+		case "parent":
+			return "Child"
+		case "duplicates":
+			return "Duplicated by"
+		case "related":
+			return "Related"
+		default:
+			return linkType + " (incoming)"
+		}
+	}
+
+	// Outgoing labels - capitalize first letter
+	switch linkType {
+	case "blocks":
+		return "Blocks"
+	case "parent":
+		return "Parent"
+	case "duplicates":
+		return "Duplicates"
+	case "related":
+		return "Related"
+	default:
+		return linkType
+	}
+}
+
+func (m detailModel) resolveAllLinks() []resolvedLink {
+	var links []resolvedLink
+
+	// Resolve outgoing links (this bean links to others)
+	outgoing := m.resolveOutgoingLinks()
+	links = append(links, outgoing...)
+
+	// Resolve incoming links (other beans link to this one)
+	incoming := m.resolveIncomingLinks()
+	links = append(links, incoming...)
+
+	return links
+}
+
+func (m detailModel) resolveOutgoingLinks() []resolvedLink {
+	var links []resolvedLink
+
+	// Sort by link type for consistent ordering
+	sortedLinks := make([]bean.Link, len(m.bean.Links))
+	copy(sortedLinks, m.bean.Links)
+	sort.Slice(sortedLinks, func(i, j int) bool {
+		if sortedLinks[i].Type != sortedLinks[j].Type {
+			return sortedLinks[i].Type < sortedLinks[j].Type
+		}
+		return sortedLinks[i].Target < sortedLinks[j].Target
+	})
+
+	for _, link := range sortedLinks {
+		targetBean, err := m.store.FindByID(link.Target)
+		if err != nil {
+			// Skip missing beans per user preference
+			continue
+		}
+		links = append(links, resolvedLink{
+			linkType: link.Type,
+			bean:     targetBean,
+			incoming: false,
+		})
+	}
+
+	return links
+}
+
+func (m detailModel) resolveIncomingLinks() []resolvedLink {
+	var links []resolvedLink
+
+	// Get all beans and find ones that link to this bean
+	allBeans, err := m.store.FindAll()
+	if err != nil {
+		return links
+	}
+
+	// Collect incoming links
+	type incomingLink struct {
+		linkType string
+		bean     *bean.Bean
+	}
+	var incoming []incomingLink
+
+	for _, other := range allBeans {
+		if other.ID == m.bean.ID {
+			continue
+		}
+
+		for _, link := range other.Links {
+			if link.Target == m.bean.ID {
+				incoming = append(incoming, incomingLink{
+					linkType: link.Type,
+					bean:     other,
+				})
+			}
+		}
+	}
+
+	// Sort by link type then by bean ID
+	sort.Slice(incoming, func(i, j int) bool {
+		if incoming[i].linkType != incoming[j].linkType {
+			return incoming[i].linkType < incoming[j].linkType
+		}
+		return incoming[i].bean.ID < incoming[j].bean.ID
+	})
+
+	for _, inc := range incoming {
+		links = append(links, resolvedLink{
+			linkType: inc.linkType,
+			bean:     inc.bean,
+			incoming: true,
+		})
+	}
+
+	return links
 }
 
 func (m detailModel) renderBody(width int) string {
-	if m.bean.Description == "" {
+	if m.bean.Body == "" {
 		return lipgloss.NewStyle().Foreground(ui.ColorMuted).Italic(true).Render("No description")
 	}
 
@@ -148,12 +457,12 @@ func (m detailModel) renderBody(width int) string {
 		glamour.WithWordWrap(width-4),
 	)
 	if err != nil {
-		return m.bean.Description
+		return m.bean.Body
 	}
 
-	rendered, err := renderer.Render(m.bean.Description)
+	rendered, err := renderer.Render(m.bean.Body)
 	if err != nil {
-		return m.bean.Description
+		return m.bean.Body
 	}
 
 	return strings.TrimSpace(rendered)
