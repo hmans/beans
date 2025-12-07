@@ -139,7 +139,7 @@ func (m detailModel) renderHeader() string {
 }
 
 func (m detailModel) renderBody(width int) string {
-	if m.bean.Body == "" {
+	if m.bean.Description == "" {
 		return lipgloss.NewStyle().Foreground(ui.ColorMuted).Italic(true).Render("No description")
 	}
 
@@ -148,12 +148,12 @@ func (m detailModel) renderBody(width int) string {
 		glamour.WithWordWrap(width-4),
 	)
 	if err != nil {
-		return m.bean.Body
+		return m.bean.Description
 	}
 
-	rendered, err := renderer.Render(m.bean.Body)
+	rendered, err := renderer.Render(m.bean.Description)
 	if err != nil {
-		return m.bean.Body
+		return m.bean.Description
 	}
 
 	return strings.TrimSpace(rendered)

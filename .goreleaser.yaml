@@ -10,9 +10,7 @@ version: 2
 
 before:
   hooks:
-    # You may remove this if you don't use go modules.
     - go mod tidy
-    # you may remove this if you don't need go generate
     - go generate ./...
 
 builds:
@@ -24,9 +22,9 @@ builds:
       - darwin
     ldflags:
       - -s -w
-      - -X hmans.dev/beans/cmd/beans.version={{.Version}}
-      - -X hmans.dev/beans/cmd/beans.commit={{.ShortCommit}}
-      - -X hmans.dev/beans/cmd/beans.date={{.Date}}
+      - -X hmans.dev/beans/cmd.version={{.Version}}
+      - -X hmans.dev/beans/cmd.commit={{.ShortCommit}}
+      - -X hmans.dev/beans/cmd.date={{.Date}}
 
 archives:
   - formats: [tar.gz]
@@ -43,12 +41,9 @@ archives:
       - goos: windows
         formats: [zip]
 
+# Changelog is managed by changie - release notes passed via --release-notes flag
 changelog:
-  sort: asc
-  filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
+  disable: true
 
 homebrew_casks:
   - repository:

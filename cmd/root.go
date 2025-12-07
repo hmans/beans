@@ -1,4 +1,4 @@
-package beans
+package cmd
 
 import (
 	"fmt"
@@ -16,9 +16,9 @@ var beansPath string
 var rootCmd = &cobra.Command{
 	Use:   "beans",
 	Short: "A file-based issue tracker for AI-first workflows",
-	Long: `Beans is a lightweight issue tracker that stores issues as markdown files
-with YAML front matter in a .beans/ directory. Perfect for AI-assisted
-development workflows where issues live alongside your code.`,
+	Long: `Beans is a lightweight issue tracker that stores issues as markdown files.
+Track your work alongside your code and supercharge your coding agent with
+a full view of your project.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Skip store initialization for init command
 		if cmd.Name() == "init" {
@@ -55,7 +55,7 @@ development workflows where issues live alongside your code.`,
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&beansPath, "beans-path", "", "Path to .beans directory (overrides auto-detection)")
+	rootCmd.PersistentFlags().StringVar(&beansPath, "beans-path", "", "Path to data directory (default: searches upward for .beans/)")
 }
 
 func Execute() {

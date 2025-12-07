@@ -1,4 +1,4 @@
-package beans
+package cmd
 
 import (
 	"fmt"
@@ -17,6 +17,7 @@ var (
 	listStatus []string
 	listQuiet  bool
 	listSort   string
+	listFull   bool
 )
 
 var listCmd = &cobra.Command{
@@ -41,6 +42,11 @@ var listCmd = &cobra.Command{
 
 		// JSON output
 		if listJSON {
+			if !listFull {
+				for _, b := range beans {
+					b.Description = ""
+				}
+			}
 			return output.SuccessMultiple(beans)
 		}
 
@@ -70,6 +76,7 @@ var listCmd = &cobra.Command{
 		// Column styles with widths for alignment
 		idStyle := lipgloss.NewStyle().Width(maxIDWidth)
 		statusStyle := lipgloss.NewStyle().Width(14)
+		typeStyle := lipgloss.NewStyle().Width(12)
 		titleStyle := lipgloss.NewStyle()
 
 		// Header style
@@ -79,10 +86,11 @@ var listCmd = &cobra.Command{
 		header := lipgloss.JoinHorizontal(lipgloss.Top,
 			idStyle.Render(headerCol.Render("ID")),
 			statusStyle.Render(headerCol.Render("STATUS")),
+			typeStyle.Render(headerCol.Render("TYPE")),
 			titleStyle.Render(headerCol.Render("TITLE")),
 		)
 		fmt.Println(header)
-		fmt.Println(ui.Muted.Render(strings.Repeat("─", maxIDWidth+14+30)))
+		fmt.Println(ui.Muted.Render(strings.Repeat("─", maxIDWidth+14+12+30)))
 
 		for _, b := range beans {
 			// Get status color from config
@@ -93,9 +101,16 @@ var listCmd = &cobra.Command{
 			}
 			isArchive := cfg.IsArchiveStatus(b.Status)
 
+			// Get type color from config
+			typeColor := ""
+			if typeCfg := cfg.GetType(b.Type); typeCfg != nil {
+				typeColor = typeCfg.Color
+			}
+
 			row := lipgloss.JoinHorizontal(lipgloss.Top,
 				idStyle.Render(ui.ID.Render(b.ID)),
 				statusStyle.Render(ui.RenderStatusTextWithColor(b.Status, statusColor, isArchive)),
+				typeStyle.Render(ui.RenderTypeText(b.Type, typeColor)),
 				titleStyle.Render(truncate(b.Title, 50)),
 			)
 			fmt.Println(row)
@@ -188,6 +203,7 @@ func init() {
 	listCmd.Flags().StringArrayVarP(&listStatus, "status", "s", nil, "Filter by status (can be repeated)")
 	listCmd.Flags().BoolVarP(&listQuiet, "quiet", "q", false, "Only output IDs (one per line)")
 	listCmd.Flags().StringVar(&listSort, "sort", "status", "Sort by: created, updated, status, id (default: status)")
+	listCmd.Flags().BoolVar(&listFull, "full", false, "Include bean description in JSON output")
 	listCmd.MarkFlagsMutuallyExclusive("json", "quiet")
 	rootCmd.AddCommand(listCmd)
 }

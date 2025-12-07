@@ -1,6 +1,7 @@
 ---
 title: Add stats/summary command
 status: open
+type: feature
 ---
 
 Add a `beans stats` command that shows a quick summary of project beans.

@@ -158,3 +158,16 @@ func RenderStatusTextWithColor(status, color string, isArchiveStatus bool) strin
 
 	return style.Render(status)
 }
+
+// RenderTypeText returns styled type text using the specified color.
+// If color is empty, uses muted styling.
+func RenderTypeText(typeName, color string) string {
+	if typeName == "" {
+		return ""
+	}
+	if color == "" {
+		return Muted.Render(typeName)
+	}
+	c := ResolveColor(color)
+	return lipgloss.NewStyle().Foreground(c).Render(typeName)
+}

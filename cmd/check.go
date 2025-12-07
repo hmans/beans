@@ -1,4 +1,4 @@
-package beans
+package cmd
 
 import (
 	"encoding/json"
@@ -18,8 +18,8 @@ type checkResult struct {
 
 var checkCmd = &cobra.Command{
 	Use:   "check",
-	Short: "Validate beans.toml configuration",
-	Long:  `Checks beans.toml for configuration issues such as invalid statuses, colors, or missing required values.`,
+	Short: "Validate config.yaml configuration",
+	Long:  `Checks config.yaml for configuration issues such as invalid statuses, colors, or missing required values.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var errors []string
 

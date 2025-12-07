@@ -1,4 +1,4 @@
-package beans
+package cmd
 
 import (
 	"fmt"
@@ -16,7 +16,7 @@ var (
 var archiveCmd = &cobra.Command{
 	Use:   "archive",
 	Short: "Delete all beans with an archive status",
-	Long:  `Deletes all beans that have a status marked with archive=true in beans.toml. Asks for confirmation unless --force is provided.`,
+	Long:  `Deletes all beans that have a status marked with archive=true in config.yaml. Asks for confirmation unless --force is provided.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		beans, err := store.FindAll()
 		if err != nil {
