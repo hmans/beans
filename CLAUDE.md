@@ -80,10 +80,8 @@ All commands support `--json` for machine-readable output.
 
 # Releasing
 
-Releases are managed using **svu** (Semantic Version Utility) via mise tasks. svu is installed automatically via mise.
+Releases are managed using **changie** for changelog generation and automatic version detection.
 
-- `mise release:patch` - Bump patch version (e.g., v0.1.4 → v0.1.5)
-- `mise release:minor` - Bump minor version (e.g., v0.1.4 → v0.2.0)
-- `mise release:major` - Bump major version (e.g., v0.1.4 → v1.0.0)
+- `mise release` - Release with auto-detected version (prompts for confirmation)
 
-These tasks create and push the git tag, which triggers goreleaser to build and publish the release.
+This task detects the appropriate version bump based on changelog entries, shows the version to be released, and asks for confirmation before proceeding. It then creates and pushes the git tag, which triggers goreleaser to build and publish the release.
