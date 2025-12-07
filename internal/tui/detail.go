@@ -2,10 +2,12 @@ package tui
 
 import (
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"sync"
 
+	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
@@ -43,31 +45,104 @@ type resolvedLink struct {
 	incoming bool // true if another bean links TO this one
 }
 
+// linkItem wraps a resolvedLink to implement list.Item
+type linkItem struct {
+	link   resolvedLink
+	cfg    *config.Config
+	width  int
+	cols   ui.ResponsiveColumns
+	label  string // pre-computed label like "Blocks:" or "Blocked by:"
+}
+
+func (i linkItem) Title() string       { return i.link.bean.Title }
+func (i linkItem) Description() string { return i.link.bean.ID }
+func (i linkItem) FilterValue() string { return i.link.bean.Title + " " + i.link.bean.ID + " " + i.label }
+
+// linkDelegate handles rendering of link list items
+type linkDelegate struct {
+	cfg   *config.Config
+	width int
+	cols  ui.ResponsiveColumns
+}
+
+func (d linkDelegate) Height() int                             { return 1 }
+func (d linkDelegate) Spacing() int                            { return 0 }
+func (d linkDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
+
+func (d linkDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
+	item, ok := listItem.(linkItem)
+	if !ok {
+		return
+	}
+
+	link := item.link
+
+	// Cursor indicator
+	cursor := "  "
+	if index == m.Index() {
+		cursor = ui.Primary.Render("▸ ")
+	}
+
+	// Format the link type label
+	labelCol := lipgloss.NewStyle().Width(12).Render(ui.Muted.Render(item.label + ":"))
+
+	// Get colors from config
+	colors := d.cfg.GetBeanColors(link.bean.Status, link.bean.Type)
+
+	// Calculate max title width using responsive columns
+	baseWidth := d.cols.ID + d.cols.Status + d.cols.Type + 12 + 4 // label + cursor + padding
+	if d.cols.ShowTags {
+		baseWidth += d.cols.Tags
+	}
+	maxTitleWidth := max(10, d.width-baseWidth-8) // 8 for border padding
+
+	// Use shared bean row rendering (without cursor, we handle it separately)
+	row := ui.RenderBeanRow(
+		link.bean.ID,
+		link.bean.Status,
+		link.bean.Type,
+		link.bean.Title,
+		ui.BeanRowConfig{
+			StatusColor:   colors.StatusColor,
+			TypeColor:     colors.TypeColor,
+			IsArchive:     colors.IsArchive,
+			MaxTitleWidth: maxTitleWidth,
+			ShowCursor:    false,
+			IsSelected:    false,
+			Tags:          link.bean.Tags,
+			ShowTags:      d.cols.ShowTags,
+			TagsColWidth:  d.cols.Tags,
+			MaxTags:       d.cols.MaxTags,
+		},
+	)
+
+	fmt.Fprint(w, cursor+labelCol+row)
+}
+
 // detailModel displays a single bean's details
 type detailModel struct {
-	viewport     viewport.Model
-	bean         *bean.Bean
-	core         *beancore.Core
-	config       *config.Config
-	width        int
-	height       int
-	ready        bool
-	links        []resolvedLink       // combined outgoing + incoming links
-	selectedLink int                  // -1 = none selected, 0+ = index in links
-	linksActive  bool                 // true = links section focused
-	cols         ui.ResponsiveColumns // responsive column widths for links
+	viewport    viewport.Model
+	bean        *bean.Bean
+	core        *beancore.Core
+	config      *config.Config
+	width       int
+	height      int
+	ready       bool
+	links       []resolvedLink       // combined outgoing + incoming links
+	linkList    list.Model           // list component for links (supports filtering)
+	linksActive bool                 // true = links section focused
+	cols        ui.ResponsiveColumns // responsive column widths for links
 }
 
 func newDetailModel(b *bean.Bean, core *beancore.Core, cfg *config.Config, width, height int) detailModel {
 	m := detailModel{
-		bean:         b,
-		core:         core,
-		config:       cfg,
-		width:        width,
-		height:       height,
-		ready:        true,
-		selectedLink: -1,
-		linksActive:  false,
+		bean:        b,
+		core:        core,
+		config:      cfg,
+		width:       width,
+		height:      height,
+		ready:       true,
+		linksActive: false,
 	}
 
 	// Resolve all links
@@ -87,9 +162,11 @@ func newDetailModel(b *bean.Bean, core *beancore.Core, cfg *config.Config, width
 	linkAreaWidth := width - 12 - 2 - 8
 	m.cols = ui.CalculateResponsiveColumns(linkAreaWidth, hasTags)
 
-	// If there are links, select first one by default
+	// Initialize link list with items
+	m.linkList = m.createLinkList()
+
+	// If there are links, select first one and focus links by default
 	if len(m.links) > 0 {
-		m.selectedLink = 0
 		m.linksActive = true
 	}
 
@@ -105,12 +182,59 @@ func newDetailModel(b *bean.Bean, core *beancore.Core, cfg *config.Config, width
 	return m
 }
 
+// createLinkList creates a new list.Model for the links
+func (m detailModel) createLinkList() list.Model {
+	delegate := linkDelegate{
+		cfg:   m.config,
+		width: m.width,
+		cols:  m.cols,
+	}
+
+	// Convert links to list items
+	items := make([]list.Item, len(m.links))
+	for i, link := range m.links {
+		items[i] = linkItem{
+			link:  link,
+			cfg:   m.config,
+			width: m.width,
+			cols:  m.cols,
+			label: m.formatLinkLabel(link.linkType, link.incoming),
+		}
+	}
+
+	// Calculate list height: show all links up to 1/3 of screen height
+	// Add 2 for the title row and padding
+	maxHeight := max(3, m.height/3)
+	listHeight := min(len(m.links), maxHeight) + 2
+
+	l := list.New(items, delegate, m.width-8, listHeight)
+	l.Title = "Linked Beans"
+	l.SetShowStatusBar(false)
+	l.SetShowHelp(false)
+	l.SetShowPagination(false)
+	l.SetFilteringEnabled(true)
+
+	// Style the title bar similar to the detail header title (badge style) but with different color
+	l.Styles.Title = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#fff")).
+		Background(ui.ColorBlue).
+		Padding(0, 1)
+	l.Styles.TitleBar = lipgloss.NewStyle().Padding(0, 0, 0, 1) // Left padding to align with header title
+	l.Styles.FilterPrompt = lipgloss.NewStyle().Foreground(ui.ColorPrimary)
+	l.Styles.FilterCursor = lipgloss.NewStyle().Foreground(ui.ColorPrimary)
+	l.Styles.NoItems = lipgloss.NewStyle()
+
+	return l
+}
+
 func (m detailModel) Init() tea.Cmd {
 	return nil
 }
 
 func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 	var cmd tea.Cmd
+	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -127,6 +251,15 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 		}
 		linkAreaWidth := msg.Width - 12 - 2 - 8
 		m.cols = ui.CalculateResponsiveColumns(linkAreaWidth, hasTags)
+
+		// Update link list delegate with new dimensions
+		m.updateLinkListDelegate()
+
+		// Update link list size: show all links up to 1/3 of screen height
+		// Add 2 for the title row and padding
+		maxHeight := max(3, msg.Height/3)
+		listHeight := min(len(m.links), maxHeight) + 2
+		m.linkList.SetSize(msg.Width-8, listHeight)
 
 		headerHeight := m.calculateHeaderHeight()
 		footerHeight := 2
@@ -149,6 +282,12 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 		}
 
 	case tea.KeyMsg:
+		// If links list is filtering, let it handle all keys except quit
+		if m.linksActive && m.linkList.FilterState() == list.Filtering {
+			m.linkList, cmd = m.linkList.Update(msg)
+			return m, cmd
+		}
+
 		switch msg.String() {
 		case "esc", "backspace":
 			return m, func() tea.Msg {
@@ -159,44 +298,42 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 			// Toggle focus between links and body
 			if len(m.links) > 0 {
 				m.linksActive = !m.linksActive
-				if m.linksActive && m.selectedLink < 0 {
-					m.selectedLink = 0
-				}
 			}
 			return m, nil
 
 		case "enter":
 			// Navigate to selected link
-			if m.linksActive && m.selectedLink >= 0 && m.selectedLink < len(m.links) {
-				targetBean := m.links[m.selectedLink].bean
-				return m, func() tea.Msg {
-					return selectBeanMsg{bean: targetBean}
+			if m.linksActive {
+				if item, ok := m.linkList.SelectedItem().(linkItem); ok {
+					targetBean := item.link.bean
+					return m, func() tea.Msg {
+						return selectBeanMsg{bean: targetBean}
+					}
 				}
-			}
-
-		case "up", "k":
-			if m.linksActive && len(m.links) > 0 {
-				if m.selectedLink > 0 {
-					m.selectedLink--
-				}
-				return m, nil
-			}
-
-		case "down", "j":
-			if m.linksActive && len(m.links) > 0 {
-				if m.selectedLink < len(m.links)-1 {
-					m.selectedLink++
-				}
-				return m, nil
 			}
 		}
 	}
 
-	// Only forward to viewport if links are not active
-	if !m.linksActive {
+	// Forward updates to the appropriate component
+	if m.linksActive && len(m.links) > 0 {
+		m.linkList, cmd = m.linkList.Update(msg)
+		cmds = append(cmds, cmd)
+	} else {
 		m.viewport, cmd = m.viewport.Update(msg)
+		cmds = append(cmds, cmd)
 	}
-	return m, cmd
+
+	return m, tea.Batch(cmds...)
+}
+
+// updateLinkListDelegate updates the link list delegate with current dimensions
+func (m *detailModel) updateLinkListDelegate() {
+	delegate := linkDelegate{
+		cfg:   m.config,
+		width: m.width,
+		cols:  m.cols,
+	}
+	m.linkList.SetDelegate(delegate)
 }
 
 func (m detailModel) View() string {
@@ -204,8 +341,22 @@ func (m detailModel) View() string {
 		return "Loading..."
 	}
 
-	// Header
+	// Header (bean info only, no links)
 	header := m.renderHeader()
+
+	// Links section (if any)
+	var linksSection string
+	if len(m.links) > 0 {
+		linksBorderColor := ui.ColorMuted
+		if m.linksActive {
+			linksBorderColor = ui.ColorPrimary
+		}
+		linksBorder := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(linksBorderColor).
+			Width(m.width - 4)
+		linksSection = linksBorder.Render(m.linkList.View()) + "\n"
+	}
 
 	// Body
 	bodyBorderColor := ui.ColorMuted
@@ -223,42 +374,29 @@ func (m detailModel) View() string {
 	footer := helpStyle.Render(fmt.Sprintf("%d%%", scrollPct)) + "  "
 	if len(m.links) > 0 {
 		footer += helpKeyStyle.Render("tab") + " " + helpStyle.Render("switch") + "  "
+		if m.linksActive {
+			footer += helpKeyStyle.Render("/") + " " + helpStyle.Render("filter") + "  "
+		}
 		footer += helpKeyStyle.Render("enter") + " " + helpStyle.Render("go to") + "  "
 	}
 	footer += helpKeyStyle.Render("j/k") + " " + helpStyle.Render("scroll") + "  " +
 		helpKeyStyle.Render("esc") + " " + helpStyle.Render("back") + "  " +
 		helpKeyStyle.Render("q") + " " + helpStyle.Render("quit")
 
-	return header + "\n" + body + "\n" + footer
+	return header + "\n" + linksSection + body + "\n" + footer
 }
 
 func (m detailModel) calculateHeaderHeight() int {
 	// Base: title line + ID/status line + borders/padding = ~6
 	baseHeight := 6
 
-	// Add lines for links
+	// Add height for links section (separate bordered box)
 	if len(m.links) > 0 {
-		// Count outgoing and incoming separately
-		outgoing := 0
-		incoming := 0
-		for _, l := range m.links {
-			if l.incoming {
-				incoming++
-			} else {
-				outgoing++
-			}
-		}
-
-		// Add link lines
-		baseHeight += outgoing + incoming
-
-		// Add separator if we have both types
-		if outgoing > 0 && incoming > 0 {
-			baseHeight += 1
-		}
-
-		// Add top separator
-		baseHeight += 1
+		// Links list height + borders (matches createLinkList calculation)
+		// +2 for title row and padding, +3 for borders and spacing
+		maxHeight := max(3, m.height/3)
+		listHeight := min(len(m.links), maxHeight) + 2
+		baseHeight += listHeight + 3
 	}
 
 	return baseHeight
@@ -292,123 +430,14 @@ func (m detailModel) renderHeader() string {
 		headerContent.WriteString(ui.RenderTags(m.bean.Tags))
 	}
 
-	// Add relationships section if there are any
-	if len(m.links) > 0 {
-		headerContent.WriteString("\n")
-		headerContent.WriteString(ui.Muted.Render(strings.Repeat("─", m.width-8)))
-		headerContent.WriteString("\n")
-		headerContent.WriteString(m.renderLinks())
-	}
-
-	// Header box - highlight border when links are active
-	borderColor := ui.ColorMuted
-	if m.linksActive {
-		borderColor = ui.ColorPrimary
-	}
-
+	// Header box style - always muted border (not focused, links section is separate)
 	headerBox := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(borderColor).
+		BorderForeground(ui.ColorMuted).
 		Padding(0, 1).
 		Width(m.width - 4)
 
 	return headerBox.Render(headerContent.String())
-}
-
-func (m detailModel) renderLinks() string {
-	if len(m.links) == 0 {
-		return ""
-	}
-
-	var lines []string
-	currentIndex := 0
-
-	// Render outgoing links first
-	for _, link := range m.links {
-		if link.incoming {
-			continue
-		}
-		lines = append(lines, m.renderLinkLine(link, currentIndex))
-		currentIndex++
-	}
-
-	// Count incoming for separator
-	hasIncoming := false
-	for _, link := range m.links {
-		if link.incoming {
-			hasIncoming = true
-			break
-		}
-	}
-
-	// Add separator between outgoing and incoming
-	if len(lines) > 0 && hasIncoming {
-		lines = append(lines, ui.Muted.Render(strings.Repeat("─", m.width-8)))
-	}
-
-	// Render incoming links
-	for _, link := range m.links {
-		if !link.incoming {
-			continue
-		}
-		lines = append(lines, m.renderLinkLine(link, currentIndex))
-		currentIndex++
-	}
-
-	return strings.Join(lines, "\n")
-}
-
-func (m detailModel) renderLinkLine(link resolvedLink, index int) string {
-	// Cursor indicator
-	cursor := "  "
-	if m.linksActive && index == m.selectedLink {
-		cursor = ui.Primary.Render("▸ ")
-	}
-
-	// Format the link type label
-	label := m.formatLinkLabel(link.linkType, link.incoming)
-	labelCol := lipgloss.NewStyle().Width(12).Render(ui.Muted.Render(label + ":"))
-
-	// Get status and type colors
-	statusColor := "gray"
-	if statusCfg := m.config.GetStatus(link.bean.Status); statusCfg != nil {
-		statusColor = statusCfg.Color
-	}
-	isArchive := m.config.IsArchiveStatus(link.bean.Status)
-
-	typeColor := ""
-	if typeCfg := m.config.GetType(link.bean.Type); typeCfg != nil {
-		typeColor = typeCfg.Color
-	}
-
-	// Calculate max title width using responsive columns
-	baseWidth := m.cols.ID + m.cols.Status + m.cols.Type + 12 + 4 // label + cursor + padding
-	if m.cols.ShowTags {
-		baseWidth += m.cols.Tags
-	}
-	maxTitleWidth := max(10, m.width-baseWidth-8) // 8 for border padding
-
-	// Use shared bean row rendering (without cursor, we handle it separately)
-	row := ui.RenderBeanRow(
-		link.bean.ID,
-		link.bean.Status,
-		link.bean.Type,
-		link.bean.Title,
-		ui.BeanRowConfig{
-			StatusColor:   statusColor,
-			TypeColor:     typeColor,
-			IsArchive:     isArchive,
-			MaxTitleWidth: maxTitleWidth,
-			ShowCursor:    false,
-			IsSelected:    false,
-			Tags:          link.bean.Tags,
-			ShowTags:      m.cols.ShowTags,
-			TagsColWidth:  m.cols.Tags,
-			MaxTags:       m.cols.MaxTags,
-		},
-	)
-
-	return cursor + labelCol + row
 }
 
 // formatLinkLabel returns a human-readable label for the link type

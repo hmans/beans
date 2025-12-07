@@ -216,3 +216,30 @@ func (c *Config) TypeList() string {
 	}
 	return strings.Join(names, ", ")
 }
+
+// BeanColors holds resolved color information for rendering a bean
+type BeanColors struct {
+	StatusColor string
+	TypeColor   string
+	IsArchive   bool
+}
+
+// GetBeanColors returns the resolved colors for a bean based on its status and type.
+func (c *Config) GetBeanColors(status, typeName string) BeanColors {
+	colors := BeanColors{
+		StatusColor: "gray",
+		TypeColor:   "",
+		IsArchive:   false,
+	}
+
+	if statusCfg := c.GetStatus(status); statusCfg != nil {
+		colors.StatusColor = statusCfg.Color
+	}
+	colors.IsArchive = c.IsArchiveStatus(status)
+
+	if typeCfg := c.GetType(typeName); typeCfg != nil {
+		colors.TypeColor = typeCfg.Color
+	}
+
+	return colors
+}
