@@ -27,6 +27,23 @@ All commands support --json for machine-readable output. Use this flag to parse 
 - `beans show <bean-id> --json` to see full details including description
 - Adhere to the instructions in the bean's description when working on it
 
+## Relationships
+
+Beans can have relationships to other beans. Use these to express dependencies and connections.
+
+**Adding/removing relationships:**
+- `beans update <bean-id> --link blocks:<other-id>` - This bean blocks another
+- `beans update <bean-id> --link parent:<other-id>` - This bean has a parent
+- `beans update <bean-id> --unlink blocks:<other-id>` - Remove a relationship
+
+**Relationship types:** `blocks`, `duplicates`, `parent`, `relates-to`
+
+**Filtering by relationship:**
+- `beans list --linked blocks` - Show all beans that are blocked by something
+- `beans list --linked blocks:<id>` - Show beans that `<id>` blocks
+- `beans list --linked parent:<id>` - Show beans that have `<id>` as parent
+- `beans list --linked blocks,parent` - Comma-separated for multiple filters (OR logic)
+
 ## Creating new beans
 
 - `beans create --help`

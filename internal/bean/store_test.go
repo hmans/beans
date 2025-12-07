@@ -348,3 +348,96 @@ func TestLoadBeanParsesCorrectly(t *testing.T) {
 		t.Errorf("Path = %q, want %q", loaded.Path, "load1--load-test.md")
 	}
 }
+
+func TestLinksPreserved(t *testing.T) {
+	store, _ := setupTestStore(t)
+
+	// Create bean A that blocks bean B
+	beanA := &Bean{
+		ID:     "aaa1",
+		Slug:   "blocker",
+		Title:  "Blocker Bean",
+		Status: "open",
+		Links: map[string][]string{
+			"blocks": {"bbb2"},
+		},
+	}
+	if err := store.Save(beanA); err != nil {
+		t.Fatalf("Save beanA error = %v", err)
+	}
+
+	// Create bean B
+	beanB := &Bean{
+		ID:     "bbb2",
+		Slug:   "blocked",
+		Title:  "Blocked Bean",
+		Status: "open",
+	}
+	if err := store.Save(beanB); err != nil {
+		t.Fatalf("Save beanB error = %v", err)
+	}
+
+	// Load all beans
+	beans, err := store.FindAll()
+	if err != nil {
+		t.Fatalf("FindAll() error = %v", err)
+	}
+
+	// Find the beans
+	var loadedA, loadedB *Bean
+	for _, b := range beans {
+		if b.ID == "aaa1" {
+			loadedA = b
+		}
+		if b.ID == "bbb2" {
+			loadedB = b
+		}
+	}
+
+	if loadedA == nil || loadedB == nil {
+		t.Fatal("Failed to load both beans")
+	}
+
+	// Bean A should have direct link
+	if ids, ok := loadedA.Links["blocks"]; !ok || len(ids) != 1 || ids[0] != "bbb2" {
+		t.Errorf("Bean A Links[blocks] = %v, want [bbb2]", loadedA.Links["blocks"])
+	}
+
+	// Bean B should have no links
+	if len(loadedB.Links) != 0 {
+		t.Errorf("Bean B Links = %v, want empty", loadedB.Links)
+	}
+}
+
+func TestLinksWithDanglingReference(t *testing.T) {
+	store, _ := setupTestStore(t)
+
+	// Create bean A that blocks non-existent bean
+	beanA := &Bean{
+		ID:     "dng1",
+		Slug:   "dangling",
+		Title:  "Bean with Dangling Reference",
+		Status: "open",
+		Links: map[string][]string{
+			"blocks": {"nonexistent"},
+		},
+	}
+	if err := store.Save(beanA); err != nil {
+		t.Fatalf("Save beanA error = %v", err)
+	}
+
+	// Load all beans - should not error
+	beans, err := store.FindAll()
+	if err != nil {
+		t.Fatalf("FindAll() error = %v", err)
+	}
+
+	if len(beans) != 1 {
+		t.Errorf("Expected 1 bean, got %d", len(beans))
+	}
+
+	// The bean should still have its direct link
+	if ids, ok := beans[0].Links["blocks"]; !ok || len(ids) != 1 || ids[0] != "nonexistent" {
+		t.Errorf("Bean Links[blocks] = %v, want [nonexistent]", beans[0].Links["blocks"])
+	}
+}

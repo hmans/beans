@@ -12,10 +12,13 @@ import (
 const BeansDir = ".beans"
 
 var (
-	ErrNotFound     = errors.New("bean not found")
-	ErrAmbiguousID  = errors.New("ambiguous ID prefix matches multiple beans")
-	ErrNoBeansDir   = errors.New(".beans directory not found")
+	ErrNotFound    = errors.New("bean not found")
+	ErrAmbiguousID = errors.New("ambiguous ID prefix matches multiple beans")
+	ErrNoBeansDir  = errors.New(".beans directory not found")
 )
+
+// KnownLinkTypes lists the recognized relationship types.
+var KnownLinkTypes = []string{"blocks", "duplicates", "parent", "relates-to"}
 
 // Store manages beans on the filesystem.
 type Store struct {

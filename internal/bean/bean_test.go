@@ -373,3 +373,246 @@ func TestBeanJSONSerialization(t *testing.T) {
 		}
 	})
 }
+
+func TestParseWithLinks(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		expectedLinks map[string][]string
+	}{
+		{
+			name: "single link as string",
+			input: `---
+title: Test
+status: open
+links:
+  blocks: abc123
+---`,
+			expectedLinks: map[string][]string{
+				"blocks": {"abc123"},
+			},
+		},
+		{
+			name: "single link as array",
+			input: `---
+title: Test
+status: open
+links:
+  blocks:
+    - abc123
+---`,
+			expectedLinks: map[string][]string{
+				"blocks": {"abc123"},
+			},
+		},
+		{
+			name: "multiple links of same type",
+			input: `---
+title: Test
+status: open
+links:
+  blocks:
+    - abc123
+    - def456
+---`,
+			expectedLinks: map[string][]string{
+				"blocks": {"abc123", "def456"},
+			},
+		},
+		{
+			name: "multiple link types",
+			input: `---
+title: Test
+status: open
+links:
+  blocks: abc123
+  parent: xyz789
+---`,
+			expectedLinks: map[string][]string{
+				"blocks": {"abc123"},
+				"parent": {"xyz789"},
+			},
+		},
+		{
+			name: "no links",
+			input: `---
+title: Test
+status: open
+---`,
+			expectedLinks: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bean, err := Parse(strings.NewReader(tt.input))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if len(tt.expectedLinks) == 0 && len(bean.Links) == 0 {
+				return // Both empty, OK
+			}
+
+			if len(bean.Links) != len(tt.expectedLinks) {
+				t.Errorf("Links count = %d, want %d", len(bean.Links), len(tt.expectedLinks))
+				return
+			}
+
+			for linkType, expectedIDs := range tt.expectedLinks {
+				actualIDs, ok := bean.Links[linkType]
+				if !ok {
+					t.Errorf("missing link type %q", linkType)
+					continue
+				}
+				if len(actualIDs) != len(expectedIDs) {
+					t.Errorf("link type %q: got %d IDs, want %d", linkType, len(actualIDs), len(expectedIDs))
+					continue
+				}
+				for i, id := range expectedIDs {
+					if actualIDs[i] != id {
+						t.Errorf("link type %q[%d] = %q, want %q", linkType, i, actualIDs[i], id)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestRenderWithLinks(t *testing.T) {
+	tests := []struct {
+		name     string
+		bean     *Bean
+		contains []string
+	}{
+		{
+			name: "with single link",
+			bean: &Bean{
+				Title:  "Test Bean",
+				Status: "open",
+				Links: map[string][]string{
+					"blocks": {"abc123"},
+				},
+			},
+			contains: []string{
+				"links:",
+				"blocks:",
+				"abc123",
+			},
+		},
+		{
+			name: "with multiple links",
+			bean: &Bean{
+				Title:  "Test Bean",
+				Status: "open",
+				Links: map[string][]string{
+					"blocks": {"abc123", "def456"},
+					"parent": {"xyz789"},
+				},
+			},
+			contains: []string{
+				"links:",
+				"blocks:",
+				"abc123",
+				"def456",
+				"parent:",
+				"xyz789",
+			},
+		},
+		{
+			name: "without links",
+			bean: &Bean{
+				Title:  "Test Bean",
+				Status: "open",
+			},
+			contains: []string{
+				"title: Test Bean",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := tt.bean.Render()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			result := string(output)
+			for _, want := range tt.contains {
+				if !strings.Contains(result, want) {
+					t.Errorf("output missing %q\ngot:\n%s", want, result)
+				}
+			}
+
+			// Check that empty links don't appear in output
+			if tt.bean.Links == nil && strings.Contains(result, "links:") {
+				t.Errorf("output should not contain 'links:' when no links\ngot:\n%s", result)
+			}
+		})
+	}
+}
+
+func TestLinksRoundtrip(t *testing.T) {
+	tests := []struct {
+		name  string
+		links map[string][]string
+	}{
+		{
+			name: "single link",
+			links: map[string][]string{
+				"blocks": {"abc123"},
+			},
+		},
+		{
+			name: "multiple links same type",
+			links: map[string][]string{
+				"blocks": {"abc123", "def456"},
+			},
+		},
+		{
+			name: "multiple link types",
+			links: map[string][]string{
+				"blocks":     {"abc123"},
+				"parent":     {"xyz789"},
+				"relates-to": {"foo", "bar"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			original := &Bean{
+				Title:  "Test",
+				Status: "open",
+				Links:  tt.links,
+			}
+
+			rendered, err := original.Render()
+			if err != nil {
+				t.Fatalf("Render error: %v", err)
+			}
+
+			parsed, err := Parse(strings.NewReader(string(rendered)))
+			if err != nil {
+				t.Fatalf("Parse error: %v", err)
+			}
+
+			if len(parsed.Links) != len(tt.links) {
+				t.Errorf("Links count: got %d, want %d", len(parsed.Links), len(tt.links))
+				return
+			}
+
+			for linkType, expectedIDs := range tt.links {
+				actualIDs, ok := parsed.Links[linkType]
+				if !ok {
+					t.Errorf("missing link type %q after roundtrip", linkType)
+					continue
+				}
+				if len(actualIDs) != len(expectedIDs) {
+					t.Errorf("link type %q: got %d IDs, want %d", linkType, len(actualIDs), len(expectedIDs))
+				}
+			}
+		})
+	}
+}

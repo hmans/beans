@@ -66,6 +66,15 @@ var showCmd = &cobra.Command{
 		header.WriteString(ui.RenderStatusWithColor(b.Status, statusColor, isArchive))
 		header.WriteString("\n")
 		header.WriteString(ui.Title.Render(b.Title))
+
+		// Display relationships
+		if len(b.Links) > 0 {
+			header.WriteString("\n")
+			header.WriteString(ui.Muted.Render(strings.Repeat("─", 50)))
+			header.WriteString("\n")
+			header.WriteString(formatLinks(b.Links))
+		}
+
 		header.WriteString("\n")
 		header.WriteString(ui.Muted.Render(strings.Repeat("─", 50)))
 
@@ -95,6 +104,19 @@ var showCmd = &cobra.Command{
 
 		return nil
 	},
+}
+
+// formatLinks formats links for display.
+func formatLinks(links map[string][]string) string {
+	var parts []string
+	for linkType, ids := range links {
+		for _, id := range ids {
+			parts = append(parts, fmt.Sprintf("%s %s",
+				ui.Muted.Render(linkType+":"),
+				ui.ID.Render(id)))
+		}
+	}
+	return strings.Join(parts, "\n")
 }
 
 func init() {
