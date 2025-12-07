@@ -14,6 +14,7 @@ This is going to be a small CLI app that interacts with a .beans/ directory that
 
 - ONLY make commits when I explicitly tell you to do so.
 - When making commits, provide a meaningful commit message. The description should be a concise bullet point list of changes made.
+- After making a meaningful change that should be mentioned in the changelog, create a change file using `changie new`. (See `changie new --help` for options.)
 
 # Bean structure
 
