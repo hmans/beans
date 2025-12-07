@@ -1,7 +1,7 @@
-# Beans - Agentic Issue Tracker
+# EXTREMELY IMPORTANT: Beans Usage Guide for Agents
 
 This project uses **beans**, an agentic-first issue tracker. Issues are called "beans", and you can
-use the "beans" CLI to manage them.
+use the "beans" CLI to manage them. **DO NOT USE the TodoWrite tool or markdown TODOs; use bean instead**.
 
 All commands support --json for machine-readable output. Use this flag to parse responses easily.
 
@@ -9,19 +9,17 @@ All commands support --json for machine-readable output. Use this flag to parse 
 
 **BEFORE starting any task the user asks you to do:**
 
-1. FIRST: Create a bean with `beans create "Title" -t <type> -d "Description..." -s in-progress --no-edit`
+1. FIRST: Create a bean with `beans create "Title" -t <type> -d "Description..." -s in-progress`
 2. THEN: Do the work
 3. FINALLY: Mark done with `beans update <bean-id> --status done`
 4. IF and WHEN you COMMIT: Include both your code changes AND the bean file(s) in the commit!
 
-**Do NOT use the TodoWrite tool or markdown TODOs.** Use beans for all task tracking.
-
-If you identify something that should be tracked during your work, create a bean for it.
+If you identify something that should be changed or fixed after completing the user's request, create a new bean for that work instead of doing it immediately.
 
 ## Core Rules
 
 - After compaction or clear, run `beans prompt` to re-sync
-- All bean commands support the `--json` flag for machine-readable output.
+- All `bean` commands support the `--json` flag for machine-readable output.
 - Lean towards using sub-agents for interacting with beans.
 
 ## Finding work
@@ -41,7 +39,6 @@ If you identify something that should be tracked during your work, create a bean
 1. Work through items in order (unless dependencies require otherwise)
 2. **After completing each checklist item**, immediately update the bean file to mark it done:
    - Change `- [ ]` to `- [x]` for the completed item
-   - Edit the file directly at `.beans/<bean-id>.md` or `.beans/<bean-id>-<slug>.md`
 3. When committing code changes, include the updated bean file with checked-off items
 4. Re-read the bean periodically to stay aware of remaining work
 
@@ -91,7 +88,7 @@ Use `--no-status` to exclude beans with specific statuses:
 ## Creating new beans
 
 - `beans create --help`
-- Example: `beans create "Fix login bug" -t bug -d "Users cannot log in when..." -s open --no-edit`
+- Example: `beans create "Fix login bug" -t bug -d "Users cannot log in when..." -s open`
 - **Always specify a type with `-t`**. See the "Issue Types" section below for available types and their descriptions.
 - When creating new beans, include a useful description. If you're not sure what to write, ask the user.
 - Make the description as detailed as possible, similar to a plan that you would create for yourself.
@@ -100,32 +97,3 @@ Use `--no-status` to exclude beans with specific statuses:
 ## Cleaning up beans
 
 - `beans archive` will archive (delete) beans marked as done. ONLY run this when I explicitly tell you to.
-
-## Bean file structure
-
-Each bean is a markdown file with YAML front matter:
-
-```markdown
----
-title: Short descriptive title
-status: open
-type: feature
-created_at: 2024-01-15T10:30:00Z
-updated_at: 2024-01-16T14:45:00Z
-links:
-  - blocks: other-bean-id
-  - parent: parent-bean-id
-  - blocks: another-blocked-id
----
-
-The body/description goes here as markdown content.
-```
-
-**Front matter fields:**
-
-- `title` (required): A human-readable, one-line title
-- `status` (required): Must be one of the statuses listed in the "Statuses" section below
-- `type` (optional): Must be one of the types listed in the "Issue Types" section below
-- `created_at`: Timestamp of creation (auto-managed)
-- `updated_at`: Timestamp of last update (auto-managed)
-- `links`: Array of relationships to other beans, each as `- type: target-id` (see Relationships section)
