@@ -24,6 +24,7 @@ This is going to be a small CLI app that interacts with a .beans/ directory that
 
 ## Unit Tests
 
+- Always write or update tests for the changes you make.
 - Run all tests: `go test ./...`
 - Run specific package: `go test ./internal/bean/`
 - Verbose output: `go test -v ./...`
