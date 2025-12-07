@@ -19,3 +19,5 @@ types:
       color: red
     - name: epic
       color: purple
+    - name: idea
+      color: cyan
