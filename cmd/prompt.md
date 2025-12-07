@@ -63,3 +63,62 @@ Both support comma-separated values: `--links blocks,parent` (OR logic)
 ## Cleaning up beans
 
 - `beans archive` will archive (delete) beans marked as done.
+
+## Bean file structure
+
+Each bean is a markdown file with YAML front matter:
+
+```markdown
+---
+title: Short descriptive title
+status: open
+type: feature
+created_at: 2024-01-15T10:30:00Z
+updated_at: 2024-01-16T14:45:00Z
+links:
+  blocks:
+    - other-bean-id
+  parent:
+    - parent-bean-id
+---
+
+The body/description goes here as markdown content.
+```
+
+**Front matter fields:**
+- `title` (required): A human-readable, one-line title
+- `status` (required): Must be one of the statuses defined in `config.yaml`
+- `type` (optional): Must be one of the types defined in `config.yaml`
+- `created_at`: Timestamp of creation (auto-managed)
+- `updated_at`: Timestamp of last update (auto-managed)
+- `links`: Relationships to other beans (see Relationships section)
+
+## Configuration
+
+The `.beans/config.yaml` file configures the project:
+
+```yaml
+beans:
+  prefix: myapp-      # prefix for generated IDs
+  id_length: 4        # length of the random ID portion
+  default_status: open # status for new beans
+
+statuses:
+  - name: open
+    color: green
+  - name: in-progress
+    color: yellow
+  - name: done
+    color: gray
+    archive: true     # cleaned up by `beans archive`
+
+types:
+  - name: task
+    color: blue
+  - name: feature
+    color: green
+  - name: bug
+    color: red
+```
+
+Colors can be named (`green`, `yellow`, `red`, `gray`, `blue`, `purple`) or hex codes (`#FF6B6B`).
