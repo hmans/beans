@@ -14,51 +14,8 @@ This is going to be a small CLI app that interacts with a .beans/ directory that
 
 - ONLY make commits when I explicitly tell you to do so.
 - When making commits, provide a meaningful commit message. The description should be a concise bullet point list of changes made.
-
-# Bean structure
-
-- Each bean is a markdown file with front matter.
-- The front matter contains metadata about the bean, including:
-  - `title`: a human-readable, one-line title for the bean
-  - `status`: must be one of the statuses defined in `config.yaml`
-  - `created_at`: timestamp of when the bean was created
-  - `updated_at`: timestamp of the last update to the bean
-
-# Configuration
-
-The `.beans/config.yaml` file configures the project:
-
-```yaml
-beans:
-  prefix: myapp-         # prefix for generated IDs
-  id_length: 4           # length of the random ID portion
-  default_status: open   # status for new beans
-
-statuses:
-  - name: open
-    color: green
-  - name: in-progress
-    color: yellow
-  - name: done
-    color: gray
-    archive: true        # cleaned up by `beans archive`
-```
-
-Colors can be named (`green`, `yellow`, `red`, `gray`, `blue`, `purple`) or hex codes (`#FF6B6B`).
-
-# CLI Commands
-
-- `beans init` - Initialize a `.beans/` directory
-- `beans list` - List all beans
-- `beans show <id>` - Show a bean's contents
-- `beans create "Title"` - Create a new bean (supports `-d`, `-s`, `--no-edit` flags)
-- `beans update <id>` - Update a bean (supports `--status`, `--title`, `--description`, `--no-edit` flags)
-- `beans delete <id>` - Delete a bean
-- `beans archive` - Delete all beans with an archive status (`archive = true`)
-- `beans check` - Validate `config.yaml` configuration
-- `beans prompt` - Output instructions for AI coding agents
-
-All commands support `--json` for machine-readable output.
+- After making a meaningful change that should be mentioned in the changelog, create a change file using `changie new`. (See `changie new --help` for options.)
+- When we're working in a PR branch, make separate commits, and update the PR description to reflect the changes made.
 
 # Building
 
@@ -68,6 +25,7 @@ All commands support `--json` for machine-readable output.
 
 ## Unit Tests
 
+- Always write or update tests for the changes you make.
 - Run all tests: `go test ./...`
 - Run specific package: `go test ./internal/bean/`
 - Verbose output: `go test -v ./...`
@@ -76,7 +34,7 @@ All commands support `--json` for machine-readable output.
 ## Manual CLI Testing
 
 - Use `go run .` instead of building the executable first.
-- All commands support the `--beans-path` flag to specify a custom path to the `.beans/` directory. Use this for testing (instead of spamming the real `.beans/` directory).
+- When testing read-only functionality, feel free to use this project's own `.beans/` directory. But for anything that modifies data, create a separate test project directory. All commands support the `--beans-path` flag to specify a custom path.
 
 # Releasing
 

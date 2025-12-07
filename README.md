@@ -17,7 +17,7 @@ You've been programming all your life; now you get to be a product manager. Let'
 
 This project was inspired by Steve Yegge's great [Beads](https://github.com/steveyegge/beads). The main differences:
 
-- Beans is significantly simpler and more lightweight.
+- Beans is significantly simpler and more lightweight. Its simplicity is a feature.
 - Most importantly, your data is just Markdown files, readable and editable by humans and machines alike. No separate databases to sync.
 - It is much more customizable, allowing you to define your own bean types, statuses, and workflows.
 
@@ -46,6 +46,8 @@ beans help
 But more importantly, you'll want to get your coding agent set up to use it. Let's dive in!
 
 ## Agent Configuration
+
+We'll need to teach your coding agent that it should use Beans to track tasks, and how to do so. The exact steps will depend on which agent you're using.
 
 ### Claude Code
 

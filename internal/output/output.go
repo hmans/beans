@@ -20,14 +20,15 @@ const (
 
 // Response is the standard JSON response envelope.
 type Response struct {
-	Success bool         `json:"success"`
-	Bean    *bean.Bean   `json:"bean,omitempty"`
-	Beans   []*bean.Bean `json:"beans,omitempty"`
-	Count   int          `json:"count,omitempty"`
-	Message string       `json:"message,omitempty"`
-	Error   string       `json:"error,omitempty"`
-	Code    string       `json:"code,omitempty"`
-	Path    string       `json:"path,omitempty"`
+	Success  bool         `json:"success"`
+	Bean     *bean.Bean   `json:"bean,omitempty"`
+	Beans    []*bean.Bean `json:"beans,omitempty"`
+	Count    int          `json:"count,omitempty"`
+	Message  string       `json:"message,omitempty"`
+	Warnings []string     `json:"warnings,omitempty"`
+	Error    string       `json:"error,omitempty"`
+	Code     string       `json:"code,omitempty"`
+	Path     string       `json:"path,omitempty"`
 }
 
 // JSON outputs a response as JSON to stdout.
@@ -43,6 +44,16 @@ func Success(b *bean.Bean, message string) error {
 		Success: true,
 		Bean:    b,
 		Message: message,
+	})
+}
+
+// SuccessWithWarnings outputs a successful single-bean response with warnings.
+func SuccessWithWarnings(b *bean.Bean, message string, warnings []string) error {
+	return JSON(Response{
+		Success:  true,
+		Bean:     b,
+		Message:  message,
+		Warnings: warnings,
 	})
 }
 

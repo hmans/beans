@@ -33,7 +33,7 @@ jobs:
                   distribution: goreleaser
                   # 'latest', 'nightly', or a semver
                   version: "~> v2"
-                  args: release --clean --release-notes=.changes/${{ github.ref_name }}.md
+                  args: release --clean
               env:
                   GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
                   # Your GoReleaser Pro key, if you are using the 'goreleaser-pro' distribution

@@ -2,25 +2,27 @@ package cmd
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
+	"hmans.dev/beans/internal/bean"
 	"hmans.dev/beans/internal/output"
 	"hmans.dev/beans/internal/ui"
 )
 
 var (
-	showJSON            bool
-	showRaw             bool
-	showDescriptionOnly bool
+	showJSON     bool
+	showRaw      bool
+	showBodyOnly bool
 )
 
 var showCmd = &cobra.Command{
 	Use:   "show <id>",
 	Short: "Show a bean's contents",
-	Long:  `Displays the full contents of a bean, including front matter and description.`,
+	Long:  `Displays the full contents of a bean, including front matter and body.`,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		b, err := store.FindByID(args[0])
@@ -46,9 +48,9 @@ var showCmd = &cobra.Command{
 			return nil
 		}
 
-		// Description only (no header, no styling)
-		if showDescriptionOnly {
-			fmt.Print(b.Description)
+		// Body only (no header, no styling)
+		if showBodyOnly {
+			fmt.Print(b.Body)
 			return nil
 		}
 
@@ -66,6 +68,15 @@ var showCmd = &cobra.Command{
 		header.WriteString(ui.RenderStatusWithColor(b.Status, statusColor, isArchive))
 		header.WriteString("\n")
 		header.WriteString(ui.Title.Render(b.Title))
+
+		// Display relationships
+		if len(b.Links) > 0 {
+			header.WriteString("\n")
+			header.WriteString(ui.Muted.Render(strings.Repeat("─", 50)))
+			header.WriteString("\n")
+			header.WriteString(formatLinks(b.Links))
+		}
+
 		header.WriteString("\n")
 		header.WriteString(ui.Muted.Render(strings.Repeat("─", 50)))
 
@@ -75,8 +86,8 @@ var showCmd = &cobra.Command{
 
 		fmt.Println(headerBox)
 
-		// Render the description with Glamour
-		if b.Description != "" {
+		// Render the body with Glamour
+		if b.Body != "" {
 			renderer, err := glamour.NewTermRenderer(
 				glamour.WithAutoStyle(),
 				glamour.WithWordWrap(80),
@@ -85,7 +96,7 @@ var showCmd = &cobra.Command{
 				return fmt.Errorf("failed to create renderer: %w", err)
 			}
 
-			rendered, err := renderer.Render(b.Description)
+			rendered, err := renderer.Render(b.Body)
 			if err != nil {
 				return fmt.Errorf("failed to render markdown: %w", err)
 			}
@@ -97,10 +108,40 @@ var showCmd = &cobra.Command{
 	},
 }
 
+// formatLinks formats links for display with consistent ordering.
+func formatLinks(links bean.Links) string {
+	if len(links) == 0 {
+		return ""
+	}
+
+	// Group links by type, then sort types for deterministic output
+	byType := make(map[string][]string)
+	for _, link := range links {
+		byType[link.Type] = append(byType[link.Type], link.Target)
+	}
+
+	types := make([]string, 0, len(byType))
+	for t := range byType {
+		types = append(types, t)
+	}
+	sort.Strings(types)
+
+	var parts []string
+	for _, linkType := range types {
+		targets := byType[linkType]
+		for _, target := range targets {
+			parts = append(parts, fmt.Sprintf("%s %s",
+				ui.Muted.Render(linkType+":"),
+				ui.ID.Render(target)))
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
 func init() {
 	showCmd.Flags().BoolVar(&showJSON, "json", false, "Output as JSON")
 	showCmd.Flags().BoolVar(&showRaw, "raw", false, "Output raw markdown without styling")
-	showCmd.Flags().BoolVar(&showDescriptionOnly, "description-only", false, "Output only the description content")
-	showCmd.MarkFlagsMutuallyExclusive("json", "raw", "description-only")
+	showCmd.Flags().BoolVar(&showBodyOnly, "body-only", false, "Output only the body content")
+	showCmd.MarkFlagsMutuallyExclusive("json", "raw", "body-only")
 	rootCmd.AddCommand(showCmd)
 }

@@ -10,7 +10,7 @@ import (
 // If value is "-", reads from stdin.
 func resolveContent(value, file string) (string, error) {
 	if value != "" && file != "" {
-		return "", fmt.Errorf("cannot use both --description and --description-file")
+		return "", fmt.Errorf("cannot use both --body and --body-file")
 	}
 
 	if value == "-" {

@@ -12,30 +12,33 @@ const ConfigFile = "config.yaml"
 
 // DefaultStatuses defines the default status configuration.
 var DefaultStatuses = []StatusConfig{
-	{Name: "open", Color: "green"},
-	{Name: "in-progress", Color: "yellow"},
-	{Name: "done", Color: "gray", Archive: true},
+	{Name: "open", Color: "green", Description: "Ready to be worked on"},
+	{Name: "in-progress", Color: "yellow", Description: "Currently being worked on"},
+	{Name: "done", Color: "gray", Archive: true, Description: "Completed and ready for archival"},
 }
 
 // DefaultTypes defines the default type configuration.
 var DefaultTypes = []TypeConfig{
-	{Name: "task", Color: "blue"},
-	{Name: "feature", Color: "green"},
-	{Name: "bug", Color: "red"},
-	{Name: "epic", Color: "purple"},
+	{Name: "epic", Color: "purple", Description: "A thematic container for related work; should have child beans, not be worked on directly"},
+	{Name: "milestone", Color: "cyan", Description: "A target release or checkpoint; group work that should ship together"},
+	{Name: "feature", Color: "green", Description: "A user-facing capability or enhancement"},
+	{Name: "bug", Color: "red", Description: "Something that is broken and needs fixing"},
+	{Name: "task", Color: "blue", Description: "A concrete piece of work to complete (eg. a chore, or a sub-task for a feature)"},
 }
 
 // StatusConfig defines a single status with its display color.
 type StatusConfig struct {
-	Name    string `yaml:"name"`
-	Color   string `yaml:"color"`
-	Archive bool   `yaml:"archive,omitempty"`
+	Name        string `yaml:"name"`
+	Color       string `yaml:"color"`
+	Archive     bool   `yaml:"archive,omitempty"`
+	Description string `yaml:"description,omitempty"`
 }
 
 // TypeConfig defines a single bean type with its display color.
 type TypeConfig struct {
-	Name  string `yaml:"name"`
-	Color string `yaml:"color"`
+	Name        string `yaml:"name"`
+	Color       string `yaml:"color"`
+	Description string `yaml:"description,omitempty"`
 }
 
 // Config holds the beans configuration.

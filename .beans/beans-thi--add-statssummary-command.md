@@ -2,6 +2,10 @@
 title: Add stats/summary command
 status: open
 type: feature
+created_at: 2025-12-07T17:08:36Z
+updated_at: 2025-12-07T17:08:36Z
+links:
+    - parent: beans-7lmv
 ---
 
 Add a `beans stats` command that shows a quick summary of project beans.

@@ -5,17 +5,27 @@ beans:
 statuses:
     - name: open
       color: green
+      description: Ready to be worked on
     - name: in-progress
       color: yellow
+      description: Currently being worked on
     - name: done
       color: gray
       archive: true
+      description: Completed and ready for archival
 types:
-    - name: task
-      color: blue
-    - name: feature
-      color: green
-    - name: bug
-      color: red
     - name: epic
       color: purple
+      description: A thematic container for related work; should have child beans, not be worked on directly
+    - name: milestone
+      color: cyan
+      description: A target release or checkpoint; group work that should ship together
+    - name: feature
+      color: green
+      description: A user-facing capability or enhancement
+    - name: bug
+      color: red
+      description: Something that is broken and needs fixing
+    - name: task
+      color: blue
+      description: A concrete piece of work to complete (eg. a chore, or a sub-task for a feature)

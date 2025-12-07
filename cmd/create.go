@@ -14,13 +14,13 @@ import (
 )
 
 var (
-	createStatus          string
-	createType            string
-	createDescription     string
-	createDescriptionFile string
-	createNoEdit          bool
-	createPath            string
-	createJSON            bool
+	createStatus   string
+	createType     string
+	createBody     string
+	createBodyFile string
+	createNoEdit   bool
+	createPath     string
+	createJSON     bool
 )
 
 var createCmd = &cobra.Command{
@@ -50,8 +50,8 @@ var createCmd = &cobra.Command{
 			return fmt.Errorf("invalid type: %s (must be %s)", createType, cfg.TypeList())
 		}
 
-		// Determine description content
-		description, err := resolveContent(createDescription, createDescriptionFile)
+		// Determine body content
+		body, err := resolveContent(createBody, createBodyFile)
 		if err != nil {
 			if createJSON {
 				return output.Error(output.ErrFileError, err.Error())
@@ -60,7 +60,7 @@ var createCmd = &cobra.Command{
 		}
 
 		// Check if we're in scripting mode (any flag that suggests non-interactive use)
-		scriptingMode := createDescription != "" || createDescriptionFile != "" || createJSON || createNoEdit || cmd.Flags().Changed("status") || cmd.Flags().Changed("type")
+		scriptingMode := createBody != "" || createBodyFile != "" || createJSON || createNoEdit || cmd.Flags().Changed("status") || cmd.Flags().Changed("type")
 
 		// Track the type selection (use flag value if provided)
 		beanType := createType
@@ -112,7 +112,7 @@ var createCmd = &cobra.Command{
 			Title:  title,
 			Status: status,
 			Type:   beanType,
-			Description: description,
+			Body:   body,
 		}
 
 		// Set path if provided
@@ -169,11 +169,11 @@ func formatStatusLabel(status string) string {
 func init() {
 	createCmd.Flags().StringVarP(&createStatus, "status", "s", "", "Initial status (open, in-progress, done)")
 	createCmd.Flags().StringVarP(&createType, "type", "t", "", "Bean type (e.g., task, bug, epic)")
-	createCmd.Flags().StringVarP(&createDescription, "description", "d", "", "Description content (use '-' to read from stdin)")
-	createCmd.Flags().StringVar(&createDescriptionFile, "description-file", "", "Read description from file")
+	createCmd.Flags().StringVarP(&createBody, "body", "d", "", "Body content (use '-' to read from stdin)")
+	createCmd.Flags().StringVar(&createBodyFile, "body-file", "", "Read body from file")
 	createCmd.Flags().BoolVar(&createNoEdit, "no-edit", false, "Skip opening $EDITOR")
 	createCmd.Flags().StringVarP(&createPath, "path", "p", "", "Subdirectory within .beans/")
 	createCmd.Flags().BoolVar(&createJSON, "json", false, "Output as JSON")
-	createCmd.MarkFlagsMutuallyExclusive("description", "description-file")
+	createCmd.MarkFlagsMutuallyExclusive("body", "body-file")
 	rootCmd.AddCommand(createCmd)
 }

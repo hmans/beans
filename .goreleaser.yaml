@@ -41,9 +41,32 @@ archives:
       - goos: windows
         formats: [zip]
 
-# Changelog is managed by changie - release notes passed via --release-notes flag
 changelog:
-  disable: true
+  sort: asc
+  use: github
+  filters:
+    # Only include conventional commits (feat, fix, perf, refactor)
+    # This filters out non-conventional commits from merged branches
+    include:
+      - "^feat"
+      - "^fix"
+      - "^perf"
+      - "^refactor"
+  groups:
+    - title: "⚠️ Breaking Changes"
+      regexp: "!:"
+      order: 0
+    - title: Features
+      regexp: "^feat"
+      order: 1
+    - title: Bug Fixes
+      regexp: "^fix"
+      order: 2
+    - title: Performance
+      regexp: "^perf"
+      order: 3
+    - title: Other
+      order: 999
 
 homebrew_casks:
   - repository:

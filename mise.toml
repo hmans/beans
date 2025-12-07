@@ -1,7 +1,6 @@
 [tools]
 go = "latest"
 svu = "latest"
-changie = "latest"
 
 [tasks.test]
 run = "go test ./..."
@@ -19,36 +18,32 @@ go build -ldflags "\
 depends = "build"
 run = "cp beans ~/.local/bin/beans"
 
-[tasks.changelog]
-description = "Add a new changelog entry (interactive)"
-run = "changie new"
-
-[tasks."release"]
-description = "Release with auto-detected version based on changelog entries"
+[tasks."release:patch"]
+description = "Create a patch version tag (e.g., v0.1.4 → v0.1.5)"
 run = """
 set -e
-
-# Check for unreleased changes
-if [ -z "$(ls -A .changes/unreleased/*.yaml 2>/dev/null)" ]; then
-  echo "No unreleased changes found. Add changes with: mise changelog"
-  exit 1
-fi
-
-# Determine new version and confirm
-NEW_VERSION=$(changie next auto)
-echo "About to release: $NEW_VERSION"
-read -p "Continue? [y/N] " confirm
-if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
-  echo "Aborted."
-  exit 1
-fi
-
-# Actually perform the release
-changie batch auto
-changie merge
-git add CHANGELOG.md .changes/
-git commit -m "chore: release $NEW_VERSION"
+NEW_VERSION=$(svu patch)
 git tag "$NEW_VERSION"
-git push origin main "$NEW_VERSION"
-echo "Released $NEW_VERSION"
+echo "Created tag: $NEW_VERSION"
+echo "To release, run: git push && git push --tags"
+"""
+
+[tasks."release:minor"]
+description = "Create a minor version tag (e.g., v0.1.4 → v0.2.0)"
+run = """
+set -e
+NEW_VERSION=$(svu minor)
+git tag "$NEW_VERSION"
+echo "Created tag: $NEW_VERSION"
+echo "To release, run: git push && git push --tags"
+"""
+
+[tasks."release:major"]
+description = "Create a major version tag (e.g., v0.1.4 → v1.0.0)"
+run = """
+set -e
+NEW_VERSION=$(svu major)
+git tag "$NEW_VERSION"
+echo "Created tag: $NEW_VERSION"
+echo "To release, run: git push && git push --tags"
 """

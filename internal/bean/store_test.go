@@ -71,11 +71,11 @@ func TestSave(t *testing.T) {
 	store, beansDir := setupTestStore(t)
 
 	bean := &Bean{
-		ID:          "abc1",
-		Slug:        "test-bean",
-		Title:       "Test Bean",
-		Status:      "open",
-		Description: "Some content here.",
+		ID:     "abc1",
+		Slug:   "test-bean",
+		Title:  "Test Bean",
+		Status: "open",
+		Body:   "Some content here.",
 	}
 
 	err := store.Save(bean)
@@ -315,11 +315,11 @@ func TestLoadBeanParsesCorrectly(t *testing.T) {
 
 	// Create a bean with specific content
 	original := &Bean{
-		ID:          "load1",
-		Slug:        "load-test",
-		Title:       "Load Test Bean",
-		Status:      "in-progress",
-		Description: "This is the description content.\n\nWith multiple paragraphs.",
+		ID:     "load1",
+		Slug:   "load-test",
+		Title:  "Load Test Bean",
+		Status: "in-progress",
+		Body:   "This is the body content.\n\nWith multiple paragraphs.",
 	}
 	if err := store.Save(original); err != nil {
 		t.Fatalf("Save() error = %v", err)
@@ -346,5 +346,98 @@ func TestLoadBeanParsesCorrectly(t *testing.T) {
 	}
 	if loaded.Path != "load1--load-test.md" {
 		t.Errorf("Path = %q, want %q", loaded.Path, "load1--load-test.md")
+	}
+}
+
+func TestLinksPreserved(t *testing.T) {
+	store, _ := setupTestStore(t)
+
+	// Create bean A that blocks bean B
+	beanA := &Bean{
+		ID:     "aaa1",
+		Slug:   "blocker",
+		Title:  "Blocker Bean",
+		Status: "open",
+		Links: Links{
+			{Type: "blocks", Target: "bbb2"},
+		},
+	}
+	if err := store.Save(beanA); err != nil {
+		t.Fatalf("Save beanA error = %v", err)
+	}
+
+	// Create bean B
+	beanB := &Bean{
+		ID:     "bbb2",
+		Slug:   "blocked",
+		Title:  "Blocked Bean",
+		Status: "open",
+	}
+	if err := store.Save(beanB); err != nil {
+		t.Fatalf("Save beanB error = %v", err)
+	}
+
+	// Load all beans
+	beans, err := store.FindAll()
+	if err != nil {
+		t.Fatalf("FindAll() error = %v", err)
+	}
+
+	// Find the beans
+	var loadedA, loadedB *Bean
+	for _, b := range beans {
+		if b.ID == "aaa1" {
+			loadedA = b
+		}
+		if b.ID == "bbb2" {
+			loadedB = b
+		}
+	}
+
+	if loadedA == nil || loadedB == nil {
+		t.Fatal("Failed to load both beans")
+	}
+
+	// Bean A should have direct link
+	if !loadedA.Links.HasLink("blocks", "bbb2") {
+		t.Errorf("Bean A Links = %v, want blocks:bbb2", loadedA.Links)
+	}
+
+	// Bean B should have no links
+	if len(loadedB.Links) != 0 {
+		t.Errorf("Bean B Links = %v, want empty", loadedB.Links)
+	}
+}
+
+func TestLinksWithDanglingReference(t *testing.T) {
+	store, _ := setupTestStore(t)
+
+	// Create bean A that blocks non-existent bean
+	beanA := &Bean{
+		ID:     "dng1",
+		Slug:   "dangling",
+		Title:  "Bean with Dangling Reference",
+		Status: "open",
+		Links: Links{
+			{Type: "blocks", Target: "nonexistent"},
+		},
+	}
+	if err := store.Save(beanA); err != nil {
+		t.Fatalf("Save beanA error = %v", err)
+	}
+
+	// Load all beans - should not error
+	beans, err := store.FindAll()
+	if err != nil {
+		t.Fatalf("FindAll() error = %v", err)
+	}
+
+	if len(beans) != 1 {
+		t.Errorf("Expected 1 bean, got %d", len(beans))
+	}
+
+	// The bean should still have its direct link
+	if !beans[0].Links.HasLink("blocks", "nonexistent") {
+		t.Errorf("Bean Links = %v, want blocks:nonexistent", beans[0].Links)
 	}
 }

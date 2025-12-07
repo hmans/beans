@@ -1,9 +1,11 @@
 ---
-title: "Issue metadata"
+title: Issue metadata
 status: in-progress
 type: epic
 created_at: 2025-12-06T21:46:00Z
-updated_at: 2025-12-06T22:04:09Z
+updated_at: 2025-12-07T17:08:36Z
+links:
+    - parent: beans-7lmv
 ---
 
 We want to add some pieces of metadata to issues to help with planning and tracking.
