@@ -1,9 +1,9 @@
 ---
 title: Warn when adding links to non-existent beans
-status: open
+status: done
 type: bug
 created_at: 2025-12-07T11:35:24Z
-updated_at: 2025-12-07T11:36:40Z
+updated_at: 2025-12-07T16:30:47Z
 ---
 
 

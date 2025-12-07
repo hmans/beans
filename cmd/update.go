@@ -53,6 +53,7 @@ Relationship types: blocks, duplicates, parent, related`,
 
 		// Track what changed for output message
 		var changes []string
+		var warnings []string
 
 		// Update status if provided
 		if cmd.Flags().Changed("status") {
@@ -114,6 +115,10 @@ Relationship types: blocks, duplicates, parent, related`,
 					}
 					return fmt.Errorf("%s", errMsg)
 				}
+				// Check if target bean exists
+				if _, err := store.FindByID(targetID); err != nil {
+					warnings = append(warnings, fmt.Sprintf("target bean '%s' does not exist", targetID))
+				}
 				b.Links = b.Links.Add(linkType, targetID)
 			}
 			changes = append(changes, "links")
@@ -152,7 +157,15 @@ Relationship types: blocks, duplicates, parent, related`,
 
 		// Output result
 		if updateJSON {
+			if len(warnings) > 0 {
+				return output.SuccessWithWarnings(b, "Bean updated", warnings)
+			}
 			return output.Success(b, "Bean updated")
+		}
+
+		// Print warnings in text mode
+		for _, w := range warnings {
+			fmt.Println(ui.Warning.Render("Warning: ") + w)
 		}
 
 		fmt.Println(ui.Success.Render("Updated ") + ui.ID.Render(b.ID) + " " + ui.Muted.Render(b.Path))
