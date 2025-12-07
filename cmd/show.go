@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
+	"hmans.dev/beans/internal/bean"
 	"hmans.dev/beans/internal/output"
 	"hmans.dev/beans/internal/ui"
 )
@@ -108,21 +109,30 @@ var showCmd = &cobra.Command{
 }
 
 // formatLinks formats links for display with consistent ordering.
-func formatLinks(links map[string][]string) string {
-	// Sort link types for deterministic output
-	types := make([]string, 0, len(links))
-	for t := range links {
+func formatLinks(links bean.Links) string {
+	if len(links) == 0 {
+		return ""
+	}
+
+	// Group links by type, then sort types for deterministic output
+	byType := make(map[string][]string)
+	for _, link := range links {
+		byType[link.Type] = append(byType[link.Type], link.Target)
+	}
+
+	types := make([]string, 0, len(byType))
+	for t := range byType {
 		types = append(types, t)
 	}
 	sort.Strings(types)
 
 	var parts []string
 	for _, linkType := range types {
-		ids := links[linkType]
-		for _, id := range ids {
+		targets := byType[linkType]
+		for _, target := range targets {
 			parts = append(parts, fmt.Sprintf("%s %s",
 				ui.Muted.Render(linkType+":"),
-				ui.ID.Render(id)))
+				ui.ID.Render(target)))
 		}
 	}
 	return strings.Join(parts, "\n")

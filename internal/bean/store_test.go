@@ -358,8 +358,8 @@ func TestLinksPreserved(t *testing.T) {
 		Slug:   "blocker",
 		Title:  "Blocker Bean",
 		Status: "open",
-		Links: map[string][]string{
-			"blocks": {"bbb2"},
+		Links: Links{
+			{Type: "blocks", Target: "bbb2"},
 		},
 	}
 	if err := store.Save(beanA); err != nil {
@@ -399,8 +399,8 @@ func TestLinksPreserved(t *testing.T) {
 	}
 
 	// Bean A should have direct link
-	if ids, ok := loadedA.Links["blocks"]; !ok || len(ids) != 1 || ids[0] != "bbb2" {
-		t.Errorf("Bean A Links[blocks] = %v, want [bbb2]", loadedA.Links["blocks"])
+	if !loadedA.Links.HasLink("blocks", "bbb2") {
+		t.Errorf("Bean A Links = %v, want blocks:bbb2", loadedA.Links)
 	}
 
 	// Bean B should have no links
@@ -418,8 +418,8 @@ func TestLinksWithDanglingReference(t *testing.T) {
 		Slug:   "dangling",
 		Title:  "Bean with Dangling Reference",
 		Status: "open",
-		Links: map[string][]string{
-			"blocks": {"nonexistent"},
+		Links: Links{
+			{Type: "blocks", Target: "nonexistent"},
 		},
 	}
 	if err := store.Save(beanA); err != nil {
@@ -437,7 +437,7 @@ func TestLinksWithDanglingReference(t *testing.T) {
 	}
 
 	// The bean should still have its direct link
-	if ids, ok := beans[0].Links["blocks"]; !ok || len(ids) != 1 || ids[0] != "nonexistent" {
-		t.Errorf("Bean Links[blocks] = %v, want [nonexistent]", beans[0].Links["blocks"])
+	if !beans[0].Links.HasLink("blocks", "nonexistent") {
+		t.Errorf("Bean Links = %v, want blocks:nonexistent", beans[0].Links)
 	}
 }

@@ -224,19 +224,14 @@ func filterByLinks(beans []*bean.Bean, link []string) []*bean.Bean {
 
 			if len(parts) == 1 {
 				// Type-only: check if this bean has ANY link of this type
-				if ids, ok := b.Links[linkType]; ok && len(ids) > 0 {
+				if b.Links.HasType(linkType) {
 					matched = true
 				}
 			} else {
 				// Type:ID: check if this bean links to the specific target
 				targetID := parts[1]
-				if ids, ok := b.Links[linkType]; ok {
-					for _, id := range ids {
-						if id == targetID {
-							matched = true
-							break
-						}
-					}
+				if b.Links.HasLink(linkType, targetID) {
+					matched = true
 				}
 			}
 
@@ -276,13 +271,11 @@ func filterByLinkedAs(beans []*bean.Bean, linked []string) []*bean.Bean {
 	// Build set of all beans targeted by each link type (for type-only queries)
 	targetedBy := make(map[string]map[string]bool) // linkType -> set of target IDs
 	for _, b := range beans {
-		for linkType, ids := range b.Links {
-			if targetedBy[linkType] == nil {
-				targetedBy[linkType] = make(map[string]bool)
+		for _, link := range b.Links {
+			if targetedBy[link.Type] == nil {
+				targetedBy[link.Type] = make(map[string]bool)
 			}
-			for _, id := range ids {
-				targetedBy[linkType][id] = true
-			}
+			targetedBy[link.Type][link.Target] = true
 		}
 	}
 
@@ -306,13 +299,8 @@ func filterByLinkedAs(beans []*bean.Bean, linked []string) []*bean.Bean {
 					continue // Source bean not found
 				}
 
-				if ids, ok := source.Links[linkType]; ok {
-					for _, id := range ids {
-						if id == b.ID {
-							matched = true
-							break
-						}
-					}
+				if source.Links.HasLink(linkType, b.ID) {
+					matched = true
 				}
 			}
 
@@ -347,19 +335,14 @@ func excludeByLinks(beans []*bean.Bean, exclude []string) []*bean.Bean {
 
 			if len(parts) == 1 {
 				// Type-only: exclude if this bean has ANY link of this type
-				if ids, ok := b.Links[linkType]; ok && len(ids) > 0 {
+				if b.Links.HasType(linkType) {
 					excluded = true
 				}
 			} else {
 				// Type:ID: exclude if this bean links to the specific target
 				targetID := parts[1]
-				if ids, ok := b.Links[linkType]; ok {
-					for _, id := range ids {
-						if id == targetID {
-							excluded = true
-							break
-						}
-					}
+				if b.Links.HasLink(linkType, targetID) {
+					excluded = true
 				}
 			}
 
@@ -394,13 +377,11 @@ func excludeByLinkedAs(beans []*bean.Bean, exclude []string) []*bean.Bean {
 	// Build set of all beans targeted by each link type (for type-only queries)
 	targetedBy := make(map[string]map[string]bool) // linkType -> set of target IDs
 	for _, b := range beans {
-		for linkType, ids := range b.Links {
-			if targetedBy[linkType] == nil {
-				targetedBy[linkType] = make(map[string]bool)
+		for _, link := range b.Links {
+			if targetedBy[link.Type] == nil {
+				targetedBy[link.Type] = make(map[string]bool)
 			}
-			for _, id := range ids {
-				targetedBy[linkType][id] = true
-			}
+			targetedBy[link.Type][link.Target] = true
 		}
 	}
 
@@ -424,13 +405,8 @@ func excludeByLinkedAs(beans []*bean.Bean, exclude []string) []*bean.Bean {
 					continue // Source bean not found, can't exclude
 				}
 
-				if ids, ok := source.Links[linkType]; ok {
-					for _, id := range ids {
-						if id == b.ID {
-							excluded = true
-							break
-						}
-					}
+				if source.Links.HasLink(linkType, b.ID) {
+					excluded = true
 				}
 			}
 

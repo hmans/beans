@@ -378,31 +378,18 @@ func TestParseWithLinks(t *testing.T) {
 	tests := []struct {
 		name          string
 		input         string
-		expectedLinks map[string][]string
+		expectedLinks Links
 	}{
 		{
-			name: "single link as string",
+			name: "single link",
 			input: `---
 title: Test
 status: open
 links:
-  blocks: abc123
+  - blocks: abc123
 ---`,
-			expectedLinks: map[string][]string{
-				"blocks": {"abc123"},
-			},
-		},
-		{
-			name: "single link as array",
-			input: `---
-title: Test
-status: open
-links:
-  blocks:
-    - abc123
----`,
-			expectedLinks: map[string][]string{
-				"blocks": {"abc123"},
+			expectedLinks: Links{
+				{Type: "blocks", Target: "abc123"},
 			},
 		},
 		{
@@ -411,12 +398,12 @@ links:
 title: Test
 status: open
 links:
-  blocks:
-    - abc123
-    - def456
+  - blocks: abc123
+  - blocks: def456
 ---`,
-			expectedLinks: map[string][]string{
-				"blocks": {"abc123", "def456"},
+			expectedLinks: Links{
+				{Type: "blocks", Target: "abc123"},
+				{Type: "blocks", Target: "def456"},
 			},
 		},
 		{
@@ -425,12 +412,12 @@ links:
 title: Test
 status: open
 links:
-  blocks: abc123
-  parent: xyz789
+  - blocks: abc123
+  - parent: xyz789
 ---`,
-			expectedLinks: map[string][]string{
-				"blocks": {"abc123"},
-				"parent": {"xyz789"},
+			expectedLinks: Links{
+				{Type: "blocks", Target: "abc123"},
+				{Type: "parent", Target: "xyz789"},
 			},
 		},
 		{
@@ -459,20 +446,11 @@ status: open
 				return
 			}
 
-			for linkType, expectedIDs := range tt.expectedLinks {
-				actualIDs, ok := bean.Links[linkType]
-				if !ok {
-					t.Errorf("missing link type %q", linkType)
-					continue
-				}
-				if len(actualIDs) != len(expectedIDs) {
-					t.Errorf("link type %q: got %d IDs, want %d", linkType, len(actualIDs), len(expectedIDs))
-					continue
-				}
-				for i, id := range expectedIDs {
-					if actualIDs[i] != id {
-						t.Errorf("link type %q[%d] = %q, want %q", linkType, i, actualIDs[i], id)
-					}
+			for i, expected := range tt.expectedLinks {
+				actual := bean.Links[i]
+				if actual.Type != expected.Type || actual.Target != expected.Target {
+					t.Errorf("Links[%d] = {%s, %s}, want {%s, %s}",
+						i, actual.Type, actual.Target, expected.Type, expected.Target)
 				}
 			}
 		})
@@ -490,14 +468,13 @@ func TestRenderWithLinks(t *testing.T) {
 			bean: &Bean{
 				Title:  "Test Bean",
 				Status: "open",
-				Links: map[string][]string{
-					"blocks": {"abc123"},
+				Links: Links{
+					{Type: "blocks", Target: "abc123"},
 				},
 			},
 			contains: []string{
 				"links:",
-				"blocks:",
-				"abc123",
+				"- blocks: abc123",
 			},
 		},
 		{
@@ -505,18 +482,17 @@ func TestRenderWithLinks(t *testing.T) {
 			bean: &Bean{
 				Title:  "Test Bean",
 				Status: "open",
-				Links: map[string][]string{
-					"blocks": {"abc123", "def456"},
-					"parent": {"xyz789"},
+				Links: Links{
+					{Type: "blocks", Target: "abc123"},
+					{Type: "blocks", Target: "def456"},
+					{Type: "parent", Target: "xyz789"},
 				},
 			},
 			contains: []string{
 				"links:",
-				"blocks:",
-				"abc123",
-				"def456",
-				"parent:",
-				"xyz789",
+				"- blocks: abc123",
+				"- blocks: def456",
+				"- parent: xyz789",
 			},
 		},
 		{
@@ -556,26 +532,28 @@ func TestRenderWithLinks(t *testing.T) {
 func TestLinksRoundtrip(t *testing.T) {
 	tests := []struct {
 		name  string
-		links map[string][]string
+		links Links
 	}{
 		{
 			name: "single link",
-			links: map[string][]string{
-				"blocks": {"abc123"},
+			links: Links{
+				{Type: "blocks", Target: "abc123"},
 			},
 		},
 		{
 			name: "multiple links same type",
-			links: map[string][]string{
-				"blocks": {"abc123", "def456"},
+			links: Links{
+				{Type: "blocks", Target: "abc123"},
+				{Type: "blocks", Target: "def456"},
 			},
 		},
 		{
 			name: "multiple link types",
-			links: map[string][]string{
-				"blocks":     {"abc123"},
-				"parent":     {"xyz789"},
-				"relates-to": {"foo", "bar"},
+			links: Links{
+				{Type: "blocks", Target: "abc123"},
+				{Type: "parent", Target: "xyz789"},
+				{Type: "relates-to", Target: "foo"},
+				{Type: "relates-to", Target: "bar"},
 			},
 		},
 	}
@@ -603,16 +581,90 @@ func TestLinksRoundtrip(t *testing.T) {
 				return
 			}
 
-			for linkType, expectedIDs := range tt.links {
-				actualIDs, ok := parsed.Links[linkType]
-				if !ok {
-					t.Errorf("missing link type %q after roundtrip", linkType)
-					continue
-				}
-				if len(actualIDs) != len(expectedIDs) {
-					t.Errorf("link type %q: got %d IDs, want %d", linkType, len(actualIDs), len(expectedIDs))
+			for i, expected := range tt.links {
+				actual := parsed.Links[i]
+				if actual.Type != expected.Type || actual.Target != expected.Target {
+					t.Errorf("Links[%d] = {%s, %s}, want {%s, %s}",
+						i, actual.Type, actual.Target, expected.Type, expected.Target)
 				}
 			}
 		})
 	}
+}
+
+func TestLinksHelperMethods(t *testing.T) {
+	links := Links{
+		{Type: "blocks", Target: "abc"},
+		{Type: "blocks", Target: "def"},
+		{Type: "parent", Target: "xyz"},
+	}
+
+	t.Run("HasType", func(t *testing.T) {
+		if !links.HasType("blocks") {
+			t.Error("expected HasType('blocks') = true")
+		}
+		if !links.HasType("parent") {
+			t.Error("expected HasType('parent') = true")
+		}
+		if links.HasType("nonexistent") {
+			t.Error("expected HasType('nonexistent') = false")
+		}
+	})
+
+	t.Run("HasLink", func(t *testing.T) {
+		if !links.HasLink("blocks", "abc") {
+			t.Error("expected HasLink('blocks', 'abc') = true")
+		}
+		if !links.HasLink("parent", "xyz") {
+			t.Error("expected HasLink('parent', 'xyz') = true")
+		}
+		if links.HasLink("blocks", "xyz") {
+			t.Error("expected HasLink('blocks', 'xyz') = false")
+		}
+		if links.HasLink("parent", "abc") {
+			t.Error("expected HasLink('parent', 'abc') = false")
+		}
+	})
+
+	t.Run("Targets", func(t *testing.T) {
+		targets := links.Targets("blocks")
+		if len(targets) != 2 || targets[0] != "abc" || targets[1] != "def" {
+			t.Errorf("Targets('blocks') = %v, want [abc def]", targets)
+		}
+		targets = links.Targets("parent")
+		if len(targets) != 1 || targets[0] != "xyz" {
+			t.Errorf("Targets('parent') = %v, want [xyz]", targets)
+		}
+		targets = links.Targets("nonexistent")
+		if len(targets) != 0 {
+			t.Errorf("Targets('nonexistent') = %v, want []", targets)
+		}
+	})
+
+	t.Run("Add", func(t *testing.T) {
+		newLinks := links.Add("blocks", "ghi")
+		if len(newLinks) != 4 {
+			t.Errorf("Add new link: got len=%d, want 4", len(newLinks))
+		}
+		// Adding duplicate should not add
+		sameLinks := links.Add("blocks", "abc")
+		if len(sameLinks) != 3 {
+			t.Errorf("Add duplicate: got len=%d, want 3", len(sameLinks))
+		}
+	})
+
+	t.Run("Remove", func(t *testing.T) {
+		newLinks := links.Remove("blocks", "abc")
+		if len(newLinks) != 2 {
+			t.Errorf("Remove existing: got len=%d, want 2", len(newLinks))
+		}
+		if newLinks.HasLink("blocks", "abc") {
+			t.Error("Remove didn't remove the link")
+		}
+		// Removing non-existent should not change anything
+		sameLinks := links.Remove("blocks", "nonexistent")
+		if len(sameLinks) != 3 {
+			t.Errorf("Remove non-existent: got len=%d, want 3", len(sameLinks))
+		}
+	})
 }

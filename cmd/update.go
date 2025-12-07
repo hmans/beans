@@ -114,12 +114,7 @@ Relationship types: blocks, duplicates, parent, relates-to`,
 					}
 					return fmt.Errorf("%s", errMsg)
 				}
-				if b.Links == nil {
-					b.Links = make(map[string][]string)
-				}
-				if !containsString(b.Links[linkType], targetID) {
-					b.Links[linkType] = append(b.Links[linkType], targetID)
-				}
+				b.Links = b.Links.Add(linkType, targetID)
 			}
 			changes = append(changes, "links")
 		}
@@ -134,12 +129,7 @@ Relationship types: blocks, duplicates, parent, relates-to`,
 					}
 					return err
 				}
-				if b.Links != nil {
-					b.Links[linkType] = removeString(b.Links[linkType], targetID)
-					if len(b.Links[linkType]) == 0 {
-						delete(b.Links, linkType)
-					}
-				}
+				b.Links = b.Links.Remove(linkType, targetID)
 			}
 			changes = append(changes, "links")
 		}
@@ -207,27 +197,6 @@ func parseLink(s string) (linkType, targetID string, err error) {
 		return "", "", fmt.Errorf("invalid link format: %q (expected type:id)", s)
 	}
 	return parts[0], parts[1], nil
-}
-
-// containsString checks if a slice contains a string.
-func containsString(slice []string, s string) bool {
-	for _, v := range slice {
-		if v == s {
-			return true
-		}
-	}
-	return false
-}
-
-// removeString removes a string from a slice.
-func removeString(slice []string, s string) []string {
-	result := make([]string, 0, len(slice))
-	for _, v := range slice {
-		if v != s {
-			result = append(result, v)
-		}
-	}
-	return result
 }
 
 // isKnownLinkType checks if a link type is recognized.

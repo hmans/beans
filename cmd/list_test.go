@@ -219,11 +219,11 @@ func TestTruncate(t *testing.T) {
 func TestFilterByLinks(t *testing.T) {
 	// Create test beans with various link configurations
 	beans := []*bean.Bean{
-		{ID: "a1", Links: map[string][]string{"blocks": {"b2"}}},
-		{ID: "b2", Links: map[string][]string{"parent": {"epic1"}}},
-		{ID: "c3", Links: map[string][]string{"blocks": {"a1", "b2"}}},
+		{ID: "a1", Links: bean.Links{{Type: "blocks", Target: "b2"}}},
+		{ID: "b2", Links: bean.Links{{Type: "parent", Target: "epic1"}}},
+		{ID: "c3", Links: bean.Links{{Type: "blocks", Target: "a1"}, {Type: "blocks", Target: "b2"}}},
 		{ID: "d4", Links: nil}, // no links
-		{ID: "e5", Links: map[string][]string{"blocks": {"b2"}, "parent": {"epic1"}}},
+		{ID: "e5", Links: bean.Links{{Type: "blocks", Target: "b2"}, {Type: "parent", Target: "epic1"}}},
 	}
 
 	tests := []struct {
@@ -283,10 +283,10 @@ func TestFilterByLinks(t *testing.T) {
 func TestFilterByLinkedAs(t *testing.T) {
 	// Create test beans where some beans link to others
 	beans := []*bean.Bean{
-		{ID: "a1", Links: map[string][]string{"blocks": {"b2"}}},
-		{ID: "b2", Links: map[string][]string{"blocks": {"c3"}}},
+		{ID: "a1", Links: bean.Links{{Type: "blocks", Target: "b2"}}},
+		{ID: "b2", Links: bean.Links{{Type: "blocks", Target: "c3"}}},
 		{ID: "c3", Links: nil},
-		{ID: "epic1", Links: map[string][]string{"parent": {"a1", "b2"}}}, // epic1 is parent of a1 and b2
+		{ID: "epic1", Links: bean.Links{{Type: "parent", Target: "a1"}, {Type: "parent", Target: "b2"}}}, // epic1 is parent of a1 and b2
 	}
 
 	tests := []struct {
@@ -336,11 +336,11 @@ func TestFilterByLinkedAs(t *testing.T) {
 func TestExcludeByLinks(t *testing.T) {
 	// Create test beans with various link configurations
 	beans := []*bean.Bean{
-		{ID: "a1", Links: map[string][]string{"blocks": {"b2"}}},
-		{ID: "b2", Links: map[string][]string{"parent": {"epic1"}}},
-		{ID: "c3", Links: map[string][]string{"blocks": {"a1", "b2"}}},
+		{ID: "a1", Links: bean.Links{{Type: "blocks", Target: "b2"}}},
+		{ID: "b2", Links: bean.Links{{Type: "parent", Target: "epic1"}}},
+		{ID: "c3", Links: bean.Links{{Type: "blocks", Target: "a1"}, {Type: "blocks", Target: "b2"}}},
 		{ID: "d4", Links: nil}, // no links
-		{ID: "e5", Links: map[string][]string{"blocks": {"b2"}, "parent": {"epic1"}}},
+		{ID: "e5", Links: bean.Links{{Type: "blocks", Target: "b2"}, {Type: "parent", Target: "epic1"}}},
 	}
 
 	tests := []struct {
@@ -395,11 +395,11 @@ func TestExcludeByLinks(t *testing.T) {
 func TestExcludeByLinkedAs(t *testing.T) {
 	// Create test beans where some beans link to others
 	beans := []*bean.Bean{
-		{ID: "a1", Links: map[string][]string{"blocks": {"b2"}}},
-		{ID: "b2", Links: map[string][]string{"blocks": {"c3"}}},
+		{ID: "a1", Links: bean.Links{{Type: "blocks", Target: "b2"}}},
+		{ID: "b2", Links: bean.Links{{Type: "blocks", Target: "c3"}}},
 		{ID: "c3", Links: nil},
 		{ID: "d4", Links: nil},
-		{ID: "epic1", Links: map[string][]string{"parent": {"a1", "b2"}}},
+		{ID: "epic1", Links: bean.Links{{Type: "parent", Target: "a1"}, {Type: "parent", Target: "b2"}}},
 	}
 
 	tests := []struct {

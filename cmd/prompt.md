@@ -87,10 +87,9 @@ type: feature
 created_at: 2024-01-15T10:30:00Z
 updated_at: 2024-01-16T14:45:00Z
 links:
-  blocks:
-    - other-bean-id
-  parent:
-    - parent-bean-id
+  - blocks: other-bean-id
+  - parent: parent-bean-id
+  - blocks: another-blocked-id
 ---
 
 The body/description goes here as markdown content.
@@ -103,7 +102,7 @@ The body/description goes here as markdown content.
 - `type` (optional): Must be one of the types defined in `config.yaml`
 - `created_at`: Timestamp of creation (auto-managed)
 - `updated_at`: Timestamp of last update (auto-managed)
-- `links`: Relationships to other beans (see Relationships section)
+- `links`: Array of relationships to other beans, each as `- type: target-id` (see Relationships section)
 
 ## Configuration
 
