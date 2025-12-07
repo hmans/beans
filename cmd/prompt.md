@@ -9,7 +9,7 @@ All commands support --json for machine-readable output. Use this flag to parse 
 
 **BEFORE starting any task the user asks you to do:**
 
-1. FIRST: Create a bean with `beans create "Title" -d "Description..." -s in-progress --no-edit`
+1. FIRST: Create a bean with `beans create "Title" -t <type> -d "Description..." -s in-progress --no-edit`
 2. THEN: Do the work
 3. FINALLY: Mark done with `beans update <bean-id> --status done` (do this before committing)
 
@@ -74,7 +74,8 @@ Use `--no-links` and `--no-linked-as` to exclude beans matching a relationship:
 ## Creating new beans
 
 - `beans create --help`
-- Example: `beans create "Fix login bug" -d "Users cannot log in when..." -s open --no-edit`
+- Example: `beans create "Fix login bug" -t bug -d "Users cannot log in when..." -s open --no-edit`
+- **Always specify a type with `-t`**. Check `.beans/config.yaml` to see what types are configured for the project, and choose the most appropriate one for the work being done.
 - When creating new beans, include a useful description. If you're not sure what to write, ask the user.
 - Make the description as detailed as possible, similar to a plan that you would create for yourself.
 - If possible, split the work into a checklist of GitHub-Formatted-Markdown tasks. Use a `## Checklist` header to precede it.
