@@ -69,13 +69,16 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case beansChangedMsg:
-		// Beans changed on disk - refresh list
+		// Beans changed on disk - refresh
 		if a.state == viewDetail {
-			// Check if current bean still exists
-			if _, err := a.core.Get(a.detail.bean.ID); err != nil {
+			// Try to reload the current bean
+			if updatedBean, err := a.core.Get(a.detail.bean.ID); err != nil {
 				// Bean was deleted - return to list
 				a.state = viewList
 				a.history = nil
+			} else {
+				// Recreate detail view with fresh bean data
+				a.detail = newDetailModel(updatedBean, a.core, a.config, a.width, a.height)
 			}
 		}
 		// Trigger list refresh
