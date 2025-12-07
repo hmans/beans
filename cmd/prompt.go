@@ -19,18 +19,36 @@ var promptCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Print(agentPrompt)
 
-		// Append dynamic issue types section from config
-		if cfg != nil && len(cfg.Types) > 0 {
+		// Append dynamic sections from config
+		if cfg != nil {
 			var sb strings.Builder
-			sb.WriteString("\n## Issue Types\n\n")
-			sb.WriteString("This project has the following issue types configured. Always specify a type with `-t` when creating beans:\n\n")
-			for _, t := range cfg.Types {
-				if t.Description != "" {
-					sb.WriteString(fmt.Sprintf("- **%s**: %s\n", t.Name, t.Description))
-				} else {
-					sb.WriteString(fmt.Sprintf("- **%s**\n", t.Name))
+
+			// Issue types section
+			if len(cfg.Types) > 0 {
+				sb.WriteString("\n## Issue Types\n\n")
+				sb.WriteString("This project has the following issue types configured. Always specify a type with `-t` when creating beans:\n\n")
+				for _, t := range cfg.Types {
+					if t.Description != "" {
+						sb.WriteString(fmt.Sprintf("- **%s**: %s\n", t.Name, t.Description))
+					} else {
+						sb.WriteString(fmt.Sprintf("- **%s**\n", t.Name))
+					}
 				}
 			}
+
+			// Statuses section
+			if len(cfg.Statuses) > 0 {
+				sb.WriteString("\n## Statuses\n\n")
+				sb.WriteString("This project has the following statuses configured:\n\n")
+				for _, s := range cfg.Statuses {
+					if s.Description != "" {
+						sb.WriteString(fmt.Sprintf("- **%s**: %s\n", s.Name, s.Description))
+					} else {
+						sb.WriteString(fmt.Sprintf("- **%s**\n", s.Name))
+					}
+				}
+			}
+
 			sb.WriteString("\n")
 			fmt.Print(sb.String())
 		}

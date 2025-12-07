@@ -5,11 +5,14 @@ beans:
 statuses:
     - name: open
       color: green
+      description: Ready to be worked on
     - name: in-progress
       color: yellow
+      description: Currently being worked on
     - name: done
       color: gray
       archive: true
+      description: Completed and ready for archival
 types:
     - name: epic
       color: purple

@@ -12,9 +12,9 @@ const ConfigFile = "config.yaml"
 
 // DefaultStatuses defines the default status configuration.
 var DefaultStatuses = []StatusConfig{
-	{Name: "open", Color: "green"},
-	{Name: "in-progress", Color: "yellow"},
-	{Name: "done", Color: "gray", Archive: true},
+	{Name: "open", Color: "green", Description: "Ready to be worked on"},
+	{Name: "in-progress", Color: "yellow", Description: "Currently being worked on"},
+	{Name: "done", Color: "gray", Archive: true, Description: "Completed and ready for archival"},
 }
 
 // DefaultTypes defines the default type configuration.
@@ -28,9 +28,10 @@ var DefaultTypes = []TypeConfig{
 
 // StatusConfig defines a single status with its display color.
 type StatusConfig struct {
-	Name    string `yaml:"name"`
-	Color   string `yaml:"color"`
-	Archive bool   `yaml:"archive,omitempty"`
+	Name        string `yaml:"name"`
+	Color       string `yaml:"color"`
+	Archive     bool   `yaml:"archive,omitempty"`
+	Description string `yaml:"description,omitempty"`
 }
 
 // TypeConfig defines a single bean type with its display color.

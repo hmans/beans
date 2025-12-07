@@ -404,7 +404,7 @@ func TestTypeDescriptions(t *testing.T) {
 			"milestone": "A target release or checkpoint; group work that should ship together",
 			"feature":   "A user-facing capability or enhancement",
 			"bug":       "Something that is broken and needs fixing",
-			"task":      "A concrete piece of work to complete",
+			"task":      "A concrete piece of work to complete (eg. a chore, or a sub-task for a feature)",
 		}
 
 		for typeName, expectedDesc := range expectedDescriptions {
@@ -485,6 +485,99 @@ types:
 		}
 		if loaded.Types[1].Description != "" {
 			t.Errorf("Types[1].Description = %q, want empty", loaded.Types[1].Description)
+		}
+	})
+}
+
+func TestStatusDescriptions(t *testing.T) {
+	t.Run("default statuses have descriptions", func(t *testing.T) {
+		cfg := Default()
+
+		expectedDescriptions := map[string]string{
+			"open":        "Ready to be worked on",
+			"in-progress": "Currently being worked on",
+			"done":        "Completed and ready for archival",
+		}
+
+		for statusName, expectedDesc := range expectedDescriptions {
+			status := cfg.GetStatus(statusName)
+			if status == nil {
+				t.Errorf("GetStatus(%q) = nil, want non-nil", statusName)
+				continue
+			}
+			if status.Description != expectedDesc {
+				t.Errorf("Status %q description = %q, want %q", statusName, status.Description, expectedDesc)
+			}
+		}
+	})
+
+	t.Run("save and load preserves status descriptions", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		cfg := &Config{
+			Beans: BeansConfig{
+				Prefix:        "test-",
+				IDLength:      4,
+				DefaultStatus: "open",
+			},
+			Statuses: []StatusConfig{
+				{Name: "open", Color: "green", Description: "Ready to start"},
+				{Name: "done", Color: "gray", Archive: true, Description: "All finished"},
+			},
+			Types: DefaultTypes,
+		}
+
+		if err := cfg.Save(tmpDir); err != nil {
+			t.Fatalf("Save() error = %v", err)
+		}
+
+		loaded, err := Load(tmpDir)
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		if loaded.Statuses[0].Description != "Ready to start" {
+			t.Errorf("Statuses[0].Description = %q, want \"Ready to start\"", loaded.Statuses[0].Description)
+		}
+		if loaded.Statuses[1].Description != "All finished" {
+			t.Errorf("Statuses[1].Description = %q, want \"All finished\"", loaded.Statuses[1].Description)
+		}
+	})
+
+	t.Run("status description is optional", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		configPath := filepath.Join(tmpDir, ConfigFile)
+
+		// Config without status descriptions (backwards compatibility)
+		configYAML := `beans:
+  prefix: "test-"
+  id_length: 4
+  default_status: open
+statuses:
+  - name: open
+    color: green
+  - name: done
+    color: gray
+    archive: true
+types:
+  - name: bug
+    color: red
+`
+		if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+			t.Fatalf("WriteFile error = %v", err)
+		}
+
+		loaded, err := Load(tmpDir)
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		// Should load without error, descriptions should be empty
+		if loaded.Statuses[0].Description != "" {
+			t.Errorf("Statuses[0].Description = %q, want empty", loaded.Statuses[0].Description)
+		}
+		if loaded.Statuses[1].Description != "" {
+			t.Errorf("Statuses[1].Description = %q, want empty", loaded.Statuses[1].Description)
 		}
 	})
 }

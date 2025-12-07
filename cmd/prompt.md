@@ -115,11 +115,8 @@ The body/description goes here as markdown content.
 **Front matter fields:**
 
 - `title` (required): A human-readable, one-line title
-- `status` (required): Must be one of the statuses defined in `config.yaml`
-- `type` (optional): Must be one of the types defined in `config.yaml`
+- `status` (required): Must be one of the statuses listed in the "Statuses" section below
+- `type` (optional): Must be one of the types listed in the "Issue Types" section below
 - `created_at`: Timestamp of creation (auto-managed)
 - `updated_at`: Timestamp of last update (auto-managed)
 - `links`: Array of relationships to other beans, each as `- type: target-id` (see Relationships section)
-
-Colors can be named (`green`, `yellow`, `red`, `gray`, `blue`, `purple`) or hex codes (`#FF6B6B`).
-Type descriptions help agents understand when to use each type.
