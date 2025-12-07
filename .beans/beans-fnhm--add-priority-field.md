@@ -3,8 +3,11 @@ title: Add priority field
 status: open
 type: feature
 created_at: 2025-12-06T22:04:39Z
-updated_at: 2025-12-06T22:04:39Z
+updated_at: 2025-12-07T11:17:22Z
+links:
+    - parent: beans-v8qj
 ---
+
 
 Add a `priority` field to bean frontmatter with hard-coded allowed values.
 

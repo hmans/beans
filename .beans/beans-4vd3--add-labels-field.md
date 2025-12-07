@@ -3,8 +3,11 @@ title: Add labels field
 status: open
 type: feature
 created_at: 2025-12-06T22:04:39Z
-updated_at: 2025-12-06T22:04:39Z
+updated_at: 2025-12-07T11:17:22Z
+links:
+    - parent: beans-v8qj
 ---
+
 
 Add a `labels` array field to bean frontmatter for tagging/categorizing beans.
 

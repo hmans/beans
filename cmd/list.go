@@ -13,12 +13,60 @@ import (
 )
 
 var (
-	listJSON   bool
-	listStatus []string
-	listQuiet  bool
-	listSort   string
-	listFull   bool
+	listJSON       bool
+	listStatus     []string
+	listLinks      []string
+	listLinkedAs   []string
+	listNoLinks    []string
+	listNoLinkedAs []string
+	listQuiet      bool
+	listSort       string
+	listFull       bool
 )
+
+// linkFilter represents a pre-parsed link filter criterion.
+type linkFilter struct {
+	linkType string
+	targetID string // empty means "any target"
+}
+
+// parseLinkFilters parses filter strings like "blocks" or "blocks:id" into linkFilter structs.
+func parseLinkFilters(filters []string) []linkFilter {
+	result := make([]linkFilter, len(filters))
+	for i, f := range filters {
+		parts := strings.SplitN(f, ":", 2)
+		result[i].linkType = parts[0]
+		if len(parts) == 2 {
+			result[i].targetID = parts[1]
+		}
+	}
+	return result
+}
+
+// linkIndex holds precomputed data structures for efficient link filtering.
+type linkIndex struct {
+	byID       map[string]*bean.Bean      // ID -> Bean lookup
+	targetedBy map[string]map[string]bool // linkType -> set of target IDs
+}
+
+// buildLinkIndex creates a linkIndex from a slice of beans.
+// This should be called once before any filtering to capture all relationships.
+func buildLinkIndex(beans []*bean.Bean) *linkIndex {
+	idx := &linkIndex{
+		byID:       make(map[string]*bean.Bean),
+		targetedBy: make(map[string]map[string]bool),
+	}
+	for _, b := range beans {
+		idx.byID[b.ID] = b
+		for _, link := range b.Links {
+			if idx.targetedBy[link.Type] == nil {
+				idx.targetedBy[link.Type] = make(map[string]bool)
+			}
+			idx.targetedBy[link.Type][link.Target] = true
+		}
+	}
+	return idx
+}
 
 var listCmd = &cobra.Command{
 	Use:     "list",
@@ -34,8 +82,22 @@ var listCmd = &cobra.Command{
 			return fmt.Errorf("failed to list beans: %w", err)
 		}
 
-		// Apply filters
+		// Parse filter criteria once (avoid repeated string splitting)
+		linksFilters := parseLinkFilters(listLinks)
+		linkedAsFilters := parseLinkFilters(listLinkedAs)
+		noLinksFilters := parseLinkFilters(listNoLinks)
+		noLinkedAsFilters := parseLinkFilters(listNoLinkedAs)
+
+		// Build link index once from all beans (before status filtering)
+		// This ensures relationships are captured even if source bean is filtered out
+		idx := buildLinkIndex(beans)
+
+		// Apply filters (positive first, then exclusions)
 		beans = filterBeans(beans, listStatus)
+		beans = filterByLinks(beans, linksFilters)
+		beans = filterByLinkedAs(beans, linkedAsFilters, idx)
+		beans = excludeByLinks(beans, noLinksFilters)
+		beans = excludeByLinkedAs(beans, noLinkedAsFilters, idx)
 
 		// Sort beans
 		sortBeans(beans, listSort, cfg.StatusNames())
@@ -191,6 +253,178 @@ func filterBeans(beans []*bean.Bean, statuses []string) []*bean.Bean {
 	return filtered
 }
 
+// filterByLinks filters beans by outgoing relationship.
+// Supports two formats:
+//   - "type:id" - Returns beans that have id in their links[type]
+//   - "type" - Returns beans that have ANY link of this type
+//
+// Use repeated flags for multiple values (OR logic).
+//
+// Examples:
+//   - --links blocks:A returns beans that block A
+//   - --links blocks returns all beans that block something
+//   - --links blocks --links parent returns beans that block something OR have a parent link
+func filterByLinks(beans []*bean.Bean, filters []linkFilter) []*bean.Bean {
+	if len(filters) == 0 {
+		return beans
+	}
+
+	var filtered []*bean.Bean
+	for _, b := range beans {
+		matched := false
+		for _, f := range filters {
+			if f.targetID == "" {
+				// Type-only: check if this bean has ANY link of this type
+				if b.Links.HasType(f.linkType) {
+					matched = true
+				}
+			} else {
+				// Type:ID: check if this bean links to the specific target
+				if b.Links.HasLink(f.linkType, f.targetID) {
+					matched = true
+				}
+			}
+
+			if matched {
+				break
+			}
+		}
+		if matched {
+			filtered = append(filtered, b)
+		}
+	}
+	return filtered
+}
+
+// filterByLinkedAs filters beans by incoming relationship.
+// Supports two formats:
+//   - "type:id" - Returns beans that the specified bean (id) has in its links[type]
+//   - "type" - Returns beans that ANY bean has in its links[type]
+//
+// Use repeated flags for multiple values (OR logic).
+//
+// Examples:
+//   - --linked-as blocks:A returns beans that A blocks
+//   - --linked-as blocks returns all beans that are blocked by something
+//   - --linked-as blocks --linked-as parent returns beans that are blocked OR have a parent
+func filterByLinkedAs(beans []*bean.Bean, filters []linkFilter, idx *linkIndex) []*bean.Bean {
+	if len(filters) == 0 {
+		return beans
+	}
+
+	var filtered []*bean.Bean
+	for _, b := range beans {
+		matched := false
+		for _, f := range filters {
+			if f.targetID == "" {
+				// Type-only: check if this bean is targeted by ANY bean with this link type
+				if targets, ok := idx.targetedBy[f.linkType]; ok && targets[b.ID] {
+					matched = true
+				}
+			} else {
+				// Type:ID: check if specific source bean has this bean in its links
+				source, exists := idx.byID[f.targetID]
+				if !exists {
+					continue // Source bean not found
+				}
+
+				if source.Links.HasLink(f.linkType, b.ID) {
+					matched = true
+				}
+			}
+
+			if matched {
+				break
+			}
+		}
+		if matched {
+			filtered = append(filtered, b)
+		}
+	}
+	return filtered
+}
+
+// excludeByLinks excludes beans by outgoing relationship.
+// Inverse of filterByLinks: returns beans that DON'T match the criteria.
+//
+// Examples:
+//   - --no-links blocks returns beans that don't block anything
+//   - --no-links parent returns beans without a parent link
+func excludeByLinks(beans []*bean.Bean, filters []linkFilter) []*bean.Bean {
+	if len(filters) == 0 {
+		return beans
+	}
+
+	var filtered []*bean.Bean
+	for _, b := range beans {
+		excluded := false
+		for _, f := range filters {
+			if f.targetID == "" {
+				// Type-only: exclude if this bean has ANY link of this type
+				if b.Links.HasType(f.linkType) {
+					excluded = true
+				}
+			} else {
+				// Type:ID: exclude if this bean links to the specific target
+				if b.Links.HasLink(f.linkType, f.targetID) {
+					excluded = true
+				}
+			}
+
+			if excluded {
+				break
+			}
+		}
+		if !excluded {
+			filtered = append(filtered, b)
+		}
+	}
+	return filtered
+}
+
+// excludeByLinkedAs excludes beans by incoming relationship.
+// Inverse of filterByLinkedAs: returns beans that DON'T match the criteria.
+//
+// Examples:
+//   - --no-linked-as blocks returns beans not blocked by anything (actionable work)
+//   - --no-linked-as parent:epic-123 returns beans that are not children of epic-123
+func excludeByLinkedAs(beans []*bean.Bean, filters []linkFilter, idx *linkIndex) []*bean.Bean {
+	if len(filters) == 0 {
+		return beans
+	}
+
+	var filtered []*bean.Bean
+	for _, b := range beans {
+		excluded := false
+		for _, f := range filters {
+			if f.targetID == "" {
+				// Type-only: exclude if this bean is targeted by ANY bean with this link type
+				if targets, ok := idx.targetedBy[f.linkType]; ok && targets[b.ID] {
+					excluded = true
+				}
+			} else {
+				// Type:ID: exclude if specific source bean has this bean in its links
+				source, exists := idx.byID[f.targetID]
+				if !exists {
+					continue // Source bean not found, can't exclude
+				}
+
+				if source.Links.HasLink(f.linkType, b.ID) {
+					excluded = true
+				}
+			}
+
+			if excluded {
+				break
+			}
+		}
+		if !excluded {
+			filtered = append(filtered, b)
+		}
+	}
+	return filtered
+}
+
 func truncate(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s
@@ -201,6 +435,10 @@ func truncate(s string, maxLen int) string {
 func init() {
 	listCmd.Flags().BoolVar(&listJSON, "json", false, "Output as JSON")
 	listCmd.Flags().StringArrayVarP(&listStatus, "status", "s", nil, "Filter by status (can be repeated)")
+	listCmd.Flags().StringArrayVar(&listLinks, "links", nil, "Filter by outgoing relationship (format: type or type:id)")
+	listCmd.Flags().StringArrayVar(&listLinkedAs, "linked-as", nil, "Filter by incoming relationship (format: type or type:id)")
+	listCmd.Flags().StringArrayVar(&listNoLinks, "no-links", nil, "Exclude beans with outgoing relationship (format: type or type:id)")
+	listCmd.Flags().StringArrayVar(&listNoLinkedAs, "no-linked-as", nil, "Exclude beans with incoming relationship (format: type or type:id)")
 	listCmd.Flags().BoolVarP(&listQuiet, "quiet", "q", false, "Only output IDs (one per line)")
 	listCmd.Flags().StringVar(&listSort, "sort", "status", "Sort by: created, updated, status, id (default: status)")
 	listCmd.Flags().BoolVar(&listFull, "full", false, "Include bean body in JSON output")

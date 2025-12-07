@@ -2,11 +2,13 @@ package cmd
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
+	"hmans.dev/beans/internal/bean"
 	"hmans.dev/beans/internal/output"
 	"hmans.dev/beans/internal/ui"
 )
@@ -66,6 +68,15 @@ var showCmd = &cobra.Command{
 		header.WriteString(ui.RenderStatusWithColor(b.Status, statusColor, isArchive))
 		header.WriteString("\n")
 		header.WriteString(ui.Title.Render(b.Title))
+
+		// Display relationships
+		if len(b.Links) > 0 {
+			header.WriteString("\n")
+			header.WriteString(ui.Muted.Render(strings.Repeat("─", 50)))
+			header.WriteString("\n")
+			header.WriteString(formatLinks(b.Links))
+		}
+
 		header.WriteString("\n")
 		header.WriteString(ui.Muted.Render(strings.Repeat("─", 50)))
 
@@ -95,6 +106,36 @@ var showCmd = &cobra.Command{
 
 		return nil
 	},
+}
+
+// formatLinks formats links for display with consistent ordering.
+func formatLinks(links bean.Links) string {
+	if len(links) == 0 {
+		return ""
+	}
+
+	// Group links by type, then sort types for deterministic output
+	byType := make(map[string][]string)
+	for _, link := range links {
+		byType[link.Type] = append(byType[link.Type], link.Target)
+	}
+
+	types := make([]string, 0, len(byType))
+	for t := range byType {
+		types = append(types, t)
+	}
+	sort.Strings(types)
+
+	var parts []string
+	for _, linkType := range types {
+		targets := byType[linkType]
+		for _, target := range targets {
+			parts = append(parts, fmt.Sprintf("%s %s",
+				ui.Muted.Render(linkType+":"),
+				ui.ID.Render(target)))
+		}
+	}
+	return strings.Join(parts, "\n")
 }
 
 func init() {

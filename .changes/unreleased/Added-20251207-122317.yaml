@@ -1,0 +1,3 @@
+kind: Added
+body: "Issue relationships: beans can now link to other beans using `--link type:id` on the update command. Filter with `--links` (outgoing) and `--linked-as` (incoming) on list. Supported types: `blocks`, `duplicates`, `parent`, `relates-to`."
+time: 2025-12-07T12:23:17.521276+01:00
