@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/adrg/frontmatter"
@@ -219,7 +220,10 @@ func (b *Bean) Render() ([]byte, error) {
 	buf.Write(fmBytes)
 	buf.WriteString("---\n")
 	if b.Body != "" {
-		buf.WriteString("\n")
+		// Only add newline separator if body doesn't already start with one
+		if !strings.HasPrefix(b.Body, "\n") {
+			buf.WriteString("\n")
+		}
 		buf.WriteString(b.Body)
 	}
 
