@@ -164,6 +164,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Stay in viewDetail state
 		} else {
 			a.state = viewList
+			// Force list to pick up any size changes that happened while in detail view
+			a.list, cmd = a.list.Update(tea.WindowSizeMsg{Width: a.width, Height: a.height})
+			return a, cmd
 		}
 		return a, nil
 	}

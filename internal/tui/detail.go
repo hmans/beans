@@ -52,9 +52,10 @@ type detailModel struct {
 	width        int
 	height       int
 	ready        bool
-	links        []resolvedLink // combined outgoing + incoming links
-	selectedLink int            // -1 = none selected, 0+ = index in links
-	linksActive  bool           // true = links section focused
+	links        []resolvedLink       // combined outgoing + incoming links
+	selectedLink int                  // -1 = none selected, 0+ = index in links
+	linksActive  bool                 // true = links section focused
+	cols         ui.ResponsiveColumns // responsive column widths for links
 }
 
 func newDetailModel(b *bean.Bean, core *beancore.Core, cfg *config.Config, width, height int) detailModel {
@@ -71,6 +72,20 @@ func newDetailModel(b *bean.Bean, core *beancore.Core, cfg *config.Config, width
 
 	// Resolve all links
 	m.links = m.resolveAllLinks()
+
+	// Check if any linked beans have tags
+	hasTags := false
+	for _, link := range m.links {
+		if len(link.bean.Tags) > 0 {
+			hasTags = true
+			break
+		}
+	}
+
+	// Calculate responsive columns for links section
+	// Account for the label column (12 chars) + cursor (2 chars) + border padding
+	linkAreaWidth := width - 12 - 2 - 8
+	m.cols = ui.CalculateResponsiveColumns(linkAreaWidth, hasTags)
 
 	// If there are links, select first one by default
 	if len(m.links) > 0 {
@@ -102,10 +117,26 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
+		// Recalculate responsive columns for links
+		hasTags := false
+		for _, link := range m.links {
+			if len(link.bean.Tags) > 0 {
+				hasTags = true
+				break
+			}
+		}
+		linkAreaWidth := msg.Width - 12 - 2 - 8
+		m.cols = ui.CalculateResponsiveColumns(linkAreaWidth, hasTags)
+
 		headerHeight := m.calculateHeaderHeight()
 		footerHeight := 2
 		vpWidth := msg.Width - 4
 		vpHeight := msg.Height - headerHeight - footerHeight
+
+		// Ensure vpHeight doesn't go negative
+		if vpHeight < 1 {
+			vpHeight = 1
+		}
 
 		if !m.ready {
 			m.viewport = viewport.New(vpWidth, vpHeight)
@@ -350,6 +381,13 @@ func (m detailModel) renderLinkLine(link resolvedLink, index int) string {
 		typeColor = typeCfg.Color
 	}
 
+	// Calculate max title width using responsive columns
+	baseWidth := m.cols.ID + m.cols.Status + m.cols.Type + 12 + 4 // label + cursor + padding
+	if m.cols.ShowTags {
+		baseWidth += m.cols.Tags
+	}
+	maxTitleWidth := max(10, m.width-baseWidth-8) // 8 for border padding
+
 	// Use shared bean row rendering (without cursor, we handle it separately)
 	row := ui.RenderBeanRow(
 		link.bean.ID,
@@ -360,9 +398,13 @@ func (m detailModel) renderLinkLine(link resolvedLink, index int) string {
 			StatusColor:   statusColor,
 			TypeColor:     typeColor,
 			IsArchive:     isArchive,
-			MaxTitleWidth: m.width - 12 - ui.ColWidthID - ui.ColWidthStatus - ui.ColWidthType - 10,
+			MaxTitleWidth: maxTitleWidth,
 			ShowCursor:    false,
 			IsSelected:    false,
+			Tags:          link.bean.Tags,
+			ShowTags:      m.cols.ShowTags,
+			TagsColWidth:  m.cols.Tags,
+			MaxTags:       m.cols.MaxTags,
 		},
 	)
 

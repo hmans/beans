@@ -27,13 +27,14 @@ func (i beanItem) FilterValue() string { return i.bean.Title + " " + i.bean.ID }
 
 // itemDelegate handles rendering of list items
 type itemDelegate struct {
-	cfg      *config.Config
-	showTags bool
-	width    int
+	cfg     *config.Config
+	hasTags bool
+	width   int
+	cols    ui.ResponsiveColumns // cached responsive columns
 }
 
 func newItemDelegate(cfg *config.Config) itemDelegate {
-	return itemDelegate{cfg: cfg, showTags: false, width: 0}
+	return itemDelegate{cfg: cfg, hasTags: false, width: 0}
 }
 
 func (d itemDelegate) Height() int                             { return 1 }
@@ -60,10 +61,10 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 		typeColor = typeCfg.Color
 	}
 
-	// Calculate max title width (accounting for tags column if shown)
-	baseWidth := ui.ColWidthID + ui.ColWidthStatus + ui.ColWidthType + 4
-	if d.showTags {
-		baseWidth += ui.ColWidthTags
+	// Calculate max title width using responsive columns
+	baseWidth := d.cols.ID + d.cols.Status + d.cols.Type + 4 // 4 for cursor + padding
+	if d.cols.ShowTags {
+		baseWidth += d.cols.Tags
 	}
 	maxTitleWidth := max(0, m.Width()-baseWidth)
 
@@ -80,7 +81,9 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 			ShowCursor:    true,
 			IsSelected:    index == m.Index(),
 			Tags:          item.bean.Tags,
-			ShowTags:      d.showTags,
+			ShowTags:      d.cols.ShowTags,
+			TagsColWidth:  d.cols.Tags,
+			MaxTags:       d.cols.MaxTags,
 		},
 	)
 
@@ -89,14 +92,16 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 
 // listModel is the model for the bean list view
 type listModel struct {
-	list     list.Model
-	core     *beancore.Core
-	config   *config.Config
-	width    int
-	height   int
-	err      error
-	hasTags  bool // whether any beans have tags
-	showTags bool // whether to show tags column (based on width)
+	list   list.Model
+	core   *beancore.Core
+	config *config.Config
+	width  int
+	height int
+	err    error
+
+	// Responsive column state
+	hasTags bool                 // whether any beans have tags
+	cols    ui.ResponsiveColumns // calculated responsive columns
 
 	// Active filters
 	tagFilter string // if set, only show beans with this tag
@@ -174,9 +179,6 @@ func (m *listModel) hasActiveFilter() bool {
 	return m.tagFilter != ""
 }
 
-// minWidthForTags is the minimum terminal width to show tags column
-const minWidthForTags = 100
-
 func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 	var cmd tea.Cmd
 
@@ -186,8 +188,8 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 		m.height = msg.Height
 		// Reserve space for border and footer
 		m.list.SetSize(msg.Width-2, msg.Height-4)
-		// Update showTags based on width
-		m.showTags = m.hasTags && m.width >= minWidthForTags
+		// Recalculate responsive columns
+		m.cols = ui.CalculateResponsiveColumns(msg.Width, m.hasTags)
 		m.updateDelegate()
 
 	case beansLoadedMsg:
@@ -202,8 +204,8 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 			}
 		}
 		m.list.SetItems(items)
-		// Update showTags based on hasTags and width
-		m.showTags = m.hasTags && m.width >= minWidthForTags
+		// Calculate responsive columns based on hasTags and width
+		m.cols = ui.CalculateResponsiveColumns(m.width, m.hasTags)
 		m.updateDelegate()
 		return m, nil
 
@@ -236,12 +238,13 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 	return m, cmd
 }
 
-// updateDelegate updates the list delegate with current showTags setting
+// updateDelegate updates the list delegate with current responsive columns
 func (m *listModel) updateDelegate() {
 	delegate := itemDelegate{
-		cfg:      m.config,
-		showTags: m.showTags,
-		width:    m.width,
+		cfg:     m.config,
+		hasTags: m.hasTags,
+		width:   m.width,
+		cols:    m.cols,
 	}
 	m.list.SetDelegate(delegate)
 }

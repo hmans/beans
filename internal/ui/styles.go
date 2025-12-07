@@ -235,17 +235,19 @@ func RenderTypeText(typeName, color string) string {
 
 // BeanRowConfig holds configuration for rendering a bean row
 type BeanRowConfig struct {
-	StatusColor    string
-	TypeColor      string
-	IsArchive      bool
-	MaxTitleWidth  int  // 0 means no truncation
-	ShowCursor     bool // Show selection cursor
-	IsSelected     bool
-	Tags           []string // Tags to display (optional)
-	ShowTags       bool     // Whether to show tags column
+	StatusColor   string
+	TypeColor     string
+	IsArchive     bool
+	MaxTitleWidth int  // 0 means no truncation
+	ShowCursor    bool // Show selection cursor
+	IsSelected    bool
+	Tags          []string // Tags to display (optional)
+	ShowTags      bool     // Whether to show tags column
+	TagsColWidth  int      // Width of tags column (0 = default)
+	MaxTags       int      // Max tags to show (0 = default of 1)
 }
 
-// Standard column widths for bean lists
+// Base column widths for bean lists (minimum sizes)
 const (
 	ColWidthID     = 12
 	ColWidthStatus = 14
@@ -253,13 +255,88 @@ const (
 	ColWidthTags   = 24
 )
 
+// ResponsiveColumns holds calculated column widths based on available space
+type ResponsiveColumns struct {
+	ID       int
+	Status   int
+	Type     int
+	Tags     int
+	MaxTags  int // How many tags to show
+	ShowTags bool
+}
+
+// CalculateResponsiveColumns determines column widths based on available width.
+// It distributes extra space to tags (more tags) and title (remaining space).
+func CalculateResponsiveColumns(totalWidth int, hasTags bool) ResponsiveColumns {
+	// Fixed columns
+	cols := ResponsiveColumns{
+		ID:       ColWidthID,
+		Status:   ColWidthStatus,
+		Type:     ColWidthType,
+		Tags:     0,
+		MaxTags:  0,
+		ShowTags: false,
+	}
+
+	// Cursor takes 2 chars
+	cursorWidth := 2
+
+	// Base width without tags
+	baseWidth := cursorWidth + cols.ID + cols.Status + cols.Type
+
+	// Minimum title width we want to preserve (kept low to favor title space)
+	minTitleWidth := 20
+
+	// Available space for tags + title
+	available := totalWidth - baseWidth
+
+	// Only show tags if we have them and there's enough room
+	// Use higher thresholds to give more space to titles
+	if hasTags && available > minTitleWidth+ColWidthTags+20 {
+		cols.ShowTags = true
+
+		// Calculate how many tags we can show based on available space
+		// Be conservative - favor title width over showing more tags
+		spaceForTags := available - minTitleWidth - 20 // extra 20 for title breathing room
+
+		if spaceForTags >= 70 {
+			// Lots of space: show 3 tags, wider column
+			cols.Tags = 50
+			cols.MaxTags = 3
+		} else if spaceForTags >= 55 {
+			// Good space: show 2 tags
+			cols.Tags = 38
+			cols.MaxTags = 2
+		} else if spaceForTags >= ColWidthTags {
+			// Minimal: show 1 tag
+			cols.Tags = ColWidthTags
+			cols.MaxTags = 1
+		} else {
+			// Not enough room for tags
+			cols.ShowTags = false
+		}
+	}
+
+	return cols
+}
+
 // RenderBeanRow renders a bean as a single row with ID, Type, Status, Tags (optional), Title
 func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string {
-	// Column styles
+	// Column styles - use responsive widths if provided
 	idStyle := lipgloss.NewStyle().Width(ColWidthID)
 	typeStyle := lipgloss.NewStyle().Width(ColWidthType)
 	statusStyle := lipgloss.NewStyle().Width(ColWidthStatus)
-	tagsStyle := lipgloss.NewStyle().Width(ColWidthTags)
+
+	tagsColWidth := ColWidthTags
+	if cfg.TagsColWidth > 0 {
+		tagsColWidth = cfg.TagsColWidth
+	}
+	tagsStyle := lipgloss.NewStyle().Width(tagsColWidth)
+
+	maxTags := 1
+	if cfg.MaxTags > 0 {
+		maxTags = cfg.MaxTags
+	}
 
 	// Build columns
 	idCol := idStyle.Render(ID.Render(id))
@@ -275,7 +352,7 @@ func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string
 	// Tags column (optional)
 	var tagsCol string
 	if cfg.ShowTags {
-		tagsCol = tagsStyle.Render(RenderTagsCompact(cfg.Tags, 1))
+		tagsCol = tagsStyle.Render(RenderTagsCompact(cfg.Tags, maxTags))
 	}
 
 	// Title (truncate if needed)
