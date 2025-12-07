@@ -9,6 +9,7 @@ All commands support --json for machine-readable output. Use this flag to parse 
 
 - After compaction or clear, run `beans prompt` to re-sync
 - Track ALL work using beans (no TodoWrite tool, no markdown TODOs). If you identify something that should be tracked, create a bean for it.
+- When I ask you to do something, create a bean for it, give it a useful body/description, keep it updated while you're working on it, and include it in the commit when you make one.
 - All bean commands support the `--json` flag for machine-readable output.
 - Use `beans create` to create issues, not TodoWrite tool
 - When completing work, mark the bean as done using `beans update <bean-id> --status done`. If you're about to create a commit, do this first.
