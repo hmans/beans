@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"sort"
-
 	tea "github.com/charmbracelet/bubbletea"
 	"hmans.dev/beans/internal/beancore"
 	"hmans.dev/beans/internal/config"
@@ -128,8 +126,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.list.loadBeans
 
 	case openTagPickerMsg:
-		// Collect all unique tags from beans
-		tags := a.collectAllTags()
+		// Collect all tags with their counts
+		tags := a.collectTagsWithCounts()
 		if len(tags) == 0 {
 			// No tags in system, don't open picker
 			return a, nil
@@ -184,21 +182,20 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a, cmd
 }
 
-// collectAllTags returns all unique tags across all beans, sorted alphabetically
-func (a *App) collectAllTags() []string {
-	tagSet := make(map[string]struct{})
+// collectTagsWithCounts returns all tags with their usage counts
+func (a *App) collectTagsWithCounts() []tagWithCount {
+	tagCounts := make(map[string]int)
 	for _, b := range a.core.All() {
 		for _, tag := range b.Tags {
-			tagSet[tag] = struct{}{}
+			tagCounts[tag]++
 		}
 	}
 
-	tags := make([]string, 0, len(tagSet))
-	for tag := range tagSet {
-		tags = append(tags, tag)
+	tags := make([]tagWithCount, 0, len(tagCounts))
+	for tag, count := range tagCounts {
+		tags = append(tags, tagWithCount{tag: tag, count: count})
 	}
 
-	sort.Strings(tags)
 	return tags
 }
 

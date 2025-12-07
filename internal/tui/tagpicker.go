@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"io"
+	"sort"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -10,9 +11,16 @@ import (
 	"hmans.dev/beans/internal/ui"
 )
 
-// tagItem wraps a tag string to implement list.Item
+// tagWithCount holds a tag and its usage count
+type tagWithCount struct {
+	tag   string
+	count int
+}
+
+// tagItem wraps a tag with count to implement list.Item
 type tagItem struct {
-	tag string
+	tag   string
+	count int
 }
 
 func (i tagItem) Title() string       { return i.tag }
@@ -39,23 +47,34 @@ func (d tagItemDelegate) Render(w io.Writer, m list.Model, index int, listItem l
 		cursor = "  "
 	}
 
-	fmt.Fprint(w, cursor+ui.RenderTag(item.tag))
+	tagBadge := ui.RenderTag(item.tag)
+	count := ui.Muted.Render(fmt.Sprintf(" (%d)", item.count))
+
+	fmt.Fprint(w, cursor+tagBadge+count)
 }
 
 // tagPickerModel is the model for the tag picker view
 type tagPickerModel struct {
 	list   list.Model
-	tags   []string
+	tags   []tagWithCount
 	width  int
 	height int
 }
 
-func newTagPickerModel(tags []string, width, height int) tagPickerModel {
+func newTagPickerModel(tags []tagWithCount, width, height int) tagPickerModel {
+	// Sort by count descending, then alphabetically
+	sort.Slice(tags, func(i, j int) bool {
+		if tags[i].count != tags[j].count {
+			return tags[i].count > tags[j].count
+		}
+		return tags[i].tag < tags[j].tag
+	})
+
 	delegate := tagItemDelegate{}
 
 	items := make([]list.Item, len(tags))
-	for i, tag := range tags {
-		items[i] = tagItem{tag: tag}
+	for i, t := range tags {
+		items[i] = tagItem{tag: t.tag, count: t.count}
 	}
 
 	l := list.New(items, delegate, width-4, height-6)
