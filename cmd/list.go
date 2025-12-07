@@ -24,6 +24,50 @@ var (
 	listFull       bool
 )
 
+// linkFilter represents a pre-parsed link filter criterion.
+type linkFilter struct {
+	linkType string
+	targetID string // empty means "any target"
+}
+
+// parseLinkFilters parses filter strings like "blocks" or "blocks:id" into linkFilter structs.
+func parseLinkFilters(filters []string) []linkFilter {
+	result := make([]linkFilter, len(filters))
+	for i, f := range filters {
+		parts := strings.SplitN(f, ":", 2)
+		result[i].linkType = parts[0]
+		if len(parts) == 2 {
+			result[i].targetID = parts[1]
+		}
+	}
+	return result
+}
+
+// linkIndex holds precomputed data structures for efficient link filtering.
+type linkIndex struct {
+	byID       map[string]*bean.Bean      // ID -> Bean lookup
+	targetedBy map[string]map[string]bool // linkType -> set of target IDs
+}
+
+// buildLinkIndex creates a linkIndex from a slice of beans.
+// This should be called once before any filtering to capture all relationships.
+func buildLinkIndex(beans []*bean.Bean) *linkIndex {
+	idx := &linkIndex{
+		byID:       make(map[string]*bean.Bean),
+		targetedBy: make(map[string]map[string]bool),
+	}
+	for _, b := range beans {
+		idx.byID[b.ID] = b
+		for _, link := range b.Links {
+			if idx.targetedBy[link.Type] == nil {
+				idx.targetedBy[link.Type] = make(map[string]bool)
+			}
+			idx.targetedBy[link.Type][link.Target] = true
+		}
+	}
+	return idx
+}
+
 var listCmd = &cobra.Command{
 	Use:     "list",
 	Aliases: []string{"ls"},
@@ -38,12 +82,22 @@ var listCmd = &cobra.Command{
 			return fmt.Errorf("failed to list beans: %w", err)
 		}
 
+		// Parse filter criteria once (avoid repeated string splitting)
+		linksFilters := parseLinkFilters(listLinks)
+		linkedAsFilters := parseLinkFilters(listLinkedAs)
+		noLinksFilters := parseLinkFilters(listNoLinks)
+		noLinkedAsFilters := parseLinkFilters(listNoLinkedAs)
+
+		// Build link index once from all beans (before status filtering)
+		// This ensures relationships are captured even if source bean is filtered out
+		idx := buildLinkIndex(beans)
+
 		// Apply filters (positive first, then exclusions)
 		beans = filterBeans(beans, listStatus)
-		beans = filterByLinks(beans, listLinks)
-		beans = filterByLinkedAs(beans, listLinkedAs)
-		beans = excludeByLinks(beans, listNoLinks)
-		beans = excludeByLinkedAs(beans, listNoLinkedAs)
+		beans = filterByLinks(beans, linksFilters)
+		beans = filterByLinkedAs(beans, linkedAsFilters, idx)
+		beans = excludeByLinks(beans, noLinksFilters)
+		beans = excludeByLinkedAs(beans, noLinkedAsFilters, idx)
 
 		// Sort beans
 		sortBeans(beans, listSort, cfg.StatusNames())
@@ -210,27 +264,23 @@ func filterBeans(beans []*bean.Bean, statuses []string) []*bean.Bean {
 //   - --links blocks:A returns beans that block A
 //   - --links blocks returns all beans that block something
 //   - --links blocks --links parent returns beans that block something OR have a parent link
-func filterByLinks(beans []*bean.Bean, link []string) []*bean.Bean {
-	if len(link) == 0 {
+func filterByLinks(beans []*bean.Bean, filters []linkFilter) []*bean.Bean {
+	if len(filters) == 0 {
 		return beans
 	}
 
 	var filtered []*bean.Bean
 	for _, b := range beans {
 		matched := false
-		for _, l := range link {
-			parts := strings.SplitN(l, ":", 2)
-			linkType := parts[0]
-
-			if len(parts) == 1 {
+		for _, f := range filters {
+			if f.targetID == "" {
 				// Type-only: check if this bean has ANY link of this type
-				if b.Links.HasType(linkType) {
+				if b.Links.HasType(f.linkType) {
 					matched = true
 				}
 			} else {
 				// Type:ID: check if this bean links to the specific target
-				targetID := parts[1]
-				if b.Links.HasLink(linkType, targetID) {
+				if b.Links.HasLink(f.linkType, f.targetID) {
 					matched = true
 				}
 			}
@@ -257,49 +307,28 @@ func filterByLinks(beans []*bean.Bean, link []string) []*bean.Bean {
 //   - --linked-as blocks:A returns beans that A blocks
 //   - --linked-as blocks returns all beans that are blocked by something
 //   - --linked-as blocks --linked-as parent returns beans that are blocked OR have a parent
-func filterByLinkedAs(beans []*bean.Bean, linked []string) []*bean.Bean {
-	if len(linked) == 0 {
+func filterByLinkedAs(beans []*bean.Bean, filters []linkFilter, idx *linkIndex) []*bean.Bean {
+	if len(filters) == 0 {
 		return beans
-	}
-
-	// Build ID → Bean lookup for source beans
-	byID := make(map[string]*bean.Bean)
-	for _, b := range beans {
-		byID[b.ID] = b
-	}
-
-	// Build set of all beans targeted by each link type (for type-only queries)
-	targetedBy := make(map[string]map[string]bool) // linkType -> set of target IDs
-	for _, b := range beans {
-		for _, link := range b.Links {
-			if targetedBy[link.Type] == nil {
-				targetedBy[link.Type] = make(map[string]bool)
-			}
-			targetedBy[link.Type][link.Target] = true
-		}
 	}
 
 	var filtered []*bean.Bean
 	for _, b := range beans {
 		matched := false
-		for _, link := range linked {
-			parts := strings.SplitN(link, ":", 2)
-			linkType := parts[0]
-
-			if len(parts) == 1 {
+		for _, f := range filters {
+			if f.targetID == "" {
 				// Type-only: check if this bean is targeted by ANY bean with this link type
-				if targets, ok := targetedBy[linkType]; ok && targets[b.ID] {
+				if targets, ok := idx.targetedBy[f.linkType]; ok && targets[b.ID] {
 					matched = true
 				}
 			} else {
 				// Type:ID: check if specific source bean has this bean in its links
-				sourceID := parts[1]
-				source, exists := byID[sourceID]
+				source, exists := idx.byID[f.targetID]
 				if !exists {
 					continue // Source bean not found
 				}
 
-				if source.Links.HasLink(linkType, b.ID) {
+				if source.Links.HasLink(f.linkType, b.ID) {
 					matched = true
 				}
 			}
@@ -321,27 +350,23 @@ func filterByLinkedAs(beans []*bean.Bean, linked []string) []*bean.Bean {
 // Examples:
 //   - --no-links blocks returns beans that don't block anything
 //   - --no-links parent returns beans without a parent link
-func excludeByLinks(beans []*bean.Bean, exclude []string) []*bean.Bean {
-	if len(exclude) == 0 {
+func excludeByLinks(beans []*bean.Bean, filters []linkFilter) []*bean.Bean {
+	if len(filters) == 0 {
 		return beans
 	}
 
 	var filtered []*bean.Bean
 	for _, b := range beans {
 		excluded := false
-		for _, l := range exclude {
-			parts := strings.SplitN(l, ":", 2)
-			linkType := parts[0]
-
-			if len(parts) == 1 {
+		for _, f := range filters {
+			if f.targetID == "" {
 				// Type-only: exclude if this bean has ANY link of this type
-				if b.Links.HasType(linkType) {
+				if b.Links.HasType(f.linkType) {
 					excluded = true
 				}
 			} else {
 				// Type:ID: exclude if this bean links to the specific target
-				targetID := parts[1]
-				if b.Links.HasLink(linkType, targetID) {
+				if b.Links.HasLink(f.linkType, f.targetID) {
 					excluded = true
 				}
 			}
@@ -363,49 +388,28 @@ func excludeByLinks(beans []*bean.Bean, exclude []string) []*bean.Bean {
 // Examples:
 //   - --no-linked-as blocks returns beans not blocked by anything (actionable work)
 //   - --no-linked-as parent:epic-123 returns beans that are not children of epic-123
-func excludeByLinkedAs(beans []*bean.Bean, exclude []string) []*bean.Bean {
-	if len(exclude) == 0 {
+func excludeByLinkedAs(beans []*bean.Bean, filters []linkFilter, idx *linkIndex) []*bean.Bean {
+	if len(filters) == 0 {
 		return beans
-	}
-
-	// Build ID → Bean lookup for source beans
-	byID := make(map[string]*bean.Bean)
-	for _, b := range beans {
-		byID[b.ID] = b
-	}
-
-	// Build set of all beans targeted by each link type (for type-only queries)
-	targetedBy := make(map[string]map[string]bool) // linkType -> set of target IDs
-	for _, b := range beans {
-		for _, link := range b.Links {
-			if targetedBy[link.Type] == nil {
-				targetedBy[link.Type] = make(map[string]bool)
-			}
-			targetedBy[link.Type][link.Target] = true
-		}
 	}
 
 	var filtered []*bean.Bean
 	for _, b := range beans {
 		excluded := false
-		for _, link := range exclude {
-			parts := strings.SplitN(link, ":", 2)
-			linkType := parts[0]
-
-			if len(parts) == 1 {
+		for _, f := range filters {
+			if f.targetID == "" {
 				// Type-only: exclude if this bean is targeted by ANY bean with this link type
-				if targets, ok := targetedBy[linkType]; ok && targets[b.ID] {
+				if targets, ok := idx.targetedBy[f.linkType]; ok && targets[b.ID] {
 					excluded = true
 				}
 			} else {
 				// Type:ID: exclude if specific source bean has this bean in its links
-				sourceID := parts[1]
-				source, exists := byID[sourceID]
+				source, exists := idx.byID[f.targetID]
 				if !exists {
 					continue // Source bean not found, can't exclude
 				}
 
-				if source.Links.HasLink(linkType, b.ID) {
+				if source.Links.HasLink(f.linkType, b.ID) {
 					excluded = true
 				}
 			}

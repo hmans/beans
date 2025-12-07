@@ -270,7 +270,7 @@ func TestFilterByLinks(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := filterByLinks(beans, tt.filter)
+			got := filterByLinks(beans, parseLinkFilters(tt.filter))
 			gotIDs := extractIDs(got)
 
 			if !equalStringSlices(gotIDs, tt.wantIDs) {
@@ -288,6 +288,9 @@ func TestFilterByLinkedAs(t *testing.T) {
 		{ID: "c3", Links: nil},
 		{ID: "epic1", Links: bean.Links{{Type: "parent", Target: "a1"}, {Type: "parent", Target: "b2"}}}, // epic1 is parent of a1 and b2
 	}
+
+	// Build index once for all tests
+	idx := buildLinkIndex(beans)
 
 	tests := []struct {
 		name    string
@@ -323,7 +326,7 @@ func TestFilterByLinkedAs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := filterByLinkedAs(beans, tt.filter)
+			got := filterByLinkedAs(beans, parseLinkFilters(tt.filter), idx)
 			gotIDs := extractIDs(got)
 
 			if !equalStringSlices(gotIDs, tt.wantIDs) {
@@ -382,7 +385,7 @@ func TestExcludeByLinks(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := excludeByLinks(beans, tt.exclude)
+			got := excludeByLinks(beans, parseLinkFilters(tt.exclude))
 			gotIDs := extractIDs(got)
 
 			if !equalStringSlices(gotIDs, tt.wantIDs) {
@@ -401,6 +404,9 @@ func TestExcludeByLinkedAs(t *testing.T) {
 		{ID: "d4", Links: nil},
 		{ID: "epic1", Links: bean.Links{{Type: "parent", Target: "a1"}, {Type: "parent", Target: "b2"}}},
 	}
+
+	// Build index once for all tests
+	idx := buildLinkIndex(beans)
 
 	tests := []struct {
 		name    string
@@ -441,7 +447,7 @@ func TestExcludeByLinkedAs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := excludeByLinkedAs(beans, tt.exclude)
+			got := excludeByLinkedAs(beans, parseLinkFilters(tt.exclude), idx)
 			gotIDs := extractIDs(got)
 
 			if !equalStringSlices(gotIDs, tt.wantIDs) {
