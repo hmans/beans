@@ -141,26 +141,3 @@ func TestSortByStatusPriorityAndType(t *testing.T) {
 	})
 }
 
-func TestSortByStatusAndType(t *testing.T) {
-	// Deprecated function should still work (calls SortByStatusPriorityAndType)
-	statusNames := []string{"backlog", "todo", "completed"}
-	typeNames := []string{"bug", "feature"}
-
-	beans := []*Bean{
-		{ID: "1", Title: "A", Status: "completed", Type: "bug"},
-		{ID: "2", Title: "B", Status: "todo", Type: "feature"},
-		{ID: "3", Title: "C", Status: "backlog", Type: "bug"},
-	}
-
-	SortByStatusAndType(beans, statusNames, typeNames)
-
-	if beans[0].Status != "backlog" {
-		t.Errorf("First bean status = %q, want \"backlog\"", beans[0].Status)
-	}
-	if beans[1].Status != "todo" {
-		t.Errorf("Second bean status = %q, want \"todo\"", beans[1].Status)
-	}
-	if beans[2].Status != "completed" {
-		t.Errorf("Third bean status = %q, want \"completed\"", beans[2].Status)
-	}
-}

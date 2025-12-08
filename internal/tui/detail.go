@@ -505,23 +505,37 @@ func (m detailModel) resolveAllLinks() []resolvedLink {
 		if labelI != labelJ {
 			return labelI < labelJ
 		}
-		// Within same link type: sort by status order, then type order, then title
-		return compareBeansByStatusAndType(links[i].bean, links[j].bean, statusNames, typeNames)
+		// Within same link type: sort by status, priority, type, then title
+		priorityNames := m.config.PriorityNames()
+		return compareBeansByStatusPriorityAndType(links[i].bean, links[j].bean, statusNames, priorityNames, typeNames)
 	})
 
 	return links
 }
 
-// compareBeansByStatusAndType compares two beans using the same ordering as bean.SortByStatusAndType.
-func compareBeansByStatusAndType(a, b *bean.Bean, statusNames, typeNames []string) bool {
+// compareBeansByStatusPriorityAndType compares two beans using the same ordering as bean.SortByStatusPriorityAndType.
+func compareBeansByStatusPriorityAndType(a, b *bean.Bean, statusNames, priorityNames, typeNames []string) bool {
 	// Build order maps
 	statusOrder := make(map[string]int)
 	for i, s := range statusNames {
 		statusOrder[s] = i
 	}
+	priorityOrder := make(map[string]int)
+	for i, p := range priorityNames {
+		priorityOrder[p] = i
+	}
 	typeOrder := make(map[string]int)
 	for i, t := range typeNames {
 		typeOrder[t] = i
+	}
+
+	// Find the index of "normal" priority for beans without priority set
+	normalPriorityOrder := len(priorityNames)
+	for i, p := range priorityNames {
+		if p == "normal" {
+			normalPriorityOrder = i
+			break
+		}
 	}
 
 	// Helper to get order with unrecognized values sorted last
@@ -530,6 +544,15 @@ func compareBeansByStatusAndType(a, b *bean.Bean, statusNames, typeNames []strin
 			return order
 		}
 		return len(statusNames)
+	}
+	getPriorityOrder := func(priority string) int {
+		if priority == "" {
+			return normalPriorityOrder
+		}
+		if order, ok := priorityOrder[priority]; ok {
+			return order
+		}
+		return len(priorityNames)
 	}
 	getTypeOrder := func(typ string) int {
 		if order, ok := typeOrder[typ]; ok {
@@ -543,12 +566,17 @@ func compareBeansByStatusAndType(a, b *bean.Bean, statusNames, typeNames []strin
 	if oi != oj {
 		return oi < oj
 	}
-	// Secondary: type order
+	// Secondary: priority order
+	pi, pj := getPriorityOrder(a.Priority), getPriorityOrder(b.Priority)
+	if pi != pj {
+		return pi < pj
+	}
+	// Tertiary: type order
 	ti, tj := getTypeOrder(a.Type), getTypeOrder(b.Type)
 	if ti != tj {
 		return ti < tj
 	}
-	// Tertiary: title (case-insensitive)
+	// Quaternary: title (case-insensitive)
 	return strings.ToLower(a.Title) < strings.ToLower(b.Title)
 }
 

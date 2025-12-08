@@ -182,7 +182,7 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 		m.updateDelegate()
 
 	case beansLoadedMsg:
-		bean.SortByStatusAndType(msg.beans, m.config.StatusNames(), m.config.TypeNames())
+		bean.SortByStatusPriorityAndType(msg.beans, m.config.StatusNames(), m.config.PriorityNames(), m.config.TypeNames())
 		items := make([]list.Item, len(msg.beans))
 		// Check if any beans have tags
 		m.hasTags = false

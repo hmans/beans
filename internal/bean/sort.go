@@ -75,9 +75,3 @@ func SortByStatusPriorityAndType(beans []*Bean, statusNames, priorityNames, type
 		return strings.ToLower(beans[i].Title) < strings.ToLower(beans[j].Title)
 	})
 }
-
-// SortByStatusAndType sorts beans by status order, then by type order, then by title.
-// Deprecated: Use SortByStatusPriorityAndType instead for priority-aware sorting.
-func SortByStatusAndType(beans []*Bean, statusNames []string, typeNames []string) {
-	SortByStatusPriorityAndType(beans, statusNames, nil, typeNames)
-}
