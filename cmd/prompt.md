@@ -107,3 +107,92 @@ Use `-t/--type` to filter by bean type (OR logic when repeated):
 ## Cleaning up beans
 
 - `beans archive` will archive (delete) beans marked as completed or scrapped. ONLY run this when I explicitly tell you to.
+
+## GraphQL API
+
+Beans provides a GraphQL API for flexible querying. Use `beans query` to execute GraphQL queries.
+
+**Basic usage:**
+
+```bash
+# List all beans
+beans query '{ beans { id title status } }'
+
+# Get a specific bean
+beans query '{ bean(id: "abc") { title status body } }'
+
+# Filter beans
+beans query '{ beans(filter: { status: ["todo", "in-progress"] }) { id title } }'
+
+# Get relationships
+beans query '{ bean(id: "abc") { title parent { title } children { id title } } }'
+
+# Read from stdin (useful for complex queries or shell escaping issues)
+cat query.graphql | beans query
+beans query <<'EOF'
+query GetBean($id: ID!) { bean(id: $id) { title } }
+EOF
+
+# Print schema
+beans query --schema
+```
+
+**Flags:**
+
+- `--json`: Output raw JSON (no formatting)
+- `--schema`: Print the GraphQL schema
+- `-v, --variables`: Query variables as JSON string
+- `-o, --operation`: Operation name for multi-operation documents
+
+**GraphQL Schema:**
+
+```graphql
+type Query {
+  bean(id: ID!): Bean
+  beans(filter: BeanFilter): [Bean!]!
+}
+
+type Bean {
+  id: ID!
+  slug: String
+  path: String!
+  title: String!
+  status: String!
+  type: String
+  priority: String
+  tags: [String!]
+  createdAt: Time
+  updatedAt: Time
+  body: String
+  links: [Link!]
+
+  # Computed relationship fields
+  blockedBy: [Bean!]!   # beans that block this one
+  blocks: [Bean!]!      # beans this one blocks
+  parent: Bean          # parent bean if linked
+  children: [Bean!]!    # beans with this as parent
+}
+
+type Link {
+  type: String!
+  target: String!
+  targetBean: Bean      # resolved bean (null if broken)
+}
+
+input BeanFilter {
+  status: [String!]
+  excludeStatus: [String!]
+  type: [String!]
+  excludeType: [String!]
+  priority: [String!]
+  excludePriority: [String!]
+  tags: [String!]
+  excludeTags: [String!]
+  hasLinks: [String!]   # has outgoing links of type
+  linkedAs: [String!]   # is target of links of type
+  noLinks: [String!]    # exclude if has outgoing links
+  noLinkedAs: [String!] # exclude if is target of links
+}
+
+scalar Time
+```

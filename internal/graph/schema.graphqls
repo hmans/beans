@@ -1,0 +1,98 @@
+# Beans GraphQL Schema
+# Read-only queries for beans issue tracker
+
+scalar Time
+
+type Query {
+  """
+  Get a single bean by ID (supports prefix matching)
+  """
+  bean(id: ID!): Bean
+
+  """
+  List beans with optional filtering
+  """
+  beans(filter: BeanFilter): [Bean!]!
+}
+
+"""
+A bean represents an issue/task in the beans tracker
+"""
+type Bean {
+  "Unique identifier (NanoID)"
+  id: ID!
+  "Human-readable slug from filename"
+  slug: String
+  "Relative path from .beans/ directory"
+  path: String!
+  "Bean title"
+  title: String!
+  "Current status (backlog, todo, in-progress, completed, scrapped)"
+  status: String!
+  "Bean type (milestone, epic, bug, feature, task)"
+  type: String
+  "Priority level (critical, high, normal, low, deferred)"
+  priority: String
+  "Tags for categorization"
+  tags: [String!]
+  "Creation timestamp"
+  createdAt: Time
+  "Last update timestamp"
+  updatedAt: Time
+  "Markdown body content"
+  body: String
+  "Direct links to other beans"
+  links: [Link!]
+
+  # Computed relationship fields
+  "Beans that block this one (incoming 'blocks' links)"
+  blockedBy: [Bean!]!
+  "Beans this one blocks (outgoing 'blocks' links)"
+  blocks: [Bean!]!
+  "Parent bean if linked"
+  parent: Bean
+  "Child beans (beans with this as parent)"
+  children: [Bean!]!
+}
+
+"""
+A link represents a relationship from one bean to another
+"""
+type Link {
+  "Relationship type (blocks, duplicates, parent, related)"
+  type: String!
+  "Target bean ID"
+  target: String!
+  "Resolved target bean (null if broken link)"
+  targetBean: Bean
+}
+
+"""
+Filter options for querying beans
+"""
+input BeanFilter {
+  "Include only beans with these statuses (OR logic)"
+  status: [String!]
+  "Exclude beans with these statuses"
+  excludeStatus: [String!]
+  "Include only beans with these types (OR logic)"
+  type: [String!]
+  "Exclude beans with these types"
+  excludeType: [String!]
+  "Include only beans with these priorities (OR logic)"
+  priority: [String!]
+  "Exclude beans with these priorities"
+  excludePriority: [String!]
+  "Include only beans with any of these tags (OR logic)"
+  tags: [String!]
+  "Exclude beans with any of these tags"
+  excludeTags: [String!]
+  "Include only beans that have outgoing links of these types"
+  hasLinks: [String!]
+  "Include only beans that are targets of links of these types"
+  linkedAs: [String!]
+  "Exclude beans that have outgoing links of these types"
+  noLinks: [String!]
+  "Exclude beans that are targets of links of these types"
+  noLinkedAs: [String!]
+}
