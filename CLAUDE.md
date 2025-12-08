@@ -17,6 +17,7 @@ This is a small CLI app that interacts with a .beans/ directory that stores "iss
 - When making commits, provide a meaningful commit message. The description should be a concise bullet point list of changes made.
 - After making a meaningful change that should be mentioned in the changelog, create a change file using `changie new`. (See `changie new --help` for options.)
 - When we're working in a PR branch, make separate commits, and update the PR description to reflect the changes made.
+- When making changes to the GraphQL schema, run `mise codegen` to regenerate the code.
 
 # Extra rules for our own beans/issues
 
