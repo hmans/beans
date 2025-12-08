@@ -20,14 +20,22 @@ type BeanFilter struct {
 	Tags []string `json:"tags,omitempty"`
 	// Exclude beans with any of these tags
 	ExcludeTags []string `json:"excludeTags,omitempty"`
-	// Include only beans that have outgoing links of these types
-	HasLinks []string `json:"hasLinks,omitempty"`
-	// Include only beans that are targets of links of these types
-	LinkedAs []string `json:"linkedAs,omitempty"`
-	// Exclude beans that have outgoing links of these types
-	NoLinks []string `json:"noLinks,omitempty"`
-	// Exclude beans that are targets of links of these types
-	NoLinkedAs []string `json:"noLinkedAs,omitempty"`
+	// Include only beans that have outgoing links matching these filters (OR logic)
+	HasLinks []*LinkFilter `json:"hasLinks,omitempty"`
+	// Include only beans that are targets of links matching these filters (OR logic)
+	LinkedAs []*LinkFilter `json:"linkedAs,omitempty"`
+	// Exclude beans that have outgoing links matching these filters
+	NoLinks []*LinkFilter `json:"noLinks,omitempty"`
+	// Exclude beans that are targets of links matching these filters
+	NoLinkedAs []*LinkFilter `json:"noLinkedAs,omitempty"`
+}
+
+// A link filter specifies both the link type and optionally a target bean ID.
+type LinkFilter struct {
+	// Link type (blocks, duplicates, parent, related)
+	Type string `json:"type"`
+	// Optional target bean ID - if omitted, matches any target
+	Target *string `json:"target,omitempty"`
 }
 
 type Query struct {

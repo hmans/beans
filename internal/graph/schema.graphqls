@@ -68,6 +68,16 @@ type Link {
 }
 
 """
+A link filter specifies both the link type and optionally a target bean ID.
+"""
+input LinkFilter {
+  "Link type (blocks, duplicates, parent, related)"
+  type: String!
+  "Optional target bean ID - if omitted, matches any target"
+  target: String
+}
+
+"""
 Filter options for querying beans
 """
 input BeanFilter {
@@ -87,12 +97,12 @@ input BeanFilter {
   tags: [String!]
   "Exclude beans with any of these tags"
   excludeTags: [String!]
-  "Include only beans that have outgoing links of these types"
-  hasLinks: [String!]
-  "Include only beans that are targets of links of these types"
-  linkedAs: [String!]
-  "Exclude beans that have outgoing links of these types"
-  noLinks: [String!]
-  "Exclude beans that are targets of links of these types"
-  noLinkedAs: [String!]
+  "Include only beans that have outgoing links matching these filters (OR logic)"
+  hasLinks: [LinkFilter!]
+  "Include only beans that are targets of links matching these filters (OR logic)"
+  linkedAs: [LinkFilter!]
+  "Exclude beans that have outgoing links matching these filters"
+  noLinks: [LinkFilter!]
+  "Exclude beans that are targets of links matching these filters"
+  noLinkedAs: [LinkFilter!]
 }

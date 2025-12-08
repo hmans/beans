@@ -263,6 +263,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	ec := executionContext{opCtx, e, 0, 0, make(chan graphql.DeferredResult)}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputBeanFilter,
+		ec.unmarshalInputLinkFilter,
 	)
 	first := true
 
@@ -2954,32 +2955,66 @@ func (ec *executionContext) unmarshalInputBeanFilter(ctx context.Context, obj an
 			it.ExcludeTags = data
 		case "hasLinks":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hasLinks"))
-			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			data, err := ec.unmarshalOLinkFilter2ᚕᚖhmansᚗdevᚋbeansᚋinternalᚋgraphᚋmodelᚐLinkFilterᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
 			it.HasLinks = data
 		case "linkedAs":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("linkedAs"))
-			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			data, err := ec.unmarshalOLinkFilter2ᚕᚖhmansᚗdevᚋbeansᚋinternalᚋgraphᚋmodelᚐLinkFilterᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
 			it.LinkedAs = data
 		case "noLinks":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("noLinks"))
-			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			data, err := ec.unmarshalOLinkFilter2ᚕᚖhmansᚗdevᚋbeansᚋinternalᚋgraphᚋmodelᚐLinkFilterᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
 			it.NoLinks = data
 		case "noLinkedAs":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("noLinkedAs"))
-			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			data, err := ec.unmarshalOLinkFilter2ᚕᚖhmansᚗdevᚋbeansᚋinternalᚋgraphᚋmodelᚐLinkFilterᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
 			it.NoLinkedAs = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputLinkFilter(ctx context.Context, obj any) (model.LinkFilter, error) {
+	var it model.LinkFilter
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"type", "target"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "type":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("type"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Type = data
+		case "target":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("target"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Target = data
 		}
 	}
 
@@ -3835,6 +3870,11 @@ func (ec *executionContext) marshalNLink2ᚖhmansᚗdevᚋbeansᚋinternalᚋbea
 	return ec._Link(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNLinkFilter2ᚖhmansᚗdevᚋbeansᚋinternalᚋgraphᚋmodelᚐLinkFilter(ctx context.Context, v any) (*model.LinkFilter, error) {
+	res, err := ec.unmarshalInputLinkFilter(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {
 	res, err := graphql.UnmarshalString(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -4194,6 +4234,24 @@ func (ec *executionContext) marshalOLink2ᚕᚖhmansᚗdevᚋbeansᚋinternalᚋ
 	}
 
 	return ret
+}
+
+func (ec *executionContext) unmarshalOLinkFilter2ᚕᚖhmansᚗdevᚋbeansᚋinternalᚋgraphᚋmodelᚐLinkFilterᚄ(ctx context.Context, v any) ([]*model.LinkFilter, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]*model.LinkFilter, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNLinkFilter2ᚖhmansᚗdevᚋbeansᚋinternalᚋgraphᚋmodelᚐLinkFilter(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) unmarshalOString2string(ctx context.Context, v any) (string, error) {

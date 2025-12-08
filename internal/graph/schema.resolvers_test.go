@@ -361,7 +361,7 @@ func TestQueryBeansWithLinks(t *testing.T) {
 	t.Run("filter hasLinks parent", func(t *testing.T) {
 		qr := resolver.Query()
 		filter := &model.BeanFilter{
-			HasLinks: []string{"parent"},
+			HasLinks: []*model.LinkFilter{{Type: "parent"}},
 		}
 		got, err := qr.Beans(ctx, filter)
 		if err != nil {
@@ -378,7 +378,7 @@ func TestQueryBeansWithLinks(t *testing.T) {
 	t.Run("filter noLinks parent", func(t *testing.T) {
 		qr := resolver.Query()
 		filter := &model.BeanFilter{
-			NoLinks: []string{"parent"},
+			NoLinks: []*model.LinkFilter{{Type: "parent"}},
 		}
 		got, err := qr.Beans(ctx, filter)
 		if err != nil {
@@ -392,7 +392,7 @@ func TestQueryBeansWithLinks(t *testing.T) {
 	t.Run("filter linkedAs blocks", func(t *testing.T) {
 		qr := resolver.Query()
 		filter := &model.BeanFilter{
-			LinkedAs: []string{"blocks"},
+			LinkedAs: []*model.LinkFilter{{Type: "blocks"}},
 		}
 		got, err := qr.Beans(ctx, filter)
 		if err != nil {
@@ -409,12 +409,62 @@ func TestQueryBeansWithLinks(t *testing.T) {
 	t.Run("filter noLinkedAs blocks", func(t *testing.T) {
 		qr := resolver.Query()
 		filter := &model.BeanFilter{
-			NoLinkedAs: []string{"blocks"},
+			NoLinkedAs: []*model.LinkFilter{{Type: "blocks"}},
 		}
 		got, err := qr.Beans(ctx, filter)
 		if err != nil {
 			t.Fatalf("Beans() error = %v", err)
 		}
+		if len(got) != 2 {
+			t.Errorf("Beans() count = %d, want 2", len(got))
+		}
+	})
+
+	// Test type:target link filtering
+	t.Run("filter hasLinks with target", func(t *testing.T) {
+		qr := resolver.Query()
+		target := "has-parent"
+		filter := &model.BeanFilter{
+			HasLinks: []*model.LinkFilter{{Type: "blocks", Target: &target}},
+		}
+		got, err := qr.Beans(ctx, filter)
+		if err != nil {
+			t.Fatalf("Beans() error = %v", err)
+		}
+		if len(got) != 1 {
+			t.Errorf("Beans() count = %d, want 1", len(got))
+		}
+		if got[0].ID != "has-blocks" {
+			t.Errorf("Beans()[0].ID = %q, want %q", got[0].ID, "has-blocks")
+		}
+	})
+
+	t.Run("filter hasLinks with non-matching target", func(t *testing.T) {
+		qr := resolver.Query()
+		target := "no-links"
+		filter := &model.BeanFilter{
+			HasLinks: []*model.LinkFilter{{Type: "blocks", Target: &target}},
+		}
+		got, err := qr.Beans(ctx, filter)
+		if err != nil {
+			t.Fatalf("Beans() error = %v", err)
+		}
+		if len(got) != 0 {
+			t.Errorf("Beans() count = %d, want 0", len(got))
+		}
+	})
+
+	t.Run("filter noLinks with target", func(t *testing.T) {
+		qr := resolver.Query()
+		target := "has-parent"
+		filter := &model.BeanFilter{
+			NoLinks: []*model.LinkFilter{{Type: "blocks", Target: &target}},
+		}
+		got, err := qr.Beans(ctx, filter)
+		if err != nil {
+			t.Fatalf("Beans() error = %v", err)
+		}
+		// Should exclude has-blocks (which blocks has-parent), leaving no-links and has-parent
 		if len(got) != 2 {
 			t.Errorf("Beans() count = %d, want 2", len(got))
 		}

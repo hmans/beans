@@ -3,6 +3,7 @@ package graph
 import (
 	"hmans.dev/beans/internal/bean"
 	"hmans.dev/beans/internal/beancore"
+	"hmans.dev/beans/internal/graph/model"
 )
 
 // filterByField filters beans to include only those where getter returns a value in values (OR logic).
@@ -76,38 +77,59 @@ outer:
 	return result
 }
 
-// filterByOutgoingLinks filters beans to include only those with outgoing links of the given types.
-func filterByOutgoingLinks(beans []*bean.Bean, linkTypes []string) []*bean.Bean {
-	typeSet := make(map[string]bool, len(linkTypes))
-	for _, t := range linkTypes {
-		typeSet[t] = true
+// matchesLinkFilter checks if a bean link matches a LinkFilter.
+// If filter.Target is nil, matches any target; otherwise matches specific target.
+func matchesLinkFilter(link bean.Link, filter *model.LinkFilter) bool {
+	if link.Type != filter.Type {
+		return false
+	}
+	if filter.Target == nil {
+		return true // type-only match
+	}
+	return link.Target == *filter.Target
+}
+
+// filterByOutgoingLinks filters beans to include only those with outgoing links matching the filters (OR logic).
+func filterByOutgoingLinks(beans []*bean.Bean, filters []*model.LinkFilter) []*bean.Bean {
+	if len(filters) == 0 {
+		return beans
 	}
 
 	var result []*bean.Bean
 	for _, b := range beans {
+		matched := false
 		for _, link := range b.Links {
-			if typeSet[link.Type] {
-				result = append(result, b)
+			for _, f := range filters {
+				if matchesLinkFilter(link, f) {
+					matched = true
+					break
+				}
+			}
+			if matched {
 				break
 			}
+		}
+		if matched {
+			result = append(result, b)
 		}
 	}
 	return result
 }
 
-// excludeByOutgoingLinks filters beans to exclude those with outgoing links of the given types.
-func excludeByOutgoingLinks(beans []*bean.Bean, linkTypes []string) []*bean.Bean {
-	typeSet := make(map[string]bool, len(linkTypes))
-	for _, t := range linkTypes {
-		typeSet[t] = true
+// excludeByOutgoingLinks filters beans to exclude those with outgoing links matching the filters.
+func excludeByOutgoingLinks(beans []*bean.Bean, filters []*model.LinkFilter) []*bean.Bean {
+	if len(filters) == 0 {
+		return beans
 	}
 
 	var result []*bean.Bean
 outer:
 	for _, b := range beans {
 		for _, link := range b.Links {
-			if typeSet[link.Type] {
-				continue outer
+			for _, f := range filters {
+				if matchesLinkFilter(link, f) {
+					continue outer
+				}
 			}
 		}
 		result = append(result, b)
@@ -115,31 +137,48 @@ outer:
 	return result
 }
 
-// filterByIncomingLinks filters beans to include only those that are targets of links of the given types.
-func filterByIncomingLinks(beans []*bean.Bean, linkTypes []string, core *beancore.Core) []*bean.Bean {
-	typeSet := make(map[string]bool, len(linkTypes))
-	for _, t := range linkTypes {
-		typeSet[t] = true
+// filterByIncomingLinks filters beans to include only those that are targets of links matching the filters (OR logic).
+func filterByIncomingLinks(beans []*bean.Bean, filters []*model.LinkFilter, core *beancore.Core) []*bean.Bean {
+	if len(filters) == 0 {
+		return beans
 	}
 
 	var result []*bean.Bean
 	for _, b := range beans {
+		matched := false
 		incoming := core.FindIncomingLinks(b.ID)
 		for _, link := range incoming {
-			if typeSet[link.LinkType] {
-				result = append(result, b)
+			for _, f := range filters {
+				// For incoming links, we check the link type and optionally the source bean ID
+				if link.LinkType != f.Type {
+					continue
+				}
+				if f.Target == nil {
+					// Type-only: this bean is targeted by a link of this type
+					matched = true
+					break
+				}
+				// Target specified: check if the link is from the specified bean
+				if link.FromBean.ID == *f.Target {
+					matched = true
+					break
+				}
+			}
+			if matched {
 				break
 			}
+		}
+		if matched {
+			result = append(result, b)
 		}
 	}
 	return result
 }
 
-// excludeByIncomingLinks filters beans to exclude those that are targets of links of the given types.
-func excludeByIncomingLinks(beans []*bean.Bean, linkTypes []string, core *beancore.Core) []*bean.Bean {
-	typeSet := make(map[string]bool, len(linkTypes))
-	for _, t := range linkTypes {
-		typeSet[t] = true
+// excludeByIncomingLinks filters beans to exclude those that are targets of links matching the filters.
+func excludeByIncomingLinks(beans []*bean.Bean, filters []*model.LinkFilter, core *beancore.Core) []*bean.Bean {
+	if len(filters) == 0 {
+		return beans
 	}
 
 	var result []*bean.Bean
@@ -147,8 +186,18 @@ outer:
 	for _, b := range beans {
 		incoming := core.FindIncomingLinks(b.ID)
 		for _, link := range incoming {
-			if typeSet[link.LinkType] {
-				continue outer
+			for _, f := range filters {
+				if link.LinkType != f.Type {
+					continue
+				}
+				if f.Target == nil {
+					// Type-only: exclude if this bean is targeted by a link of this type
+					continue outer
+				}
+				// Target specified: exclude if the link is from the specified bean
+				if link.FromBean.ID == *f.Target {
+					continue outer
+				}
 			}
 		}
 		result = append(result, b)
