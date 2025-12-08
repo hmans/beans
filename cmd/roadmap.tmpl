@@ -1,0 +1,37 @@
+# Roadmap
+{{range .Data.Milestones}}
+## Milestone: {{.Milestone.Title}} {{beanRef .Milestone $.Links $.LinkPrefix}}
+{{with firstParagraph .Milestone.Body}}
+> {{.}}
+{{end}}
+{{range .Epics}}
+### Epic: {{.Epic.Title}} {{beanRef .Epic $.Links $.LinkPrefix}}
+{{with firstParagraph .Epic.Body}}
+> {{.}}
+{{end}}
+
+{{range .Items -}}
+- {{beanRef . $.Links $.LinkPrefix}} {{.Title}}
+{{end}}
+{{- end}}
+{{- if .Other}}
+### Other
+
+{{range .Other -}}
+- {{beanRef . $.Links $.LinkPrefix}} {{.Title}}
+{{end}}
+{{- end}}
+{{- end}}
+{{- if .Data.Unscheduled}}
+## Unscheduled
+{{range .Data.Unscheduled}}
+### Epic: {{.Epic.Title}} {{beanRef .Epic $.Links $.LinkPrefix}}
+{{with firstParagraph .Epic.Body}}
+> {{.}}
+{{end}}
+
+{{range .Items -}}
+- {{beanRef . $.Links $.LinkPrefix}} {{.Title}}
+{{end}}
+{{- end}}
+{{- end}}

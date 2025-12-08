@@ -1,14 +1,19 @@
 package cmd
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
+	"text/template"
 
 	"github.com/spf13/cobra"
 	"hmans.dev/beans/internal/bean"
 )
+
+//go:embed roadmap.tmpl
+var roadmapTemplateContent string
 
 var (
 	roadmapJSON        bool
@@ -37,6 +42,21 @@ type epicGroup struct {
 	Epic  *bean.Bean   `json:"epic"`
 	Items []*bean.Bean `json:"items,omitempty"`
 }
+
+// templateData holds the data passed to the roadmap template.
+type templateData struct {
+	Data       *roadmapData
+	Links      bool
+	LinkPrefix string
+}
+
+// roadmapTmpl is the parsed roadmap template.
+var roadmapTmpl = template.Must(
+	template.New("roadmap").Funcs(template.FuncMap{
+		"beanRef":        renderBeanRef,
+		"firstParagraph": firstParagraph,
+	}).Parse(roadmapTemplateContent),
+)
 
 var roadmapCmd = &cobra.Command{
 	Use:   "roadmap",
@@ -265,81 +285,18 @@ func sortByStatusThenID(beans []*bean.Bean, cfg interface{ StatusNames() []strin
 	})
 }
 
-// renderRoadmapMarkdown renders the roadmap as Markdown.
+// renderRoadmapMarkdown renders the roadmap as Markdown using the template.
 func renderRoadmapMarkdown(data *roadmapData, links bool, linkPrefix string) string {
 	var sb strings.Builder
-
-	sb.WriteString("# Roadmap\n")
-
-	// Render milestones
-	for _, mg := range data.Milestones {
-		sb.WriteString("\n## Milestone: ")
-		sb.WriteString(mg.Milestone.Title)
-		sb.WriteString(" ")
-		sb.WriteString(renderBeanRef(mg.Milestone, links, linkPrefix))
-		sb.WriteString("\n")
-
-		// Add milestone description (first paragraph of body)
-		if desc := firstParagraph(mg.Milestone.Body); desc != "" {
-			sb.WriteString("\n> ")
-			sb.WriteString(desc)
-			sb.WriteString("\n")
-		}
-
-		// Render epics
-		for _, eg := range mg.Epics {
-			sb.WriteString("\n### Epic: ")
-			sb.WriteString(eg.Epic.Title)
-			sb.WriteString(" ")
-			sb.WriteString(renderBeanRef(eg.Epic, links, linkPrefix))
-			sb.WriteString("\n")
-
-			// Add epic description
-			if desc := firstParagraph(eg.Epic.Body); desc != "" {
-				sb.WriteString("\n> ")
-				sb.WriteString(desc)
-				sb.WriteString("\n")
-			}
-
-			sb.WriteString("\n")
-			for _, item := range eg.Items {
-				sb.WriteString(renderItem(item, links, linkPrefix))
-			}
-		}
-
-		// Render other (ungrouped) items
-		if len(mg.Other) > 0 {
-			sb.WriteString("\n### Other\n\n")
-			for _, item := range mg.Other {
-				sb.WriteString(renderItem(item, links, linkPrefix))
-			}
-		}
+	td := templateData{
+		Data:       data,
+		Links:      links,
+		LinkPrefix: linkPrefix,
 	}
-
-	// Render unscheduled epics
-	if len(data.Unscheduled) > 0 {
-		sb.WriteString("\n## Unscheduled\n")
-
-		for _, eg := range data.Unscheduled {
-			sb.WriteString("\n### Epic: ")
-			sb.WriteString(eg.Epic.Title)
-			sb.WriteString(" ")
-			sb.WriteString(renderBeanRef(eg.Epic, links, linkPrefix))
-			sb.WriteString("\n")
-
-			if desc := firstParagraph(eg.Epic.Body); desc != "" {
-				sb.WriteString("\n> ")
-				sb.WriteString(desc)
-				sb.WriteString("\n")
-			}
-
-			sb.WriteString("\n")
-			for _, item := range eg.Items {
-				sb.WriteString(renderItem(item, links, linkPrefix))
-			}
-		}
+	if err := roadmapTmpl.Execute(&sb, td); err != nil {
+		// Template is parsed at init, so this should never happen
+		panic(err)
 	}
-
 	return sb.String()
 }
 
@@ -356,11 +313,6 @@ func renderBeanRef(b *bean.Bean, asLink bool, linkPrefix string) string {
 		linkPrefix += "/"
 	}
 	return fmt.Sprintf("[[#%s](%s%s)]", b.ID, linkPrefix, b.Path)
-}
-
-// renderItem renders a single item as a Markdown list item.
-func renderItem(b *bean.Bean, asLink bool, linkPrefix string) string {
-	return fmt.Sprintf("- %s %s\n", renderBeanRef(b, asLink, linkPrefix), b.Title)
 }
 
 // firstParagraph extracts the first paragraph from a body text.
