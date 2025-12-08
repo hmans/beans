@@ -149,7 +149,7 @@ func buildRoadmap(allBeans []*bean.Bean, includeDone bool, statusFilter, noStatu
 		// Build epic group if it has visible children
 		epicItems := filterChildren(children[b.ID], includeDone)
 		if len(epicItems) > 0 {
-			sortByStatusThenID(epicItems, cfg)
+			sortByTypeThenStatus(epicItems, cfg)
 			unscheduled = append(unscheduled, epicGroup{Epic: b, Items: epicItems})
 		}
 	}
@@ -184,7 +184,7 @@ func buildMilestoneGroup(m *bean.Bean, children map[string][]*bean.Bean, _ map[s
 		epicItems := filterChildren(children[epic.ID], includeDone)
 		// Only include epics that have visible children
 		if len(epicItems) > 0 {
-			sortByStatusThenID(epicItems, cfg)
+			sortByTypeThenStatus(epicItems, cfg)
 			group.Epics = append(group.Epics, epicGroup{Epic: epic, Items: epicItems})
 			// Mark these items as belonging to an epic
 			for _, item := range epicItems {
@@ -213,7 +213,7 @@ func buildMilestoneGroup(m *bean.Bean, children map[string][]*bean.Bean, _ map[s
 	})
 
 	// Sort other items
-	sortByStatusThenID(other, cfg)
+	sortByTypeThenStatus(other, cfg)
 	group.Other = other
 
 	return group
@@ -277,17 +277,30 @@ func sortByStatusThenCreated(beans []*bean.Bean, cfg interface{ StatusNames() []
 	})
 }
 
-// sortByStatusThenID sorts beans by status order, then by ID.
-func sortByStatusThenID(beans []*bean.Bean, cfg interface{ StatusNames() []string }) {
+// sortByTypeThenStatus sorts beans by type order, then status order, then by ID.
+func sortByTypeThenStatus(beans []*bean.Bean, cfg interface {
+	StatusNames() []string
+	TypeNames() []string
+}) {
 	statusOrder := make(map[string]int)
 	for i, s := range cfg.StatusNames() {
 		statusOrder[s] = i
 	}
+	typeOrder := make(map[string]int)
+	for i, t := range cfg.TypeNames() {
+		typeOrder[t] = i
+	}
 
 	sort.Slice(beans, func(i, j int) bool {
-		oi, oj := statusOrder[beans[i].Status], statusOrder[beans[j].Status]
-		if oi != oj {
-			return oi < oj
+		// First by type
+		ti, tj := typeOrder[beans[i].Type], typeOrder[beans[j].Type]
+		if ti != tj {
+			return ti < tj
+		}
+		// Then by status
+		si, sj := statusOrder[beans[i].Status], statusOrder[beans[j].Status]
+		if si != sj {
+			return si < sj
 		}
 		return beans[i].ID < beans[j].ID
 	})
