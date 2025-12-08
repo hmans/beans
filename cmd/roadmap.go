@@ -4,6 +4,8 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"text/template"
@@ -76,7 +78,12 @@ var roadmapCmd = &cobra.Command{
 
 		// Markdown output
 		links := !roadmapNoLinks
-		md := renderRoadmapMarkdown(data, links, roadmapLinkPrefix)
+		linkPrefix := roadmapLinkPrefix
+		if links && linkPrefix == "" {
+			// Default: relative path from cwd to .beans directory
+			linkPrefix = defaultLinkPrefix()
+		}
+		md := renderRoadmapMarkdown(data, links, linkPrefix)
 		fmt.Print(md)
 		return nil
 	},
@@ -313,6 +320,20 @@ func renderBeanRef(b *bean.Bean, asLink bool, linkPrefix string) string {
 		linkPrefix += "/"
 	}
 	return fmt.Sprintf("([%s](%s%s))", b.ID, linkPrefix, b.Path)
+}
+
+// defaultLinkPrefix returns the relative path from cwd to the .beans directory.
+func defaultLinkPrefix() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	rel, err := filepath.Rel(cwd, core.Root())
+	if err != nil {
+		return ""
+	}
+	// Convert to forward slashes for URL compatibility
+	return filepath.ToSlash(rel)
 }
 
 // firstParagraph extracts the first paragraph from a body text.
