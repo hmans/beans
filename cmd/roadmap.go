@@ -57,6 +57,7 @@ var roadmapTmpl = template.Must(
 	template.New("roadmap").Funcs(template.FuncMap{
 		"beanRef":        renderBeanRef,
 		"firstParagraph": firstParagraph,
+		"typeBadge":      typeBadge,
 	}).Parse(roadmapTemplateContent),
 )
 
@@ -320,6 +321,26 @@ func renderBeanRef(b *bean.Bean, asLink bool, linkPrefix string) string {
 		linkPrefix += "/"
 	}
 	return fmt.Sprintf("([%s](%s%s))", b.ID, linkPrefix, b.Path)
+}
+
+// typeBadge returns a shields.io badge markdown for the bean type.
+func typeBadge(b *bean.Bean) string {
+	if b.Type == "" {
+		return ""
+	}
+	// Map types to colors
+	colors := map[string]string{
+		"bug":       "d73a4a",
+		"feature":   "0e8a16",
+		"task":      "1d76db",
+		"epic":      "5319e7",
+		"milestone": "fbca04",
+	}
+	color := colors[b.Type]
+	if color == "" {
+		color = "gray"
+	}
+	return fmt.Sprintf("![%s](https://img.shields.io/badge/%s-%s?style=flat-square)", b.Type, b.Type, color)
 }
 
 // defaultLinkPrefix returns the relative path from cwd to the .beans directory.

@@ -11,14 +11,14 @@
 {{end}}
 
 {{range .Items -}}
-- {{.Title}} {{beanRef . $.Links $.LinkPrefix}}
+- {{typeBadge .}} {{.Title}} {{beanRef . $.Links $.LinkPrefix}}
 {{end}}
 {{- end}}
 {{- if .Other}}
 ### Miscellaneous
 
 {{range .Other -}}
-- {{.Title}} {{beanRef . $.Links $.LinkPrefix}}
+- {{typeBadge .}} {{.Title}} {{beanRef . $.Links $.LinkPrefix}}
 {{end}}
 {{- end}}
 {{- end}}
@@ -31,7 +31,7 @@
 {{end}}
 
 {{range .Items -}}
-- {{.Title}} {{beanRef . $.Links $.LinkPrefix}}
+- {{typeBadge .}} {{.Title}} {{beanRef . $.Links $.LinkPrefix}}
 {{end}}
 {{- end}}
 {{- end}}
