@@ -13,6 +13,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/executor"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
+	"github.com/vektah/gqlparser/v2/formatter"
 	"hmans.dev/beans/internal/graph"
 )
 
@@ -216,63 +217,12 @@ func GetGraphQLSchema() string {
 	es := graph.NewExecutableSchema(graph.Config{
 		Resolvers: &graph.Resolver{Core: core},
 	})
-	schema := es.Schema()
 
-	// Build schema string from the AST
-	var sb strings.Builder
+	var buf bytes.Buffer
+	f := formatter.NewFormatter(&buf, formatter.WithIndent("  "))
+	f.FormatSchema(es.Schema())
 
-	// Print types
-	for _, t := range schema.Types {
-		// Skip built-in types
-		if strings.HasPrefix(t.Name, "__") {
-			continue
-		}
-		// Skip built-in scalars
-		if t.BuiltIn {
-			continue
-		}
-
-		switch t.Kind {
-		case "SCALAR":
-			sb.WriteString(fmt.Sprintf("scalar %s\n\n", t.Name))
-		case "ENUM":
-			sb.WriteString(fmt.Sprintf("enum %s {\n", t.Name))
-			for _, v := range t.EnumValues {
-				sb.WriteString(fmt.Sprintf("  %s\n", v.Name))
-			}
-			sb.WriteString("}\n\n")
-		case "INPUT_OBJECT":
-			sb.WriteString(fmt.Sprintf("input %s {\n", t.Name))
-			for _, f := range t.Fields {
-				sb.WriteString(fmt.Sprintf("  %s: %s\n", f.Name, f.Type.String()))
-			}
-			sb.WriteString("}\n\n")
-		case "OBJECT":
-			sb.WriteString(fmt.Sprintf("type %s {\n", t.Name))
-			for _, f := range t.Fields {
-				// Skip built-in introspection fields
-				if strings.HasPrefix(f.Name, "__") {
-					continue
-				}
-				// Add description as comment if present
-				if f.Description != "" {
-					sb.WriteString(fmt.Sprintf("  # %s\n", f.Description))
-				}
-				if len(f.Arguments) > 0 {
-					args := make([]string, len(f.Arguments))
-					for i, a := range f.Arguments {
-						args[i] = fmt.Sprintf("%s: %s", a.Name, a.Type.String())
-					}
-					sb.WriteString(fmt.Sprintf("  %s(%s): %s\n", f.Name, strings.Join(args, ", "), f.Type.String()))
-				} else {
-					sb.WriteString(fmt.Sprintf("  %s: %s\n", f.Name, f.Type.String()))
-				}
-			}
-			sb.WriteString("}\n\n")
-		}
-	}
-
-	return sb.String()
+	return buf.String()
 }
 
 func init() {
