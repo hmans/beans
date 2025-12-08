@@ -95,38 +95,6 @@ You can also specifically ask it to start working on a particular bean:
 
 > "It's time to tackle myproj-123."
 
-## GraphQL API
-
-Beans includes a GraphQL API for flexible querying. Use `beans query` to run queries:
-
-```bash
-# List all beans with their status
-beans query '{ beans { id title status } }'
-
-# Get a specific bean with its relationships
-beans query '{ bean(id: "abc") { title status parent { title } children { id title } } }'
-
-# Filter beans
-beans query '{ beans(filter: { status: ["todo", "in-progress"] }) { id title } }'
-```
-
-Queries can also be piped from stdin, which is useful for complex queries:
-
-```bash
-beans query <<'EOF'
-{
-  beans(filter: { excludeStatus: ["completed", "scrapped"] }) {
-    id
-    title
-    status
-    blockedBy { id title }
-  }
-}
-EOF
-```
-
-Run `beans query --schema` to see the full GraphQL schema.
-
 ## Contributing
 
 This project currently does not accept contributions -- it's just way too early for that!
