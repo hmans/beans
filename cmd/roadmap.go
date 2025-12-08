@@ -276,9 +276,9 @@ func renderRoadmapMarkdown(data *roadmapData, links bool, linkPrefix string) str
 	for _, mg := range data.Milestones {
 		sb.WriteString("\n## Milestone: ")
 		sb.WriteString(mg.Milestone.Title)
-		sb.WriteString(" (")
+		sb.WriteString(" ")
 		sb.WriteString(renderBeanRef(mg.Milestone, links, linkPrefix))
-		sb.WriteString(")\n")
+		sb.WriteString("\n")
 
 		// Add milestone description (first paragraph of body)
 		if desc := firstParagraph(mg.Milestone.Body); desc != "" {
@@ -291,9 +291,9 @@ func renderRoadmapMarkdown(data *roadmapData, links bool, linkPrefix string) str
 		for _, eg := range mg.Epics {
 			sb.WriteString("\n### Epic: ")
 			sb.WriteString(eg.Epic.Title)
-			sb.WriteString(" (")
+			sb.WriteString(" ")
 			sb.WriteString(renderBeanRef(eg.Epic, links, linkPrefix))
-			sb.WriteString(")\n")
+			sb.WriteString("\n")
 
 			// Add epic description
 			if desc := firstParagraph(eg.Epic.Body); desc != "" {
@@ -324,9 +324,9 @@ func renderRoadmapMarkdown(data *roadmapData, links bool, linkPrefix string) str
 		for _, eg := range data.Unscheduled {
 			sb.WriteString("\n### Epic: ")
 			sb.WriteString(eg.Epic.Title)
-			sb.WriteString(" (")
+			sb.WriteString(" ")
 			sb.WriteString(renderBeanRef(eg.Epic, links, linkPrefix))
-			sb.WriteString(")\n")
+			sb.WriteString("\n")
 
 			if desc := firstParagraph(eg.Epic.Body); desc != "" {
 				sb.WriteString("\n> ")
