@@ -38,6 +38,48 @@ func excludeByField(beans []*bean.Bean, values []string, getter func(*bean.Bean)
 	return result
 }
 
+// filterByPriority filters beans to include only those with matching priorities (OR logic).
+// Empty priority in the bean is treated as "normal" for matching purposes.
+func filterByPriority(beans []*bean.Bean, priorities []string) []*bean.Bean {
+	prioritySet := make(map[string]bool, len(priorities))
+	for _, p := range priorities {
+		prioritySet[p] = true
+	}
+
+	var result []*bean.Bean
+	for _, b := range beans {
+		priority := b.Priority
+		if priority == "" {
+			priority = "normal"
+		}
+		if prioritySet[priority] {
+			result = append(result, b)
+		}
+	}
+	return result
+}
+
+// excludeByPriority filters beans to exclude those with matching priorities.
+// Empty priority in the bean is treated as "normal" for matching purposes.
+func excludeByPriority(beans []*bean.Bean, priorities []string) []*bean.Bean {
+	prioritySet := make(map[string]bool, len(priorities))
+	for _, p := range priorities {
+		prioritySet[p] = true
+	}
+
+	var result []*bean.Bean
+	for _, b := range beans {
+		priority := b.Priority
+		if priority == "" {
+			priority = "normal"
+		}
+		if !prioritySet[priority] {
+			result = append(result, b)
+		}
+	}
+	return result
+}
+
 // filterByTags filters beans to include only those with any of the given tags (OR logic).
 func filterByTags(beans []*bean.Bean, tags []string) []*bean.Bean {
 	tagSet := make(map[string]bool, len(tags))

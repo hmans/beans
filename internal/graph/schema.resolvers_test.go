@@ -214,6 +214,97 @@ func TestQueryBeansWithTags(t *testing.T) {
 	})
 }
 
+func TestQueryBeansWithPriority(t *testing.T) {
+	resolver, core := setupTestResolver(t)
+	ctx := context.Background()
+
+	// Create test beans with various priorities
+	// Empty priority should be treated as "normal"
+	b1 := &bean.Bean{ID: "pri-1", Title: "Critical", Status: "todo", Priority: "critical"}
+	b2 := &bean.Bean{ID: "pri-2", Title: "High", Status: "todo", Priority: "high"}
+	b3 := &bean.Bean{ID: "pri-3", Title: "Normal Explicit", Status: "todo", Priority: "normal"}
+	b4 := &bean.Bean{ID: "pri-4", Title: "Normal Implicit", Status: "todo", Priority: ""} // empty = normal
+	b5 := &bean.Bean{ID: "pri-5", Title: "Low", Status: "todo", Priority: "low"}
+	core.Create(b1)
+	core.Create(b2)
+	core.Create(b3)
+	core.Create(b4)
+	core.Create(b5)
+
+	t.Run("filter by normal includes empty priority", func(t *testing.T) {
+		qr := resolver.Query()
+		filter := &model.BeanFilter{
+			Priority: []string{"normal"},
+		}
+		got, err := qr.Beans(ctx, filter)
+		if err != nil {
+			t.Fatalf("Beans() error = %v", err)
+		}
+		// Should include both explicit "normal" and implicit (empty) priority
+		if len(got) != 2 {
+			t.Errorf("Beans() count = %d, want 2", len(got))
+		}
+		ids := make(map[string]bool)
+		for _, b := range got {
+			ids[b.ID] = true
+		}
+		if !ids["pri-3"] || !ids["pri-4"] {
+			t.Errorf("Beans() should include pri-3 and pri-4, got %v", ids)
+		}
+	})
+
+	t.Run("filter by critical", func(t *testing.T) {
+		qr := resolver.Query()
+		filter := &model.BeanFilter{
+			Priority: []string{"critical"},
+		}
+		got, err := qr.Beans(ctx, filter)
+		if err != nil {
+			t.Fatalf("Beans() error = %v", err)
+		}
+		if len(got) != 1 {
+			t.Errorf("Beans() count = %d, want 1", len(got))
+		}
+		if got[0].ID != "pri-1" {
+			t.Errorf("Beans()[0].ID = %q, want %q", got[0].ID, "pri-1")
+		}
+	})
+
+	t.Run("filter by multiple priorities", func(t *testing.T) {
+		qr := resolver.Query()
+		filter := &model.BeanFilter{
+			Priority: []string{"critical", "high"},
+		}
+		got, err := qr.Beans(ctx, filter)
+		if err != nil {
+			t.Fatalf("Beans() error = %v", err)
+		}
+		if len(got) != 2 {
+			t.Errorf("Beans() count = %d, want 2", len(got))
+		}
+	})
+
+	t.Run("exclude normal excludes empty priority", func(t *testing.T) {
+		qr := resolver.Query()
+		filter := &model.BeanFilter{
+			ExcludePriority: []string{"normal"},
+		}
+		got, err := qr.Beans(ctx, filter)
+		if err != nil {
+			t.Fatalf("Beans() error = %v", err)
+		}
+		// Should exclude both explicit "normal" and implicit (empty) priority
+		if len(got) != 3 {
+			t.Errorf("Beans() count = %d, want 3", len(got))
+		}
+		for _, b := range got {
+			if b.ID == "pri-3" || b.ID == "pri-4" {
+				t.Errorf("Beans() should not include %s", b.ID)
+			}
+		}
+	})
+}
+
 func TestBeanRelationships(t *testing.T) {
 	resolver, core := setupTestResolver(t)
 	ctx := context.Background()

@@ -120,12 +120,12 @@ func (r *queryResolver) Beans(ctx context.Context, filter *model.BeanFilter) ([]
 		result = excludeByField(result, filter.ExcludeType, func(b *bean.Bean) string { return b.Type })
 	}
 
-	// Priority filters
+	// Priority filters (empty priority treated as "normal")
 	if len(filter.Priority) > 0 {
-		result = filterByField(result, filter.Priority, func(b *bean.Bean) string { return b.Priority })
+		result = filterByPriority(result, filter.Priority)
 	}
 	if len(filter.ExcludePriority) > 0 {
-		result = excludeByField(result, filter.ExcludePriority, func(b *bean.Bean) string { return b.Priority })
+		result = excludeByPriority(result, filter.ExcludePriority)
 	}
 
 	// Tag filters
