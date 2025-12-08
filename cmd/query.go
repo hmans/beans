@@ -11,8 +11,8 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/executor"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
+	"github.com/tidwall/pretty"
 	"github.com/vektah/gqlparser/v2/formatter"
 	"hmans.dev/beans/internal/graph"
 )
@@ -160,49 +160,7 @@ func executeQuery(query string, variables map[string]any, operationName string) 
 
 // prettyPrint outputs the JSON with colors and indentation.
 func prettyPrint(data []byte) {
-	var response struct {
-		Data   json.RawMessage `json:"data"`
-		Errors []struct {
-			Message string `json:"message"`
-			Path    []any  `json:"path,omitempty"`
-		} `json:"errors,omitempty"`
-	}
-
-	if err := json.Unmarshal(data, &response); err != nil {
-		// Fallback to raw output
-		fmt.Println(string(data))
-		return
-	}
-
-	// Print errors if any
-	if len(response.Errors) > 0 {
-		errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
-		for _, e := range response.Errors {
-			pathStr := ""
-			if len(e.Path) > 0 {
-				parts := make([]string, len(e.Path))
-				for i, p := range e.Path {
-					parts[i] = fmt.Sprint(p)
-				}
-				pathStr = " at " + strings.Join(parts, ".")
-			}
-			fmt.Println(errorStyle.Render("Error" + pathStr + ": " + e.Message))
-		}
-		if response.Data == nil {
-			return
-		}
-		fmt.Println()
-	}
-
-	// Pretty-print data
-	if response.Data != nil {
-		var pretty bytes.Buffer
-		if err := json.Indent(&pretty, response.Data, "", "  "); err != nil {
-			fmt.Println(string(response.Data))
-			return
-		}
-		fmt.Println(pretty.String())
-	}
+	fmt.Println(string(pretty.Color(pretty.Pretty(data), nil)))
 }
 
 // printSchema outputs the GraphQL schema.
