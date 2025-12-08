@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 	"hmans.dev/beans/internal/bean"
+	"hmans.dev/beans/internal/config"
 	"hmans.dev/beans/internal/output"
 	"hmans.dev/beans/internal/ui"
 )
@@ -196,8 +197,18 @@ func formatStatusLabel(status string) string {
 }
 
 func init() {
-	createCmd.Flags().StringVarP(&createStatus, "status", "s", "", "Initial status")
-	createCmd.Flags().StringVarP(&createType, "type", "t", "", "Bean type (e.g., task, bug, epic)")
+	// Build help text with allowed values from hardcoded config
+	statusNames := make([]string, len(config.DefaultStatuses))
+	for i, s := range config.DefaultStatuses {
+		statusNames[i] = s.Name
+	}
+	typeNames := make([]string, len(config.DefaultTypes))
+	for i, t := range config.DefaultTypes {
+		typeNames[i] = t.Name
+	}
+
+	createCmd.Flags().StringVarP(&createStatus, "status", "s", "", "Initial status ("+strings.Join(statusNames, ", ")+")")
+	createCmd.Flags().StringVarP(&createType, "type", "t", "", "Bean type ("+strings.Join(typeNames, ", ")+")")
 	createCmd.Flags().StringVarP(&createBody, "body", "d", "", "Body content (use '-' to read from stdin)")
 	createCmd.Flags().StringVar(&createBodyFile, "body-file", "", "Read body from file")
 	createCmd.Flags().StringArrayVar(&createTag, "tag", nil, "Add tag (can be repeated)")

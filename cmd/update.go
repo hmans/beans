@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/spf13/cobra"
+	"hmans.dev/beans/internal/config"
 	"hmans.dev/beans/internal/output"
 	"hmans.dev/beans/internal/ui"
 )
@@ -194,8 +196,18 @@ Relationship types: blocks, duplicates, parent, related`,
 }
 
 func init() {
-	updateCmd.Flags().StringVarP(&updateStatus, "status", "s", "", "New status")
-	updateCmd.Flags().StringVar(&updateType, "type", "", "New type (e.g., task, bug, epic)")
+	// Build help text with allowed values from hardcoded config
+	statusNames := make([]string, len(config.DefaultStatuses))
+	for i, s := range config.DefaultStatuses {
+		statusNames[i] = s.Name
+	}
+	typeNames := make([]string, len(config.DefaultTypes))
+	for i, t := range config.DefaultTypes {
+		typeNames[i] = t.Name
+	}
+
+	updateCmd.Flags().StringVarP(&updateStatus, "status", "s", "", "New status ("+strings.Join(statusNames, ", ")+")")
+	updateCmd.Flags().StringVar(&updateType, "type", "", "New type ("+strings.Join(typeNames, ", ")+")")
 	updateCmd.Flags().StringVarP(&updateTitle, "title", "t", "", "New title")
 	updateCmd.Flags().StringVarP(&updateBody, "body", "d", "", "New body (use '-' to read from stdin)")
 	updateCmd.Flags().StringVar(&updateBodyFile, "body-file", "", "Read body from file")
