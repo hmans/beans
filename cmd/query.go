@@ -224,6 +224,13 @@ func prettyPrint(data []byte) {
 
 // printSchema outputs the GraphQL schema.
 func printSchema() error {
+	fmt.Print(GetGraphQLSchema())
+	return nil
+}
+
+// GetGraphQLSchema returns the GraphQL schema as a string.
+// This is exported so it can be used by other commands like prompt.
+func GetGraphQLSchema() string {
 	es := graph.NewExecutableSchema(graph.Config{
 		Resolvers: &graph.Resolver{Core: core},
 	})
@@ -261,6 +268,10 @@ func printSchema() error {
 		case "OBJECT":
 			sb.WriteString(fmt.Sprintf("type %s {\n", t.Name))
 			for _, f := range t.Fields {
+				// Skip built-in introspection fields
+				if strings.HasPrefix(f.Name, "__") {
+					continue
+				}
 				// Add description as comment if present
 				if f.Description != "" {
 					sb.WriteString(fmt.Sprintf("  # %s\n", f.Description))
@@ -279,8 +290,7 @@ func printSchema() error {
 		}
 	}
 
-	fmt.Print(sb.String())
-	return nil
+	return sb.String()
 }
 
 func init() {

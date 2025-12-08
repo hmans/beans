@@ -39,10 +39,16 @@ var promptCmd = &cobra.Command{
 
 		fmt.Print(agentPrompt)
 
-		// Append dynamic sections (types and statuses are hardcoded)
+		// Append dynamic sections
 		var sb strings.Builder
 
-		// Issue types section (hardcoded types)
+		// GraphQL schema section (generated dynamically)
+		sb.WriteString("\n**GraphQL Schema:**\n\n")
+		sb.WriteString("```graphql\n")
+		sb.WriteString(GetGraphQLSchema())
+		sb.WriteString("```\n")
+
+		// Issue types section
 		sb.WriteString("\n## Issue Types\n\n")
 		sb.WriteString("This project has the following issue types configured. Always specify a type with `-t` when creating beans:\n\n")
 		for _, t := range config.DefaultTypes {
