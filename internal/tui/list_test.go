@@ -155,3 +155,83 @@ func TestSortBeans(t *testing.T) {
 		}
 	})
 }
+
+func TestCompareBeansByStatusAndType(t *testing.T) {
+	statusNames := []string{"backlog", "todo", "in-progress", "completed", "scrapped"}
+	typeNames := []string{"milestone", "epic", "bug", "feature", "task"}
+
+	t.Run("compares by status first", func(t *testing.T) {
+		a := &bean.Bean{ID: "1", Status: "todo", Type: "task", Title: "A"}
+		b := &bean.Bean{ID: "2", Status: "backlog", Type: "task", Title: "B"}
+
+		// backlog < todo, so b should come before a
+		if compareBeansByStatusAndType(a, b, statusNames, typeNames) {
+			t.Error("backlog bean should come before todo bean")
+		}
+		if !compareBeansByStatusAndType(b, a, statusNames, typeNames) {
+			t.Error("backlog bean should come before todo bean")
+		}
+	})
+
+	t.Run("compares by type within same status", func(t *testing.T) {
+		a := &bean.Bean{ID: "1", Status: "todo", Type: "task", Title: "A"}
+		b := &bean.Bean{ID: "2", Status: "todo", Type: "bug", Title: "B"}
+
+		// bug < task, so b should come before a
+		if compareBeansByStatusAndType(a, b, statusNames, typeNames) {
+			t.Error("bug bean should come before task bean")
+		}
+		if !compareBeansByStatusAndType(b, a, statusNames, typeNames) {
+			t.Error("bug bean should come before task bean")
+		}
+	})
+
+	t.Run("compares by title within same status and type", func(t *testing.T) {
+		a := &bean.Bean{ID: "1", Status: "todo", Type: "task", Title: "Zebra"}
+		b := &bean.Bean{ID: "2", Status: "todo", Type: "task", Title: "Apple"}
+
+		// Apple < Zebra, so b should come before a
+		if compareBeansByStatusAndType(a, b, statusNames, typeNames) {
+			t.Error("Apple bean should come before Zebra bean")
+		}
+		if !compareBeansByStatusAndType(b, a, statusNames, typeNames) {
+			t.Error("Apple bean should come before Zebra bean")
+		}
+	})
+
+	t.Run("title comparison is case-insensitive", func(t *testing.T) {
+		a := &bean.Bean{ID: "1", Status: "todo", Type: "task", Title: "zebra"}
+		b := &bean.Bean{ID: "2", Status: "todo", Type: "task", Title: "APPLE"}
+
+		// apple < zebra (case-insensitive), so b should come before a
+		if compareBeansByStatusAndType(a, b, statusNames, typeNames) {
+			t.Error("APPLE bean should come before zebra bean (case-insensitive)")
+		}
+	})
+
+	t.Run("unrecognized status sorts last", func(t *testing.T) {
+		a := &bean.Bean{ID: "1", Status: "unknown", Type: "task", Title: "A"}
+		b := &bean.Bean{ID: "2", Status: "scrapped", Type: "task", Title: "B"}
+
+		// scrapped is last known status, unknown should be after it
+		if compareBeansByStatusAndType(a, b, statusNames, typeNames) {
+			t.Error("unknown status should sort after scrapped")
+		}
+		if !compareBeansByStatusAndType(b, a, statusNames, typeNames) {
+			t.Error("scrapped should sort before unknown")
+		}
+	})
+
+	t.Run("unrecognized type sorts last within status", func(t *testing.T) {
+		a := &bean.Bean{ID: "1", Status: "todo", Type: "unknown", Title: "A"}
+		b := &bean.Bean{ID: "2", Status: "todo", Type: "task", Title: "B"}
+
+		// task is last known type, unknown should be after it
+		if compareBeansByStatusAndType(a, b, statusNames, typeNames) {
+			t.Error("unknown type should sort after task")
+		}
+		if !compareBeansByStatusAndType(b, a, statusNames, typeNames) {
+			t.Error("task should sort before unknown")
+		}
+	})
+}

@@ -492,23 +492,68 @@ func (m detailModel) resolveAllLinks() []resolvedLink {
 	incoming := m.resolveIncomingLinks(allBeans)
 	links = append(links, incoming...)
 
+	// Sort all links by link type label first, then by bean status/type/title
+	// This keeps link categories together while ordering beans consistently with the main list
+	statusNames := m.config.StatusNames()
+	typeNames := m.config.TypeNames()
+	sort.Slice(links, func(i, j int) bool {
+		// First: group by link label (e.g., "Child", "Parent", "Blocks", etc.)
+		labelI := m.formatLinkLabel(links[i].linkType, links[i].incoming)
+		labelJ := m.formatLinkLabel(links[j].linkType, links[j].incoming)
+		if labelI != labelJ {
+			return labelI < labelJ
+		}
+		// Within same link type: sort by status order, then type order, then title
+		return compareBeansByStatusAndType(links[i].bean, links[j].bean, statusNames, typeNames)
+	})
+
 	return links
+}
+
+// compareBeansByStatusAndType compares two beans using the same ordering as bean.SortByStatusAndType.
+func compareBeansByStatusAndType(a, b *bean.Bean, statusNames, typeNames []string) bool {
+	// Build order maps
+	statusOrder := make(map[string]int)
+	for i, s := range statusNames {
+		statusOrder[s] = i
+	}
+	typeOrder := make(map[string]int)
+	for i, t := range typeNames {
+		typeOrder[t] = i
+	}
+
+	// Helper to get order with unrecognized values sorted last
+	getStatusOrder := func(status string) int {
+		if order, ok := statusOrder[status]; ok {
+			return order
+		}
+		return len(statusNames)
+	}
+	getTypeOrder := func(typ string) int {
+		if order, ok := typeOrder[typ]; ok {
+			return order
+		}
+		return len(typeNames)
+	}
+
+	// Primary: status order
+	oi, oj := getStatusOrder(a.Status), getStatusOrder(b.Status)
+	if oi != oj {
+		return oi < oj
+	}
+	// Secondary: type order
+	ti, tj := getTypeOrder(a.Type), getTypeOrder(b.Type)
+	if ti != tj {
+		return ti < tj
+	}
+	// Tertiary: title (case-insensitive)
+	return strings.ToLower(a.Title) < strings.ToLower(b.Title)
 }
 
 func (m detailModel) resolveOutgoingLinks(beansByID map[string]*bean.Bean) []resolvedLink {
 	var links []resolvedLink
 
-	// Sort by link type for consistent ordering
-	sortedLinks := make([]bean.Link, len(m.bean.Links))
-	copy(sortedLinks, m.bean.Links)
-	sort.Slice(sortedLinks, func(i, j int) bool {
-		if sortedLinks[i].Type != sortedLinks[j].Type {
-			return sortedLinks[i].Type < sortedLinks[j].Type
-		}
-		return sortedLinks[i].Target < sortedLinks[j].Target
-	})
-
-	for _, link := range sortedLinks {
+	for _, link := range m.bean.Links {
 		targetBean, ok := beansByID[link.Target]
 		if !ok {
 			// Skip missing beans per user preference
@@ -527,13 +572,6 @@ func (m detailModel) resolveOutgoingLinks(beansByID map[string]*bean.Bean) []res
 func (m detailModel) resolveIncomingLinks(allBeans []*bean.Bean) []resolvedLink {
 	var links []resolvedLink
 
-	// Collect incoming links
-	type incomingLink struct {
-		linkType string
-		bean     *bean.Bean
-	}
-	var incoming []incomingLink
-
 	for _, other := range allBeans {
 		if other.ID == m.bean.ID {
 			continue
@@ -541,28 +579,13 @@ func (m detailModel) resolveIncomingLinks(allBeans []*bean.Bean) []resolvedLink 
 
 		for _, link := range other.Links {
 			if link.Target == m.bean.ID {
-				incoming = append(incoming, incomingLink{
+				links = append(links, resolvedLink{
 					linkType: link.Type,
 					bean:     other,
+					incoming: true,
 				})
 			}
 		}
-	}
-
-	// Sort by link type then by bean ID
-	sort.Slice(incoming, func(i, j int) bool {
-		if incoming[i].linkType != incoming[j].linkType {
-			return incoming[i].linkType < incoming[j].linkType
-		}
-		return incoming[i].bean.ID < incoming[j].bean.ID
-	})
-
-	for _, inc := range incoming {
-		links = append(links, resolvedLink{
-			linkType: inc.linkType,
-			bean:     inc.bean,
-			incoming: true,
-		})
 	}
 
 	return links
