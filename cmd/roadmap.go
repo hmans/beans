@@ -15,6 +15,7 @@ var (
 	roadmapIncludeDone bool
 	roadmapStatus      []string
 	roadmapNoStatus    []string
+	roadmapLinks       bool
 	roadmapLinkPrefix  string
 )
 
@@ -54,7 +55,9 @@ var roadmapCmd = &cobra.Command{
 		}
 
 		// Markdown output
-		md := renderRoadmapMarkdown(data, roadmapLinkPrefix)
+		// --link-prefix implies --links
+		links := roadmapLinks || roadmapLinkPrefix != ""
+		md := renderRoadmapMarkdown(data, links, roadmapLinkPrefix)
 		fmt.Print(md)
 		return nil
 	},
@@ -264,7 +267,7 @@ func sortByStatusThenID(beans []*bean.Bean, cfg interface{ StatusNames() []strin
 }
 
 // renderRoadmapMarkdown renders the roadmap as Markdown.
-func renderRoadmapMarkdown(data *roadmapData, linkPrefix string) string {
+func renderRoadmapMarkdown(data *roadmapData, links bool, linkPrefix string) string {
 	var sb strings.Builder
 
 	sb.WriteString("# Roadmap\n")
@@ -274,7 +277,7 @@ func renderRoadmapMarkdown(data *roadmapData, linkPrefix string) string {
 		sb.WriteString("\n## Milestone: ")
 		sb.WriteString(mg.Milestone.Title)
 		sb.WriteString(" (")
-		sb.WriteString(renderBeanLink(mg.Milestone, linkPrefix))
+		sb.WriteString(renderBeanRef(mg.Milestone, links, linkPrefix))
 		sb.WriteString(")\n")
 
 		// Add milestone description (first paragraph of body)
@@ -289,7 +292,7 @@ func renderRoadmapMarkdown(data *roadmapData, linkPrefix string) string {
 			sb.WriteString("\n### Epic: ")
 			sb.WriteString(eg.Epic.Title)
 			sb.WriteString(" (")
-			sb.WriteString(renderBeanLink(eg.Epic, linkPrefix))
+			sb.WriteString(renderBeanRef(eg.Epic, links, linkPrefix))
 			sb.WriteString(")\n")
 
 			// Add epic description
@@ -301,7 +304,7 @@ func renderRoadmapMarkdown(data *roadmapData, linkPrefix string) string {
 
 			sb.WriteString("\n")
 			for _, item := range eg.Items {
-				sb.WriteString(renderItem(item, linkPrefix))
+				sb.WriteString(renderItem(item, links, linkPrefix))
 			}
 		}
 
@@ -309,7 +312,7 @@ func renderRoadmapMarkdown(data *roadmapData, linkPrefix string) string {
 		if len(mg.Other) > 0 {
 			sb.WriteString("\n### Other\n\n")
 			for _, item := range mg.Other {
-				sb.WriteString(renderItem(item, linkPrefix))
+				sb.WriteString(renderItem(item, links, linkPrefix))
 			}
 		}
 	}
@@ -322,7 +325,7 @@ func renderRoadmapMarkdown(data *roadmapData, linkPrefix string) string {
 			sb.WriteString("\n### Epic: ")
 			sb.WriteString(eg.Epic.Title)
 			sb.WriteString(" (")
-			sb.WriteString(renderBeanLink(eg.Epic, linkPrefix))
+			sb.WriteString(renderBeanRef(eg.Epic, links, linkPrefix))
 			sb.WriteString(")\n")
 
 			if desc := firstParagraph(eg.Epic.Body); desc != "" {
@@ -333,7 +336,7 @@ func renderRoadmapMarkdown(data *roadmapData, linkPrefix string) string {
 
 			sb.WriteString("\n")
 			for _, item := range eg.Items {
-				sb.WriteString(renderItem(item, linkPrefix))
+				sb.WriteString(renderItem(item, links, linkPrefix))
 			}
 		}
 	}
@@ -341,9 +344,11 @@ func renderRoadmapMarkdown(data *roadmapData, linkPrefix string) string {
 	return sb.String()
 }
 
-// renderBeanLink renders a bean ID as a markdown link.
-// If linkPrefix is empty, links are relative to the bean file directly.
-func renderBeanLink(b *bean.Bean, linkPrefix string) string {
+// renderBeanRef renders a bean ID, optionally as a markdown link.
+func renderBeanRef(b *bean.Bean, asLink bool, linkPrefix string) string {
+	if !asLink {
+		return b.ID
+	}
 	if linkPrefix == "" {
 		return fmt.Sprintf("[%s](%s)", b.ID, b.Path)
 	}
@@ -355,8 +360,8 @@ func renderBeanLink(b *bean.Bean, linkPrefix string) string {
 }
 
 // renderItem renders a single item as a Markdown list item.
-func renderItem(b *bean.Bean, linkPrefix string) string {
-	return fmt.Sprintf("- %s %s\n", renderBeanLink(b, linkPrefix), b.Title)
+func renderItem(b *bean.Bean, asLink bool, linkPrefix string) string {
+	return fmt.Sprintf("- %s %s\n", renderBeanRef(b, asLink, linkPrefix), b.Title)
 }
 
 // firstParagraph extracts the first paragraph from a body text.
@@ -393,6 +398,7 @@ func init() {
 	roadmapCmd.Flags().BoolVar(&roadmapIncludeDone, "include-done", false, "Include completed items")
 	roadmapCmd.Flags().StringArrayVar(&roadmapStatus, "status", nil, "Filter milestones by status (can be repeated)")
 	roadmapCmd.Flags().StringArrayVar(&roadmapNoStatus, "no-status", nil, "Exclude milestones by status (can be repeated)")
-	roadmapCmd.Flags().StringVar(&roadmapLinkPrefix, "link-prefix", "", "URL prefix for bean links (e.g., https://github.com/user/repo/blob/main/.beans/)")
+	roadmapCmd.Flags().BoolVar(&roadmapLinks, "links", false, "Render bean IDs as markdown links")
+	roadmapCmd.Flags().StringVar(&roadmapLinkPrefix, "link-prefix", "", "URL prefix for links (implies --links)")
 	rootCmd.AddCommand(roadmapCmd)
 }

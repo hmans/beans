@@ -222,32 +222,35 @@ func TestRenderItem(t *testing.T) {
 	tests := []struct {
 		name       string
 		bean       *bean.Bean
+		asLink     bool
 		linkPrefix string
 		want       string
 	}{
 		{
-			name:       "no prefix",
+			name:   "no links",
+			bean:   &bean.Bean{ID: "abc", Path: "abc--do-something.md", Type: "task", Title: "Do something", Status: "open"},
+			asLink: false,
+			want:   "- abc Do something\n",
+		},
+		{
+			name:       "with links, no prefix",
 			bean:       &bean.Bean{ID: "abc", Path: "abc--do-something.md", Type: "task", Title: "Do something", Status: "open"},
+			asLink:     true,
 			linkPrefix: "",
 			want:       "- [abc](abc--do-something.md) Do something\n",
 		},
 		{
-			name:       "with prefix",
+			name:       "with links and prefix",
 			bean:       &bean.Bean{ID: "def", Path: "def--fix-issue.md", Type: "bug", Title: "Fix issue", Status: "open"},
+			asLink:     true,
 			linkPrefix: "https://github.com/user/repo/blob/main/.beans/",
 			want:       "- [def](https://github.com/user/repo/blob/main/.beans/def--fix-issue.md) Fix issue\n",
-		},
-		{
-			name:       "prefix without trailing slash",
-			bean:       &bean.Bean{ID: "ghi", Path: "ghi--test.md", Type: "task", Title: "Test", Status: "open"},
-			linkPrefix: ".beans",
-			want:       "- [ghi](.beans/ghi--test.md) Test\n",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := renderItem(tt.bean, tt.linkPrefix)
+			got := renderItem(tt.bean, tt.asLink, tt.linkPrefix)
 			if got != tt.want {
 				t.Errorf("renderItem() = %q, want %q", got, tt.want)
 			}
@@ -255,28 +258,38 @@ func TestRenderItem(t *testing.T) {
 	}
 }
 
-func TestRenderBeanLink(t *testing.T) {
+func TestRenderBeanRef(t *testing.T) {
 	tests := []struct {
 		name       string
 		bean       *bean.Bean
+		asLink     bool
 		linkPrefix string
 		want       string
 	}{
 		{
-			name:       "no prefix - relative link",
+			name:   "no link - just ID",
+			bean:   &bean.Bean{ID: "abc", Path: "abc--milestone.md"},
+			asLink: false,
+			want:   "abc",
+		},
+		{
+			name:       "link without prefix",
 			bean:       &bean.Bean{ID: "abc", Path: "abc--milestone.md"},
+			asLink:     true,
 			linkPrefix: "",
 			want:       "[abc](abc--milestone.md)",
 		},
 		{
-			name:       "with prefix",
+			name:       "link with prefix",
 			bean:       &bean.Bean{ID: "abc", Path: "abc--milestone.md"},
+			asLink:     true,
 			linkPrefix: "https://example.com/beans/",
 			want:       "[abc](https://example.com/beans/abc--milestone.md)",
 		},
 		{
-			name:       "prefix without trailing slash",
+			name:       "link with prefix without trailing slash",
 			bean:       &bean.Bean{ID: "abc", Path: "abc--milestone.md"},
+			asLink:     true,
 			linkPrefix: ".beans",
 			want:       "[abc](.beans/abc--milestone.md)",
 		},
@@ -284,9 +297,9 @@ func TestRenderBeanLink(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := renderBeanLink(tt.bean, tt.linkPrefix)
+			got := renderBeanRef(tt.bean, tt.asLink, tt.linkPrefix)
 			if got != tt.want {
-				t.Errorf("renderBeanLink() = %q, want %q", got, tt.want)
+				t.Errorf("renderBeanRef() = %q, want %q", got, tt.want)
 			}
 		})
 	}
