@@ -2,15 +2,15 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"strings"
 
-	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql"
+	"github.com/99designs/gqlgen/graphql/executor"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"hmans.dev/beans/internal/graph"
@@ -84,7 +84,7 @@ Examples:
 		}
 
 		// Parse variables if provided
-		var variables map[string]interface{}
+		var variables map[string]any
 		if queryVariables != "" {
 			if err := json.Unmarshal([]byte(queryVariables), &variables); err != nil {
 				return fmt.Errorf("invalid variables JSON: %w", err)
@@ -130,49 +130,31 @@ func readFromStdin() (string, error) {
 	return strings.TrimSpace(string(data)), nil
 }
 
-// graphqlRequest represents a GraphQL request body.
-type graphqlRequest struct {
-	Query         string                 `json:"query"`
-	Variables     map[string]interface{} `json:"variables,omitempty"`
-	OperationName string                 `json:"operationName,omitempty"`
-}
-
 // executeQuery runs a GraphQL query against the beans core.
-func executeQuery(query string, variables map[string]interface{}, operationName string) ([]byte, error) {
-	// Create the GraphQL server
-	srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{
+func executeQuery(query string, variables map[string]any, operationName string) ([]byte, error) {
+	es := graph.NewExecutableSchema(graph.Config{
 		Resolvers: &graph.Resolver{Core: core},
-	}))
+	})
 
-	// Build request body
-	reqBody := graphqlRequest{
+	exec := executor.New(es)
+
+	ctx := graphql.StartOperationTrace(context.Background())
+	params := &graphql.RawParams{
 		Query:         query,
 		Variables:     variables,
 		OperationName: operationName,
 	}
-	bodyBytes, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("marshaling request: %w", err)
+
+	opCtx, errs := exec.CreateOperationContext(ctx, params)
+	if errs != nil {
+		return json.Marshal(graphql.Response{Errors: errs})
 	}
 
-	// Create HTTP request
-	req := httptest.NewRequest(http.MethodPost, "/graphql", bytes.NewReader(bodyBytes))
-	req.Header.Set("Content-Type", "application/json")
+	ctx = graphql.WithOperationContext(ctx, opCtx)
+	handler, ctx := exec.DispatchOperation(ctx, opCtx)
+	resp := handler(ctx)
 
-	// Execute via httptest
-	rec := httptest.NewRecorder()
-	srv.ServeHTTP(rec, req)
-
-	// Read response
-	resp := rec.Result()
-	defer resp.Body.Close()
-
-	result, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading response: %w", err)
-	}
-
-	return result, nil
+	return json.Marshal(resp)
 }
 
 // prettyPrint outputs the JSON with colors and indentation.
