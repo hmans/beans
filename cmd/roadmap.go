@@ -15,7 +15,7 @@ var (
 	roadmapIncludeDone bool
 	roadmapStatus      []string
 	roadmapNoStatus    []string
-	roadmapLinks       bool
+	roadmapNoLinks     bool
 	roadmapLinkPrefix  string
 )
 
@@ -55,8 +55,7 @@ var roadmapCmd = &cobra.Command{
 		}
 
 		// Markdown output
-		// --link-prefix implies --links
-		links := roadmapLinks || roadmapLinkPrefix != ""
+		links := !roadmapNoLinks
 		md := renderRoadmapMarkdown(data, links, roadmapLinkPrefix)
 		fmt.Print(md)
 		return nil
@@ -398,7 +397,7 @@ func init() {
 	roadmapCmd.Flags().BoolVar(&roadmapIncludeDone, "include-done", false, "Include completed items")
 	roadmapCmd.Flags().StringArrayVar(&roadmapStatus, "status", nil, "Filter milestones by status (can be repeated)")
 	roadmapCmd.Flags().StringArrayVar(&roadmapNoStatus, "no-status", nil, "Exclude milestones by status (can be repeated)")
-	roadmapCmd.Flags().BoolVar(&roadmapLinks, "links", false, "Render bean IDs as markdown links")
-	roadmapCmd.Flags().StringVar(&roadmapLinkPrefix, "link-prefix", "", "URL prefix for links (implies --links)")
+	roadmapCmd.Flags().BoolVar(&roadmapNoLinks, "no-links", false, "Don't render bean IDs as markdown links")
+	roadmapCmd.Flags().StringVar(&roadmapLinkPrefix, "link-prefix", "", "URL prefix for links")
 	rootCmd.AddCommand(roadmapCmd)
 }
