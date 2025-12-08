@@ -230,21 +230,21 @@ func TestRenderItem(t *testing.T) {
 			name:   "no links",
 			bean:   &bean.Bean{ID: "abc", Path: "abc--do-something.md", Type: "task", Title: "Do something", Status: "open"},
 			asLink: false,
-			want:   "- abc Do something\n",
+			want:   "- #abc Do something\n",
 		},
 		{
 			name:       "with links, no prefix",
 			bean:       &bean.Bean{ID: "abc", Path: "abc--do-something.md", Type: "task", Title: "Do something", Status: "open"},
 			asLink:     true,
 			linkPrefix: "",
-			want:       "- [abc](abc--do-something.md) Do something\n",
+			want:       "- [#abc](abc--do-something.md) Do something\n",
 		},
 		{
 			name:       "with links and prefix",
 			bean:       &bean.Bean{ID: "def", Path: "def--fix-issue.md", Type: "bug", Title: "Fix issue", Status: "open"},
 			asLink:     true,
 			linkPrefix: "https://github.com/user/repo/blob/main/.beans/",
-			want:       "- [def](https://github.com/user/repo/blob/main/.beans/def--fix-issue.md) Fix issue\n",
+			want:       "- [#def](https://github.com/user/repo/blob/main/.beans/def--fix-issue.md) Fix issue\n",
 		},
 	}
 
@@ -270,28 +270,28 @@ func TestRenderBeanRef(t *testing.T) {
 			name:   "no link - just ID",
 			bean:   &bean.Bean{ID: "abc", Path: "abc--milestone.md"},
 			asLink: false,
-			want:   "abc",
+			want:   "#abc",
 		},
 		{
 			name:       "link without prefix",
 			bean:       &bean.Bean{ID: "abc", Path: "abc--milestone.md"},
 			asLink:     true,
 			linkPrefix: "",
-			want:       "[abc](abc--milestone.md)",
+			want:       "[#abc](abc--milestone.md)",
 		},
 		{
 			name:       "link with prefix",
 			bean:       &bean.Bean{ID: "abc", Path: "abc--milestone.md"},
 			asLink:     true,
 			linkPrefix: "https://example.com/beans/",
-			want:       "[abc](https://example.com/beans/abc--milestone.md)",
+			want:       "[#abc](https://example.com/beans/abc--milestone.md)",
 		},
 		{
 			name:       "link with prefix without trailing slash",
 			bean:       &bean.Bean{ID: "abc", Path: "abc--milestone.md"},
 			asLink:     true,
 			linkPrefix: ".beans",
-			want:       "[abc](.beans/abc--milestone.md)",
+			want:       "[#abc](.beans/abc--milestone.md)",
 		},
 	}
 

@@ -347,16 +347,16 @@ func renderRoadmapMarkdown(data *roadmapData, links bool, linkPrefix string) str
 // renderBeanRef renders a bean ID, optionally as a markdown link.
 func renderBeanRef(b *bean.Bean, asLink bool, linkPrefix string) string {
 	if !asLink {
-		return b.ID
+		return "#" + b.ID
 	}
 	if linkPrefix == "" {
-		return fmt.Sprintf("[%s](%s)", b.ID, b.Path)
+		return fmt.Sprintf("[#%s](%s)", b.ID, b.Path)
 	}
 	// Ensure prefix ends with / for clean concatenation
 	if !strings.HasSuffix(linkPrefix, "/") {
 		linkPrefix += "/"
 	}
-	return fmt.Sprintf("[%s](%s%s)", b.ID, linkPrefix, b.Path)
+	return fmt.Sprintf("[#%s](%s%s)", b.ID, linkPrefix, b.Path)
 }
 
 // renderItem renders a single item as a Markdown list item.
