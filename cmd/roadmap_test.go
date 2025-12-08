@@ -230,28 +230,28 @@ func TestRenderBeanRef(t *testing.T) {
 			name:   "no link - just ID",
 			bean:   &bean.Bean{ID: "abc", Path: "abc--milestone.md"},
 			asLink: false,
-			want:   "[#abc]",
+			want:   "(abc)",
 		},
 		{
 			name:       "link without prefix",
 			bean:       &bean.Bean{ID: "abc", Path: "abc--milestone.md"},
 			asLink:     true,
 			linkPrefix: "",
-			want:       "[[#abc](abc--milestone.md)]",
+			want:       "([abc](abc--milestone.md))",
 		},
 		{
 			name:       "link with prefix",
 			bean:       &bean.Bean{ID: "abc", Path: "abc--milestone.md"},
 			asLink:     true,
 			linkPrefix: "https://example.com/beans/",
-			want:       "[[#abc](https://example.com/beans/abc--milestone.md)]",
+			want:       "([abc](https://example.com/beans/abc--milestone.md))",
 		},
 		{
 			name:       "link with prefix without trailing slash",
 			bean:       &bean.Bean{ID: "abc", Path: "abc--milestone.md"},
 			asLink:     true,
 			linkPrefix: ".beans",
-			want:       "[[#abc](.beans/abc--milestone.md)]",
+			want:       "([abc](.beans/abc--milestone.md))",
 		},
 	}
 

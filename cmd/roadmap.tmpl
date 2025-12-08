@@ -11,14 +11,14 @@
 {{end}}
 
 {{range .Items -}}
-- {{beanRef . $.Links $.LinkPrefix}} {{.Title}}
+- {{.Title}} {{beanRef . $.Links $.LinkPrefix}}
 {{end}}
 {{- end}}
 {{- if .Other}}
 ### Other
 
 {{range .Other -}}
-- {{beanRef . $.Links $.LinkPrefix}} {{.Title}}
+- {{.Title}} {{beanRef . $.Links $.LinkPrefix}}
 {{end}}
 {{- end}}
 {{- end}}
@@ -31,7 +31,7 @@
 {{end}}
 
 {{range .Items -}}
-- {{beanRef . $.Links $.LinkPrefix}} {{.Title}}
+- {{.Title}} {{beanRef . $.Links $.LinkPrefix}}
 {{end}}
 {{- end}}
 {{- end}}
