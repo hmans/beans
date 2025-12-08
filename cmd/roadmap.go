@@ -271,7 +271,7 @@ func renderRoadmapMarkdown(data *roadmapData, linkPrefix string) string {
 
 	// Render milestones
 	for _, mg := range data.Milestones {
-		sb.WriteString("\n## ")
+		sb.WriteString("\n## Milestone: ")
 		sb.WriteString(mg.Milestone.Title)
 		sb.WriteString(" (")
 		sb.WriteString(renderBeanLink(mg.Milestone, linkPrefix))
@@ -286,7 +286,7 @@ func renderRoadmapMarkdown(data *roadmapData, linkPrefix string) string {
 
 		// Render epics
 		for _, eg := range mg.Epics {
-			sb.WriteString("\n### ")
+			sb.WriteString("\n### Epic: ")
 			sb.WriteString(eg.Epic.Title)
 			sb.WriteString(" (")
 			sb.WriteString(renderBeanLink(eg.Epic, linkPrefix))
@@ -319,7 +319,7 @@ func renderRoadmapMarkdown(data *roadmapData, linkPrefix string) string {
 		sb.WriteString("\n## Unscheduled\n")
 
 		for _, eg := range data.Unscheduled {
-			sb.WriteString("\n### ")
+			sb.WriteString("\n### Epic: ")
 			sb.WriteString(eg.Epic.Title)
 			sb.WriteString(" (")
 			sb.WriteString(renderBeanLink(eg.Epic, linkPrefix))
