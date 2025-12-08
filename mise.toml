@@ -2,10 +2,15 @@
 go = "latest"
 svu = "latest"
 
+[tasks.codegen]
+run = "go generate ./..."
+
 [tasks.test]
+depends = "codegen"
 run = "go test ./..."
 
 [tasks.build]
+depends = "codegen"
 run = """
 go build -ldflags "\
   -X hmans.dev/beans/cmd/beans.version=$(git describe --tags --always --dirty 2>/dev/null || echo dev) \

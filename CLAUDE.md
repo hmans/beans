@@ -15,8 +15,13 @@ This is a small CLI app that interacts with a .beans/ directory that stores "iss
 - Use conventional commit messages ("feat", "fix", "chore", etc.) when making commits.
 - Mark commits as "breaking" using the `!` notation when applicable (e.g., `feat!: ...`).
 - When making commits, provide a meaningful commit message. The description should be a concise bullet point list of changes made.
-- After making a meaningful change that should be mentioned in the changelog, create a change file using `changie new`. (See `changie new --help` for options.)
 - When we're working in a PR branch, make separate commits, and update the PR description to reflect the changes made.
+- When making changes to the GraphQL schema, run `mise codegen` to regenerate the code.
+
+# GraphQL
+
+- The `internal/graph/` package provides a GraphQL resolver that can be used to query and mutate beans.
+- All CLI commands that interact with beans should internally use GraphQL queries/mutations.
 
 # Extra rules for our own beans/issues
 

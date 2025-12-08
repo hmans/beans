@@ -107,3 +107,39 @@ Use `-t/--type` to filter by bean type (OR logic when repeated):
 ## Cleaning up beans
 
 - `beans archive` will archive (delete) beans marked as completed or scrapped. ONLY run this when I explicitly tell you to.
+
+## GraphQL API
+
+Beans provides a GraphQL API for flexible querying. Use `beans query` to execute GraphQL queries.
+
+**Basic usage:**
+
+```bash
+# List all beans
+beans query '{ beans { id title status } }'
+
+# Get a specific bean
+beans query '{ bean(id: "abc") { title status body } }'
+
+# Filter beans
+beans query '{ beans(filter: { status: ["todo", "in-progress"] }) { id title } }'
+
+# Get relationships
+beans query '{ bean(id: "abc") { title parent { title } children { id title } } }'
+
+# Read from stdin (useful for complex queries or shell escaping issues)
+cat query.graphql | beans query
+beans query <<'EOF'
+query GetBean($id: ID!) { bean(id: $id) { title } }
+EOF
+
+# Print schema
+beans query --schema
+```
+
+**Flags:**
+
+- `--json`: Output raw JSON (no formatting)
+- `--schema`: Print the GraphQL schema
+- `-v, --variables`: Query variables as JSON string
+- `-o, --operation`: Operation name for multi-operation documents

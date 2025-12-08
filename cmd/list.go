@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -9,6 +10,8 @@ import (
 	"github.com/spf13/cobra"
 	"hmans.dev/beans/internal/bean"
 	"hmans.dev/beans/internal/config"
+	"hmans.dev/beans/internal/graph"
+	"hmans.dev/beans/internal/graph/model"
 	"hmans.dev/beans/internal/output"
 	"hmans.dev/beans/internal/ui"
 )
@@ -32,48 +35,23 @@ var (
 	listFull       bool
 )
 
-// linkFilter represents a pre-parsed link filter criterion.
-type linkFilter struct {
-	linkType string
-	targetID string // empty means "any target"
-}
-
-// parseLinkFilters parses filter strings like "blocks" or "blocks:id" into linkFilter structs.
-func parseLinkFilters(filters []string) []linkFilter {
-	result := make([]linkFilter, len(filters))
+// parseLinkFilters parses CLI link filter strings (e.g., "blocks" or "blocks:id")
+// into GraphQL LinkFilter models.
+func parseLinkFilters(filters []string) []*model.LinkFilter {
+	if len(filters) == 0 {
+		return nil
+	}
+	result := make([]*model.LinkFilter, len(filters))
 	for i, f := range filters {
 		parts := strings.SplitN(f, ":", 2)
-		result[i].linkType = parts[0]
+		lf := &model.LinkFilter{Type: parts[0]}
 		if len(parts) == 2 {
-			result[i].targetID = parts[1]
+			target := parts[1]
+			lf.Target = &target
 		}
+		result[i] = lf
 	}
 	return result
-}
-
-// linkIndex holds precomputed data structures for efficient link filtering.
-type linkIndex struct {
-	byID       map[string]*bean.Bean      // ID -> Bean lookup
-	targetedBy map[string]map[string]bool // linkType -> set of target IDs
-}
-
-// buildLinkIndex creates a linkIndex from a slice of beans.
-// This should be called once before any filtering to capture all relationships.
-func buildLinkIndex(beans []*bean.Bean) *linkIndex {
-	idx := &linkIndex{
-		byID:       make(map[string]*bean.Bean),
-		targetedBy: make(map[string]map[string]bool),
-	}
-	for _, b := range beans {
-		idx.byID[b.ID] = b
-		for _, link := range b.Links {
-			if idx.targetedBy[link.Type] == nil {
-				idx.targetedBy[link.Type] = make(map[string]bool)
-			}
-			idx.targetedBy[link.Type][link.Target] = true
-		}
-	}
-	return idx
 }
 
 var listCmd = &cobra.Command{
@@ -82,31 +60,28 @@ var listCmd = &cobra.Command{
 	Short:   "List all beans",
 	Long:    `Lists all beans in the .beans directory.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		beans := core.All()
+		// Build GraphQL filter from CLI flags
+		filter := &model.BeanFilter{
+			Status:          listStatus,
+			ExcludeStatus:   listNoStatus,
+			Type:            listType,
+			ExcludeType:     listNoType,
+			Priority:        listPriority,
+			ExcludePriority: listNoPriority,
+			Tags:            listTag,
+			ExcludeTags:     listNoTag,
+			HasLinks:        parseLinkFilters(listLinks),
+			LinkedAs:        parseLinkFilters(listLinkedAs),
+			NoLinks:         parseLinkFilters(listNoLinks),
+			NoLinkedAs:      parseLinkFilters(listNoLinkedAs),
+		}
 
-		// Parse filter criteria once (avoid repeated string splitting)
-		linksFilters := parseLinkFilters(listLinks)
-		linkedAsFilters := parseLinkFilters(listLinkedAs)
-		noLinksFilters := parseLinkFilters(listNoLinks)
-		noLinkedAsFilters := parseLinkFilters(listNoLinkedAs)
-
-		// Build link index once from all beans (before status filtering)
-		// This ensures relationships are captured even if source bean is filtered out
-		idx := buildLinkIndex(beans)
-
-		// Apply filters (positive first, then exclusions)
-		beans = filterBeans(beans, listStatus)
-		beans = excludeByStatus(beans, listNoStatus)
-		beans = filterByType(beans, listType)
-		beans = excludeByType(beans, listNoType)
-		beans = filterByPriority(beans, listPriority)
-		beans = excludeByPriority(beans, listNoPriority)
-		beans = filterByLinks(beans, linksFilters)
-		beans = filterByLinkedAs(beans, linkedAsFilters, idx)
-		beans = excludeByLinks(beans, noLinksFilters)
-		beans = excludeByLinkedAs(beans, noLinkedAsFilters, idx)
-		beans = filterByTags(beans, listTag)
-		beans = excludeByTags(beans, listNoTag)
+		// Execute query via GraphQL resolver
+		resolver := &graph.Resolver{Core: core}
+		beans, err := resolver.Query().Beans(context.Background(), filter)
+		if err != nil {
+			return fmt.Errorf("querying beans: %w", err)
+		}
 
 		// Sort beans
 		sortBeans(beans, listSort, cfg)
@@ -324,348 +299,11 @@ func sortBeans(beans []*bean.Bean, sortBy string, cfg *config.Config) {
 	}
 }
 
-func filterBeans(beans []*bean.Bean, statuses []string) []*bean.Bean {
-	if len(statuses) == 0 {
-		return beans
-	}
-
-	var filtered []*bean.Bean
-	for _, b := range beans {
-		// Filter by status
-		matched := false
-		for _, s := range statuses {
-			if b.Status == s {
-				matched = true
-				break
-			}
-		}
-		if matched {
-			filtered = append(filtered, b)
-		}
-	}
-	return filtered
-}
-
-// excludeByStatus excludes beans that match any of the given statuses.
-// Inverse of filterBeans: returns beans that DON'T match the criteria.
-//
-// Examples:
-//   - --no-status done returns beans that are not done
-//   - --no-status done --no-status archived returns beans that are neither done nor archived
-func excludeByStatus(beans []*bean.Bean, statuses []string) []*bean.Bean {
-	if len(statuses) == 0 {
-		return beans
-	}
-
-	var filtered []*bean.Bean
-	for _, b := range beans {
-		excluded := false
-		for _, s := range statuses {
-			if b.Status == s {
-				excluded = true
-				break
-			}
-		}
-		if !excluded {
-			filtered = append(filtered, b)
-		}
-	}
-	return filtered
-}
-
-// filterByType filters beans that match any of the given types (OR logic).
-func filterByType(beans []*bean.Bean, types []string) []*bean.Bean {
-	if len(types) == 0 {
-		return beans
-	}
-
-	var filtered []*bean.Bean
-	for _, b := range beans {
-		for _, t := range types {
-			if b.Type == t {
-				filtered = append(filtered, b)
-				break
-			}
-		}
-	}
-	return filtered
-}
-
-// excludeByType excludes beans that match any of the given types.
-func excludeByType(beans []*bean.Bean, types []string) []*bean.Bean {
-	if len(types) == 0 {
-		return beans
-	}
-
-	var filtered []*bean.Bean
-	for _, b := range beans {
-		excluded := false
-		for _, t := range types {
-			if b.Type == t {
-				excluded = true
-				break
-			}
-		}
-		if !excluded {
-			filtered = append(filtered, b)
-		}
-	}
-	return filtered
-}
-
-// filterByPriority filters beans that match any of the given priorities (OR logic).
-// Empty priority in the bean matches "normal" filter.
-func filterByPriority(beans []*bean.Bean, priorities []string) []*bean.Bean {
-	if len(priorities) == 0 {
-		return beans
-	}
-
-	var filtered []*bean.Bean
-	for _, b := range beans {
-		for _, p := range priorities {
-			// Match if priority equals filter, or if bean has no priority and filter is "normal"
-			if b.Priority == p || (b.Priority == "" && p == "normal") {
-				filtered = append(filtered, b)
-				break
-			}
-		}
-	}
-	return filtered
-}
-
-// excludeByPriority excludes beans that match any of the given priorities.
-// Empty priority in the bean is treated as "normal" for exclusion purposes.
-func excludeByPriority(beans []*bean.Bean, priorities []string) []*bean.Bean {
-	if len(priorities) == 0 {
-		return beans
-	}
-
-	var filtered []*bean.Bean
-	for _, b := range beans {
-		excluded := false
-		for _, p := range priorities {
-			// Exclude if priority equals filter, or if bean has no priority and filter is "normal"
-			if b.Priority == p || (b.Priority == "" && p == "normal") {
-				excluded = true
-				break
-			}
-		}
-		if !excluded {
-			filtered = append(filtered, b)
-		}
-	}
-	return filtered
-}
-
-// filterByLinks filters beans by outgoing relationship.
-// Supports two formats:
-//   - "type:id" - Returns beans that have id in their links[type]
-//   - "type" - Returns beans that have ANY link of this type
-//
-// Use repeated flags for multiple values (OR logic).
-//
-// Examples:
-//   - --links blocks:A returns beans that block A
-//   - --links blocks returns all beans that block something
-//   - --links blocks --links parent returns beans that block something OR have a parent link
-func filterByLinks(beans []*bean.Bean, filters []linkFilter) []*bean.Bean {
-	if len(filters) == 0 {
-		return beans
-	}
-
-	var filtered []*bean.Bean
-	for _, b := range beans {
-		matched := false
-		for _, f := range filters {
-			if f.targetID == "" {
-				// Type-only: check if this bean has ANY link of this type
-				if b.Links.HasType(f.linkType) {
-					matched = true
-				}
-			} else {
-				// Type:ID: check if this bean links to the specific target
-				if b.Links.HasLink(f.linkType, f.targetID) {
-					matched = true
-				}
-			}
-
-			if matched {
-				break
-			}
-		}
-		if matched {
-			filtered = append(filtered, b)
-		}
-	}
-	return filtered
-}
-
-// filterByLinkedAs filters beans by their outgoing links to a specific target.
-// Supports two formats:
-//   - "type:id" - Returns beans that have a link of this type pointing to id
-//   - "type" - Returns beans that are targeted by ANY bean with this link type
-//
-// Use repeated flags for multiple values (OR logic).
-//
-// Examples:
-//   - --linked-as parent:milestone-id returns beans that have milestone-id as parent
-//   - --linked-as blocks returns all beans that are blocked by something
-//   - --linked-as blocks --linked-as parent returns beans that are blocked OR have a parent
-func filterByLinkedAs(beans []*bean.Bean, filters []linkFilter, idx *linkIndex) []*bean.Bean {
-	if len(filters) == 0 {
-		return beans
-	}
-
-	var filtered []*bean.Bean
-	for _, b := range beans {
-		matched := false
-		for _, f := range filters {
-			if f.targetID == "" {
-				// Type-only: check if this bean is targeted by ANY bean with this link type
-				if targets, ok := idx.targetedBy[f.linkType]; ok && targets[b.ID] {
-					matched = true
-				}
-			} else {
-				// Type:ID: check if this bean has a link of this type pointing to the target
-				// e.g., --linked-as parent:milestone-id finds beans with parent: milestone-id
-				if b.Links.HasLink(f.linkType, f.targetID) {
-					matched = true
-				}
-			}
-
-			if matched {
-				break
-			}
-		}
-		if matched {
-			filtered = append(filtered, b)
-		}
-	}
-	return filtered
-}
-
-// excludeByLinks excludes beans by outgoing relationship.
-// Inverse of filterByLinks: returns beans that DON'T match the criteria.
-//
-// Examples:
-//   - --no-links blocks returns beans that don't block anything
-//   - --no-links parent returns beans without a parent link
-func excludeByLinks(beans []*bean.Bean, filters []linkFilter) []*bean.Bean {
-	if len(filters) == 0 {
-		return beans
-	}
-
-	var filtered []*bean.Bean
-	for _, b := range beans {
-		excluded := false
-		for _, f := range filters {
-			if f.targetID == "" {
-				// Type-only: exclude if this bean has ANY link of this type
-				if b.Links.HasType(f.linkType) {
-					excluded = true
-				}
-			} else {
-				// Type:ID: exclude if this bean links to the specific target
-				if b.Links.HasLink(f.linkType, f.targetID) {
-					excluded = true
-				}
-			}
-
-			if excluded {
-				break
-			}
-		}
-		if !excluded {
-			filtered = append(filtered, b)
-		}
-	}
-	return filtered
-}
-
-// excludeByLinkedAs excludes beans by their outgoing links to a specific target.
-// Inverse of filterByLinkedAs: returns beans that DON'T match the criteria.
-//
-// Examples:
-//   - --no-linked-as blocks returns beans not blocked by anything (actionable work)
-//   - --no-linked-as parent:milestone-id returns beans that don't have milestone-id as parent
-func excludeByLinkedAs(beans []*bean.Bean, filters []linkFilter, idx *linkIndex) []*bean.Bean {
-	if len(filters) == 0 {
-		return beans
-	}
-
-	var filtered []*bean.Bean
-	for _, b := range beans {
-		excluded := false
-		for _, f := range filters {
-			if f.targetID == "" {
-				// Type-only: exclude if this bean is targeted by ANY bean with this link type
-				if targets, ok := idx.targetedBy[f.linkType]; ok && targets[b.ID] {
-					excluded = true
-				}
-			} else {
-				// Type:ID: exclude if this bean has a link of this type pointing to the target
-				// e.g., --no-linked-as parent:milestone-id excludes beans with parent: milestone-id
-				if b.Links.HasLink(f.linkType, f.targetID) {
-					excluded = true
-				}
-			}
-
-			if excluded {
-				break
-			}
-		}
-		if !excluded {
-			filtered = append(filtered, b)
-		}
-	}
-	return filtered
-}
-
 func truncate(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s
 	}
 	return s[:maxLen-3] + "..."
-}
-
-// filterByTags filters beans that have ANY of the specified tags (OR logic).
-func filterByTags(beans []*bean.Bean, tags []string) []*bean.Bean {
-	if len(tags) == 0 {
-		return beans
-	}
-
-	var filtered []*bean.Bean
-	for _, b := range beans {
-		for _, tag := range tags {
-			if b.HasTag(tag) {
-				filtered = append(filtered, b)
-				break
-			}
-		}
-	}
-	return filtered
-}
-
-// excludeByTags excludes beans that have ANY of the specified tags.
-func excludeByTags(beans []*bean.Bean, tags []string) []*bean.Bean {
-	if len(tags) == 0 {
-		return beans
-	}
-
-	var filtered []*bean.Bean
-	for _, b := range beans {
-		excluded := false
-		for _, tag := range tags {
-			if b.HasTag(tag) {
-				excluded = true
-				break
-			}
-		}
-		if !excluded {
-			filtered = append(filtered, b)
-		}
-	}
-	return filtered
 }
 
 func init() {

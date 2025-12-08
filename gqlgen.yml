@@ -1,0 +1,42 @@
+# gqlgen configuration
+# See https://gqlgen.com/config/ for details
+
+schema:
+  - internal/graph/*.graphqls
+
+exec:
+  filename: internal/graph/generated.go
+  package: graph
+
+model:
+  filename: internal/graph/model/models_gen.go
+  package: model
+
+resolver:
+  layout: follow-schema
+  dir: internal/graph
+  package: graph
+
+# Autobind to existing types
+autobind:
+  - hmans.dev/beans/internal/bean
+
+models:
+  # Use existing Bean type from bean package
+  Bean:
+    model: hmans.dev/beans/internal/bean.Bean
+  # Use existing Link type from bean package
+  Link:
+    model: hmans.dev/beans/internal/bean.Link
+  # Map ID scalar to string
+  ID:
+    model:
+      - github.com/99designs/gqlgen/graphql.ID
+      - github.com/99designs/gqlgen/graphql.Int
+      - github.com/99designs/gqlgen/graphql.Int64
+      - github.com/99designs/gqlgen/graphql.Int32
+  Int:
+    model:
+      - github.com/99designs/gqlgen/graphql.Int
+      - github.com/99designs/gqlgen/graphql.Int64
+      - github.com/99designs/gqlgen/graphql.Int32
