@@ -115,13 +115,12 @@ func (c *Core) loadFromDisk() error {
 		c.beans[b.ID] = b
 	}
 
-	// Rebuild search index if active (best-effort, don't fail load)
+	// Rebuild search index if active: close and re-create (best-effort, don't fail load)
 	if c.searchIndex != nil {
-		allBeans := make([]*bean.Bean, 0, len(c.beans))
-		for _, b := range c.beans {
-			allBeans = append(allBeans, b)
-		}
-		if err := c.searchIndex.RebuildFromBeans(allBeans); err != nil {
+		c.searchIndex.Close()
+		c.searchIndex = nil
+
+		if err := c.ensureSearchIndexLocked(); err != nil {
 			c.logWarn("failed to rebuild search index: %v", err)
 		}
 	}
@@ -185,44 +184,27 @@ func (c *Core) loadBean(path string) (*bean.Bean, error) {
 	return b, nil
 }
 
-// EnsureSearchIndex initializes the search index if not already open.
+// ensureSearchIndexLocked initializes the in-memory search index if not already created.
 // Must be called with lock held or from a method that holds the lock.
 func (c *Core) ensureSearchIndexLocked() error {
 	if c.searchIndex != nil {
 		return nil
 	}
 
-	indexPath := search.IndexPath(c.root)
-	idx, status, err := search.NewIndex(indexPath)
+	idx, err := search.NewIndex()
 	if err != nil {
 		return fmt.Errorf("initializing search index: %w", err)
 	}
 
 	c.searchIndex = idx
 
-	// Only rebuild if the index was newly created or recovered from corruption
-	switch status {
-	case search.IndexStatusCreated:
-		// New index - populate with existing beans
-		allBeans := make([]*bean.Bean, 0, len(c.beans))
-		for _, b := range c.beans {
-			allBeans = append(allBeans, b)
-		}
-		if err := c.searchIndex.RebuildFromBeans(allBeans); err != nil {
-			return fmt.Errorf("building search index: %w", err)
-		}
-	case search.IndexStatusRecovered:
-		// Index was corrupted and rebuilt - repopulate and warn
-		c.logWarn("search index was corrupted and has been rebuilt")
-		allBeans := make([]*bean.Bean, 0, len(c.beans))
-		for _, b := range c.beans {
-			allBeans = append(allBeans, b)
-		}
-		if err := c.searchIndex.RebuildFromBeans(allBeans); err != nil {
-			return fmt.Errorf("rebuilding search index: %w", err)
-		}
-	case search.IndexStatusOpened:
-		// Existing index opened successfully - no rebuild needed
+	// Populate the in-memory index with existing beans
+	allBeans := make([]*bean.Bean, 0, len(c.beans))
+	for _, b := range c.beans {
+		allBeans = append(allBeans, b)
+	}
+	if err := c.searchIndex.IndexBeans(allBeans); err != nil {
+		return fmt.Errorf("populating search index: %w", err)
 	}
 
 	return nil
@@ -456,12 +438,9 @@ func (c *Core) Delete(idPrefix string) error {
 	return nil
 }
 
-// Init creates the .beans directory if it doesn't exist and sets up necessary files.
+// Init creates the .beans directory if it doesn't exist.
 func (c *Core) Init() error {
-	if err := os.MkdirAll(c.root, 0755); err != nil {
-		return err
-	}
-	return createBeansGitignore(c.root)
+	return os.MkdirAll(c.root, 0755)
 }
 
 // FullPath returns the absolute path to a bean file.
@@ -489,24 +468,5 @@ func (c *Core) Close() error {
 // This is a standalone function for use before a Core is created.
 func Init(dir string) error {
 	beansPath := filepath.Join(dir, BeansDir)
-	if err := os.MkdirAll(beansPath, 0755); err != nil {
-		return err
-	}
-	return createBeansGitignore(beansPath)
-}
-
-// createBeansGitignore creates a .gitignore file in the .beans directory
-// to ignore the search index. Only creates if file doesn't exist.
-func createBeansGitignore(beansDir string) error {
-	gitignorePath := filepath.Join(beansDir, ".gitignore")
-
-	// Only create if it doesn't exist
-	if _, err := os.Stat(gitignorePath); err == nil {
-		return nil // File exists, don't overwrite
-	}
-
-	content := `# Search index (auto-generated, can be safely deleted)
-.index/
-`
-	return os.WriteFile(gitignorePath, []byte(content), 0644)
+	return os.MkdirAll(beansPath, 0755)
 }

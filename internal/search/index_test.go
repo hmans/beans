@@ -1,7 +1,6 @@
 package search
 
 import (
-	"os"
 	"testing"
 
 	"github.com/hmans/beans/internal/bean"
@@ -9,8 +8,7 @@ import (
 
 func setupTestIndex(t *testing.T) *Index {
 	t.Helper()
-	indexPath := t.TempDir() + "/test.bleve"
-	idx, _, err := NewIndex(indexPath)
+	idx, err := NewIndex()
 	if err != nil {
 		t.Fatalf("NewIndex() error = %v", err)
 	}
@@ -21,87 +19,11 @@ func setupTestIndex(t *testing.T) *Index {
 }
 
 func TestNewIndex(t *testing.T) {
-	indexPath := t.TempDir() + "/test.bleve"
-	idx, status, err := NewIndex(indexPath)
+	idx, err := NewIndex()
 	if err != nil {
 		t.Fatalf("NewIndex() error = %v", err)
 	}
 	defer idx.Close()
-
-	if idx.Path() != indexPath {
-		t.Errorf("Path() = %q, want %q", idx.Path(), indexPath)
-	}
-	if status != IndexStatusCreated {
-		t.Errorf("NewIndex() status = %v, want IndexStatusCreated", status)
-	}
-}
-
-func TestNewIndex_OpenExisting(t *testing.T) {
-	indexPath := t.TempDir() + "/test.bleve"
-
-	// Create index
-	idx1, status1, err := NewIndex(indexPath)
-	if err != nil {
-		t.Fatalf("NewIndex() error = %v", err)
-	}
-	if status1 != IndexStatusCreated {
-		t.Errorf("first NewIndex() status = %v, want IndexStatusCreated", status1)
-	}
-
-	// Index a document
-	b := &bean.Bean{
-		ID:    "abc1",
-		Title: "Test Bean",
-		Body:  "Test content",
-	}
-	if err := idx1.IndexBean(b); err != nil {
-		t.Fatalf("IndexBean() error = %v", err)
-	}
-	idx1.Close()
-
-	// Reopen index
-	idx2, status2, err := NewIndex(indexPath)
-	if err != nil {
-		t.Fatalf("NewIndex() reopen error = %v", err)
-	}
-	defer idx2.Close()
-
-	if status2 != IndexStatusOpened {
-		t.Errorf("second NewIndex() status = %v, want IndexStatusOpened", status2)
-	}
-
-	// Search should find the document
-	ids, err := idx2.Search("Test", 10)
-	if err != nil {
-		t.Fatalf("Search() error = %v", err)
-	}
-	if len(ids) != 1 || ids[0] != "abc1" {
-		t.Errorf("Search() = %v, want [abc1]", ids)
-	}
-}
-
-func TestNewIndex_RecoverCorrupted(t *testing.T) {
-	indexPath := t.TempDir() + "/test.bleve"
-
-	// Create a corrupted index (directory exists but invalid content)
-	if err := os.MkdirAll(indexPath, 0755); err != nil {
-		t.Fatalf("failed to create directory: %v", err)
-	}
-	// Write some garbage to make it look like a corrupted index
-	if err := os.WriteFile(indexPath+"/index_meta.json", []byte("invalid"), 0644); err != nil {
-		t.Fatalf("failed to write corrupted file: %v", err)
-	}
-
-	// Open should recover
-	idx, status, err := NewIndex(indexPath)
-	if err != nil {
-		t.Fatalf("NewIndex() error = %v", err)
-	}
-	defer idx.Close()
-
-	if status != IndexStatusRecovered {
-		t.Errorf("NewIndex() status = %v, want IndexStatusRecovered", status)
-	}
 }
 
 func TestIndexBean(t *testing.T) {
@@ -363,41 +285,27 @@ func TestDeleteBean(t *testing.T) {
 	}
 }
 
-func TestRebuildFromBeans(t *testing.T) {
+func TestIndexBeans(t *testing.T) {
 	idx := setupTestIndex(t)
 
-	// Index initial beans
-	initialBeans := []*bean.Bean{
-		{ID: "old1", Title: "Old Bean 1", Body: ""},
-		{ID: "old2", Title: "Old Bean 2", Body: ""},
-	}
-	for _, b := range initialBeans {
-		if err := idx.IndexBean(b); err != nil {
-			t.Fatalf("IndexBean() error = %v", err)
-		}
+	beans := []*bean.Bean{
+		{ID: "aaa1", Title: "Bean One", Body: "First content"},
+		{ID: "bbb2", Title: "Bean Two", Body: "Second content"},
+		{ID: "ccc3", Title: "Bean Three", Body: "Third content"},
 	}
 
-	// Rebuild with new beans
-	newBeans := []*bean.Bean{
-		{ID: "new1", Title: "New Bean 1", Body: ""},
-		{ID: "new2", Title: "New Bean 2", Body: ""},
-		{ID: "new3", Title: "New Bean 3", Body: ""},
+	if err := idx.IndexBeans(beans); err != nil {
+		t.Fatalf("IndexBeans() error = %v", err)
 	}
 
-	if err := idx.RebuildFromBeans(newBeans); err != nil {
-		t.Fatalf("RebuildFromBeans() error = %v", err)
+	// All beans should be searchable
+	ids, err := idx.Search("Bean", 10)
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
 	}
 
-	// Old beans should not be found
-	ids, _ := idx.Search("Old", 10)
-	if len(ids) != 0 {
-		t.Errorf("Search(Old) after rebuild = %v, want []", ids)
-	}
-
-	// New beans should be found
-	ids, _ = idx.Search("New", 10)
 	if len(ids) != 3 {
-		t.Errorf("Search(New) after rebuild returned %d results, want 3", len(ids))
+		t.Errorf("Search(Bean) returned %d results, want 3", len(ids))
 	}
 }
 
@@ -480,14 +388,5 @@ func TestSearch_DefaultLimit(t *testing.T) {
 
 	if len(ids) != 1 {
 		t.Errorf("Search with limit 0 (default) returned %d results, want 1", len(ids))
-	}
-}
-
-func TestIndexPath(t *testing.T) {
-	got := IndexPath("/path/to/.beans")
-	want := "/path/to/.beans/.index"
-
-	if got != want {
-		t.Errorf("IndexPath() = %q, want %q", got, want)
 	}
 }

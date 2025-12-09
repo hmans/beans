@@ -3,7 +3,6 @@ package beancore
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -72,16 +71,6 @@ func TestInit(t *testing.T) {
 	}
 	if !info.IsDir() {
 		t.Error(".beans is not a directory")
-	}
-
-	// Check .gitignore was created
-	gitignorePath := filepath.Join(beansDir, ".gitignore")
-	content, err := os.ReadFile(gitignorePath)
-	if err != nil {
-		t.Fatalf(".gitignore not created: %v", err)
-	}
-	if !strings.Contains(string(content), ".index/") {
-		t.Error(".gitignore should contain .index/")
 	}
 }
 

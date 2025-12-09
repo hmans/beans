@@ -2,31 +2,15 @@
 package search
 
 import (
-	"os"
-	"path/filepath"
-
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/mapping"
 	"github.com/hmans/beans/internal/bean"
 )
 
-// Index wraps a Bleve index for searching beans.
+// Index wraps a Bleve in-memory index for searching beans.
 type Index struct {
 	index bleve.Index
-	path  string
 }
-
-// IndexStatus indicates how the index was opened/created.
-type IndexStatus int
-
-const (
-	// IndexStatusOpened means an existing index was opened successfully.
-	IndexStatusOpened IndexStatus = iota
-	// IndexStatusCreated means a new index was created (didn't exist before).
-	IndexStatusCreated
-	// IndexStatusRecovered means the index was corrupted and had to be recreated.
-	IndexStatusRecovered
-)
 
 // beanDocument is the structure stored in the Bleve index.
 type beanDocument struct {
@@ -36,45 +20,15 @@ type beanDocument struct {
 	Body  string `json:"body"`
 }
 
-// NewIndex creates or opens a Bleve index at the given path.
-// Returns the index and a status indicating how it was opened/created.
-func NewIndex(indexPath string) (*Index, IndexStatus, error) {
-	// Check if index directory exists
-	_, statErr := os.Stat(indexPath)
-	indexExists := statErr == nil
-
-	// Try to open existing index
-	idx, err := bleve.Open(indexPath)
-	if err == nil {
-		return &Index{
-			index: idx,
-			path:  indexPath,
-		}, IndexStatusOpened, nil
-	}
-
-	// Index doesn't exist or is corrupted - determine which
-	status := IndexStatusCreated
-	if indexExists {
-		// Directory existed but couldn't open - corrupted
-		status = IndexStatusRecovered
-	}
-
-	// Clean up any corrupted index
-	if err := os.RemoveAll(indexPath); err != nil && !os.IsNotExist(err) {
-		return nil, 0, err
-	}
-
-	// Create new index
+// NewIndex creates a new in-memory Bleve index.
+func NewIndex() (*Index, error) {
 	indexMapping := buildIndexMapping()
-	idx, err = bleve.New(indexPath, indexMapping)
+	idx, err := bleve.NewMemOnly(indexMapping)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
-	return &Index{
-		index: idx,
-		path:  indexPath,
-	}, status, nil
+	return &Index{index: idx}, nil
 }
 
 // buildIndexMapping creates the Bleve index mapping for bean documents.
@@ -112,11 +66,6 @@ func buildIndexMapping() mapping.IndexMapping {
 // Close closes the index.
 func (idx *Index) Close() error {
 	return idx.index.Close()
-}
-
-// Path returns the index path.
-func (idx *Index) Path() string {
-	return idx.path
 }
 
 // IndexBean adds or updates a bean in the search index.
@@ -170,28 +119,8 @@ func (idx *Index) Search(queryStr string, limit int) ([]string, error) {
 	return ids, nil
 }
 
-// RebuildFromBeans rebuilds the entire index from a slice of beans.
-// This clears the existing index and re-indexes all provided beans.
-func (idx *Index) RebuildFromBeans(beans []*bean.Bean) error {
-	// Create a new index at the same path
-	if err := idx.index.Close(); err != nil {
-		return err
-	}
-
-	// Remove old index
-	if err := os.RemoveAll(idx.path); err != nil {
-		return err
-	}
-
-	// Create fresh index
-	indexMapping := buildIndexMapping()
-	newIdx, err := bleve.New(idx.path, indexMapping)
-	if err != nil {
-		return err
-	}
-	idx.index = newIdx
-
-	// Batch index all beans
+// IndexBeans indexes multiple beans in a batch for efficiency.
+func (idx *Index) IndexBeans(beans []*bean.Bean) error {
 	batch := idx.index.NewBatch()
 	for _, b := range beans {
 		doc := beanDocument{
@@ -204,11 +133,5 @@ func (idx *Index) RebuildFromBeans(beans []*bean.Bean) error {
 			return err
 		}
 	}
-
 	return idx.index.Batch(batch)
-}
-
-// IndexPath returns the default index path for a beans directory.
-func IndexPath(beansRoot string) string {
-	return filepath.Join(beansRoot, ".index")
 }
