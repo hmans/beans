@@ -24,9 +24,9 @@ the skill file for more.
 
 ## Option 2: Linear (or GitHub Issues or whatever) + Beans
 
-Some of us use both an external ticketing system, and those weirdos use an alternate rule. Here's an
-example rule (and linked skill) for Linear, which should be easy to adapt for your own ticketing
-system:
+Some of us use both Beans _and_ an external ticketing system, and those weirdos use an alternate
+rule. Here's an example of that (plus skill) for Linear, both of which should be easy to adapt for
+your own ticketing system:
 
 ```markdown
 ## Issue Tracking: Linear for humans, Beans for Agents
