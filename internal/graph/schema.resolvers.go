@@ -282,12 +282,9 @@ func (r *queryResolver) Beans(ctx context.Context, filter *model.BeanFilter) ([]
 	if filter != nil && filter.Search != nil && *filter.Search != "" {
 		searchResults, err := r.Core.Search(*filter.Search)
 		if err != nil {
-			// Log error but continue with empty results
-			// Other filters can still apply to the empty set
-			beans = []*bean.Bean{}
-		} else {
-			beans = searchResults
+			return nil, err
 		}
+		beans = searchResults
 	} else {
 		beans = r.Core.All()
 	}
