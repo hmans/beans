@@ -71,6 +71,7 @@ Search Syntax (--search/-S):
   "user login"   Exact phrase match
   user AND login Both terms required
   user OR login  Either term matches
+  slug:auth      Search only in slug field
   title:login    Search only in title field
   body:auth      Search only in body field`,
 	RunE: func(cmd *cobra.Command, args []string) error {
