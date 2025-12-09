@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -11,8 +12,9 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/spf13/cobra"
 	"github.com/hmans/beans/internal/bean"
+	"github.com/hmans/beans/internal/graph"
+	"github.com/spf13/cobra"
 )
 
 //go:embed roadmap.tmpl
@@ -72,7 +74,12 @@ var roadmapCmd = &cobra.Command{
 	Use:   "roadmap",
 	Short: "Generate a Markdown roadmap from milestones and epics",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		allBeans := core.All()
+		// Query all beans via GraphQL resolver
+		resolver := &graph.Resolver{Core: core}
+		allBeans, err := resolver.Query().Beans(context.Background(), nil)
+		if err != nil {
+			return fmt.Errorf("querying beans: %w", err)
+		}
 
 		// Build the roadmap
 		data := buildRoadmap(allBeans, roadmapIncludeDone, roadmapStatus, roadmapNoStatus)

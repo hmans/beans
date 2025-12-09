@@ -1,16 +1,18 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/spf13/cobra"
 	"github.com/hmans/beans/internal/bean"
+	"github.com/hmans/beans/internal/graph"
 	"github.com/hmans/beans/internal/output"
 	"github.com/hmans/beans/internal/ui"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -25,12 +27,20 @@ var showCmd = &cobra.Command{
 	Long:  `Displays the full contents of a bean, including front matter and body.`,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		b, err := core.Get(args[0])
+		// Query bean via GraphQL resolver
+		resolver := &graph.Resolver{Core: core}
+		b, err := resolver.Query().Bean(context.Background(), args[0])
 		if err != nil {
 			if showJSON {
 				return output.Error(output.ErrNotFound, err.Error())
 			}
 			return fmt.Errorf("failed to find bean: %w", err)
+		}
+		if b == nil {
+			if showJSON {
+				return output.Error(output.ErrNotFound, "bean not found")
+			}
+			return fmt.Errorf("bean not found: %s", args[0])
 		}
 
 		// JSON output
