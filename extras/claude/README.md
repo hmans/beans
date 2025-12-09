@@ -18,7 +18,7 @@ The first time Claude sees any mention of "beans", it should read [`issue-tracki
 
 ## Option 2: Linear (or GitHub Issues or whatever) + Beans
 
-Some of us use both an external ticketing system, and those weirdos use an alternate rule:
+Some of us use both an external ticketing system, and those weirdos use an alternate rule. Here's an example rule (and linked skill) for Linear, which should be easy to adapt for your own ticketing system:
 
 ```markdown
 ## Issue Tracking: Linear for humans, Beans for Agents
