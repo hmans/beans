@@ -9,7 +9,7 @@ import (
 func setupTestIndex(t *testing.T) *Index {
 	t.Helper()
 	indexPath := t.TempDir() + "/test.bleve"
-	idx, err := NewIndex(indexPath)
+	idx, _, err := NewIndex(indexPath)
 	if err != nil {
 		t.Fatalf("NewIndex() error = %v", err)
 	}
@@ -21,7 +21,7 @@ func setupTestIndex(t *testing.T) *Index {
 
 func TestNewIndex(t *testing.T) {
 	indexPath := t.TempDir() + "/test.bleve"
-	idx, err := NewIndex(indexPath)
+	idx, rebuilt, err := NewIndex(indexPath)
 	if err != nil {
 		t.Fatalf("NewIndex() error = %v", err)
 	}
@@ -30,15 +30,21 @@ func TestNewIndex(t *testing.T) {
 	if idx.Path() != indexPath {
 		t.Errorf("Path() = %q, want %q", idx.Path(), indexPath)
 	}
+	if !rebuilt {
+		t.Error("NewIndex() should return rebuilt=true for new index")
+	}
 }
 
 func TestNewIndex_OpenExisting(t *testing.T) {
 	indexPath := t.TempDir() + "/test.bleve"
 
 	// Create index
-	idx1, err := NewIndex(indexPath)
+	idx1, rebuilt1, err := NewIndex(indexPath)
 	if err != nil {
 		t.Fatalf("NewIndex() error = %v", err)
+	}
+	if !rebuilt1 {
+		t.Error("first NewIndex() should return rebuilt=true")
 	}
 
 	// Index a document
@@ -53,11 +59,15 @@ func TestNewIndex_OpenExisting(t *testing.T) {
 	idx1.Close()
 
 	// Reopen index
-	idx2, err := NewIndex(indexPath)
+	idx2, rebuilt2, err := NewIndex(indexPath)
 	if err != nil {
 		t.Fatalf("NewIndex() reopen error = %v", err)
 	}
 	defer idx2.Close()
+
+	if rebuilt2 {
+		t.Error("second NewIndex() should return rebuilt=false for existing index")
+	}
 
 	// Search should find the document
 	ids, err := idx2.Search("Test", 10)
@@ -140,6 +150,32 @@ func TestSearch_MatchBody(t *testing.T) {
 
 	if len(ids) != 1 || ids[0] != "aaa1" {
 		t.Errorf("Search(JWT) = %v, want [aaa1]", ids)
+	}
+}
+
+func TestSearch_MatchSlug(t *testing.T) {
+	idx := setupTestIndex(t)
+
+	beans := []*bean.Bean{
+		{ID: "aaa1", Slug: "auth-feature", Title: "Feature A", Body: "Some content"},
+		{ID: "bbb2", Slug: "database-migration", Title: "Feature B", Body: "Other content"},
+		{ID: "ccc3", Slug: "ui-update", Title: "Feature C", Body: "More content"},
+	}
+
+	for _, b := range beans {
+		if err := idx.IndexBean(b); err != nil {
+			t.Fatalf("IndexBean() error = %v", err)
+		}
+	}
+
+	// Search by slug content
+	ids, err := idx.Search("auth", 10)
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+
+	if len(ids) != 1 || ids[0] != "aaa1" {
+		t.Errorf("Search(auth) = %v, want [aaa1]", ids)
 	}
 }
 

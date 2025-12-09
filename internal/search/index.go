@@ -19,34 +19,38 @@ type Index struct {
 // beanDocument is the structure stored in the Bleve index.
 type beanDocument struct {
 	ID    string `json:"id"`
+	Slug  string `json:"slug"`
 	Title string `json:"title"`
 	Body  string `json:"body"`
 }
 
 // NewIndex creates or opens a Bleve index at the given path.
-func NewIndex(indexPath string) (*Index, error) {
+// Returns the index and a boolean indicating if the index was rebuilt (true = rebuilt, false = opened existing).
+func NewIndex(indexPath string) (*Index, bool, error) {
 	var idx bleve.Index
 	var err error
+	rebuilt := false
 
 	// Try to open existing index
 	idx, err = bleve.Open(indexPath)
 	if err != nil {
 		// Index doesn't exist or is corrupted, create new one
+		rebuilt = true
 		if err := os.RemoveAll(indexPath); err != nil && !os.IsNotExist(err) {
-			return nil, err
+			return nil, false, err
 		}
 
 		indexMapping := buildIndexMapping()
 		idx, err = bleve.New(indexPath, indexMapping)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 	}
 
 	return &Index{
 		index: idx,
 		path:  indexPath,
-	}, nil
+	}, rebuilt, nil
 }
 
 // buildIndexMapping creates the Bleve index mapping for bean documents.
@@ -61,6 +65,7 @@ func buildIndexMapping() mapping.IndexMapping {
 	// Create the document mapping
 	beanMapping := bleve.NewDocumentMapping()
 	beanMapping.AddFieldMappingsAt("id", keywordFieldMapping)
+	beanMapping.AddFieldMappingsAt("slug", textFieldMapping)
 	beanMapping.AddFieldMappingsAt("title", textFieldMapping)
 	beanMapping.AddFieldMappingsAt("body", textFieldMapping)
 
@@ -94,6 +99,7 @@ func (idx *Index) Path() string {
 func (idx *Index) IndexBean(b *bean.Bean) error {
 	doc := beanDocument{
 		ID:    b.ID,
+		Slug:  b.Slug,
 		Title: b.Title,
 		Body:  b.Body,
 	}
@@ -105,11 +111,14 @@ func (idx *Index) DeleteBean(id string) error {
 	return idx.index.Delete(id)
 }
 
+// DefaultSearchLimit is the default maximum number of search results.
+const DefaultSearchLimit = 1000
+
 // Search executes a search query and returns matching bean IDs.
-// The limit parameter controls the maximum number of results (0 for default of 100).
+// The limit parameter controls the maximum number of results (0 uses DefaultSearchLimit).
 func (idx *Index) Search(queryStr string, limit int) ([]string, error) {
 	if limit <= 0 {
-		limit = 100
+		limit = DefaultSearchLimit
 	}
 
 	// Use query string syntax which supports:
@@ -163,6 +172,7 @@ func (idx *Index) RebuildFromBeans(beans []*bean.Bean) error {
 	for _, b := range beans {
 		doc := beanDocument{
 			ID:    b.ID,
+			Slug:  b.Slug,
 			Title: b.Title,
 			Body:  b.Body,
 		}

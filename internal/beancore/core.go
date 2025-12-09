@@ -19,9 +19,6 @@ import (
 
 const BeansDir = ".beans"
 
-// DefaultSearchLimit is the maximum number of search results returned.
-const DefaultSearchLimit = 1000
-
 var (
 	ErrNotFound    = errors.New("bean not found")
 	ErrAmbiguousID = errors.New("ambiguous ID prefix matches multiple beans")
@@ -196,12 +193,17 @@ func (c *Core) ensureSearchIndexLocked() error {
 	}
 
 	indexPath := search.IndexPath(c.root)
-	idx, err := search.NewIndex(indexPath)
+	idx, rebuilt, err := search.NewIndex(indexPath)
 	if err != nil {
 		return fmt.Errorf("initializing search index: %w", err)
 	}
 
 	c.searchIndex = idx
+
+	// Log if index was rebuilt (corrupted or first time)
+	if rebuilt {
+		c.logWarn("search index rebuilt at %s", indexPath)
+	}
 
 	// Index all existing beans
 	allBeans := make([]*bean.Bean, 0, len(c.beans))
@@ -229,7 +231,7 @@ func (c *Core) Search(query string) ([]*bean.Bean, error) {
 	c.mu.Unlock()
 
 	// Perform search outside the lock (Bleve is thread-safe)
-	ids, err := idx.Search(query, DefaultSearchLimit)
+	ids, err := idx.Search(query, search.DefaultSearchLimit)
 	if err != nil {
 		return nil, err
 	}
