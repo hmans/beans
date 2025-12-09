@@ -115,13 +115,13 @@ func (c *Core) loadFromDisk() error {
 		c.beans[b.ID] = b
 	}
 
-	// Rebuild search index if active: close and re-create (best-effort, don't fail load)
+	// Reinitialize search index if it was active: close and re-create (best-effort, don't fail load)
 	if c.searchIndex != nil {
 		c.searchIndex.Close()
 		c.searchIndex = nil
 
 		if err := c.ensureSearchIndexLocked(); err != nil {
-			c.logWarn("failed to rebuild search index: %v", err)
+			c.logWarn("failed to reinitialize search index after reload: %v", err)
 		}
 	}
 
