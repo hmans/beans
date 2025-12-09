@@ -30,6 +30,24 @@ type BeanFilter struct {
 	NoLinkedAs []*LinkFilter `json:"noLinkedAs,omitempty"`
 }
 
+// Input for creating a new bean
+type CreateBeanInput struct {
+	// Bean title (required)
+	Title string `json:"title"`
+	// Bean type (defaults to 'task')
+	Type *string `json:"type,omitempty"`
+	// Status (defaults to 'backlog')
+	Status *string `json:"status,omitempty"`
+	// Priority level (defaults to 'normal')
+	Priority *string `json:"priority,omitempty"`
+	// Tags for categorization
+	Tags []string `json:"tags,omitempty"`
+	// Markdown body content
+	Body *string `json:"body,omitempty"`
+	// Links to other beans
+	Links []*LinkInput `json:"links,omitempty"`
+}
+
 // A link filter specifies both the link type and optionally a target bean ID.
 type LinkFilter struct {
 	// Link type (blocks, duplicates, parent, related)
@@ -38,5 +56,32 @@ type LinkFilter struct {
 	Target *string `json:"target,omitempty"`
 }
 
+// Input for specifying a link
+type LinkInput struct {
+	// Link type (blocks, duplicates, parent, related)
+	Type string `json:"type"`
+	// Target bean ID
+	Target string `json:"target"`
+}
+
+type Mutation struct {
+}
+
 type Query struct {
+}
+
+// Input for updating an existing bean
+type UpdateBeanInput struct {
+	// New title
+	Title *string `json:"title,omitempty"`
+	// New status
+	Status *string `json:"status,omitempty"`
+	// New type
+	Type *string `json:"type,omitempty"`
+	// New priority
+	Priority *string `json:"priority,omitempty"`
+	// Replace all tags (nil preserves existing)
+	Tags []string `json:"tags,omitempty"`
+	// New body content
+	Body *string `json:"body,omitempty"`
 }

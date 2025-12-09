@@ -138,6 +138,133 @@ func (r *linkResolver) TargetBean(ctx context.Context, obj *bean.Link) (*bean.Be
 	return target, err
 }
 
+// CreateBean is the resolver for the createBean field.
+func (r *mutationResolver) CreateBean(ctx context.Context, input model.CreateBeanInput) (*bean.Bean, error) {
+	b := &bean.Bean{
+		Slug:  bean.Slugify(input.Title),
+		Title: input.Title,
+		Type:  "task", // default
+	}
+
+	// Optional fields with defaults documented in schema
+	if input.Type != nil {
+		b.Type = *input.Type
+	}
+	if input.Status != nil {
+		b.Status = *input.Status
+	}
+	if input.Priority != nil {
+		b.Priority = *input.Priority
+	}
+	if input.Body != nil {
+		b.Body = *input.Body
+	}
+	if len(input.Tags) > 0 {
+		b.Tags = input.Tags
+	}
+
+	// Add links
+	for _, link := range input.Links {
+		b.Links = append(b.Links, bean.Link{
+			Type:   link.Type,
+			Target: link.Target,
+		})
+	}
+
+	if err := r.Core.Create(b); err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// UpdateBean is the resolver for the updateBean field.
+func (r *mutationResolver) UpdateBean(ctx context.Context, id string, input model.UpdateBeanInput) (*bean.Bean, error) {
+	b, err := r.Core.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update fields if provided
+	if input.Title != nil {
+		b.Title = *input.Title
+	}
+	if input.Status != nil {
+		b.Status = *input.Status
+	}
+	if input.Type != nil {
+		b.Type = *input.Type
+	}
+	if input.Priority != nil {
+		b.Priority = *input.Priority
+	}
+	if input.Body != nil {
+		b.Body = *input.Body
+	}
+	if input.Tags != nil {
+		b.Tags = input.Tags
+	}
+
+	if err := r.Core.Update(b); err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// DeleteBean is the resolver for the deleteBean field.
+func (r *mutationResolver) DeleteBean(ctx context.Context, id string) (bool, error) {
+	// Verify bean exists
+	_, err := r.Core.Get(id)
+	if err != nil {
+		return false, err
+	}
+
+	// Remove incoming links first
+	if _, err := r.Core.RemoveLinksTo(id); err != nil {
+		return false, err
+	}
+
+	// Delete the bean
+	if err := r.Core.Delete(id); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// AddLink is the resolver for the addLink field.
+func (r *mutationResolver) AddLink(ctx context.Context, id string, link model.LinkInput) (*bean.Bean, error) {
+	b, err := r.Core.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	b.Links = b.Links.Add(link.Type, link.Target)
+
+	if err := r.Core.Update(b); err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// RemoveLink is the resolver for the removeLink field.
+func (r *mutationResolver) RemoveLink(ctx context.Context, id string, link model.LinkInput) (*bean.Bean, error) {
+	b, err := r.Core.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	b.Links = b.Links.Remove(link.Type, link.Target)
+
+	if err := r.Core.Update(b); err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
 // Bean is the resolver for the bean field.
 func (r *queryResolver) Bean(ctx context.Context, id string) (*bean.Bean, error) {
 	b, err := r.Core.Get(id)
@@ -213,9 +340,13 @@ func (r *Resolver) Bean() BeanResolver { return &beanResolver{r} }
 // Link returns LinkResolver implementation.
 func (r *Resolver) Link() LinkResolver { return &linkResolver{r} }
 
+// Mutation returns MutationResolver implementation.
+func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
+
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
 type beanResolver struct{ *Resolver }
 type linkResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }

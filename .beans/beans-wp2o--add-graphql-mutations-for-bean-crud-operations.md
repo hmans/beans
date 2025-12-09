@@ -1,10 +1,10 @@
 ---
 title: Add GraphQL mutations for bean CRUD operations
-status: todo
+status: completed
 type: feature
 priority: normal
 created_at: 2025-12-09T12:03:46Z
-updated_at: 2025-12-09T12:06:08Z
+updated_at: 2025-12-09T12:34:00Z
 links:
     - parent: beans-7ao1
 ---
@@ -64,9 +64,9 @@ input LinkInput {
 
 ## Checklist
 
-- [ ] Add mutation types to schema.graphqls
-- [ ] Run `mise codegen` to regenerate code
-- [ ] Implement createBean resolver
-- [ ] Implement updateBean resolver
-- [ ] Implement deleteBean resolver (includes removing incoming links)
-- [ ] Add tests for all mutations
+- [x] Add mutation types to schema.graphqls
+- [x] Run `mise codegen` to regenerate code
+- [x] Implement createBean resolver
+- [x] Implement updateBean resolver
+- [x] Implement deleteBean resolver (includes removing incoming links)
+- [x] Add tests for all mutations

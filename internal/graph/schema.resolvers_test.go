@@ -561,3 +561,302 @@ func TestQueryBeansWithLinks(t *testing.T) {
 		}
 	})
 }
+
+func TestMutationCreateBean(t *testing.T) {
+	resolver, _ := setupTestResolver(t)
+	ctx := context.Background()
+
+	t.Run("create with required fields only", func(t *testing.T) {
+		mr := resolver.Mutation()
+		input := model.CreateBeanInput{
+			Title: "New Bean",
+		}
+		got, err := mr.CreateBean(ctx, input)
+		if err != nil {
+			t.Fatalf("CreateBean() error = %v", err)
+		}
+		if got == nil {
+			t.Fatal("CreateBean() returned nil")
+		}
+		if got.Title != "New Bean" {
+			t.Errorf("CreateBean().Title = %q, want %q", got.Title, "New Bean")
+		}
+		// Type defaults to "task"
+		if got.Type != "task" {
+			t.Errorf("CreateBean().Type = %q, want %q (default)", got.Type, "task")
+		}
+		if got.ID == "" {
+			t.Error("CreateBean().ID is empty")
+		}
+	})
+
+	t.Run("create with all fields", func(t *testing.T) {
+		mr := resolver.Mutation()
+		beanType := "feature"
+		status := "in-progress"
+		priority := "high"
+		body := "Test body content"
+		input := model.CreateBeanInput{
+			Title:    "Full Bean",
+			Type:     &beanType,
+			Status:   &status,
+			Priority: &priority,
+			Body:     &body,
+			Tags:     []string{"tag1", "tag2"},
+			Links: []*model.LinkInput{
+				{Type: "related", Target: "some-id"},
+			},
+		}
+		got, err := mr.CreateBean(ctx, input)
+		if err != nil {
+			t.Fatalf("CreateBean() error = %v", err)
+		}
+		if got.Type != "feature" {
+			t.Errorf("CreateBean().Type = %q, want %q", got.Type, "feature")
+		}
+		if got.Status != "in-progress" {
+			t.Errorf("CreateBean().Status = %q, want %q", got.Status, "in-progress")
+		}
+		if got.Priority != "high" {
+			t.Errorf("CreateBean().Priority = %q, want %q", got.Priority, "high")
+		}
+		if got.Body != "Test body content" {
+			t.Errorf("CreateBean().Body = %q, want %q", got.Body, "Test body content")
+		}
+		if len(got.Tags) != 2 {
+			t.Errorf("CreateBean().Tags count = %d, want 2", len(got.Tags))
+		}
+		if len(got.Links) != 1 {
+			t.Errorf("CreateBean().Links count = %d, want 1", len(got.Links))
+		}
+	})
+}
+
+func TestMutationUpdateBean(t *testing.T) {
+	resolver, core := setupTestResolver(t)
+	ctx := context.Background()
+
+	// Create a test bean
+	b := &bean.Bean{
+		ID:       "update-test",
+		Title:    "Original Title",
+		Status:   "todo",
+		Type:     "task",
+		Priority: "normal",
+		Body:     "Original body",
+		Tags:     []string{"original"},
+	}
+	core.Create(b)
+
+	t.Run("update single field", func(t *testing.T) {
+		mr := resolver.Mutation()
+		newStatus := "in-progress"
+		input := model.UpdateBeanInput{
+			Status: &newStatus,
+		}
+		got, err := mr.UpdateBean(ctx, "update-test", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() error = %v", err)
+		}
+		if got.Status != "in-progress" {
+			t.Errorf("UpdateBean().Status = %q, want %q", got.Status, "in-progress")
+		}
+		// Other fields unchanged
+		if got.Title != "Original Title" {
+			t.Errorf("UpdateBean().Title = %q, want %q", got.Title, "Original Title")
+		}
+	})
+
+	t.Run("update multiple fields", func(t *testing.T) {
+		mr := resolver.Mutation()
+		newTitle := "Updated Title"
+		newPriority := "high"
+		newBody := "Updated body"
+		input := model.UpdateBeanInput{
+			Title:    &newTitle,
+			Priority: &newPriority,
+			Body:     &newBody,
+		}
+		got, err := mr.UpdateBean(ctx, "update-test", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() error = %v", err)
+		}
+		if got.Title != "Updated Title" {
+			t.Errorf("UpdateBean().Title = %q, want %q", got.Title, "Updated Title")
+		}
+		if got.Priority != "high" {
+			t.Errorf("UpdateBean().Priority = %q, want %q", got.Priority, "high")
+		}
+		if got.Body != "Updated body" {
+			t.Errorf("UpdateBean().Body = %q, want %q", got.Body, "Updated body")
+		}
+	})
+
+	t.Run("replace tags", func(t *testing.T) {
+		mr := resolver.Mutation()
+		input := model.UpdateBeanInput{
+			Tags: []string{"new-tag-1", "new-tag-2"},
+		}
+		got, err := mr.UpdateBean(ctx, "update-test", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() error = %v", err)
+		}
+		if len(got.Tags) != 2 {
+			t.Errorf("UpdateBean().Tags count = %d, want 2", len(got.Tags))
+		}
+	})
+
+
+	t.Run("update nonexistent bean", func(t *testing.T) {
+		mr := resolver.Mutation()
+		newTitle := "Whatever"
+		input := model.UpdateBeanInput{
+			Title: &newTitle,
+		}
+		_, err := mr.UpdateBean(ctx, "nonexistent", input)
+		if err == nil {
+			t.Error("UpdateBean() expected error for nonexistent bean")
+		}
+	})
+}
+
+func TestMutationAddRemoveLink(t *testing.T) {
+	resolver, core := setupTestResolver(t)
+	ctx := context.Background()
+
+	// Create a test bean
+	b := &bean.Bean{
+		ID:     "link-test",
+		Title:  "Link Test",
+		Status: "todo",
+		Type:   "task",
+	}
+	core.Create(b)
+
+	t.Run("add link", func(t *testing.T) {
+		mr := resolver.Mutation()
+		got, err := mr.AddLink(ctx, "link-test", model.LinkInput{
+			Type:   "related",
+			Target: "target-1",
+		})
+		if err != nil {
+			t.Fatalf("AddLink() error = %v", err)
+		}
+		if len(got.Links) != 1 {
+			t.Errorf("AddLink().Links count = %d, want 1", len(got.Links))
+		}
+		if got.Links[0].Type != "related" || got.Links[0].Target != "target-1" {
+			t.Errorf("AddLink().Links[0] = %+v, want related:target-1", got.Links[0])
+		}
+	})
+
+	t.Run("add another link", func(t *testing.T) {
+		mr := resolver.Mutation()
+		got, err := mr.AddLink(ctx, "link-test", model.LinkInput{
+			Type:   "blocks",
+			Target: "target-2",
+		})
+		if err != nil {
+			t.Fatalf("AddLink() error = %v", err)
+		}
+		if len(got.Links) != 2 {
+			t.Errorf("AddLink().Links count = %d, want 2", len(got.Links))
+		}
+	})
+
+	t.Run("remove link", func(t *testing.T) {
+		mr := resolver.Mutation()
+		got, err := mr.RemoveLink(ctx, "link-test", model.LinkInput{
+			Type:   "related",
+			Target: "target-1",
+		})
+		if err != nil {
+			t.Fatalf("RemoveLink() error = %v", err)
+		}
+		if len(got.Links) != 1 {
+			t.Errorf("RemoveLink().Links count = %d, want 1", len(got.Links))
+		}
+		if got.Links[0].Type != "blocks" {
+			t.Errorf("RemoveLink().Links[0].Type = %q, want %q", got.Links[0].Type, "blocks")
+		}
+	})
+
+	t.Run("add link to nonexistent bean", func(t *testing.T) {
+		mr := resolver.Mutation()
+		_, err := mr.AddLink(ctx, "nonexistent", model.LinkInput{
+			Type:   "related",
+			Target: "whatever",
+		})
+		if err == nil {
+			t.Error("AddLink() expected error for nonexistent bean")
+		}
+	})
+}
+
+func TestMutationDeleteBean(t *testing.T) {
+	resolver, core := setupTestResolver(t)
+	ctx := context.Background()
+
+	t.Run("delete existing bean", func(t *testing.T) {
+		// Create a bean to delete
+		b := &bean.Bean{ID: "delete-me", Title: "Delete Me", Status: "todo", Type: "task"}
+		core.Create(b)
+
+		mr := resolver.Mutation()
+		got, err := mr.DeleteBean(ctx, "delete-me")
+		if err != nil {
+			t.Fatalf("DeleteBean() error = %v", err)
+		}
+		if !got {
+			t.Error("DeleteBean() = false, want true")
+		}
+
+		// Verify it's gone
+		qr := resolver.Query()
+		bean, _ := qr.Bean(ctx, "delete-me")
+		if bean != nil {
+			t.Error("Bean still exists after delete")
+		}
+	})
+
+	t.Run("delete removes incoming links", func(t *testing.T) {
+		// Create target bean
+		target := &bean.Bean{ID: "target-bean", Title: "Target", Status: "todo", Type: "task"}
+		core.Create(target)
+
+		// Create bean that links to target
+		linker := &bean.Bean{
+			ID:     "linker-bean",
+			Title:  "Linker",
+			Status: "todo",
+			Type:   "task",
+			Links:  bean.Links{{Type: "blocks", Target: "target-bean"}},
+		}
+		core.Create(linker)
+
+		// Delete target - should remove the link from linker
+		mr := resolver.Mutation()
+		_, err := mr.DeleteBean(ctx, "target-bean")
+		if err != nil {
+			t.Fatalf("DeleteBean() error = %v", err)
+		}
+
+		// Verify linker no longer has the link
+		qr := resolver.Query()
+		updated, _ := qr.Bean(ctx, "linker-bean")
+		if updated == nil {
+			t.Fatal("Linker bean was deleted unexpectedly")
+		}
+		if len(updated.Links) != 0 {
+			t.Errorf("Linker still has %d links, want 0", len(updated.Links))
+		}
+	})
+
+	t.Run("delete nonexistent bean", func(t *testing.T) {
+		mr := resolver.Mutation()
+		_, err := mr.DeleteBean(ctx, "nonexistent")
+		if err == nil {
+			t.Error("DeleteBean() expected error for nonexistent bean")
+		}
+	})
+}

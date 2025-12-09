@@ -1,5 +1,4 @@
 # Beans GraphQL Schema
-# Read-only queries for beans issue tracker
 
 scalar Time
 
@@ -13,6 +12,81 @@ type Query {
   List beans with optional filtering
   """
   beans(filter: BeanFilter): [Bean!]!
+}
+
+type Mutation {
+  """
+  Create a new bean
+  """
+  createBean(input: CreateBeanInput!): Bean!
+
+  """
+  Update an existing bean
+  """
+  updateBean(id: ID!, input: UpdateBeanInput!): Bean!
+
+  """
+  Delete a bean by ID (automatically removes incoming links)
+  """
+  deleteBean(id: ID!): Boolean!
+
+  """
+  Add a link from one bean to another
+  """
+  addLink(id: ID!, link: LinkInput!): Bean!
+
+  """
+  Remove a link from one bean to another
+  """
+  removeLink(id: ID!, link: LinkInput!): Bean!
+}
+
+"""
+Input for creating a new bean
+"""
+input CreateBeanInput {
+  "Bean title (required)"
+  title: String!
+  "Bean type (defaults to 'task')"
+  type: String
+  "Status (defaults to 'backlog')"
+  status: String
+  "Priority level (defaults to 'normal')"
+  priority: String
+  "Tags for categorization"
+  tags: [String!]
+  "Markdown body content"
+  body: String
+  "Links to other beans"
+  links: [LinkInput!]
+}
+
+"""
+Input for updating an existing bean
+"""
+input UpdateBeanInput {
+  "New title"
+  title: String
+  "New status"
+  status: String
+  "New type"
+  type: String
+  "New priority"
+  priority: String
+  "Replace all tags (nil preserves existing)"
+  tags: [String!]
+  "New body content"
+  body: String
+}
+
+"""
+Input for specifying a link
+"""
+input LinkInput {
+  "Link type (blocks, duplicates, parent, related)"
+  type: String!
+  "Target bean ID"
+  target: String!
 }
 
 """
