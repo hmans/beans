@@ -276,7 +276,21 @@ func (r *queryResolver) Bean(ctx context.Context, id string) (*bean.Bean, error)
 
 // Beans is the resolver for the beans field.
 func (r *queryResolver) Beans(ctx context.Context, filter *model.BeanFilter) ([]*bean.Bean, error) {
-	beans := r.Core.All()
+	var beans []*bean.Bean
+
+	// If search filter is provided, start with search results
+	if filter != nil && filter.Search != nil && *filter.Search != "" {
+		searchResults, err := r.Core.Search(*filter.Search)
+		if err != nil {
+			// Log error but continue with empty results
+			// Other filters can still apply to the empty set
+			beans = []*bean.Bean{}
+		} else {
+			beans = searchResults
+		}
+	} else {
+		beans = r.Core.All()
+	}
 
 	if filter == nil {
 		return beans, nil

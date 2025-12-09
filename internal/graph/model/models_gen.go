@@ -4,6 +4,8 @@ package model
 
 // Filter options for querying beans
 type BeanFilter struct {
+	// Full-text search across title and body
+	Search *string `json:"search,omitempty"`
 	// Include only beans with these statuses (OR logic)
 	Status []string `json:"status,omitempty"`
 	// Exclude beans with these statuses

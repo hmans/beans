@@ -13,6 +13,7 @@ import (
 
 	"github.com/hmans/beans/internal/bean"
 	"github.com/hmans/beans/internal/config"
+	"github.com/hmans/beans/internal/search"
 )
 
 const BeansDir = ".beans"
@@ -33,6 +34,9 @@ type Core struct {
 	// In-memory state
 	mu    sync.RWMutex
 	beans map[string]*bean.Bean // ID -> Bean
+
+	// Search index (optional, lazy-initialized)
+	searchIndex *search.Index
 
 	// File watching (optional)
 	watching bool
@@ -93,6 +97,15 @@ func (c *Core) loadFromDisk() error {
 		c.beans[b.ID] = b
 	}
 
+	// Rebuild search index if active (best-effort, don't fail load)
+	if c.searchIndex != nil {
+		allBeans := make([]*bean.Bean, 0, len(c.beans))
+		for _, b := range c.beans {
+			allBeans = append(allBeans, b)
+		}
+		_ = c.searchIndex.RebuildFromBeans(allBeans)
+	}
+
 	return nil
 }
 
@@ -150,6 +163,60 @@ func (c *Core) loadBean(path string) (*bean.Bean, error) {
 	}
 
 	return b, nil
+}
+
+// EnsureSearchIndex initializes the search index if not already open.
+// Must be called with lock held or from a method that holds the lock.
+func (c *Core) ensureSearchIndexLocked() error {
+	if c.searchIndex != nil {
+		return nil
+	}
+
+	indexPath := search.IndexPath(c.root)
+	idx, err := search.NewIndex(indexPath)
+	if err != nil {
+		return fmt.Errorf("initializing search index: %w", err)
+	}
+
+	c.searchIndex = idx
+
+	// Index all existing beans
+	allBeans := make([]*bean.Bean, 0, len(c.beans))
+	for _, b := range c.beans {
+		allBeans = append(allBeans, b)
+	}
+	if err := c.searchIndex.RebuildFromBeans(allBeans); err != nil {
+		return fmt.Errorf("building search index: %w", err)
+	}
+
+	return nil
+}
+
+// Search performs full-text search and returns matching beans.
+// The search index is lazily initialized on first use.
+func (c *Core) Search(query string) ([]*bean.Bean, error) {
+	c.mu.Lock()
+	if err := c.ensureSearchIndexLocked(); err != nil {
+		c.mu.Unlock()
+		return nil, err
+	}
+	c.mu.Unlock()
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	ids, err := c.searchIndex.Search(query, 1000)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*bean.Bean, 0, len(ids))
+	for _, id := range ids {
+		if b, ok := c.beans[id]; ok {
+			result = append(result, b)
+		}
+	}
+	return result, nil
 }
 
 // All returns a slice of all beans.
@@ -223,6 +290,11 @@ func (c *Core) Create(b *bean.Bean) error {
 	// Add to in-memory map
 	c.beans[b.ID] = b
 
+	// Update search index if active (best-effort, don't fail create)
+	if c.searchIndex != nil {
+		_ = c.searchIndex.IndexBean(b)
+	}
+
 	return nil
 }
 
@@ -247,6 +319,11 @@ func (c *Core) Update(b *bean.Bean) error {
 
 	// Update in-memory map
 	c.beans[b.ID] = b
+
+	// Update search index if active (best-effort, don't fail update)
+	if c.searchIndex != nil {
+		_ = c.searchIndex.IndexBean(b)
+	}
 
 	return nil
 }
@@ -324,12 +401,20 @@ func (c *Core) Delete(idPrefix string) error {
 	// Remove from in-memory map
 	delete(c.beans, targetID)
 
+	// Update search index if active (best-effort, don't fail delete)
+	if c.searchIndex != nil {
+		_ = c.searchIndex.DeleteBean(targetID)
+	}
+
 	return nil
 }
 
-// Init creates the .beans directory if it doesn't exist.
+// Init creates the .beans directory if it doesn't exist and sets up necessary files.
 func (c *Core) Init() error {
-	return os.MkdirAll(c.root, 0755)
+	if err := os.MkdirAll(c.root, 0755); err != nil {
+		return err
+	}
+	return createBeansGitignore(c.root)
 }
 
 // FullPath returns the absolute path to a bean file.
@@ -339,12 +424,42 @@ func (c *Core) FullPath(b *bean.Bean) string {
 
 // Close stops any active file watcher and cleans up resources.
 func (c *Core) Close() error {
-	return c.Unwatch()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Close search index if open
+	if c.searchIndex != nil {
+		if err := c.searchIndex.Close(); err != nil {
+			return err
+		}
+		c.searchIndex = nil
+	}
+
+	return c.unwatchLocked()
 }
 
 // Init creates the .beans directory at the given path if it doesn't exist.
 // This is a standalone function for use before a Core is created.
 func Init(dir string) error {
 	beansPath := filepath.Join(dir, BeansDir)
-	return os.MkdirAll(beansPath, 0755)
+	if err := os.MkdirAll(beansPath, 0755); err != nil {
+		return err
+	}
+	return createBeansGitignore(beansPath)
+}
+
+// createBeansGitignore creates a .gitignore file in the .beans directory
+// to ignore the search index. Only creates if file doesn't exist.
+func createBeansGitignore(beansDir string) error {
+	gitignorePath := filepath.Join(beansDir, ".gitignore")
+
+	// Only create if it doesn't exist
+	if _, err := os.Stat(gitignorePath); err == nil {
+		return nil // File exists, don't overwrite
+	}
+
+	content := `# Search index (auto-generated, can be safely deleted)
+.index/
+`
+	return os.WriteFile(gitignorePath, []byte(content), 0644)
 }

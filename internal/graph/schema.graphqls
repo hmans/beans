@@ -159,6 +159,8 @@ input LinkFilter {
 Filter options for querying beans
 """
 input BeanFilter {
+  "Full-text search across title and body"
+  search: String
   "Include only beans with these statuses (OR logic)"
   status: [String!]
   "Exclude beans with these statuses"

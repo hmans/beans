@@ -27,8 +27,9 @@ var initCmd = &cobra.Command{
 			beansDir = beansPath
 			projectDir = filepath.Dir(beansDir)
 			dirName = filepath.Base(projectDir)
-			// Create the directory
-			if err := os.MkdirAll(beansDir, 0755); err != nil {
+			// Create the directory using Core.Init to set up .gitignore
+			core := beancore.New(beansDir, nil)
+			if err := core.Init(); err != nil {
 				if initJSON {
 					return output.Error(output.ErrFileError, err.Error())
 				}

@@ -48,6 +48,11 @@ func (c *Core) Unwatch() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	return c.unwatchLocked()
+}
+
+// unwatchLocked stops watching (must be called with lock held).
+func (c *Core) unwatchLocked() error {
 	if !c.watching {
 		return nil
 	}
