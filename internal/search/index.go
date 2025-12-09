@@ -18,10 +18,9 @@ type Index struct {
 
 // beanDocument is the structure stored in the Bleve index.
 type beanDocument struct {
-	ID       string `json:"id"`
-	Title    string `json:"title"`
-	Body     string `json:"body"`
-	Combined string `json:"combined"` // title + "\n\n" + body for default search field
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Body  string `json:"body"`
 }
 
 // NewIndex creates or opens a Bleve index at the given path.
@@ -64,7 +63,6 @@ func buildIndexMapping() mapping.IndexMapping {
 	beanMapping.AddFieldMappingsAt("id", keywordFieldMapping)
 	beanMapping.AddFieldMappingsAt("title", textFieldMapping)
 	beanMapping.AddFieldMappingsAt("body", textFieldMapping)
-	beanMapping.AddFieldMappingsAt("combined", textFieldMapping)
 
 	// Create the index mapping with BM25 scoring for better relevance ranking
 	indexMapping := bleve.NewIndexMapping()
@@ -95,10 +93,9 @@ func (idx *Index) Path() string {
 // IndexBean adds or updates a bean in the search index.
 func (idx *Index) IndexBean(b *bean.Bean) error {
 	doc := beanDocument{
-		ID:       b.ID,
-		Title:    b.Title,
-		Body:     b.Body,
-		Combined: b.Title + "\n\n" + b.Body,
+		ID:    b.ID,
+		Title: b.Title,
+		Body:  b.Body,
 	}
 	return idx.index.Index(b.ID, doc)
 }
@@ -165,10 +162,9 @@ func (idx *Index) RebuildFromBeans(beans []*bean.Bean) error {
 	batch := idx.index.NewBatch()
 	for _, b := range beans {
 		doc := beanDocument{
-			ID:       b.ID,
-			Title:    b.Title,
-			Body:     b.Body,
-			Combined: b.Title + "\n\n" + b.Body,
+			ID:    b.ID,
+			Title: b.Title,
+			Body:  b.Body,
 		}
 		if err := batch.Index(b.ID, doc); err != nil {
 			return err

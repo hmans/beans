@@ -22,6 +22,7 @@ func setupTestCore(t *testing.T) (*Core, string) {
 
 	cfg := config.Default()
 	core := New(beansDir, cfg)
+	core.SetWarnWriter(nil) // suppress warnings in tests
 	if err := core.Load(); err != nil {
 		t.Fatalf("failed to load core: %v", err)
 	}

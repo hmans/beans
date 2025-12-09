@@ -5,6 +5,7 @@ package beancore
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -45,14 +46,31 @@ type Core struct {
 	watching bool
 	done     chan struct{}
 	onChange func() // callback when beans change
+
+	// Warning logger for non-fatal errors (defaults to stderr)
+	warnWriter io.Writer
 }
 
 // New creates a new Core with the given root path and configuration.
 func New(root string, cfg *config.Config) *Core {
 	return &Core{
-		root:   root,
-		config: cfg,
-		beans:  make(map[string]*bean.Bean),
+		root:       root,
+		config:     cfg,
+		beans:      make(map[string]*bean.Bean),
+		warnWriter: os.Stderr,
+	}
+}
+
+// SetWarnWriter sets the writer for warning messages.
+// Pass nil to disable warnings.
+func (c *Core) SetWarnWriter(w io.Writer) {
+	c.warnWriter = w
+}
+
+// logWarn logs a warning message if a warn writer is configured.
+func (c *Core) logWarn(format string, args ...any) {
+	if c.warnWriter != nil {
+		fmt.Fprintf(c.warnWriter, "warning: "+format+"\n", args...)
 	}
 }
 
@@ -106,7 +124,9 @@ func (c *Core) loadFromDisk() error {
 		for _, b := range c.beans {
 			allBeans = append(allBeans, b)
 		}
-		_ = c.searchIndex.RebuildFromBeans(allBeans)
+		if err := c.searchIndex.RebuildFromBeans(allBeans); err != nil {
+			c.logWarn("failed to rebuild search index: %v", err)
+		}
 	}
 
 	return nil
@@ -295,7 +315,9 @@ func (c *Core) Create(b *bean.Bean) error {
 
 	// Update search index if active (best-effort, don't fail create)
 	if c.searchIndex != nil {
-		_ = c.searchIndex.IndexBean(b)
+		if err := c.searchIndex.IndexBean(b); err != nil {
+			c.logWarn("failed to index bean %s: %v", b.ID, err)
+		}
 	}
 
 	return nil
@@ -325,7 +347,9 @@ func (c *Core) Update(b *bean.Bean) error {
 
 	// Update search index if active (best-effort, don't fail update)
 	if c.searchIndex != nil {
-		_ = c.searchIndex.IndexBean(b)
+		if err := c.searchIndex.IndexBean(b); err != nil {
+			c.logWarn("failed to update bean %s in search index: %v", b.ID, err)
+		}
 	}
 
 	return nil
@@ -406,7 +430,9 @@ func (c *Core) Delete(idPrefix string) error {
 
 	// Update search index if active (best-effort, don't fail delete)
 	if c.searchIndex != nil {
-		_ = c.searchIndex.DeleteBean(targetID)
+		if err := c.searchIndex.DeleteBean(targetID); err != nil {
+			c.logWarn("failed to remove bean %s from search index: %v", targetID, err)
+		}
 	}
 
 	return nil
