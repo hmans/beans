@@ -18,6 +18,9 @@ import (
 
 const BeansDir = ".beans"
 
+// DefaultSearchLimit is the maximum number of search results returned.
+const DefaultSearchLimit = 1000
+
 var (
 	ErrNotFound    = errors.New("bean not found")
 	ErrAmbiguousID = errors.New("ambiguous ID prefix matches multiple beans")
@@ -205,7 +208,7 @@ func (c *Core) Search(query string) ([]*bean.Bean, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	ids, err := c.searchIndex.Search(query, 1000)
+	ids, err := c.searchIndex.Search(query, DefaultSearchLimit)
 	if err != nil {
 		return nil, err
 	}
