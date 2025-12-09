@@ -22,10 +22,9 @@ var (
 	updateBodyFile string
 	updateLink     []string
 	updateUnlink   []string
-	updateTag      []string
-	updateUntag    []string
-	updateNoEdit   bool
-	updateJSON     bool
+	updateTag    []string
+	updateUntag  []string
+	updateJSON   bool
 )
 
 var updateCmd = &cobra.Command{
@@ -115,12 +114,6 @@ Relationship types: blocks, duplicates, parent, related`,
 		}
 
 		fmt.Println(ui.Success.Render("Updated ") + ui.ID.Render(b.ID) + " " + ui.Muted.Render(b.Path))
-
-		// Open in editor unless --no-edit
-		if !updateNoEdit {
-			openInEditor(core.FullPath(b))
-		}
-
 		return nil
 	},
 }
@@ -207,7 +200,6 @@ func init() {
 	updateCmd.Flags().StringArrayVar(&updateUnlink, "unlink", nil, "Remove relationship (format: type:id, can be repeated)")
 	updateCmd.Flags().StringArrayVar(&updateTag, "tag", nil, "Add tag (can be repeated)")
 	updateCmd.Flags().StringArrayVar(&updateUntag, "untag", nil, "Remove tag (can be repeated)")
-	updateCmd.Flags().BoolVar(&updateNoEdit, "no-edit", false, "Skip opening $EDITOR")
 	updateCmd.Flags().BoolVar(&updateJSON, "json", false, "Output as JSON")
 	updateCmd.MarkFlagsMutuallyExclusive("body", "body-file")
 	rootCmd.AddCommand(updateCmd)

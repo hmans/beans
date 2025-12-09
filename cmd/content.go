@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/hmans/beans/internal/bean"
@@ -129,19 +128,6 @@ func cmdError(jsonMode bool, code string, format string, args ...any) error {
 		return output.Error(code, fmt.Sprintf(format, args...))
 	}
 	return fmt.Errorf(format, args...)
-}
-
-// openInEditor opens the file in $EDITOR if set.
-func openInEditor(path string) {
-	editor := os.Getenv("EDITOR")
-	if editor == "" {
-		return
-	}
-	editorCmd := exec.Command(editor, path)
-	editorCmd.Stdin = os.Stdin
-	editorCmd.Stdout = os.Stdout
-	editorCmd.Stderr = os.Stderr
-	_ = editorCmd.Run() // Ignore error - editor failures are not fatal
 }
 
 // mergeTags combines existing tags with additions and removals.
