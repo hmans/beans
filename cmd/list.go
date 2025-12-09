@@ -59,7 +59,20 @@ var listCmd = &cobra.Command{
 	Use:     "list",
 	Aliases: []string{"ls"},
 	Short:   "List all beans",
-	Long:    `Lists all beans in the .beans directory.`,
+	Long: `Lists all beans in the .beans directory.
+
+Search Syntax (--search/-S):
+  The search flag supports Bleve query string syntax:
+
+  login          Exact term match
+  login~         Fuzzy match (1 edit distance, finds "loggin", "logins")
+  login~2        Fuzzy match (2 edit distance)
+  log*           Wildcard prefix match
+  "user login"   Exact phrase match
+  user AND login Both terms required
+  user OR login  Either term matches
+  title:login    Search only in title field
+  body:auth      Search only in body field`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Build GraphQL filter from CLI flags
 		filter := &model.BeanFilter{
