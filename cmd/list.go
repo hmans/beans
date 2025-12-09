@@ -18,6 +18,7 @@ import (
 
 var (
 	listJSON       bool
+	listSearch     string
 	listStatus     []string
 	listNoStatus   []string
 	listType       []string
@@ -74,6 +75,11 @@ var listCmd = &cobra.Command{
 			LinkedAs:        parseLinkFilters(listLinkedAs),
 			NoLinks:         parseLinkFilters(listNoLinks),
 			NoLinkedAs:      parseLinkFilters(listNoLinkedAs),
+		}
+
+		// Add search filter if provided
+		if listSearch != "" {
+			filter.Search = &listSearch
 		}
 
 		// Execute query via GraphQL resolver
@@ -308,6 +314,7 @@ func truncate(s string, maxLen int) string {
 
 func init() {
 	listCmd.Flags().BoolVar(&listJSON, "json", false, "Output as JSON")
+	listCmd.Flags().StringVarP(&listSearch, "search", "S", "", "Full-text search in title and body")
 	listCmd.Flags().StringArrayVarP(&listStatus, "status", "s", nil, "Filter by status (can be repeated)")
 	listCmd.Flags().StringArrayVar(&listNoStatus, "no-status", nil, "Exclude by status (can be repeated)")
 	listCmd.Flags().StringArrayVarP(&listType, "type", "t", nil, "Filter by type (can be repeated)")
