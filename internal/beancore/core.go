@@ -218,17 +218,25 @@ func (c *Core) ensureSearchIndexLocked() error {
 // Search performs full-text search and returns matching beans.
 // The search index is lazily initialized on first use.
 func (c *Core) Search(query string) ([]*bean.Bean, error) {
+	// Ensure index is initialized (needs write lock for lazy init)
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if err := c.ensureSearchIndexLocked(); err != nil {
+		c.mu.Unlock()
 		return nil, err
 	}
+	// Capture searchIndex reference while holding lock
+	idx := c.searchIndex
+	c.mu.Unlock()
 
-	ids, err := c.searchIndex.Search(query, DefaultSearchLimit)
+	// Perform search outside the lock (Bleve is thread-safe)
+	ids, err := idx.Search(query, DefaultSearchLimit)
 	if err != nil {
 		return nil, err
 	}
+
+	// Read from beans map (needs read lock only)
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	result := make([]*bean.Bean, 0, len(ids))
 	for _, id := range ids {
