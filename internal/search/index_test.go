@@ -1,6 +1,7 @@
 package search
 
 import (
+	"os"
 	"testing"
 
 	"github.com/hmans/beans/internal/bean"
@@ -21,7 +22,7 @@ func setupTestIndex(t *testing.T) *Index {
 
 func TestNewIndex(t *testing.T) {
 	indexPath := t.TempDir() + "/test.bleve"
-	idx, rebuilt, err := NewIndex(indexPath)
+	idx, status, err := NewIndex(indexPath)
 	if err != nil {
 		t.Fatalf("NewIndex() error = %v", err)
 	}
@@ -30,8 +31,8 @@ func TestNewIndex(t *testing.T) {
 	if idx.Path() != indexPath {
 		t.Errorf("Path() = %q, want %q", idx.Path(), indexPath)
 	}
-	if !rebuilt {
-		t.Error("NewIndex() should return rebuilt=true for new index")
+	if status != IndexStatusCreated {
+		t.Errorf("NewIndex() status = %v, want IndexStatusCreated", status)
 	}
 }
 
@@ -39,12 +40,12 @@ func TestNewIndex_OpenExisting(t *testing.T) {
 	indexPath := t.TempDir() + "/test.bleve"
 
 	// Create index
-	idx1, rebuilt1, err := NewIndex(indexPath)
+	idx1, status1, err := NewIndex(indexPath)
 	if err != nil {
 		t.Fatalf("NewIndex() error = %v", err)
 	}
-	if !rebuilt1 {
-		t.Error("first NewIndex() should return rebuilt=true")
+	if status1 != IndexStatusCreated {
+		t.Errorf("first NewIndex() status = %v, want IndexStatusCreated", status1)
 	}
 
 	// Index a document
@@ -59,14 +60,14 @@ func TestNewIndex_OpenExisting(t *testing.T) {
 	idx1.Close()
 
 	// Reopen index
-	idx2, rebuilt2, err := NewIndex(indexPath)
+	idx2, status2, err := NewIndex(indexPath)
 	if err != nil {
 		t.Fatalf("NewIndex() reopen error = %v", err)
 	}
 	defer idx2.Close()
 
-	if rebuilt2 {
-		t.Error("second NewIndex() should return rebuilt=false for existing index")
+	if status2 != IndexStatusOpened {
+		t.Errorf("second NewIndex() status = %v, want IndexStatusOpened", status2)
 	}
 
 	// Search should find the document
@@ -76,6 +77,30 @@ func TestNewIndex_OpenExisting(t *testing.T) {
 	}
 	if len(ids) != 1 || ids[0] != "abc1" {
 		t.Errorf("Search() = %v, want [abc1]", ids)
+	}
+}
+
+func TestNewIndex_RecoverCorrupted(t *testing.T) {
+	indexPath := t.TempDir() + "/test.bleve"
+
+	// Create a corrupted index (directory exists but invalid content)
+	if err := os.MkdirAll(indexPath, 0755); err != nil {
+		t.Fatalf("failed to create directory: %v", err)
+	}
+	// Write some garbage to make it look like a corrupted index
+	if err := os.WriteFile(indexPath+"/index_meta.json", []byte("invalid"), 0644); err != nil {
+		t.Fatalf("failed to write corrupted file: %v", err)
+	}
+
+	// Open should recover
+	idx, status, err := NewIndex(indexPath)
+	if err != nil {
+		t.Fatalf("NewIndex() error = %v", err)
+	}
+	defer idx.Close()
+
+	if status != IndexStatusRecovered {
+		t.Errorf("NewIndex() status = %v, want IndexStatusRecovered", status)
 	}
 }
 

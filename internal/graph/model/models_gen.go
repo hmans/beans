@@ -4,7 +4,7 @@ package model
 
 // Filter options for querying beans
 type BeanFilter struct {
-	// Full-text search across title and body using Bleve query syntax.
+	// Full-text search across slug, title, and body using Bleve query syntax.
 	//
 	// Examples:
 	// - "login" - exact term match
@@ -14,6 +14,7 @@ type BeanFilter struct {
 	// - "\"user login\"" - exact phrase
 	// - "user AND login" - both terms required
 	// - "user OR login" - either term
+	// - "slug:auth" - search only slug field
 	// - "title:login" - search only title field
 	// - "body:auth" - search only body field
 	Search *string `json:"search,omitempty"`

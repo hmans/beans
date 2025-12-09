@@ -16,6 +16,18 @@ type Index struct {
 	path  string
 }
 
+// IndexStatus indicates how the index was opened/created.
+type IndexStatus int
+
+const (
+	// IndexStatusOpened means an existing index was opened successfully.
+	IndexStatusOpened IndexStatus = iota
+	// IndexStatusCreated means a new index was created (didn't exist before).
+	IndexStatusCreated
+	// IndexStatusRecovered means the index was corrupted and had to be recreated.
+	IndexStatusRecovered
+)
+
 // beanDocument is the structure stored in the Bleve index.
 type beanDocument struct {
 	ID    string `json:"id"`
@@ -25,32 +37,44 @@ type beanDocument struct {
 }
 
 // NewIndex creates or opens a Bleve index at the given path.
-// Returns the index and a boolean indicating if the index was rebuilt (true = rebuilt, false = opened existing).
-func NewIndex(indexPath string) (*Index, bool, error) {
-	var idx bleve.Index
-	var err error
-	rebuilt := false
+// Returns the index and a status indicating how it was opened/created.
+func NewIndex(indexPath string) (*Index, IndexStatus, error) {
+	// Check if index directory exists
+	_, statErr := os.Stat(indexPath)
+	indexExists := statErr == nil
 
 	// Try to open existing index
-	idx, err = bleve.Open(indexPath)
-	if err != nil {
-		// Index doesn't exist or is corrupted, create new one
-		rebuilt = true
-		if err := os.RemoveAll(indexPath); err != nil && !os.IsNotExist(err) {
-			return nil, false, err
-		}
+	idx, err := bleve.Open(indexPath)
+	if err == nil {
+		return &Index{
+			index: idx,
+			path:  indexPath,
+		}, IndexStatusOpened, nil
+	}
 
-		indexMapping := buildIndexMapping()
-		idx, err = bleve.New(indexPath, indexMapping)
-		if err != nil {
-			return nil, false, err
-		}
+	// Index doesn't exist or is corrupted - determine which
+	status := IndexStatusCreated
+	if indexExists {
+		// Directory existed but couldn't open - corrupted
+		status = IndexStatusRecovered
+	}
+
+	// Clean up any corrupted index
+	if err := os.RemoveAll(indexPath); err != nil && !os.IsNotExist(err) {
+		return nil, 0, err
+	}
+
+	// Create new index
+	indexMapping := buildIndexMapping()
+	idx, err = bleve.New(indexPath, indexMapping)
+	if err != nil {
+		return nil, 0, err
 	}
 
 	return &Index{
 		index: idx,
 		path:  indexPath,
-	}, rebuilt, nil
+	}, status, nil
 }
 
 // buildIndexMapping creates the Bleve index mapping for bean documents.

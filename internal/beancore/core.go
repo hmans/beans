@@ -193,25 +193,36 @@ func (c *Core) ensureSearchIndexLocked() error {
 	}
 
 	indexPath := search.IndexPath(c.root)
-	idx, rebuilt, err := search.NewIndex(indexPath)
+	idx, status, err := search.NewIndex(indexPath)
 	if err != nil {
 		return fmt.Errorf("initializing search index: %w", err)
 	}
 
 	c.searchIndex = idx
 
-	// Log if index was rebuilt (corrupted or first time)
-	if rebuilt {
-		c.logWarn("search index rebuilt at %s", indexPath)
-	}
-
-	// Index all existing beans
-	allBeans := make([]*bean.Bean, 0, len(c.beans))
-	for _, b := range c.beans {
-		allBeans = append(allBeans, b)
-	}
-	if err := c.searchIndex.RebuildFromBeans(allBeans); err != nil {
-		return fmt.Errorf("building search index: %w", err)
+	// Only rebuild if the index was newly created or recovered from corruption
+	switch status {
+	case search.IndexStatusCreated:
+		// New index - populate with existing beans
+		allBeans := make([]*bean.Bean, 0, len(c.beans))
+		for _, b := range c.beans {
+			allBeans = append(allBeans, b)
+		}
+		if err := c.searchIndex.RebuildFromBeans(allBeans); err != nil {
+			return fmt.Errorf("building search index: %w", err)
+		}
+	case search.IndexStatusRecovered:
+		// Index was corrupted and rebuilt - repopulate and warn
+		c.logWarn("search index was corrupted and has been rebuilt")
+		allBeans := make([]*bean.Bean, 0, len(c.beans))
+		for _, b := range c.beans {
+			allBeans = append(allBeans, b)
+		}
+		if err := c.searchIndex.RebuildFromBeans(allBeans); err != nil {
+			return fmt.Errorf("rebuilding search index: %w", err)
+		}
+	case search.IndexStatusOpened:
+		// Existing index opened successfully - no rebuild needed
 	}
 
 	return nil
