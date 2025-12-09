@@ -219,14 +219,11 @@ func (c *Core) ensureSearchIndexLocked() error {
 // The search index is lazily initialized on first use.
 func (c *Core) Search(query string) ([]*bean.Bean, error) {
 	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if err := c.ensureSearchIndexLocked(); err != nil {
-		c.mu.Unlock()
 		return nil, err
 	}
-	c.mu.Unlock()
-
-	c.mu.RLock()
-	defer c.mu.RUnlock()
 
 	ids, err := c.searchIndex.Search(query, DefaultSearchLimit)
 	if err != nil {
