@@ -66,10 +66,18 @@ func buildIndexMapping() mapping.IndexMapping {
 	beanMapping.AddFieldMappingsAt("body", textFieldMapping)
 	beanMapping.AddFieldMappingsAt("combined", textFieldMapping)
 
-	// Create the index mapping
+	// Create the index mapping with BM25 scoring for better relevance ranking
 	indexMapping := bleve.NewIndexMapping()
 	indexMapping.DefaultMapping = beanMapping
 	indexMapping.DefaultAnalyzer = "standard"
+	indexMapping.IndexDynamic = false
+	indexMapping.StoreDynamic = false
+
+	// Use BM25 scoring algorithm (available in Bleve v2.5.0+)
+	// BM25 provides better relevance ranking than TF-IDF, especially for:
+	// - Handling term frequency saturation (repeated terms don't over-boost)
+	// - Normalizing for document length (short docs aren't unfairly penalized)
+	indexMapping.ScoringModel = "bm25"
 
 	return indexMapping
 }
