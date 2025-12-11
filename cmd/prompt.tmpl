@@ -20,21 +20,40 @@ If you identify something that should be changed or fixed after completing the u
 
 ## Core Rules
 
+- **Prefer `beans query` (GraphQL) for reading data** - It's flexible, efficient, and lets you fetch exactly what you need
+- **Use CLI commands for mutations** - `beans create` and `beans update` are simpler for single operations
 - After compaction or clear, run `beans prime` to re-sync
-- All `bean` commands support the `--json` flag for machine-readable output.
-- Lean towards using sub-agents for interacting with beans.
+- Lean towards using sub-agents for interacting with beans
 
 ## Finding work
 
-- `beans list --no-status completed --no-linked-as blocks --json` to find actionable beans (not completed, not blocked)
-- `beans list --json` to list all beans (descriptions not included by default)
-- `beans list --json --full` to include full description content
+Use GraphQL to query for actionable beans (not completed, not blocked):
+
+```bash
+beans query '{ beans(filter: { excludeStatus: ["completed", "scrapped"], noLinkedAs: [{type: "blocks"}] }) { id title status type priority } }'
+```
+
+Other useful queries:
+
+```bash
+# All beans with basic info
+beans query '{ beans { id title status type priority } }'
+
+# Find high-priority bugs
+beans query '{ beans(filter: { type: ["bug"], priority: ["critical", "high"] }) { id title status body } }'
+
+# Search by text (uses Bleve query syntax)
+beans query '{ beans(filter: { search: "authentication" }) { id title } }'
+```
 
 ## Working on a bean
 
-- `beans update <bean-id> --status in-progress --json` to mark a bean as in-progress
-- `beans show <bean-id> --json` to see full details including description
-- Adhere to the instructions in the bean's description when working on it
+1. **Read the bean** using GraphQL to get full details:
+   ```bash
+   beans query '{ bean(id: "<id>") { title status type body parent { title } children { title status } } }'
+   ```
+2. **Mark as in-progress**: `beans update <bean-id> --status in-progress`
+3. Adhere to the instructions in the bean's body when working on it
 
 **If the bean has a checklist:**
 
@@ -48,55 +67,28 @@ If you identify something that should be changed or fixed after completing the u
 
 Beans can have relationships to other beans. Use these to express dependencies and connections.
 
-**Adding/removing relationships:**
+**Relationship types:** `blocks`, `duplicates`, `parent`, `related`
+
+**Managing relationships (CLI):**
 
 - `beans update <bean-id> --link blocks:<other-id>` - This bean blocks another
 - `beans update <bean-id> --link parent:<other-id>` - This bean has a parent
 - `beans update <bean-id> --unlink blocks:<other-id>` - Remove a relationship
 
-**Relationship types:** `blocks`, `duplicates`, `parent`, `related`
-
 **Note:** A bean can only have **one parent**. To change a bean's parent, first remove the existing parent with `--unlink parent:<old-id>`, then add the new one. Use chaining for hierarchy (e.g., task → epic → milestone).
 
-**Filtering by relationship:**
+**Querying relationships (GraphQL):**
 
-Outgoing (active) links - use `--links`:
+```bash
+# Get a bean with its relationships
+beans query '{ bean(id: "abc") { title parent { id title } children { id title status } blockedBy { title } blocks { title } } }'
 
-- `beans list --links blocks` - Show beans that block something
-- `beans list --links blocks:<id>` - Show beans that block `<id>`
-- `beans list --links parent` - Show beans that have a parent
+# Find beans blocked by something
+beans query '{ beans(filter: { linkedAs: [{type: "blocks"}] }) { id title blockedBy { title } } }'
 
-Incoming (passive) links - use `--linked-as`:
-
-- `beans list --linked-as blocks` - Show beans that are blocked by something
-- `beans list --linked-as blocks:<id>` - Show beans that `<id>` blocks
-- `beans list --linked-as parent:<id>` - Show beans that have `<id>` as parent
-
-Use repeated flags for multiple values: `--links blocks --links parent` (OR logic)
-
-**Excluding by relationship:**
-
-Use `--no-links` and `--no-linked-as` to exclude beans matching a relationship:
-
-- `beans list --no-linked-as blocks` - Show beans NOT blocked by anything (actionable work)
-- `beans list --no-links parent` - Show beans without a parent (top-level items)
-
-**Excluding by status:**
-
-Use `--no-status` to exclude beans with specific statuses:
-
-- `beans list --no-status completed` - Show beans that are not completed
-- `beans list --no-status completed --no-status scrapped` - Exclude multiple statuses
-- `beans list --no-status completed --no-linked-as blocks` - Actionable beans (not completed, not blocked)
-
-**Filtering by type:**
-
-Use `-t/--type` to filter by bean type (OR logic when repeated):
-
-- `beans list -t bug` - Show only bugs
-- `beans list -t bug -t feature` - Show bugs OR features
-- `beans list --no-type epic` - Exclude epics
-- `beans list -t task --no-status completed` - Show open tasks
+# Find top-level beans (no parent)
+beans query '{ beans(filter: { noLinks: [{type: "parent"}] }) { id title type } }'
+```
 
 ## Creating new beans
 
@@ -112,41 +104,28 @@ Use `-t/--type` to filter by bean type (OR logic when repeated):
 
 - `beans archive` will archive (delete) beans marked as completed or scrapped. ONLY run this when I explicitly tell you to.
 
-## GraphQL API
+## GraphQL Reference
 
-Beans provides a GraphQL API for flexible querying. Use `beans query` to execute GraphQL queries.
+The `beans query` command executes GraphQL queries. This is the preferred way to read bean data.
 
-**Basic usage:**
-
-```bash
-# List all beans
-beans query '{ beans { id title status } }'
-
-# Get a specific bean
-beans query '{ bean(id: "abc") { title status body } }'
-
-# Filter beans
-beans query '{ beans(filter: { status: ["todo", "in-progress"] }) { id title } }'
-
-# Get relationships
-beans query '{ bean(id: "abc") { title parent { title } children { id title } } }'
-
-# Read from stdin (useful for complex queries or shell escaping issues)
-cat query.graphql | beans query
-beans query <<'EOF'
-query GetBean($id: ID!) { bean(id: $id) { title } }
-EOF
-
-# Print schema
-beans query --schema
-```
-
-**Flags:**
+**Command flags:**
 
 - `--json`: Output raw JSON (no formatting)
 - `--schema`: Print the GraphQL schema
 - `-v, --variables`: Query variables as JSON string
 - `-o, --operation`: Operation name for multi-operation documents
+
+**Tips:**
+
+```bash
+# Read query from stdin (useful for complex queries or shell escaping)
+beans query <<'EOF'
+{ beans(filter: { type: ["bug"], excludeStatus: ["completed"] }) { id title priority } }
+EOF
+
+# Print the full schema for reference
+beans query --schema
+```
 
 **GraphQL Schema:**
 

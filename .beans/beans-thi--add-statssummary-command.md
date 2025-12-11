@@ -2,10 +2,11 @@
 title: Add stats/summary command
 status: backlog
 type: feature
+priority: normal
 tags:
     - cli
 created_at: 2025-12-07T17:08:36Z
-updated_at: 2025-12-08T17:02:44Z
+updated_at: 2025-12-11T20:28:46Z
 links:
     - parent: beans-7lmv
 ---
