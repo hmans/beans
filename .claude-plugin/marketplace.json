@@ -6,8 +6,8 @@
   },
   "plugins": [
     {
-      "name": "beans",
-      "source": "./extras/claude/plugins/beans",
+      "name": "beans-prime",
+      "source": "./extras/claude/plugins/beans-prime",
       "description": "Configure Claude Code to track work using Beans.",
       "version": "1.0.0"
     }
