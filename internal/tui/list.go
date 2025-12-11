@@ -15,10 +15,12 @@ import (
 	"github.com/hmans/beans/internal/ui"
 )
 
-// beanItem wraps a Bean to implement list.Item
+// beanItem wraps a Bean to implement list.Item, with tree context
 type beanItem struct {
-	bean *bean.Bean
-	cfg  *config.Config
+	bean       *bean.Bean
+	cfg        *config.Config
+	treePrefix string // tree prefix for rendering (e.g., "├─" or "  └─")
+	matched    bool   // true if bean matched filter (vs. ancestor shown for context)
 }
 
 func (i beanItem) Title() string       { return i.bean.Title }
@@ -27,10 +29,11 @@ func (i beanItem) FilterValue() string { return i.bean.Title + " " + i.bean.ID }
 
 // itemDelegate handles rendering of list items
 type itemDelegate struct {
-	cfg     *config.Config
-	hasTags bool
-	width   int
-	cols    ui.ResponsiveColumns // cached responsive columns
+	cfg        *config.Config
+	hasTags    bool
+	width      int
+	cols       ui.ResponsiveColumns // cached responsive columns
+	idColWidth int                  // ID column width (accounts for tree prefix)
 }
 
 func newItemDelegate(cfg *config.Config) itemDelegate {
@@ -51,7 +54,11 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 	colors := d.cfg.GetBeanColors(item.bean.Status, item.bean.Type, item.bean.Priority)
 
 	// Calculate max title width using responsive columns
-	baseWidth := d.cols.ID + d.cols.Status + d.cols.Type + 4 // 4 for cursor + padding
+	idWidth := d.cols.ID
+	if d.idColWidth > 0 {
+		idWidth = d.idColWidth
+	}
+	baseWidth := idWidth + d.cols.Status + d.cols.Type + 4 // 4 for cursor + padding
 	if d.cols.ShowTags {
 		baseWidth += d.cols.Tags
 	}
@@ -75,6 +82,9 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 			ShowTags:      d.cols.ShowTags,
 			TagsColWidth:  d.cols.Tags,
 			MaxTags:       d.cols.MaxTags,
+			TreePrefix:    item.treePrefix,
+			Dimmed:        !item.matched,
+			IDColWidth:    d.idColWidth,
 		},
 	)
 
@@ -91,8 +101,9 @@ type listModel struct {
 	err      error
 
 	// Responsive column state
-	hasTags bool                 // whether any beans have tags
-	cols    ui.ResponsiveColumns // calculated responsive columns
+	hasTags    bool                 // whether any beans have tags
+	cols       ui.ResponsiveColumns // calculated responsive columns
+	idColWidth int                  // ID column width (accounts for tree depth)
 
 	// Active filters
 	tagFilter string // if set, only show beans with this tag
@@ -120,7 +131,8 @@ func newListModel(resolver *graph.Resolver, cfg *config.Config) listModel {
 
 // beansLoadedMsg is sent when beans are loaded
 type beansLoadedMsg struct {
-	beans []*bean.Bean
+	items      []ui.FlatItem // flattened tree items
+	idColWidth int           // calculated ID column width for tree
 }
 
 // errMsg is sent when an error occurs
@@ -144,13 +156,42 @@ func (m listModel) loadBeans() tea.Msg {
 		filter = &model.BeanFilter{Tags: []string{m.tagFilter}}
 	}
 
-	// Query beans via GraphQL resolver
-	beans, err := m.resolver.Query().Beans(context.Background(), filter)
+	// Query filtered beans
+	filteredBeans, err := m.resolver.Query().Beans(context.Background(), filter)
 	if err != nil {
 		return errMsg{err}
 	}
 
-	return beansLoadedMsg{beans}
+	// Query all beans for tree context (ancestors)
+	allBeans, err := m.resolver.Query().Beans(context.Background(), nil)
+	if err != nil {
+		return errMsg{err}
+	}
+
+	// Sort function for tree building
+	sortFn := func(beans []*bean.Bean) {
+		bean.SortByStatusPriorityAndType(beans, m.config.StatusNames(), m.config.PriorityNames(), m.config.TypeNames())
+	}
+
+	// Build tree and flatten it
+	tree := ui.BuildTree(filteredBeans, allBeans, sortFn)
+	items := ui.FlattenTree(tree)
+
+	// Calculate ID column width based on max ID length and tree depth
+	maxIDLen := 0
+	for _, b := range allBeans {
+		if len(b.ID) > maxIDLen {
+			maxIDLen = len(b.ID)
+		}
+	}
+	maxDepth := ui.MaxTreeDepth(items)
+	// ID column = base ID width + tree indent (2 chars per depth level for depth > 0)
+	idColWidth := maxIDLen + 2 // base padding
+	if maxDepth > 0 {
+		idColWidth += maxDepth * 2 // 2 chars per depth level
+	}
+
+	return beansLoadedMsg{items: items, idColWidth: idColWidth}
 }
 
 // setTagFilter sets the tag filter
@@ -182,17 +223,22 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 		m.updateDelegate()
 
 	case beansLoadedMsg:
-		bean.SortByStatusPriorityAndType(msg.beans, m.config.StatusNames(), m.config.PriorityNames(), m.config.TypeNames())
-		items := make([]list.Item, len(msg.beans))
+		items := make([]list.Item, len(msg.items))
 		// Check if any beans have tags
 		m.hasTags = false
-		for i, b := range msg.beans {
-			items[i] = beanItem{bean: b, cfg: m.config}
-			if len(b.Tags) > 0 {
+		for i, flatItem := range msg.items {
+			items[i] = beanItem{
+				bean:       flatItem.Bean,
+				cfg:        m.config,
+				treePrefix: flatItem.TreePrefix,
+				matched:    flatItem.Matched,
+			}
+			if len(flatItem.Bean.Tags) > 0 {
 				m.hasTags = true
 			}
 		}
 		m.list.SetItems(items)
+		m.idColWidth = msg.idColWidth
 		// Calculate responsive columns based on hasTags and width
 		m.cols = ui.CalculateResponsiveColumns(m.width, m.hasTags)
 		m.updateDelegate()
@@ -230,10 +276,11 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 // updateDelegate updates the list delegate with current responsive columns
 func (m *listModel) updateDelegate() {
 	delegate := itemDelegate{
-		cfg:     m.config,
-		hasTags: m.hasTags,
-		width:   m.width,
-		cols:    m.cols,
+		cfg:        m.config,
+		hasTags:    m.hasTags,
+		width:      m.width,
+		cols:       m.cols,
+		idColWidth: m.idColWidth,
 	}
 	m.list.SetDelegate(delegate)
 }

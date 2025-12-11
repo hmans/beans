@@ -297,6 +297,9 @@ type BeanRowConfig struct {
 	ShowTags      bool     // Whether to show tags column
 	TagsColWidth  int      // Width of tags column (0 = default)
 	MaxTags       int      // Max tags to show (0 = default of 1)
+	TreePrefix    string   // Tree prefix (e.g., "├─" or "  └─") to prepend to ID
+	Dimmed        bool     // Render row dimmed (for unmatched ancestor beans in tree)
+	IDColWidth    int      // Width of ID column (0 = default of ColWidthID)
 }
 
 // Base column widths for bean lists (minimum sizes)
@@ -375,7 +378,11 @@ func CalculateResponsiveColumns(totalWidth int, hasTags bool) ResponsiveColumns 
 // RenderBeanRow renders a bean as a single row with ID, Type, Status, Tags (optional), Title
 func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string {
 	// Column styles - use responsive widths if provided
-	idStyle := lipgloss.NewStyle().Width(ColWidthID)
+	idColWidth := ColWidthID
+	if cfg.IDColWidth > 0 {
+		idColWidth = cfg.IDColWidth
+	}
+	idStyle := lipgloss.NewStyle().Width(idColWidth)
 	typeStyle := lipgloss.NewStyle().Width(ColWidthType)
 	statusStyle := lipgloss.NewStyle().Width(ColWidthStatus)
 
@@ -390,27 +397,53 @@ func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string
 		maxTags = cfg.MaxTags
 	}
 
-	// Build columns
-	idCol := idStyle.Render(ID.Render(id))
-
-	typeText := ""
-	if typeName != "" {
-		typeText = RenderTypeText(typeName, cfg.TypeColor)
+	// Build columns - apply dimming if needed
+	var idCol string
+	if cfg.Dimmed {
+		idCol = idStyle.Render(Muted.Render(cfg.TreePrefix + id))
+	} else {
+		idCol = idStyle.Render(cfg.TreePrefix + ID.Render(id))
 	}
-	typeCol := typeStyle.Render(typeText)
 
-	statusCol := statusStyle.Render(RenderStatusTextWithColor(status, cfg.StatusColor, cfg.IsArchive))
+	var typeCol string
+	if typeName != "" {
+		if cfg.Dimmed {
+			typeCol = typeStyle.Render(Muted.Render(typeName))
+		} else {
+			typeCol = typeStyle.Render(RenderTypeText(typeName, cfg.TypeColor))
+		}
+	} else {
+		typeCol = typeStyle.Render("")
+	}
+
+	var statusCol string
+	if cfg.Dimmed {
+		statusCol = statusStyle.Render(Muted.Render(status))
+	} else {
+		statusCol = statusStyle.Render(RenderStatusTextWithColor(status, cfg.StatusColor, cfg.IsArchive))
+	}
 
 	// Tags column (optional)
 	var tagsCol string
 	if cfg.ShowTags {
-		tagsCol = tagsStyle.Render(RenderTagsCompact(cfg.Tags, maxTags))
+		if cfg.Dimmed {
+			if len(cfg.Tags) > 0 {
+				tagsCol = tagsStyle.Render(Muted.Render(cfg.Tags[0]))
+			} else {
+				tagsCol = tagsStyle.Render("")
+			}
+		} else {
+			tagsCol = tagsStyle.Render(RenderTagsCompact(cfg.Tags, maxTags))
+		}
 	}
 
 	// Priority symbol (prepended to title)
-	prioritySymbol := RenderPrioritySymbol(cfg.Priority, cfg.PriorityColor)
-	if prioritySymbol != "" {
-		prioritySymbol += " "
+	var prioritySymbol string
+	if !cfg.Dimmed {
+		prioritySymbol = RenderPrioritySymbol(cfg.Priority, cfg.PriorityColor)
+		if prioritySymbol != "" {
+			prioritySymbol += " "
+		}
 	}
 
 	// Title (truncate if needed, accounting for priority symbol width)
@@ -432,11 +465,19 @@ func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string
 			titleStyled = lipgloss.NewStyle().Bold(true).Foreground(ColorPrimary).Render(displayTitle)
 		} else {
 			cursor = "  "
-			titleStyled = displayTitle
+			if cfg.Dimmed {
+				titleStyled = Muted.Render(displayTitle)
+			} else {
+				titleStyled = displayTitle
+			}
 		}
 	} else {
 		cursor = ""
-		titleStyled = displayTitle
+		if cfg.Dimmed {
+			titleStyled = Muted.Render(displayTitle)
+		} else {
+			titleStyled = displayTitle
+		}
 	}
 
 	if cfg.ShowTags {

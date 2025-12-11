@@ -382,3 +382,64 @@ func truncateString(s string, maxLen int) string {
 func runeWidth(s string) int {
 	return len([]rune(s))
 }
+
+// FlatItem represents a flattened tree node with rendering context.
+// Used by TUI to render tree structure in a flat list.
+type FlatItem struct {
+	Bean       *bean.Bean
+	Depth      int    // 0 = root, 1+ = nested
+	IsLast     bool   // last child at this level
+	Matched    bool   // true if bean matched filter (vs. shown for context)
+	TreePrefix string // pre-computed tree prefix (e.g., "  └─")
+}
+
+// FlattenTree converts a tree into a flat slice with tree context preserved.
+// Each item includes the pre-computed tree prefix for rendering.
+func FlattenTree(nodes []*TreeNode) []FlatItem {
+	var items []FlatItem
+	flattenNodes(nodes, 0, &items)
+	return items
+}
+
+func flattenNodes(nodes []*TreeNode, depth int, items *[]FlatItem) {
+	for i, node := range nodes {
+		isLast := i == len(nodes)-1
+
+		// Compute tree prefix
+		var prefix string
+		if depth > 0 {
+			// Add indentation for depth > 1
+			if depth > 1 {
+				prefix = strings.Repeat("  ", depth-1)
+			}
+			// Add connector
+			if isLast {
+				prefix += treeLastBranch
+			} else {
+				prefix += treeBranch
+			}
+		}
+
+		*items = append(*items, FlatItem{
+			Bean:       node.Bean,
+			Depth:      depth,
+			IsLast:     isLast,
+			Matched:    node.Matched,
+			TreePrefix: prefix,
+		})
+
+		// Recurse into children
+		flattenNodes(node.Children, depth+1, items)
+	}
+}
+
+// MaxTreeDepth returns the maximum depth of the flattened tree.
+func MaxTreeDepth(items []FlatItem) int {
+	maxDepth := 0
+	for _, item := range items {
+		if item.Depth > maxDepth {
+			maxDepth = item.Depth
+		}
+	}
+	return maxDepth
+}
