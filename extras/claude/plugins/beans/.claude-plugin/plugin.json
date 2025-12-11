@@ -1,0 +1,12 @@
+{
+  "name": "beans",
+  "version": "1.0.0",
+  "description": "Configure Claude Code to track work using Beans.",
+  "author": {
+    "name": "Hendrik Mans",
+    "email": "hendrik@mans.de"
+  },
+  "repository": "https://github.com/hmans/beans",
+  "license": "MIT",
+  "keywords": ["beans", "issue-tracker", "agentic"]
+}
