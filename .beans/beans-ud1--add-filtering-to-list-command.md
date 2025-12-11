@@ -1,11 +1,13 @@
 ---
 title: Add filtering to list command
-status: todo
+status: scrapped
 type: feature
+priority: normal
 tags:
     - cli
     - filtering
-updated_at: 2025-12-07T19:01:13Z
+created_at: 2025-12-07T19:01:13Z
+updated_at: 2025-12-11T20:26:54Z
 ---
 
 Add filtering and search capabilities to the `beans list` command.
