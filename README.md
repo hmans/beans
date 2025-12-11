@@ -55,20 +55,29 @@ We'll need to teach your coding agent that it should use Beans to track tasks, a
 
 ### Claude Code
 
-Install the `beans` plugin:
+Beans integrates with [Claude Code](https://claude.ai/code) via hooks. Add this to your `.claude/settings.json`:
 
-```
-/plugin marketplace add hmans/beans
-/plugin install beans@beans
+```json
+{
+  // ... other settings ...
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [{ "type": "command", "command": "beans prime" }]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [{ "type": "command", "command": "beans prime" }]
+      }
+    ]
+  }
+}
 ```
 
-> **Important:** Restart Claude Code after installing the plugin to ensure it is properly loaded.
-
-Additional optional plugins are available for specific use cases; browse them by running:
-
-```
-/plugin
-```
+This runs `beans prime` at session start and before context compaction, injecting instructions that teach Claude to use Beans for task tracking instead of its built-in TodoWrite tool.
 
 ### Other Agents
 
