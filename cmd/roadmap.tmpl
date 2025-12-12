@@ -15,7 +15,9 @@
 {{end}}
 {{- end}}
 {{- if .Other}}
+{{- if len .Epics}}
 ### Miscellaneous
+{{end}}
 
 {{range .Other -}}
 - {{typeBadge .}} {{.Title}} {{beanRef . $.Links $.LinkPrefix}}
@@ -23,8 +25,10 @@
 {{- end}}
 {{- end}}
 {{- if .Data.Unscheduled}}
+{{- if len $.Data.Milestones}}
 ## No Milestone
-{{range .Data.Unscheduled.Epics}}
+{{end}}
+{{- range .Data.Unscheduled.Epics}}
 ### Epic: {{.Epic.Title}} {{beanRef .Epic $.Links $.LinkPrefix}}
 {{with firstParagraph .Epic.Body}}
 > {{.}}
@@ -35,7 +39,9 @@
 {{end}}
 {{- end}}
 {{- if .Data.Unscheduled.Other}}
+{{- if len .Data.Unscheduled.Epics}}
 ### Miscellaneous
+{{end}}
 
 {{range .Data.Unscheduled.Other -}}
 - {{typeBadge .}} {{.Title}} {{beanRef . $.Links $.LinkPrefix}}
