@@ -82,19 +82,19 @@ The computed fields (`parent`, `children`, `blockedBy`, etc.) will be updated:
 
 ### Phase 1: Core Data Model (`internal/bean/`)
 
-- [ ] Update `Bean` struct to replace `Links` with new fields:
+- [x] Update `Bean` struct to replace `Links` with new fields:
   - `Milestone string` (single, optional)
   - `Epic string` (single, optional)
   - `Feature string` (single, optional)
   - `Related []string` (multiple)
   - `Blocks []string` (multiple)
   - `Duplicates []string` (multiple)
-- [ ] Remove `Link` struct and `Links` type (along with marshal/unmarshal methods)
-- [ ] Update `frontMatter` struct for parsing (handles yaml.v2 from frontmatter lib)
-- [ ] Update `renderFrontMatter` struct for serialization (yaml.v3)
-- [ ] Update `Parse()` function to handle new field structure
-- [ ] Update `Render()` function to output new YAML format
-- [ ] Add helper methods on `Bean`:
+- [x] Remove `Link` struct and `Links` type (along with marshal/unmarshal methods)
+- [x] Update `frontMatter` struct for parsing (handles yaml.v2 from frontmatter lib)
+- [x] Update `renderFrontMatter` struct for serialization (yaml.v3)
+- [x] Update `Parse()` function to handle new field structure
+- [x] Update `Render()` function to output new YAML format
+- [x] Add helper methods on `Bean`:
   - `HasBlock(target string) bool`
   - `AddBlock(target string)`
   - `RemoveBlock(target string)`
@@ -104,12 +104,12 @@ The computed fields (`parent`, `children`, `blockedBy`, etc.) will be updated:
   - `HasDuplicate(target string) bool`
   - `AddDuplicate(target string)`
   - `RemoveDuplicate(target string)`
-- [ ] Update/add tests in `bean_test.go` for new format
+- [x] Update/add tests in `bean_test.go` for new format
 
 ### Phase 2: Link Validation (`internal/beancore/`)
 
-- [ ] Update `KnownLinkTypes` in `core.go` (or remove if no longer needed)
-- [ ] Refactor `links.go` to work with new field structure:
+- [x] Update `KnownLinkTypes` in `core.go` (or remove if no longer needed)
+- [x] Refactor `links.go` to work with new field structure:
   - Update `IncomingLink` struct if needed
   - Update `FindIncomingLinks()` to check `Blocks`, `Milestone`, `Epic`, `Feature` fields
   - Update `DetectCycle()` for `Blocks` (no longer need parent cycles)
@@ -121,13 +121,13 @@ The computed fields (`parent`, `children`, `blockedBy`, etc.) will be updated:
     - Check for self-references
   - Update `FixBrokenLinks()` to clean all new fields
   - Update `RemoveLinksTo()` to clean all new fields when a bean is deleted
-- [ ] Add new validation functions:
+- [x] Add new validation functions:
   - `ValidateHierarchyLinks(bean, allBeans)` - checks type constraints
-- [ ] Update tests in `links_test.go`
+- [x] Update tests in `links_test.go`
 
 ### Phase 3: GraphQL Schema (`internal/graph/`)
 
-- [ ] Update `schema.graphqls`:
+- [x] Update `schema.graphqls`:
   - Update `Bean` type:
     - Remove `links: [Link!]!`
     - Add `milestone: Bean` (resolved target)
@@ -160,19 +160,19 @@ The computed fields (`parent`, `children`, `blockedBy`, etc.) will be updated:
     - `removeRelated(id: ID!, target: String!): Bean!`
     - `addDuplicate(id: ID!, target: String!): Bean!`
     - `removeDuplicate(id: ID!, target: String!): Bean!`
-- [ ] Run `mise codegen` to regenerate resolver stubs
-- [ ] Update resolvers in `schema.resolvers.go`:
+- [x] Run `mise codegen` to regenerate resolver stubs
+- [x] Update resolvers in `schema.resolvers.go`:
   - Implement new field resolvers (`Milestone()`, `Epic()`, `Feature()`, etc.)
   - Implement inverse resolvers (`MilestoneItems()`, `EpicItems()`, `FeatureItems()`)
   - Update `BlockedBy()`, `Blocks()`, `Duplicates()`, `Related()` for new data model
   - Update `CreateBean` mutation handler
   - Update `UpdateBean` mutation handler
   - Update/remove `AddLink`/`RemoveLink` mutation handlers
-- [ ] Update query filtering in `query.resolvers.go` for new link structure
+- [x] Update query filtering in `query.resolvers.go` for new link structure
 
 ### Phase 4: CLI Commands (`cmd/`)
 
-- [ ] Update `create.go`:
+- [x] Update `create.go`:
   - Replace `--link type:id` with specific flags:
     - `--milestone <id>`
     - `--epic <id>`
@@ -181,7 +181,7 @@ The computed fields (`parent`, `children`, `blockedBy`, etc.) will be updated:
     - `--related <id>` (repeatable)
     - `--duplicate <id>` (repeatable)
   - Update GraphQL mutation call
-- [ ] Update `update.go`:
+- [x] Update `update.go`:
   - Replace `--link`/`--unlink` with specific flags:
     - `--milestone <id>` / `--no-milestone`
     - `--epic <id>` / `--no-epic`
@@ -190,21 +190,21 @@ The computed fields (`parent`, `children`, `blockedBy`, etc.) will be updated:
     - `--related <id>` (repeatable) / `--unrelated <id>` (repeatable)
     - `--duplicate <id>` (repeatable) / `--unduplicate <id>` (repeatable)
   - Update GraphQL mutation calls (use the explicit mutations)
-- [ ] Update `content.go`:
+- [x] Update `content.go`:
   - Remove `parseLink()` function (no longer needed)
   - Remove `isKnownLinkType()` function (or adapt)
   - Update `applyLinks()` → split into specific validation functions
   - Update cycle detection for new structure
-- [ ] Update `show.go` output formatting for new fields
-- [ ] Update any other commands that reference links
+- [x] Update `show.go` output formatting for new fields
+- [x] Update any other commands that reference links
 
 ### Phase 5: Documentation & Cleanup
 
-- [ ] Update README.md with new link structure
-- [ ] Update `.beans.yml` example/docs if needed
-- [ ] Update the agent prompt in `cmd/prime.go` with new link syntax
-- [ ] Clean up any deprecated code
-- [ ] Run full test suite and fix any failures
+- [x] Update README.md with new link structure
+- [x] Update `.beans.yml` example/docs if needed
+- [x] Update the agent prompt in `cmd/prime.go` with new link syntax
+- [x] Clean up any deprecated code
+- [x] Run full test suite and fix any failures
 
 ## Breaking Changes
 
