@@ -21,10 +21,10 @@ var (
 	updateBody     string
 	updateBodyFile string
 	updateParent   string
-	updateNoParent bool
-	updateBlock    []string
-	updateUnblock  []string
-	updateTag      []string
+	updateNoParent   bool
+	updateBlocking   []string
+	updateUnblocking []string
+	updateTag        []string
 	updateUntag    []string
 	updateJSON     bool
 )
@@ -42,8 +42,8 @@ Use flags to specify which properties to update:
   --body         Change the body (use '-' to read from stdin)
   --parent       Set parent bean ID
   --no-parent    Remove parent
-  --block        Add blocking relationship (can be repeated)
-  --unblock      Remove blocking relationship (can be repeated)
+  --blocking     Add to blocking list (can be repeated)
+  --unblocking   Remove from blocking list (can be repeated)
   --tag          Add a tag (can be repeated)
   --untag        Remove a tag (can be repeated)`,
 	Args: cobra.ExactArgs(1),
@@ -92,7 +92,7 @@ Use flags to specify which properties to update:
 		}
 
 		// Process blocking additions
-		for _, targetID := range updateBlock {
+		for _, targetID := range updateBlocking {
 			b, err = resolver.Mutation().AddBlocking(ctx, b.ID, targetID)
 			if err != nil {
 				return cmdError(updateJSON, output.ErrValidation, "%s", err)
@@ -101,7 +101,7 @@ Use flags to specify which properties to update:
 		}
 
 		// Process blocking removals
-		for _, targetID := range updateUnblock {
+		for _, targetID := range updateUnblocking {
 			b, err = resolver.Mutation().RemoveBlocking(ctx, b.ID, targetID)
 			if err != nil {
 				return cmdError(updateJSON, output.ErrValidation, "%s", err)
@@ -112,7 +112,7 @@ Use flags to specify which properties to update:
 		// Require at least one change
 		if len(changes) == 0 {
 			return cmdError(updateJSON, output.ErrValidation,
-				"no changes specified (use --status, --type, --priority, --title, --body, --parent, --block, --unblock, --tag, or --untag)")
+				"no changes specified (use --status, --type, --priority, --title, --body, --parent, --blocking, --unblocking, --tag, or --untag)")
 		}
 
 		// Output result
@@ -205,8 +205,8 @@ func init() {
 	updateCmd.Flags().StringVar(&updateBodyFile, "body-file", "", "Read body from file")
 	updateCmd.Flags().StringVar(&updateParent, "parent", "", "Set parent bean ID")
 	updateCmd.Flags().BoolVar(&updateNoParent, "no-parent", false, "Remove parent")
-	updateCmd.Flags().StringArrayVar(&updateBlock, "block", nil, "Add blocking relationship (can be repeated)")
-	updateCmd.Flags().StringArrayVar(&updateUnblock, "unblock", nil, "Remove blocking relationship (can be repeated)")
+	updateCmd.Flags().StringArrayVar(&updateBlocking, "blocking", nil, "ID of bean this blocks (can be repeated)")
+	updateCmd.Flags().StringArrayVar(&updateUnblocking, "unblocking", nil, "ID of bean to unblock (can be repeated)")
 	updateCmd.Flags().StringArrayVar(&updateTag, "tag", nil, "Add tag (can be repeated)")
 	updateCmd.Flags().StringArrayVar(&updateUntag, "untag", nil, "Remove tag (can be repeated)")
 	updateCmd.MarkFlagsMutuallyExclusive("parent", "no-parent")

@@ -21,7 +21,7 @@ var (
 	createBodyFile string
 	createTag      []string
 	createParent   string
-	createBlock    []string
+	createBlocking []string
 	createJSON     bool
 )
 
@@ -81,8 +81,8 @@ var createCmd = &cobra.Command{
 		}
 
 		// Add blocking
-		if len(createBlock) > 0 {
-			input.Blocking = createBlock
+		if len(createBlocking) > 0 {
+			input.Blocking = createBlocking
 		}
 
 		// Create via GraphQL mutation
@@ -123,7 +123,7 @@ func init() {
 	createCmd.Flags().StringVar(&createBodyFile, "body-file", "", "Read body from file")
 	createCmd.Flags().StringArrayVar(&createTag, "tag", nil, "Add tag (can be repeated)")
 	createCmd.Flags().StringVar(&createParent, "parent", "", "Parent bean ID")
-	createCmd.Flags().StringArrayVar(&createBlock, "block", nil, "Bean ID this bean blocks (can be repeated)")
+	createCmd.Flags().StringArrayVar(&createBlocking, "blocking", nil, "ID of bean this blocks (can be repeated)")
 	createCmd.Flags().BoolVar(&createJSON, "json", false, "Output as JSON")
 	createCmd.MarkFlagsMutuallyExclusive("body", "body-file")
 	rootCmd.AddCommand(createCmd)
