@@ -54,21 +54,6 @@ type epicGroup struct {
 	Items []*bean.Bean `json:"items,omitempty"`
 }
 
-// templateData holds the data passed to the roadmap template.
-type templateData struct {
-	Data       *roadmapData
-	Links      bool
-	LinkPrefix string
-}
-
-// roadmapTmpl is the parsed roadmap template.
-var roadmapTmpl = template.Must(
-	template.New("roadmap").Funcs(template.FuncMap{
-		"beanRef":        renderBeanRef,
-		"firstParagraph": firstParagraph,
-		"typeBadge":      typeBadge,
-	}).Parse(roadmapTemplateContent),
-)
 
 var roadmapCmd = &cobra.Command{
 	Use:   "roadmap",
@@ -352,14 +337,19 @@ func sortByTypeThenStatus(beans []*bean.Bean, cfg interface {
 
 // renderRoadmapMarkdown renders the roadmap as Markdown using the template.
 func renderRoadmapMarkdown(data *roadmapData, links bool, linkPrefix string) string {
+	// Create template with closures that capture link settings
+	tmpl := template.Must(
+		template.New("roadmap").Funcs(template.FuncMap{
+			"firstParagraph": firstParagraph,
+			"typeBadge":      typeBadge,
+			"beanRef": func(b *bean.Bean) string {
+				return renderBeanRef(b, links, linkPrefix)
+			},
+		}).Parse(roadmapTemplateContent),
+	)
+
 	var sb strings.Builder
-	td := templateData{
-		Data:       data,
-		Links:      links,
-		LinkPrefix: linkPrefix,
-	}
-	if err := roadmapTmpl.Execute(&sb, td); err != nil {
-		// Template is parsed at init, so this should never happen
+	if err := tmpl.Execute(&sb, data); err != nil {
 		panic(err)
 	}
 	return sb.String()
