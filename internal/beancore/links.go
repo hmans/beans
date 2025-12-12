@@ -46,6 +46,36 @@ func (r *LinkCheckResult) TotalIssues() int {
 	return len(r.BrokenLinks) + len(r.SelfLinks) + len(r.Cycles)
 }
 
+// getAllLinkTargets returns all link targets from a bean with their types.
+// Returns a slice of (linkType, target) tuples.
+func getAllLinkTargets(b *bean.Bean) [][2]string {
+	var result [][2]string
+
+	// Hierarchy links (single targets)
+	if b.Milestone != "" {
+		result = append(result, [2]string{"milestone", b.Milestone})
+	}
+	if b.Epic != "" {
+		result = append(result, [2]string{"epic", b.Epic})
+	}
+	if b.Feature != "" {
+		result = append(result, [2]string{"feature", b.Feature})
+	}
+
+	// Relationship links (multiple targets)
+	for _, target := range b.Blocks {
+		result = append(result, [2]string{"blocks", target})
+	}
+	for _, target := range b.Related {
+		result = append(result, [2]string{"related", target})
+	}
+	for _, target := range b.Duplicates {
+		result = append(result, [2]string{"duplicates", target})
+	}
+
+	return result
+}
+
 // FindIncomingLinks returns all beans that link TO the given bean ID.
 func (c *Core) FindIncomingLinks(targetID string) []IncomingLink {
 	c.mu.RLock()
@@ -53,11 +83,11 @@ func (c *Core) FindIncomingLinks(targetID string) []IncomingLink {
 
 	var result []IncomingLink
 	for _, b := range c.beans {
-		for _, link := range b.Links {
-			if link.Target == targetID {
+		for _, link := range getAllLinkTargets(b) {
+			if link[1] == targetID {
 				result = append(result, IncomingLink{
 					FromBean: b,
-					LinkType: link.Type,
+					LinkType: link[0],
 				})
 			}
 		}
@@ -65,12 +95,22 @@ func (c *Core) FindIncomingLinks(targetID string) []IncomingLink {
 	return result
 }
 
+// isHierarchyLinkType returns true if the link type represents a hierarchy relationship.
+func isHierarchyLinkType(linkType string) bool {
+	switch linkType {
+	case "blocks", "milestone", "epic", "feature":
+		return true
+	default:
+		return false
+	}
+}
+
 // DetectCycle checks if adding a link from fromID to toID would create a cycle.
-// Only checks for blocks and parent link types.
+// Checks hierarchical link types: blocks, milestone, epic, feature.
 // Returns the cycle path if a cycle would be created, nil otherwise.
 func (c *Core) DetectCycle(fromID, linkType, toID string) []string {
-	// Only check hierarchical link types
-	if linkType != "blocks" && linkType != "parent" {
+	// Only check hierarchical link types for cycles
+	if !isHierarchyLinkType(linkType) {
 		return nil
 	}
 
@@ -103,12 +143,28 @@ func (c *Core) findPathToTarget(current, target, linkType string, visited map[st
 		return nil
 	}
 
-	for _, link := range b.Links {
-		if link.Type != linkType {
-			continue
+	// Get targets for the specific link type
+	var targets []string
+	switch linkType {
+	case "blocks":
+		targets = b.Blocks
+	case "milestone":
+		if b.Milestone != "" {
+			targets = []string{b.Milestone}
 		}
-		newPath := append(path, link.Target)
-		if result := c.findPathToTarget(link.Target, target, linkType, visited, newPath); result != nil {
+	case "epic":
+		if b.Epic != "" {
+			targets = []string{b.Epic}
+		}
+	case "feature":
+		if b.Feature != "" {
+			targets = []string{b.Feature}
+		}
+	}
+
+	for _, t := range targets {
+		newPath := append(path, t)
+		if result := c.findPathToTarget(t, target, linkType, visited, newPath); result != nil {
 			return result
 		}
 	}
@@ -129,32 +185,32 @@ func (c *Core) CheckAllLinks() *LinkCheckResult {
 
 	// Check for broken links and self-references
 	for _, b := range c.beans {
-		for _, link := range b.Links {
+		for _, link := range getAllLinkTargets(b) {
+			linkType, target := link[0], link[1]
+
 			// Check for self-reference
-			if link.Target == b.ID {
+			if target == b.ID {
 				result.SelfLinks = append(result.SelfLinks, SelfLink{
 					BeanID:   b.ID,
-					LinkType: link.Type,
+					LinkType: linkType,
 				})
 				continue
 			}
 
 			// Check if target exists
-			if _, ok := c.beans[link.Target]; !ok {
+			if _, ok := c.beans[target]; !ok {
 				result.BrokenLinks = append(result.BrokenLinks, BrokenLink{
 					BeanID:   b.ID,
-					LinkType: link.Type,
-					Target:   link.Target,
+					LinkType: linkType,
+					Target:   target,
 				})
 			}
 		}
 	}
 
-	// Check for cycles in blocks and parent links
-	for _, linkType := range []string{"blocks", "parent"} {
-		cycles := c.findCycles(linkType)
-		result.Cycles = append(result.Cycles, cycles...)
-	}
+	// Check for cycles in blocks links only
+	cycles := c.findCycles("blocks")
+	result.Cycles = append(result.Cycles, cycles...)
 
 	return result
 }
@@ -201,10 +257,14 @@ func (c *Core) findCycles(linkType string) []Cycle {
 
 		b, ok := c.beans[id]
 		if ok {
-			for _, link := range b.Links {
-				if link.Type == linkType {
-					dfs(link.Target, append(path, id))
-				}
+			// Get targets for the specific link type
+			var targets []string
+			if linkType == "blocks" {
+				targets = b.Blocks
+			}
+
+			for _, t := range targets {
+				dfs(t, append(path, id))
 			}
 		}
 
@@ -259,24 +319,66 @@ func (c *Core) RemoveLinksTo(targetID string) (int, error) {
 
 	removed := 0
 	for _, b := range c.beans {
-		originalLen := len(b.Links)
-		var newLinks bean.Links
-		for _, link := range b.Links {
-			if link.Target != targetID {
-				newLinks = append(newLinks, link)
-			}
+		changed := false
+
+		// Check hierarchy links
+		if b.Milestone == targetID {
+			b.Milestone = ""
+			changed = true
+			removed++
+		}
+		if b.Epic == targetID {
+			b.Epic = ""
+			changed = true
+			removed++
+		}
+		if b.Feature == targetID {
+			b.Feature = ""
+			changed = true
+			removed++
 		}
 
-		if len(newLinks) < originalLen {
-			b.Links = newLinks
+		// Check relationship links
+		originalBlocks := len(b.Blocks)
+		b.Blocks = removeFromSlice(b.Blocks, targetID)
+		if len(b.Blocks) < originalBlocks {
+			changed = true
+			removed += originalBlocks - len(b.Blocks)
+		}
+
+		originalRelated := len(b.Related)
+		b.Related = removeFromSlice(b.Related, targetID)
+		if len(b.Related) < originalRelated {
+			changed = true
+			removed += originalRelated - len(b.Related)
+		}
+
+		originalDuplicates := len(b.Duplicates)
+		b.Duplicates = removeFromSlice(b.Duplicates, targetID)
+		if len(b.Duplicates) < originalDuplicates {
+			changed = true
+			removed += originalDuplicates - len(b.Duplicates)
+		}
+
+		if changed {
 			if err := c.saveToDisk(b); err != nil {
 				return removed, err
 			}
-			removed += originalLen - len(newLinks)
 		}
 	}
 
 	return removed, nil
+}
+
+// removeFromSlice removes all occurrences of target from slice.
+func removeFromSlice(slice []string, target string) []string {
+	result := make([]string, 0, len(slice))
+	for _, s := range slice {
+		if s != target {
+			result = append(result, s)
+		}
+	}
+	return result
 }
 
 // FixBrokenLinks removes all broken links (links to non-existent beans) and self-references.
@@ -287,28 +389,70 @@ func (c *Core) FixBrokenLinks() (int, error) {
 
 	fixed := 0
 	for _, b := range c.beans {
-		originalLen := len(b.Links)
-		var newLinks bean.Links
-		for _, link := range b.Links {
-			// Skip self-references
-			if link.Target == b.ID {
-				continue
-			}
-			// Skip broken links (target doesn't exist)
-			if _, ok := c.beans[link.Target]; !ok {
-				continue
-			}
-			newLinks = append(newLinks, link)
+		changed := false
+
+		// Fix hierarchy links
+		if b.Milestone != "" && (b.Milestone == b.ID || c.beans[b.Milestone] == nil) {
+			b.Milestone = ""
+			changed = true
+			fixed++
+		}
+		if b.Epic != "" && (b.Epic == b.ID || c.beans[b.Epic] == nil) {
+			b.Epic = ""
+			changed = true
+			fixed++
+		}
+		if b.Feature != "" && (b.Feature == b.ID || c.beans[b.Feature] == nil) {
+			b.Feature = ""
+			changed = true
+			fixed++
 		}
 
-		if len(newLinks) < originalLen {
-			b.Links = newLinks
+		// Fix relationship links
+		originalBlocks := len(b.Blocks)
+		b.Blocks = filterValidLinks(b.Blocks, b.ID, c.beans)
+		if len(b.Blocks) < originalBlocks {
+			changed = true
+			fixed += originalBlocks - len(b.Blocks)
+		}
+
+		originalRelated := len(b.Related)
+		b.Related = filterValidLinks(b.Related, b.ID, c.beans)
+		if len(b.Related) < originalRelated {
+			changed = true
+			fixed += originalRelated - len(b.Related)
+		}
+
+		originalDuplicates := len(b.Duplicates)
+		b.Duplicates = filterValidLinks(b.Duplicates, b.ID, c.beans)
+		if len(b.Duplicates) < originalDuplicates {
+			changed = true
+			fixed += originalDuplicates - len(b.Duplicates)
+		}
+
+		if changed {
 			if err := c.saveToDisk(b); err != nil {
 				return fixed, err
 			}
-			fixed += originalLen - len(newLinks)
 		}
 	}
 
 	return fixed, nil
+}
+
+// filterValidLinks returns only links that exist and are not self-references.
+func filterValidLinks(links []string, selfID string, beans map[string]*bean.Bean) []string {
+	result := make([]string, 0, len(links))
+	for _, target := range links {
+		// Skip self-references
+		if target == selfID {
+			continue
+		}
+		// Skip broken links (target doesn't exist)
+		if _, ok := beans[target]; !ok {
+			continue
+		}
+		result = append(result, target)
+	}
+	return result
 }

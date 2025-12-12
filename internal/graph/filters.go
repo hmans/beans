@@ -119,16 +119,75 @@ outer:
 	return result
 }
 
-// matchesLinkFilter checks if a bean link matches a LinkFilter.
-// If filter.Target is nil, matches any target; otherwise matches specific target.
-func matchesLinkFilter(link bean.Link, filter *model.LinkFilter) bool {
-	if link.Type != filter.Type {
+// hasOutgoingLink checks if a bean has an outgoing link matching the filter.
+func hasOutgoingLink(b *bean.Bean, filter *model.LinkFilter) bool {
+	switch filter.Type {
+	case "milestone":
+		if b.Milestone == "" {
+			return false
+		}
+		if filter.Target == nil {
+			return true
+		}
+		return b.Milestone == *filter.Target
+	case "epic":
+		if b.Epic == "" {
+			return false
+		}
+		if filter.Target == nil {
+			return true
+		}
+		return b.Epic == *filter.Target
+	case "feature":
+		if b.Feature == "" {
+			return false
+		}
+		if filter.Target == nil {
+			return true
+		}
+		return b.Feature == *filter.Target
+	case "blocks":
+		if len(b.Blocks) == 0 {
+			return false
+		}
+		if filter.Target == nil {
+			return true
+		}
+		for _, target := range b.Blocks {
+			if target == *filter.Target {
+				return true
+			}
+		}
+		return false
+	case "related":
+		if len(b.Related) == 0 {
+			return false
+		}
+		if filter.Target == nil {
+			return true
+		}
+		for _, target := range b.Related {
+			if target == *filter.Target {
+				return true
+			}
+		}
+		return false
+	case "duplicates":
+		if len(b.Duplicates) == 0 {
+			return false
+		}
+		if filter.Target == nil {
+			return true
+		}
+		for _, target := range b.Duplicates {
+			if target == *filter.Target {
+				return true
+			}
+		}
+		return false
+	default:
 		return false
 	}
-	if filter.Target == nil {
-		return true // type-only match
-	}
-	return link.Target == *filter.Target
 }
 
 // filterByOutgoingLinks filters beans to include only those with outgoing links matching the filters (OR logic).
@@ -139,20 +198,11 @@ func filterByOutgoingLinks(beans []*bean.Bean, filters []*model.LinkFilter) []*b
 
 	var result []*bean.Bean
 	for _, b := range beans {
-		matched := false
-		for _, link := range b.Links {
-			for _, f := range filters {
-				if matchesLinkFilter(link, f) {
-					matched = true
-					break
-				}
-			}
-			if matched {
+		for _, f := range filters {
+			if hasOutgoingLink(b, f) {
+				result = append(result, b)
 				break
 			}
-		}
-		if matched {
-			result = append(result, b)
 		}
 	}
 	return result
@@ -167,11 +217,9 @@ func excludeByOutgoingLinks(beans []*bean.Bean, filters []*model.LinkFilter) []*
 	var result []*bean.Bean
 outer:
 	for _, b := range beans {
-		for _, link := range b.Links {
-			for _, f := range filters {
-				if matchesLinkFilter(link, f) {
-					continue outer
-				}
+		for _, f := range filters {
+			if hasOutgoingLink(b, f) {
+				continue outer
 			}
 		}
 		result = append(result, b)

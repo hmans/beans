@@ -55,6 +55,25 @@ func (n *TreeNode) ToJSON(includeFull bool) *TreeNodeJSON {
 	return json
 }
 
+// getEffectiveParent returns the primary parent ID for tree hierarchy.
+// Priority: feature (for tasks/bugs) > epic > milestone
+// Returns empty string if no parent is set.
+func getEffectiveParent(b *bean.Bean) string {
+	// Feature is the most specific hierarchy (only for tasks/bugs)
+	if b.Feature != "" && (b.Type == "task" || b.Type == "bug") {
+		return b.Feature
+	}
+	// Epic is the next level
+	if b.Epic != "" {
+		return b.Epic
+	}
+	// Milestone is the broadest hierarchy
+	if b.Milestone != "" {
+		return b.Milestone
+	}
+	return ""
+}
+
 // BuildTree builds a tree structure from filtered beans, including ancestors for context.
 // matchedBeans: beans that matched the filter
 // allBeans: all beans (needed to find ancestors)
@@ -87,9 +106,8 @@ func BuildTree(matchedBeans []*bean.Bean, allBeans []*bean.Bean, sortFn func([]*
 	// Build children index (parent ID -> children)
 	children := make(map[string][]*bean.Bean)
 	for _, b := range neededBeans {
-		parentIDs := b.Links.Targets("parent")
-		if len(parentIDs) > 0 {
-			parentID := parentIDs[0] // beans can only have one parent
+		parentID := getEffectiveParent(b)
+		if parentID != "" {
 			// Only add as child if parent is in our needed set
 			if _, ok := neededBeans[parentID]; ok {
 				children[parentID] = append(children[parentID], b)
@@ -105,12 +123,11 @@ func BuildTree(matchedBeans []*bean.Bean, allBeans []*bean.Bean, sortFn func([]*
 	// Find root beans (no parent or parent not in needed set)
 	var roots []*bean.Bean
 	for _, b := range neededBeans {
-		parentIDs := b.Links.Targets("parent")
-		if len(parentIDs) == 0 {
+		parentID := getEffectiveParent(b)
+		if parentID == "" {
 			roots = append(roots, b)
 		} else {
 			// Check if parent is in the tree
-			parentID := parentIDs[0]
 			if _, ok := neededBeans[parentID]; !ok {
 				roots = append(roots, b)
 			}
@@ -124,11 +141,10 @@ func BuildTree(matchedBeans []*bean.Bean, allBeans []*bean.Bean, sortFn func([]*
 
 // addAncestors recursively adds all ancestors of a bean to the needed set.
 func addAncestors(b *bean.Bean, beanByID map[string]*bean.Bean, needed map[string]*bean.Bean) {
-	parentIDs := b.Links.Targets("parent")
-	if len(parentIDs) == 0 {
+	parentID := getEffectiveParent(b)
+	if parentID == "" {
 		return
 	}
-	parentID := parentIDs[0]
 	parent, ok := beanByID[parentID]
 	if !ok {
 		return // parent doesn't exist (broken link)

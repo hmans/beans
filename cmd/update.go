@@ -20,11 +20,26 @@ var (
 	updateTitle    string
 	updateBody     string
 	updateBodyFile string
-	updateLink     []string
-	updateUnlink   []string
-	updateTag    []string
-	updateUntag  []string
-	updateJSON   bool
+	updateTag      []string
+	updateUntag    []string
+
+	// Hierarchy link flags
+	updateMilestone   string
+	updateNoMilestone bool
+	updateEpic        string
+	updateNoEpic      bool
+	updateFeature     string
+	updateNoFeature   bool
+
+	// Relationship link flags
+	updateBlock      []string
+	updateUnblock    []string
+	updateRelated    []string
+	updateUnrelated  []string
+	updateDuplicate  []string
+	updateUnduplicate []string
+
+	updateJSON bool
 )
 
 var updateCmd = &cobra.Command{
@@ -33,17 +48,22 @@ var updateCmd = &cobra.Command{
 	Long: `Updates one or more properties of an existing bean.
 
 Use flags to specify which properties to update:
-  --status       Change the status
-  --type         Change the type
-  --priority     Change the priority
-  --title        Change the title
-  --body         Change the body (use '-' to read from stdin)
-  --link         Add a relationship (format: type:id, can be repeated)
-  --unlink       Remove a relationship (format: type:id, can be repeated)
-  --tag          Add a tag (can be repeated)
-  --untag        Remove a tag (can be repeated)
+  --status         Change the status
+  --type           Change the type
+  --priority       Change the priority
+  --title          Change the title
+  --body           Change the body (use '-' to read from stdin)
+  --tag/--untag    Add/remove tags
 
-Relationship types: blocks, duplicates, parent, related`,
+Hierarchy links:
+  --milestone/--no-milestone    Set/clear milestone
+  --epic/--no-epic              Set/clear epic
+  --feature/--no-feature        Set/clear feature
+
+Relationship links:
+  --block/--unblock             Add/remove block relationships
+  --related/--unrelated         Add/remove related relationships
+  --duplicate/--unduplicate     Add/remove duplicate relationships`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
@@ -76,36 +96,101 @@ Relationship types: blocks, duplicates, parent, related`,
 			}
 		}
 
-		// Process link additions
-		for _, linkStr := range updateLink {
-			linkType, target, err := parseLink(linkStr)
+		// Process hierarchy link changes
+		if cmd.Flags().Changed("milestone") {
+			b, err = resolver.Mutation().SetMilestone(ctx, b.ID, &updateMilestone)
 			if err != nil {
-				return cmdError(updateJSON, output.ErrValidation, "%s", err)
+				return cmdError(updateJSON, output.ErrValidation, "failed to set milestone: %s", err)
 			}
-			b, err = resolver.Mutation().AddLink(ctx, b.ID, model.LinkInput{Type: linkType, Target: target})
+			changes = append(changes, "milestone")
+		} else if updateNoMilestone {
+			b, err = resolver.Mutation().SetMilestone(ctx, b.ID, nil)
 			if err != nil {
-				return cmdError(updateJSON, output.ErrValidation, "%s", err)
+				return cmdError(updateJSON, output.ErrValidation, "failed to clear milestone: %s", err)
 			}
-			changes = append(changes, "links")
+			changes = append(changes, "milestone")
 		}
 
-		// Process link removals
-		for _, linkStr := range updateUnlink {
-			linkType, target, err := parseLink(linkStr)
+		if cmd.Flags().Changed("epic") {
+			b, err = resolver.Mutation().SetEpic(ctx, b.ID, &updateEpic)
 			if err != nil {
-				return cmdError(updateJSON, output.ErrValidation, "%s", err)
+				return cmdError(updateJSON, output.ErrValidation, "failed to set epic: %s", err)
 			}
-			b, err = resolver.Mutation().RemoveLink(ctx, b.ID, model.LinkInput{Type: linkType, Target: target})
+			changes = append(changes, "epic")
+		} else if updateNoEpic {
+			b, err = resolver.Mutation().SetEpic(ctx, b.ID, nil)
 			if err != nil {
-				return cmdError(updateJSON, output.ErrValidation, "%s", err)
+				return cmdError(updateJSON, output.ErrValidation, "failed to clear epic: %s", err)
 			}
-			changes = append(changes, "links")
+			changes = append(changes, "epic")
+		}
+
+		if cmd.Flags().Changed("feature") {
+			b, err = resolver.Mutation().SetFeature(ctx, b.ID, &updateFeature)
+			if err != nil {
+				return cmdError(updateJSON, output.ErrValidation, "failed to set feature: %s", err)
+			}
+			changes = append(changes, "feature")
+		} else if updateNoFeature {
+			b, err = resolver.Mutation().SetFeature(ctx, b.ID, nil)
+			if err != nil {
+				return cmdError(updateJSON, output.ErrValidation, "failed to clear feature: %s", err)
+			}
+			changes = append(changes, "feature")
+		}
+
+		// Process block changes
+		for _, target := range updateBlock {
+			b, err = resolver.Mutation().AddBlock(ctx, b.ID, target)
+			if err != nil {
+				return cmdError(updateJSON, output.ErrValidation, "failed to add block: %s", err)
+			}
+			changes = append(changes, "blocks")
+		}
+		for _, target := range updateUnblock {
+			b, err = resolver.Mutation().RemoveBlock(ctx, b.ID, target)
+			if err != nil {
+				return cmdError(updateJSON, output.ErrValidation, "failed to remove block: %s", err)
+			}
+			changes = append(changes, "blocks")
+		}
+
+		// Process related changes
+		for _, target := range updateRelated {
+			b, err = resolver.Mutation().AddRelated(ctx, b.ID, target)
+			if err != nil {
+				return cmdError(updateJSON, output.ErrValidation, "failed to add related: %s", err)
+			}
+			changes = append(changes, "related")
+		}
+		for _, target := range updateUnrelated {
+			b, err = resolver.Mutation().RemoveRelated(ctx, b.ID, target)
+			if err != nil {
+				return cmdError(updateJSON, output.ErrValidation, "failed to remove related: %s", err)
+			}
+			changes = append(changes, "related")
+		}
+
+		// Process duplicate changes
+		for _, target := range updateDuplicate {
+			b, err = resolver.Mutation().AddDuplicate(ctx, b.ID, target)
+			if err != nil {
+				return cmdError(updateJSON, output.ErrValidation, "failed to add duplicate: %s", err)
+			}
+			changes = append(changes, "duplicates")
+		}
+		for _, target := range updateUnduplicate {
+			b, err = resolver.Mutation().RemoveDuplicate(ctx, b.ID, target)
+			if err != nil {
+				return cmdError(updateJSON, output.ErrValidation, "failed to remove duplicate: %s", err)
+			}
+			changes = append(changes, "duplicates")
 		}
 
 		// Require at least one change
 		if len(changes) == 0 {
 			return cmdError(updateJSON, output.ErrValidation,
-				"no changes specified (use --status, --type, --priority, --title, --body, --link, --unlink, --tag, or --untag)")
+				"no changes specified (use --status, --type, --priority, --title, --body, --tag, --untag, or link flags)")
 		}
 
 		// Output result
@@ -196,11 +281,29 @@ func init() {
 	updateCmd.Flags().StringVar(&updateTitle, "title", "", "New title")
 	updateCmd.Flags().StringVarP(&updateBody, "body", "d", "", "New body (use '-' to read from stdin)")
 	updateCmd.Flags().StringVar(&updateBodyFile, "body-file", "", "Read body from file")
-	updateCmd.Flags().StringArrayVar(&updateLink, "link", nil, "Add relationship (format: type:id, can be repeated)")
-	updateCmd.Flags().StringArrayVar(&updateUnlink, "unlink", nil, "Remove relationship (format: type:id, can be repeated)")
 	updateCmd.Flags().StringArrayVar(&updateTag, "tag", nil, "Add tag (can be repeated)")
 	updateCmd.Flags().StringArrayVar(&updateUntag, "untag", nil, "Remove tag (can be repeated)")
+
+	// Hierarchy link flags
+	updateCmd.Flags().StringVar(&updateMilestone, "milestone", "", "Set milestone (bean ID)")
+	updateCmd.Flags().BoolVar(&updateNoMilestone, "no-milestone", false, "Clear milestone")
+	updateCmd.Flags().StringVar(&updateEpic, "epic", "", "Set epic (bean ID)")
+	updateCmd.Flags().BoolVar(&updateNoEpic, "no-epic", false, "Clear epic")
+	updateCmd.Flags().StringVar(&updateFeature, "feature", "", "Set feature (bean ID)")
+	updateCmd.Flags().BoolVar(&updateNoFeature, "no-feature", false, "Clear feature")
+
+	// Relationship link flags
+	updateCmd.Flags().StringArrayVar(&updateBlock, "block", nil, "Add block relationship (can be repeated)")
+	updateCmd.Flags().StringArrayVar(&updateUnblock, "unblock", nil, "Remove block relationship (can be repeated)")
+	updateCmd.Flags().StringArrayVar(&updateRelated, "related", nil, "Add related relationship (can be repeated)")
+	updateCmd.Flags().StringArrayVar(&updateUnrelated, "unrelated", nil, "Remove related relationship (can be repeated)")
+	updateCmd.Flags().StringArrayVar(&updateDuplicate, "duplicate", nil, "Add duplicate relationship (can be repeated)")
+	updateCmd.Flags().StringArrayVar(&updateUnduplicate, "unduplicate", nil, "Remove duplicate relationship (can be repeated)")
+
 	updateCmd.Flags().BoolVar(&updateJSON, "json", false, "Output as JSON")
 	updateCmd.MarkFlagsMutuallyExclusive("body", "body-file")
+	updateCmd.MarkFlagsMutuallyExclusive("milestone", "no-milestone")
+	updateCmd.MarkFlagsMutuallyExclusive("epic", "no-epic")
+	updateCmd.MarkFlagsMutuallyExclusive("feature", "no-feature")
 	rootCmd.AddCommand(updateCmd)
 }

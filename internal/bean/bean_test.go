@@ -519,296 +519,209 @@ func TestBeanJSONSerialization(t *testing.T) {
 }
 
 func TestParseWithLinks(t *testing.T) {
-	tests := []struct {
-		name          string
-		input         string
-		expectedLinks Links
-	}{
-		{
-			name: "single link",
-			input: `---
+	t.Run("hierarchy links", func(t *testing.T) {
+		input := `---
 title: Test
 status: todo
-links:
-  - blocks: abc123
----`,
-			expectedLinks: Links{
-				{Type: "blocks", Target: "abc123"},
-			},
-		},
-		{
-			name: "multiple links of same type",
-			input: `---
+milestone: m1
+epic: e1
+feature: f1
+---`
+		bean, err := Parse(strings.NewReader(input))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if bean.Milestone != "m1" {
+			t.Errorf("Milestone = %q, want %q", bean.Milestone, "m1")
+		}
+		if bean.Epic != "e1" {
+			t.Errorf("Epic = %q, want %q", bean.Epic, "e1")
+		}
+		if bean.Feature != "f1" {
+			t.Errorf("Feature = %q, want %q", bean.Feature, "f1")
+		}
+	})
+
+	t.Run("relationship links", func(t *testing.T) {
+		input := `---
 title: Test
 status: todo
-links:
-  - blocks: abc123
-  - blocks: def456
----`,
-			expectedLinks: Links{
-				{Type: "blocks", Target: "abc123"},
-				{Type: "blocks", Target: "def456"},
-			},
-		},
-		{
-			name: "multiple link types",
-			input: `---
+blocks:
+    - abc123
+    - def456
+related:
+    - xyz789
+duplicates:
+    - dup1
+---`
+		bean, err := Parse(strings.NewReader(input))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(bean.Blocks) != 2 || bean.Blocks[0] != "abc123" || bean.Blocks[1] != "def456" {
+			t.Errorf("Blocks = %v, want [abc123 def456]", bean.Blocks)
+		}
+		if len(bean.Related) != 1 || bean.Related[0] != "xyz789" {
+			t.Errorf("Related = %v, want [xyz789]", bean.Related)
+		}
+		if len(bean.Duplicates) != 1 || bean.Duplicates[0] != "dup1" {
+			t.Errorf("Duplicates = %v, want [dup1]", bean.Duplicates)
+		}
+	})
+
+	t.Run("no links", func(t *testing.T) {
+		input := `---
 title: Test
 status: todo
-links:
-  - blocks: abc123
-  - parent: xyz789
----`,
-			expectedLinks: Links{
-				{Type: "blocks", Target: "abc123"},
-				{Type: "parent", Target: "xyz789"},
-			},
-		},
-		{
-			name: "no links",
-			input: `---
-title: Test
-status: todo
----`,
-			expectedLinks: nil,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			bean, err := Parse(strings.NewReader(tt.input))
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-
-			if len(tt.expectedLinks) == 0 && len(bean.Links) == 0 {
-				return // Both empty, OK
-			}
-
-			if len(bean.Links) != len(tt.expectedLinks) {
-				t.Errorf("Links count = %d, want %d", len(bean.Links), len(tt.expectedLinks))
-				return
-			}
-
-			for i, expected := range tt.expectedLinks {
-				actual := bean.Links[i]
-				if actual.Type != expected.Type || actual.Target != expected.Target {
-					t.Errorf("Links[%d] = {%s, %s}, want {%s, %s}",
-						i, actual.Type, actual.Target, expected.Type, expected.Target)
-				}
-			}
-		})
-	}
+---`
+		bean, err := Parse(strings.NewReader(input))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if bean.Milestone != "" || bean.Epic != "" || bean.Feature != "" {
+			t.Error("expected empty hierarchy links")
+		}
+		if len(bean.Blocks) != 0 || len(bean.Related) != 0 || len(bean.Duplicates) != 0 {
+			t.Error("expected empty relationship links")
+		}
+	})
 }
 
 func TestRenderWithLinks(t *testing.T) {
-	tests := []struct {
-		name     string
-		bean     *Bean
-		contains []string
-	}{
-		{
-			name: "with single link",
-			bean: &Bean{
-				Title:  "Test Bean",
-				Status: "todo",
-				Links: Links{
-					{Type: "blocks", Target: "abc123"},
-				},
-			},
-			contains: []string{
-				"links:",
-				"- blocks: abc123",
-			},
-		},
-		{
-			name: "with multiple links",
-			bean: &Bean{
-				Title:  "Test Bean",
-				Status: "todo",
-				Links: Links{
-					{Type: "blocks", Target: "abc123"},
-					{Type: "blocks", Target: "def456"},
-					{Type: "parent", Target: "xyz789"},
-				},
-			},
-			contains: []string{
-				"links:",
-				"- blocks: abc123",
-				"- blocks: def456",
-				"- parent: xyz789",
-			},
-		},
-		{
-			name: "without links",
-			bean: &Bean{
-				Title:  "Test Bean",
-				Status: "todo",
-			},
-			contains: []string{
-				"title: Test Bean",
-			},
-		},
-	}
+	t.Run("with hierarchy links", func(t *testing.T) {
+		b := &Bean{
+			Title:     "Test Bean",
+			Status:    "todo",
+			Milestone: "m1",
+			Epic:      "e1",
+		}
+		output, err := b.Render()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		result := string(output)
+		if !strings.Contains(result, "milestone: m1") {
+			t.Errorf("output missing 'milestone: m1'\ngot:\n%s", result)
+		}
+		if !strings.Contains(result, "epic: e1") {
+			t.Errorf("output missing 'epic: e1'\ngot:\n%s", result)
+		}
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			output, err := tt.bean.Render()
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+	t.Run("with relationship links", func(t *testing.T) {
+		b := &Bean{
+			Title:  "Test Bean",
+			Status: "todo",
+			Blocks: []string{"abc123", "def456"},
+		}
+		output, err := b.Render()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		result := string(output)
+		if !strings.Contains(result, "blocks:") {
+			t.Errorf("output missing 'blocks:'\ngot:\n%s", result)
+		}
+		if !strings.Contains(result, "- abc123") {
+			t.Errorf("output missing '- abc123'\ngot:\n%s", result)
+		}
+	})
 
-			result := string(output)
-			for _, want := range tt.contains {
-				if !strings.Contains(result, want) {
-					t.Errorf("output missing %q\ngot:\n%s", want, result)
-				}
-			}
-
-			// Check that empty links don't appear in output
-			if tt.bean.Links == nil && strings.Contains(result, "links:") {
-				t.Errorf("output should not contain 'links:' when no links\ngot:\n%s", result)
-			}
-		})
-	}
+	t.Run("without links", func(t *testing.T) {
+		b := &Bean{
+			Title:  "Test Bean",
+			Status: "todo",
+		}
+		output, err := b.Render()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		result := string(output)
+		if strings.Contains(result, "milestone:") ||
+			strings.Contains(result, "epic:") ||
+			strings.Contains(result, "blocks:") {
+			t.Errorf("output should not contain link fields when no links\ngot:\n%s", result)
+		}
+	})
 }
 
 func TestLinksRoundtrip(t *testing.T) {
-	tests := []struct {
-		name  string
-		links Links
-	}{
-		{
-			name: "single link",
-			links: Links{
-				{Type: "blocks", Target: "abc123"},
-			},
-		},
-		{
-			name: "multiple links same type",
-			links: Links{
-				{Type: "blocks", Target: "abc123"},
-				{Type: "blocks", Target: "def456"},
-			},
-		},
-		{
-			name: "multiple link types",
-			links: Links{
-				{Type: "blocks", Target: "abc123"},
-				{Type: "parent", Target: "xyz789"},
-				{Type: "related", Target: "foo"},
-				{Type: "related", Target: "bar"},
-			},
-		},
+	original := &Bean{
+		Title:      "Test",
+		Status:     "todo",
+		Milestone:  "m1",
+		Epic:       "e1",
+		Feature:    "f1",
+		Blocks:     []string{"b1", "b2"},
+		Related:    []string{"r1"},
+		Duplicates: []string{"d1", "d2", "d3"},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			original := &Bean{
-				Title:  "Test",
-				Status: "todo",
-				Links:  tt.links,
-			}
+	rendered, err := original.Render()
+	if err != nil {
+		t.Fatalf("Render error: %v", err)
+	}
 
-			rendered, err := original.Render()
-			if err != nil {
-				t.Fatalf("Render error: %v", err)
-			}
+	parsed, err := Parse(strings.NewReader(string(rendered)))
+	if err != nil {
+		t.Fatalf("Parse error: %v", err)
+	}
 
-			parsed, err := Parse(strings.NewReader(string(rendered)))
-			if err != nil {
-				t.Fatalf("Parse error: %v", err)
-			}
-
-			if len(parsed.Links) != len(tt.links) {
-				t.Errorf("Links count: got %d, want %d", len(parsed.Links), len(tt.links))
-				return
-			}
-
-			for i, expected := range tt.links {
-				actual := parsed.Links[i]
-				if actual.Type != expected.Type || actual.Target != expected.Target {
-					t.Errorf("Links[%d] = {%s, %s}, want {%s, %s}",
-						i, actual.Type, actual.Target, expected.Type, expected.Target)
-				}
-			}
-		})
+	if parsed.Milestone != original.Milestone {
+		t.Errorf("Milestone = %q, want %q", parsed.Milestone, original.Milestone)
+	}
+	if parsed.Epic != original.Epic {
+		t.Errorf("Epic = %q, want %q", parsed.Epic, original.Epic)
+	}
+	if parsed.Feature != original.Feature {
+		t.Errorf("Feature = %q, want %q", parsed.Feature, original.Feature)
+	}
+	if len(parsed.Blocks) != len(original.Blocks) {
+		t.Errorf("Blocks count = %d, want %d", len(parsed.Blocks), len(original.Blocks))
+	}
+	if len(parsed.Related) != len(original.Related) {
+		t.Errorf("Related count = %d, want %d", len(parsed.Related), len(original.Related))
+	}
+	if len(parsed.Duplicates) != len(original.Duplicates) {
+		t.Errorf("Duplicates count = %d, want %d", len(parsed.Duplicates), len(original.Duplicates))
 	}
 }
 
 func TestLinksHelperMethods(t *testing.T) {
-	links := Links{
-		{Type: "blocks", Target: "abc"},
-		{Type: "blocks", Target: "def"},
-		{Type: "parent", Target: "xyz"},
+	b := &Bean{
+		Blocks: []string{"abc", "def"},
 	}
 
-	t.Run("HasType", func(t *testing.T) {
-		if !links.HasType("blocks") {
-			t.Error("expected HasType('blocks') = true")
+	t.Run("HasBlock", func(t *testing.T) {
+		if !b.HasBlock("abc") {
+			t.Error("expected HasBlock('abc') = true")
 		}
-		if !links.HasType("parent") {
-			t.Error("expected HasType('parent') = true")
-		}
-		if links.HasType("nonexistent") {
-			t.Error("expected HasType('nonexistent') = false")
+		if b.HasBlock("xyz") {
+			t.Error("expected HasBlock('xyz') = false")
 		}
 	})
 
-	t.Run("HasLink", func(t *testing.T) {
-		if !links.HasLink("blocks", "abc") {
-			t.Error("expected HasLink('blocks', 'abc') = true")
-		}
-		if !links.HasLink("parent", "xyz") {
-			t.Error("expected HasLink('parent', 'xyz') = true")
-		}
-		if links.HasLink("blocks", "xyz") {
-			t.Error("expected HasLink('blocks', 'xyz') = false")
-		}
-		if links.HasLink("parent", "abc") {
-			t.Error("expected HasLink('parent', 'abc') = false")
-		}
-	})
-
-	t.Run("Targets", func(t *testing.T) {
-		targets := links.Targets("blocks")
-		if len(targets) != 2 || targets[0] != "abc" || targets[1] != "def" {
-			t.Errorf("Targets('blocks') = %v, want [abc def]", targets)
-		}
-		targets = links.Targets("parent")
-		if len(targets) != 1 || targets[0] != "xyz" {
-			t.Errorf("Targets('parent') = %v, want [xyz]", targets)
-		}
-		targets = links.Targets("nonexistent")
-		if len(targets) != 0 {
-			t.Errorf("Targets('nonexistent') = %v, want []", targets)
-		}
-	})
-
-	t.Run("Add", func(t *testing.T) {
-		newLinks := links.Add("blocks", "ghi")
-		if len(newLinks) != 4 {
-			t.Errorf("Add new link: got len=%d, want 4", len(newLinks))
+	t.Run("AddBlock", func(t *testing.T) {
+		b2 := &Bean{Blocks: []string{"abc"}}
+		b2.AddBlock("def")
+		if len(b2.Blocks) != 2 {
+			t.Errorf("AddBlock: got len=%d, want 2", len(b2.Blocks))
 		}
 		// Adding duplicate should not add
-		sameLinks := links.Add("blocks", "abc")
-		if len(sameLinks) != 3 {
-			t.Errorf("Add duplicate: got len=%d, want 3", len(sameLinks))
+		b2.AddBlock("abc")
+		if len(b2.Blocks) != 2 {
+			t.Errorf("AddBlock duplicate: got len=%d, want 2", len(b2.Blocks))
 		}
 	})
 
-	t.Run("Remove", func(t *testing.T) {
-		newLinks := links.Remove("blocks", "abc")
-		if len(newLinks) != 2 {
-			t.Errorf("Remove existing: got len=%d, want 2", len(newLinks))
+	t.Run("RemoveBlock", func(t *testing.T) {
+		b2 := &Bean{Blocks: []string{"abc", "def"}}
+		b2.RemoveBlock("abc")
+		if len(b2.Blocks) != 1 {
+			t.Errorf("RemoveBlock: got len=%d, want 1", len(b2.Blocks))
 		}
-		if newLinks.HasLink("blocks", "abc") {
-			t.Error("Remove didn't remove the link")
-		}
-		// Removing non-existent should not change anything
-		sameLinks := links.Remove("blocks", "nonexistent")
-		if len(sameLinks) != 3 {
-			t.Errorf("Remove non-existent: got len=%d, want 3", len(sameLinks))
+		if b2.HasBlock("abc") {
+			t.Error("RemoveBlock didn't remove the block")
 		}
 	})
 }

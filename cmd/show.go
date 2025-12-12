@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/charmbracelet/glamour"
@@ -93,11 +92,11 @@ var showCmd = &cobra.Command{
 		header.WriteString(ui.Title.Render(b.Title))
 
 		// Display relationships
-		if len(b.Links) > 0 {
+		if linksStr := formatLinks(b); linksStr != "" {
 			header.WriteString("\n")
 			header.WriteString(ui.Muted.Render(strings.Repeat("─", 50)))
 			header.WriteString("\n")
-			header.WriteString(formatLinks(b.Links))
+			header.WriteString(linksStr)
 		}
 
 		header.WriteString("\n")
@@ -132,32 +131,43 @@ var showCmd = &cobra.Command{
 }
 
 // formatLinks formats links for display with consistent ordering.
-func formatLinks(links bean.Links) string {
-	if len(links) == 0 {
-		return ""
-	}
-
-	// Group links by type, then sort types for deterministic output
-	byType := make(map[string][]string)
-	for _, link := range links {
-		byType[link.Type] = append(byType[link.Type], link.Target)
-	}
-
-	types := make([]string, 0, len(byType))
-	for t := range byType {
-		types = append(types, t)
-	}
-	sort.Strings(types)
-
+func formatLinks(b *bean.Bean) string {
 	var parts []string
-	for _, linkType := range types {
-		targets := byType[linkType]
-		for _, target := range targets {
-			parts = append(parts, fmt.Sprintf("%s %s",
-				ui.Muted.Render(linkType+":"),
-				ui.ID.Render(target)))
-		}
+
+	// Hierarchy links
+	if b.Milestone != "" {
+		parts = append(parts, fmt.Sprintf("%s %s",
+			ui.Muted.Render("milestone:"),
+			ui.ID.Render(b.Milestone)))
 	}
+	if b.Epic != "" {
+		parts = append(parts, fmt.Sprintf("%s %s",
+			ui.Muted.Render("epic:"),
+			ui.ID.Render(b.Epic)))
+	}
+	if b.Feature != "" {
+		parts = append(parts, fmt.Sprintf("%s %s",
+			ui.Muted.Render("feature:"),
+			ui.ID.Render(b.Feature)))
+	}
+
+	// Relationship links
+	for _, target := range b.Blocks {
+		parts = append(parts, fmt.Sprintf("%s %s",
+			ui.Muted.Render("blocks:"),
+			ui.ID.Render(target)))
+	}
+	for _, target := range b.Related {
+		parts = append(parts, fmt.Sprintf("%s %s",
+			ui.Muted.Render("related:"),
+			ui.ID.Render(target)))
+	}
+	for _, target := range b.Duplicates {
+		parts = append(parts, fmt.Sprintf("%s %s",
+			ui.Muted.Render("duplicates:"),
+			ui.ID.Render(target)))
+	}
+
 	return strings.Join(parts, "\n")
 }
 

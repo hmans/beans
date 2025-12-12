@@ -98,11 +98,20 @@ func buildRoadmap(allBeans []*bean.Bean, includeDone bool, statusFilter, noStatu
 	}
 
 	// Build children index: parent ID -> children
-	// This maps each bean ID to the beans that have it as a parent
+	// This maps each bean ID to the beans that have it as their hierarchy parent
 	children := make(map[string][]*bean.Bean)
 	for _, b := range allBeans {
-		for _, parentID := range b.Links.Targets("parent") {
-			children[parentID] = append(children[parentID], b)
+		// Check milestone hierarchy
+		if b.Milestone != "" {
+			children[b.Milestone] = append(children[b.Milestone], b)
+		}
+		// Check epic hierarchy
+		if b.Epic != "" {
+			children[b.Epic] = append(children[b.Epic], b)
+		}
+		// Check feature hierarchy
+		if b.Feature != "" {
+			children[b.Feature] = append(children[b.Feature], b)
 		}
 	}
 
@@ -185,7 +194,7 @@ func buildRoadmap(allBeans []*bean.Bean, includeDone bool, statusFilter, noStatu
 			continue
 		}
 		// Skip if has a parent (it's under an unscheduled epic, handled above)
-		if len(b.Links.Targets("parent")) > 0 {
+		if b.Epic != "" || b.Feature != "" {
 			continue
 		}
 		// Apply done filter

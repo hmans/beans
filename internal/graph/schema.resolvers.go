@@ -13,14 +13,79 @@ import (
 	"github.com/hmans/beans/internal/graph/model"
 )
 
-// Links is the resolver for the links field.
-func (r *beanResolver) Links(ctx context.Context, obj *bean.Bean) ([]*bean.Link, error) {
-	// Convert []Link to []*Link
-	result := make([]*bean.Link, len(obj.Links))
-	for i := range obj.Links {
-		result[i] = &obj.Links[i]
+// MilestoneID is the resolver for the milestoneId field.
+func (r *beanResolver) MilestoneID(ctx context.Context, obj *bean.Bean) (*string, error) {
+	if obj.Milestone == "" {
+		return nil, nil
 	}
-	return result, nil
+	return &obj.Milestone, nil
+}
+
+// EpicID is the resolver for the epicId field.
+func (r *beanResolver) EpicID(ctx context.Context, obj *bean.Bean) (*string, error) {
+	if obj.Epic == "" {
+		return nil, nil
+	}
+	return &obj.Epic, nil
+}
+
+// FeatureID is the resolver for the featureId field.
+func (r *beanResolver) FeatureID(ctx context.Context, obj *bean.Bean) (*string, error) {
+	if obj.Feature == "" {
+		return nil, nil
+	}
+	return &obj.Feature, nil
+}
+
+// Milestone is the resolver for the milestone field.
+func (r *beanResolver) Milestone(ctx context.Context, obj *bean.Bean) (*bean.Bean, error) {
+	if obj.Milestone == "" {
+		return nil, nil
+	}
+	target, err := r.Core.Get(obj.Milestone)
+	if err == beancore.ErrNotFound {
+		return nil, nil // broken link
+	}
+	return target, err
+}
+
+// Epic is the resolver for the epic field.
+func (r *beanResolver) Epic(ctx context.Context, obj *bean.Bean) (*bean.Bean, error) {
+	if obj.Epic == "" {
+		return nil, nil
+	}
+	target, err := r.Core.Get(obj.Epic)
+	if err == beancore.ErrNotFound {
+		return nil, nil // broken link
+	}
+	return target, err
+}
+
+// Feature is the resolver for the feature field.
+func (r *beanResolver) Feature(ctx context.Context, obj *bean.Bean) (*bean.Bean, error) {
+	if obj.Feature == "" {
+		return nil, nil
+	}
+	target, err := r.Core.Get(obj.Feature)
+	if err == beancore.ErrNotFound {
+		return nil, nil // broken link
+	}
+	return target, err
+}
+
+// BlockIds is the resolver for the blockIds field.
+func (r *beanResolver) BlockIds(ctx context.Context, obj *bean.Bean) ([]string, error) {
+	return obj.Blocks, nil
+}
+
+// RelatedIds is the resolver for the relatedIds field.
+func (r *beanResolver) RelatedIds(ctx context.Context, obj *bean.Bean) ([]string, error) {
+	return obj.Related, nil
+}
+
+// DuplicateIds is the resolver for the duplicateIds field.
+func (r *beanResolver) DuplicateIds(ctx context.Context, obj *bean.Bean) ([]string, error) {
+	return obj.Duplicates, nil
 }
 
 // BlockedBy is the resolver for the blockedBy field.
@@ -38,37 +103,9 @@ func (r *beanResolver) BlockedBy(ctx context.Context, obj *bean.Bean) ([]*bean.B
 // Blocks is the resolver for the blocks field.
 func (r *beanResolver) Blocks(ctx context.Context, obj *bean.Bean) ([]*bean.Bean, error) {
 	var result []*bean.Bean
-	for _, link := range obj.Links {
-		if link.Type == "blocks" {
-			// Filter out broken links
-			if target, err := r.Core.Get(link.Target); err == nil {
-				result = append(result, target)
-			}
-		}
-	}
-	return result, nil
-}
-
-// Parent is the resolver for the parent field.
-func (r *beanResolver) Parent(ctx context.Context, obj *bean.Bean) (*bean.Bean, error) {
-	for _, link := range obj.Links {
-		if link.Type == "parent" {
-			// Filter out broken links
-			if target, err := r.Core.Get(link.Target); err == nil {
-				return target, nil
-			}
-		}
-	}
-	return nil, nil
-}
-
-// Children is the resolver for the children field.
-func (r *beanResolver) Children(ctx context.Context, obj *bean.Bean) ([]*bean.Bean, error) {
-	incoming := r.Core.FindIncomingLinks(obj.ID)
-	var result []*bean.Bean
-	for _, link := range incoming {
-		if link.LinkType == "parent" {
-			result = append(result, link.FromBean)
+	for _, targetID := range obj.Blocks {
+		if target, err := r.Core.Get(targetID); err == nil {
+			result = append(result, target)
 		}
 	}
 	return result, nil
@@ -81,12 +118,10 @@ func (r *beanResolver) Duplicates(ctx context.Context, obj *bean.Bean) ([]*bean.
 	var result []*bean.Bean
 
 	// Outgoing links
-	for _, link := range obj.Links {
-		if link.Type == "duplicates" {
-			if target, err := r.Core.Get(link.Target); err == nil && !seen[target.ID] {
-				seen[target.ID] = true
-				result = append(result, target)
-			}
+	for _, targetID := range obj.Duplicates {
+		if target, err := r.Core.Get(targetID); err == nil && !seen[target.ID] {
+			seen[target.ID] = true
+			result = append(result, target)
 		}
 	}
 
@@ -108,12 +143,10 @@ func (r *beanResolver) Related(ctx context.Context, obj *bean.Bean) ([]*bean.Bea
 	var result []*bean.Bean
 
 	// Outgoing links
-	for _, link := range obj.Links {
-		if link.Type == "related" {
-			if target, err := r.Core.Get(link.Target); err == nil && !seen[target.ID] {
-				seen[target.ID] = true
-				result = append(result, target)
-			}
+	for _, targetID := range obj.Related {
+		if target, err := r.Core.Get(targetID); err == nil && !seen[target.ID] {
+			seen[target.ID] = true
+			result = append(result, target)
 		}
 	}
 
@@ -128,14 +161,40 @@ func (r *beanResolver) Related(ctx context.Context, obj *bean.Bean) ([]*bean.Bea
 	return result, nil
 }
 
-// TargetBean is the resolver for the targetBean field.
-func (r *linkResolver) TargetBean(ctx context.Context, obj *bean.Link) (*bean.Bean, error) {
-	// Filter out broken links by returning nil
-	target, err := r.Core.Get(obj.Target)
-	if err == beancore.ErrNotFound {
-		return nil, nil
+// MilestoneItems is the resolver for the milestoneItems field.
+func (r *beanResolver) MilestoneItems(ctx context.Context, obj *bean.Bean) ([]*bean.Bean, error) {
+	incoming := r.Core.FindIncomingLinks(obj.ID)
+	var result []*bean.Bean
+	for _, link := range incoming {
+		if link.LinkType == "milestone" {
+			result = append(result, link.FromBean)
+		}
 	}
-	return target, err
+	return result, nil
+}
+
+// EpicItems is the resolver for the epicItems field.
+func (r *beanResolver) EpicItems(ctx context.Context, obj *bean.Bean) ([]*bean.Bean, error) {
+	incoming := r.Core.FindIncomingLinks(obj.ID)
+	var result []*bean.Bean
+	for _, link := range incoming {
+		if link.LinkType == "epic" {
+			result = append(result, link.FromBean)
+		}
+	}
+	return result, nil
+}
+
+// FeatureItems is the resolver for the featureItems field.
+func (r *beanResolver) FeatureItems(ctx context.Context, obj *bean.Bean) ([]*bean.Bean, error) {
+	incoming := r.Core.FindIncomingLinks(obj.ID)
+	var result []*bean.Bean
+	for _, link := range incoming {
+		if link.LinkType == "feature" {
+			result = append(result, link.FromBean)
+		}
+	}
+	return result, nil
 }
 
 // CreateBean is the resolver for the createBean field.
@@ -163,12 +222,26 @@ func (r *mutationResolver) CreateBean(ctx context.Context, input model.CreateBea
 		b.Tags = input.Tags
 	}
 
-	// Add links
-	for _, link := range input.Links {
-		b.Links = append(b.Links, bean.Link{
-			Type:   link.Type,
-			Target: link.Target,
-		})
+	// Hierarchy links
+	if input.Milestone != nil {
+		b.Milestone = *input.Milestone
+	}
+	if input.Epic != nil {
+		b.Epic = *input.Epic
+	}
+	if input.Feature != nil {
+		b.Feature = *input.Feature
+	}
+
+	// Relationship links
+	if len(input.Blocks) > 0 {
+		b.Blocks = input.Blocks
+	}
+	if len(input.Related) > 0 {
+		b.Related = input.Related
+	}
+	if len(input.Duplicates) > 0 {
+		b.Duplicates = input.Duplicates
 	}
 
 	if err := r.Core.Create(b); err != nil {
@@ -205,6 +278,28 @@ func (r *mutationResolver) UpdateBean(ctx context.Context, id string, input mode
 		b.Tags = input.Tags
 	}
 
+	// Hierarchy links (empty string clears)
+	if input.Milestone != nil {
+		b.Milestone = *input.Milestone
+	}
+	if input.Epic != nil {
+		b.Epic = *input.Epic
+	}
+	if input.Feature != nil {
+		b.Feature = *input.Feature
+	}
+
+	// Relationship links (replaces existing)
+	if input.Blocks != nil {
+		b.Blocks = input.Blocks
+	}
+	if input.Related != nil {
+		b.Related = input.Related
+	}
+	if input.Duplicates != nil {
+		b.Duplicates = input.Duplicates
+	}
+
 	if err := r.Core.Update(b); err != nil {
 		return nil, err
 	}
@@ -233,14 +328,18 @@ func (r *mutationResolver) DeleteBean(ctx context.Context, id string) (bool, err
 	return true, nil
 }
 
-// AddLink is the resolver for the addLink field.
-func (r *mutationResolver) AddLink(ctx context.Context, id string, link model.LinkInput) (*bean.Bean, error) {
+// SetMilestone is the resolver for the setMilestone field.
+func (r *mutationResolver) SetMilestone(ctx context.Context, id string, target *string) (*bean.Bean, error) {
 	b, err := r.Core.Get(id)
 	if err != nil {
 		return nil, err
 	}
 
-	b.Links = b.Links.Add(link.Type, link.Target)
+	if target == nil {
+		b.Milestone = ""
+	} else {
+		b.Milestone = *target
+	}
 
 	if err := r.Core.Update(b); err != nil {
 		return nil, err
@@ -249,14 +348,134 @@ func (r *mutationResolver) AddLink(ctx context.Context, id string, link model.Li
 	return b, nil
 }
 
-// RemoveLink is the resolver for the removeLink field.
-func (r *mutationResolver) RemoveLink(ctx context.Context, id string, link model.LinkInput) (*bean.Bean, error) {
+// SetEpic is the resolver for the setEpic field.
+func (r *mutationResolver) SetEpic(ctx context.Context, id string, target *string) (*bean.Bean, error) {
 	b, err := r.Core.Get(id)
 	if err != nil {
 		return nil, err
 	}
 
-	b.Links = b.Links.Remove(link.Type, link.Target)
+	if target == nil {
+		b.Epic = ""
+	} else {
+		b.Epic = *target
+	}
+
+	if err := r.Core.Update(b); err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// SetFeature is the resolver for the setFeature field.
+func (r *mutationResolver) SetFeature(ctx context.Context, id string, target *string) (*bean.Bean, error) {
+	b, err := r.Core.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	if target == nil {
+		b.Feature = ""
+	} else {
+		b.Feature = *target
+	}
+
+	if err := r.Core.Update(b); err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// AddBlock is the resolver for the addBlock field.
+func (r *mutationResolver) AddBlock(ctx context.Context, id string, target string) (*bean.Bean, error) {
+	b, err := r.Core.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	b.AddBlock(target)
+
+	if err := r.Core.Update(b); err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// RemoveBlock is the resolver for the removeBlock field.
+func (r *mutationResolver) RemoveBlock(ctx context.Context, id string, target string) (*bean.Bean, error) {
+	b, err := r.Core.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	b.RemoveBlock(target)
+
+	if err := r.Core.Update(b); err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// AddRelated is the resolver for the addRelated field.
+func (r *mutationResolver) AddRelated(ctx context.Context, id string, target string) (*bean.Bean, error) {
+	b, err := r.Core.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	b.AddRelated(target)
+
+	if err := r.Core.Update(b); err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// RemoveRelated is the resolver for the removeRelated field.
+func (r *mutationResolver) RemoveRelated(ctx context.Context, id string, target string) (*bean.Bean, error) {
+	b, err := r.Core.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	b.RemoveRelated(target)
+
+	if err := r.Core.Update(b); err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// AddDuplicate is the resolver for the addDuplicate field.
+func (r *mutationResolver) AddDuplicate(ctx context.Context, id string, target string) (*bean.Bean, error) {
+	b, err := r.Core.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	b.AddDuplicate(target)
+
+	if err := r.Core.Update(b); err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// RemoveDuplicate is the resolver for the removeDuplicate field.
+func (r *mutationResolver) RemoveDuplicate(ctx context.Context, id string, target string) (*bean.Bean, error) {
+	b, err := r.Core.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	b.RemoveDuplicate(target)
 
 	if err := r.Core.Update(b); err != nil {
 		return nil, err
@@ -348,9 +567,6 @@ func (r *queryResolver) Beans(ctx context.Context, filter *model.BeanFilter) ([]
 // Bean returns BeanResolver implementation.
 func (r *Resolver) Bean() BeanResolver { return &beanResolver{r} }
 
-// Link returns LinkResolver implementation.
-func (r *Resolver) Link() LinkResolver { return &linkResolver{r} }
-
 // Mutation returns MutationResolver implementation.
 func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 
@@ -358,6 +574,5 @@ func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
 type beanResolver struct{ *Resolver }
-type linkResolver struct{ *Resolver }
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }

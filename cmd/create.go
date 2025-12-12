@@ -14,14 +14,19 @@ import (
 )
 
 var (
-	createStatus   string
-	createType     string
-	createPriority string
-	createBody     string
-	createBodyFile string
-	createTag      []string
-	createLink     []string
-	createJSON     bool
+	createStatus    string
+	createType      string
+	createPriority  string
+	createBody      string
+	createBodyFile  string
+	createTag       []string
+	createMilestone string
+	createEpic      string
+	createFeature   string
+	createBlock     []string
+	createRelated   []string
+	createDuplicate []string
+	createJSON      bool
 )
 
 var createCmd = &cobra.Command{
@@ -74,13 +79,26 @@ var createCmd = &cobra.Command{
 			input.Tags = createTag
 		}
 
-		// Parse and add links
-		for _, linkStr := range createLink {
-			linkType, target, err := parseLink(linkStr)
-			if err != nil {
-				return cmdError(createJSON, output.ErrValidation, "%s", err)
-			}
-			input.Links = append(input.Links, &model.LinkInput{Type: linkType, Target: target})
+		// Hierarchy links
+		if createMilestone != "" {
+			input.Milestone = &createMilestone
+		}
+		if createEpic != "" {
+			input.Epic = &createEpic
+		}
+		if createFeature != "" {
+			input.Feature = &createFeature
+		}
+
+		// Relationship links
+		if len(createBlock) > 0 {
+			input.Blocks = createBlock
+		}
+		if len(createRelated) > 0 {
+			input.Related = createRelated
+		}
+		if len(createDuplicate) > 0 {
+			input.Duplicates = createDuplicate
 		}
 
 		// Create via GraphQL mutation
@@ -120,7 +138,17 @@ func init() {
 	createCmd.Flags().StringVarP(&createBody, "body", "d", "", "Body content (use '-' to read from stdin)")
 	createCmd.Flags().StringVar(&createBodyFile, "body-file", "", "Read body from file")
 	createCmd.Flags().StringArrayVar(&createTag, "tag", nil, "Add tag (can be repeated)")
-	createCmd.Flags().StringArrayVar(&createLink, "link", nil, "Add relationship (format: type:id, can be repeated)")
+
+	// Hierarchy link flags
+	createCmd.Flags().StringVar(&createMilestone, "milestone", "", "Set milestone (bean ID)")
+	createCmd.Flags().StringVar(&createEpic, "epic", "", "Set epic (bean ID)")
+	createCmd.Flags().StringVar(&createFeature, "feature", "", "Set feature (bean ID, requires task/bug type)")
+
+	// Relationship link flags
+	createCmd.Flags().StringArrayVar(&createBlock, "block", nil, "Add block relationship (can be repeated)")
+	createCmd.Flags().StringArrayVar(&createRelated, "related", nil, "Add related relationship (can be repeated)")
+	createCmd.Flags().StringArrayVar(&createDuplicate, "duplicate", nil, "Add duplicate relationship (can be repeated)")
+
 	createCmd.Flags().BoolVar(&createJSON, "json", false, "Output as JSON")
 	createCmd.MarkFlagsMutuallyExclusive("body", "body-file")
 	rootCmd.AddCommand(createCmd)

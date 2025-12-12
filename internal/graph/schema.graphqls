@@ -30,15 +30,52 @@ type Mutation {
   """
   deleteBean(id: ID!): Boolean!
 
+  # Hierarchy link mutations (single target)
   """
-  Add a link from one bean to another
+  Set or clear the milestone for a bean
   """
-  addLink(id: ID!, link: LinkInput!): Bean!
+  setMilestone(id: ID!, target: String): Bean!
 
   """
-  Remove a link from one bean to another
+  Set or clear the epic for a bean
   """
-  removeLink(id: ID!, link: LinkInput!): Bean!
+  setEpic(id: ID!, target: String): Bean!
+
+  """
+  Set or clear the feature for a bean (bean must be a task or bug)
+  """
+  setFeature(id: ID!, target: String): Bean!
+
+  # Relationship link mutations (multiple targets)
+  """
+  Add a block relationship (this bean blocks target)
+  """
+  addBlock(id: ID!, target: String!): Bean!
+
+  """
+  Remove a block relationship
+  """
+  removeBlock(id: ID!, target: String!): Bean!
+
+  """
+  Add a related relationship
+  """
+  addRelated(id: ID!, target: String!): Bean!
+
+  """
+  Remove a related relationship
+  """
+  removeRelated(id: ID!, target: String!): Bean!
+
+  """
+  Add a duplicate relationship
+  """
+  addDuplicate(id: ID!, target: String!): Bean!
+
+  """
+  Remove a duplicate relationship
+  """
+  removeDuplicate(id: ID!, target: String!): Bean!
 }
 
 """
@@ -57,8 +94,22 @@ input CreateBeanInput {
   tags: [String!]
   "Markdown body content"
   body: String
-  "Links to other beans"
-  links: [LinkInput!]
+
+  # Hierarchy links
+  "Milestone bean ID (target must be type=milestone)"
+  milestone: String
+  "Epic bean ID (target must be type=epic)"
+  epic: String
+  "Feature bean ID (bean must be task/bug, target must be type=feature)"
+  feature: String
+
+  # Relationship links
+  "IDs of beans this one blocks"
+  blocks: [String!]
+  "IDs of related beans"
+  related: [String!]
+  "IDs of duplicate beans"
+  duplicates: [String!]
 }
 
 """
@@ -77,16 +128,22 @@ input UpdateBeanInput {
   tags: [String!]
   "New body content"
   body: String
-}
 
-"""
-Input for specifying a link
-"""
-input LinkInput {
-  "Link type (blocks, duplicates, parent, related)"
-  type: String!
-  "Target bean ID"
-  target: String!
+  # Hierarchy links (set to "" to clear)
+  "Milestone bean ID (target must be type=milestone)"
+  milestone: String
+  "Epic bean ID (target must be type=epic)"
+  epic: String
+  "Feature bean ID (bean must be task/bug, target must be type=feature)"
+  feature: String
+
+  # Relationship links (replaces existing)
+  "IDs of beans this one blocks"
+  blocks: [String!]
+  "IDs of related beans"
+  related: [String!]
+  "IDs of duplicate beans"
+  duplicates: [String!]
 }
 
 """
@@ -115,41 +172,55 @@ type Bean {
   updatedAt: Time!
   "Markdown body content"
   body: String!
-  "Direct links to other beans"
-  links: [Link!]!
 
-  # Computed relationship fields
+  # Hierarchy links (raw IDs)
+  "Milestone bean ID"
+  milestoneId: String
+  "Epic bean ID"
+  epicId: String
+  "Feature bean ID"
+  featureId: String
+
+  # Hierarchy links (resolved beans)
+  "Resolved milestone bean"
+  milestone: Bean
+  "Resolved epic bean"
+  epic: Bean
+  "Resolved feature bean"
+  feature: Bean
+
+  # Relationship links (raw IDs)
+  "IDs of beans this one blocks"
+  blockIds: [String!]!
+  "IDs of related beans"
+  relatedIds: [String!]!
+  "IDs of duplicate beans"
+  duplicateIds: [String!]!
+
+  # Computed relationship fields (resolved beans)
   "Beans that block this one (incoming 'blocks' links)"
   blockedBy: [Bean!]!
   "Beans this one blocks (outgoing 'blocks' links)"
   blocks: [Bean!]!
-  "Parent bean if linked"
-  parent: Bean
-  "Child beans (beans with this as parent)"
-  children: [Bean!]!
-  "Duplicate beans (bidirectional - both outgoing and incoming 'duplicates' links)"
+  "Duplicate beans (bidirectional)"
   duplicates: [Bean!]!
-  "Related beans (bidirectional - both outgoing and incoming 'related' links)"
+  "Related beans (bidirectional)"
   related: [Bean!]!
-}
 
-"""
-A link represents a relationship from one bean to another
-"""
-type Link {
-  "Relationship type (blocks, duplicates, parent, related)"
-  type: String!
-  "Target bean ID"
-  target: String!
-  "Resolved target bean (null if broken link)"
-  targetBean: Bean
+  # Computed inverse hierarchy fields
+  "Beans that have this milestone set (only for milestones)"
+  milestoneItems: [Bean!]!
+  "Beans that have this epic set (only for epics)"
+  epicItems: [Bean!]!
+  "Beans that have this feature set (only for features)"
+  featureItems: [Bean!]!
 }
 
 """
 A link filter specifies both the link type and optionally a target bean ID.
 """
 input LinkFilter {
-  "Link type (blocks, duplicates, parent, related)"
+  "Link type (milestone, epic, feature, blocks, duplicates, related)"
   type: String!
   "Optional target bean ID - if omitted, matches any target"
   target: String

@@ -12,95 +12,30 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Link represents a relationship from this bean to another.
-type Link struct {
-	Type   string `json:"type"`
-	Target string `json:"target"`
-}
-
-// Links is a slice of Link with custom YAML marshaling.
-// YAML format: array of single-key maps, e.g., [{parent: abc}, {blocks: foo}]
-type Links []Link
-
-// MarshalYAML implements yaml.Marshaler for the array-of-single-key-maps format.
-func (l Links) MarshalYAML() (interface{}, error) {
-	if len(l) == 0 {
-		return nil, nil
-	}
-
-	result := make([]map[string]string, 0, len(l))
-	for _, link := range l {
-		result = append(result, map[string]string{link.Type: link.Target})
-	}
-	return result, nil
-}
-
-// UnmarshalYAML implements yaml.Unmarshaler for the array-of-single-key-maps format.
-// This handles yaml.v3 format (used by Render).
-func (l *Links) UnmarshalYAML(node *yaml.Node) error {
-	if node.Kind != yaml.SequenceNode {
-		return fmt.Errorf("links must be a sequence, got %v", node.Kind)
-	}
-
-	*l = nil
-	for _, item := range node.Content {
-		if item.Kind != yaml.MappingNode || len(item.Content) != 2 {
-			return fmt.Errorf("each link must be a single-key map")
-		}
-		link := Link{
-			Type:   item.Content[0].Value,
-			Target: item.Content[1].Value,
-		}
-		*l = append(*l, link)
-	}
-	return nil
-}
-
-// HasType returns true if any link has the given type.
-func (l Links) HasType(linkType string) bool {
-	for _, link := range l {
-		if link.Type == linkType {
+// sliceContains checks if a slice contains a value.
+func sliceContains(slice []string, val string) bool {
+	for _, s := range slice {
+		if s == val {
 			return true
 		}
 	}
 	return false
 }
 
-// HasLink returns true if a link with the given type and target exists.
-func (l Links) HasLink(linkType, target string) bool {
-	for _, link := range l {
-		if link.Type == linkType && link.Target == target {
-			return true
-		}
+// sliceAdd adds a value to a slice if not already present.
+func sliceAdd(slice []string, val string) []string {
+	if sliceContains(slice, val) {
+		return slice
 	}
-	return false
+	return append(slice, val)
 }
 
-// Targets returns all target IDs for a specific link type.
-func (l Links) Targets(linkType string) []string {
-	var result []string
-	for _, link := range l {
-		if link.Type == linkType {
-			result = append(result, link.Target)
-		}
-	}
-	return result
-}
-
-// Add adds a link if it doesn't already exist, returns modified Links.
-func (l Links) Add(linkType, target string) Links {
-	if l.HasLink(linkType, target) {
-		return l
-	}
-	return append(l, Link{Type: linkType, Target: target})
-}
-
-// Remove removes a link, returns modified Links.
-func (l Links) Remove(linkType, target string) Links {
-	result := make(Links, 0, len(l))
-	for _, link := range l {
-		if !(link.Type == linkType && link.Target == target) {
-			result = append(result, link)
+// sliceRemove removes a value from a slice.
+func sliceRemove(slice []string, val string) []string {
+	result := make([]string, 0, len(slice))
+	for _, s := range slice {
+		if s != val {
+			result = append(result, s)
 		}
 	}
 	return result
@@ -183,52 +118,88 @@ type Bean struct {
 	// Body is the markdown content after the front matter.
 	Body string `yaml:"-" json:"body,omitempty"`
 
-	// Links are relationships to other beans (e.g., "blocks", "parent").
-	Links Links `yaml:"links,omitempty" json:"links,omitempty"`
+	// Hierarchy links (single target each)
+	Milestone string `yaml:"milestone,omitempty" json:"milestone,omitempty"`
+	Epic      string `yaml:"epic,omitempty" json:"epic,omitempty"`
+	Feature   string `yaml:"feature,omitempty" json:"feature,omitempty"`
+
+	// Relationship links (multiple targets)
+	Blocks     []string `yaml:"blocks,omitempty" json:"blocks,omitempty"`
+	Related    []string `yaml:"related,omitempty" json:"related,omitempty"`
+	Duplicates []string `yaml:"duplicates,omitempty" json:"duplicates,omitempty"`
+}
+
+// Link helper methods for Blocks
+
+// HasBlock returns true if this bean blocks the given target.
+func (b *Bean) HasBlock(target string) bool {
+	return sliceContains(b.Blocks, target)
+}
+
+// AddBlock adds a block relationship to the given target.
+func (b *Bean) AddBlock(target string) {
+	b.Blocks = sliceAdd(b.Blocks, target)
+}
+
+// RemoveBlock removes a block relationship to the given target.
+func (b *Bean) RemoveBlock(target string) {
+	b.Blocks = sliceRemove(b.Blocks, target)
+}
+
+// Link helper methods for Related
+
+// HasRelated returns true if this bean is related to the given target.
+func (b *Bean) HasRelated(target string) bool {
+	return sliceContains(b.Related, target)
+}
+
+// AddRelated adds a related relationship to the given target.
+func (b *Bean) AddRelated(target string) {
+	b.Related = sliceAdd(b.Related, target)
+}
+
+// RemoveRelated removes a related relationship to the given target.
+func (b *Bean) RemoveRelated(target string) {
+	b.Related = sliceRemove(b.Related, target)
+}
+
+// Link helper methods for Duplicates
+
+// HasDuplicate returns true if this bean is a duplicate of the given target.
+func (b *Bean) HasDuplicate(target string) bool {
+	return sliceContains(b.Duplicates, target)
+}
+
+// AddDuplicate adds a duplicate relationship to the given target.
+func (b *Bean) AddDuplicate(target string) {
+	b.Duplicates = sliceAdd(b.Duplicates, target)
+}
+
+// RemoveDuplicate removes a duplicate relationship to the given target.
+func (b *Bean) RemoveDuplicate(target string) {
+	b.Duplicates = sliceRemove(b.Duplicates, target)
 }
 
 // frontMatter is the subset of Bean that gets serialized to YAML front matter.
-// Uses []interface{} for Links to handle flexible YAML input via yaml.v2 (used by frontmatter lib).
+// Used for parsing via yaml.v2 (from frontmatter lib).
 type frontMatter struct {
-	Title     string      `yaml:"title"`
-	Status    string      `yaml:"status"`
-	Type      string      `yaml:"type,omitempty"`
-	Priority  string      `yaml:"priority,omitempty"`
-	Tags      []string    `yaml:"tags,omitempty"`
-	CreatedAt *time.Time  `yaml:"created_at,omitempty"`
-	UpdatedAt *time.Time  `yaml:"updated_at,omitempty"`
-	Links     interface{} `yaml:"links,omitempty"`
-}
+	Title     string     `yaml:"title"`
+	Status    string     `yaml:"status"`
+	Type      string     `yaml:"type,omitempty"`
+	Priority  string     `yaml:"priority,omitempty"`
+	Tags      []string   `yaml:"tags,omitempty"`
+	CreatedAt *time.Time `yaml:"created_at,omitempty"`
+	UpdatedAt *time.Time `yaml:"updated_at,omitempty"`
 
-// convertLinks converts flexible YAML links from frontmatter lib (yaml.v2) to Links.
-// Input format: []interface{} where each element is map[interface{}]interface{} with single key.
-func convertLinks(raw interface{}) Links {
-	if raw == nil {
-		return nil
-	}
+	// Hierarchy links
+	Milestone string `yaml:"milestone,omitempty"`
+	Epic      string `yaml:"epic,omitempty"`
+	Feature   string `yaml:"feature,omitempty"`
 
-	// Handle []interface{} from yaml.v2
-	slice, ok := raw.([]interface{})
-	if !ok {
-		return nil
-	}
-
-	var result Links
-	for _, item := range slice {
-		// Each item should be a map with a single key
-		m, ok := item.(map[interface{}]interface{})
-		if !ok {
-			continue
-		}
-		for k, v := range m {
-			keyStr, ok1 := k.(string)
-			valStr, ok2 := v.(string)
-			if ok1 && ok2 {
-				result = append(result, Link{Type: keyStr, Target: valStr})
-			}
-		}
-	}
-	return result
+	// Relationship links
+	Blocks     []string `yaml:"blocks,omitempty"`
+	Related    []string `yaml:"related,omitempty"`
+	Duplicates []string `yaml:"duplicates,omitempty"`
 }
 
 // Parse reads a bean from a reader (markdown with YAML front matter).
@@ -248,11 +219,18 @@ func Parse(r io.Reader) (*Bean, error) {
 		CreatedAt: fm.CreatedAt,
 		UpdatedAt: fm.UpdatedAt,
 		Body:      string(body),
-		Links:     convertLinks(fm.Links),
+		// Hierarchy links
+		Milestone: fm.Milestone,
+		Epic:      fm.Epic,
+		Feature:   fm.Feature,
+		// Relationship links
+		Blocks:     fm.Blocks,
+		Related:    fm.Related,
+		Duplicates: fm.Duplicates,
 	}, nil
 }
 
-// renderFrontMatter is used for YAML output with yaml.v3 (supports custom marshalers).
+// renderFrontMatter is used for YAML output with yaml.v3.
 type renderFrontMatter struct {
 	Title     string     `yaml:"title"`
 	Status    string     `yaml:"status"`
@@ -261,7 +239,16 @@ type renderFrontMatter struct {
 	Tags      []string   `yaml:"tags,omitempty"`
 	CreatedAt *time.Time `yaml:"created_at,omitempty"`
 	UpdatedAt *time.Time `yaml:"updated_at,omitempty"`
-	Links     Links      `yaml:"links,omitempty"`
+
+	// Hierarchy links
+	Milestone string `yaml:"milestone,omitempty"`
+	Epic      string `yaml:"epic,omitempty"`
+	Feature   string `yaml:"feature,omitempty"`
+
+	// Relationship links
+	Blocks     []string `yaml:"blocks,omitempty"`
+	Related    []string `yaml:"related,omitempty"`
+	Duplicates []string `yaml:"duplicates,omitempty"`
 }
 
 // Render serializes the bean back to markdown with YAML front matter.
@@ -274,7 +261,14 @@ func (b *Bean) Render() ([]byte, error) {
 		Tags:      b.Tags,
 		CreatedAt: b.CreatedAt,
 		UpdatedAt: b.UpdatedAt,
-		Links:     b.Links,
+		// Hierarchy links
+		Milestone: b.Milestone,
+		Epic:      b.Epic,
+		Feature:   b.Feature,
+		// Relationship links
+		Blocks:     b.Blocks,
+		Related:    b.Related,
+		Duplicates: b.Duplicates,
 	}
 
 	fmBytes, err := yaml.Marshal(&fm)

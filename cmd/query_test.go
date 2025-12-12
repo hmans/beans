@@ -199,24 +199,25 @@ func TestExecuteQueryWithRelationships(t *testing.T) {
 	testCore, cleanup := setupQueryTestCore(t)
 	defer cleanup()
 
-	// Create parent bean
+	// Create parent bean (epic type for hierarchy)
 	parent := &bean.Bean{
 		ID:     "parent-1",
 		Slug:   "parent-bean",
 		Title:  "Parent Bean",
 		Status: "todo",
+		Type:   "epic",
 	}
 	if err := testCore.Create(parent); err != nil {
 		t.Fatalf("failed to create parent bean: %v", err)
 	}
 
-	// Create child bean with parent link
+	// Create child bean with epic link (parent relationship)
 	child := &bean.Bean{
 		ID:     "child-1",
 		Slug:   "child-bean",
 		Title:  "Child Bean",
 		Status: "todo",
-		Links:  bean.Links{{Type: "parent", Target: "parent-1"}},
+		Epic:   "parent-1",
 	}
 	if err := testCore.Create(child); err != nil {
 		t.Fatalf("failed to create child bean: %v", err)
@@ -228,14 +229,14 @@ func TestExecuteQueryWithRelationships(t *testing.T) {
 		Slug:   "blocker-bean",
 		Title:  "Blocker Bean",
 		Status: "todo",
-		Links:  bean.Links{{Type: "blocks", Target: "child-1"}},
+		Blocks: []string{"child-1"},
 	}
 	if err := testCore.Create(blocker); err != nil {
 		t.Fatalf("failed to create blocker bean: %v", err)
 	}
 
-	t.Run("query parent relationship", func(t *testing.T) {
-		query := `{ bean(id: "child-1") { id parent { id title } } }`
+	t.Run("query epic relationship", func(t *testing.T) {
+		query := `{ bean(id: "child-1") { id epic { id title } } }`
 		result, err := executeQuery(query, nil, "")
 		if err != nil {
 			t.Fatalf("executeQuery() error = %v", err)
@@ -243,11 +244,11 @@ func TestExecuteQueryWithRelationships(t *testing.T) {
 
 		var data struct {
 			Bean struct {
-				ID     string `json:"id"`
-				Parent *struct {
+				ID   string `json:"id"`
+				Epic *struct {
 					ID    string `json:"id"`
 					Title string `json:"title"`
-				} `json:"parent"`
+				} `json:"epic"`
 			} `json:"bean"`
 		}
 
@@ -255,16 +256,16 @@ func TestExecuteQueryWithRelationships(t *testing.T) {
 			t.Fatalf("failed to parse response: %v", err)
 		}
 
-		if data.Bean.Parent == nil {
-			t.Fatal("expected parent to be set")
+		if data.Bean.Epic == nil {
+			t.Fatal("expected epic to be set")
 		}
-		if data.Bean.Parent.ID != "parent-1" {
-			t.Errorf("expected parent id 'parent-1', got %q", data.Bean.Parent.ID)
+		if data.Bean.Epic.ID != "parent-1" {
+			t.Errorf("expected epic id 'parent-1', got %q", data.Bean.Epic.ID)
 		}
 	})
 
-	t.Run("query children relationship", func(t *testing.T) {
-		query := `{ bean(id: "parent-1") { id children { id title } } }`
+	t.Run("query epicItems relationship", func(t *testing.T) {
+		query := `{ bean(id: "parent-1") { id epicItems { id title } } }`
 		result, err := executeQuery(query, nil, "")
 		if err != nil {
 			t.Fatalf("executeQuery() error = %v", err)
@@ -272,11 +273,11 @@ func TestExecuteQueryWithRelationships(t *testing.T) {
 
 		var data struct {
 			Bean struct {
-				ID       string `json:"id"`
-				Children []struct {
+				ID        string `json:"id"`
+				EpicItems []struct {
 					ID    string `json:"id"`
 					Title string `json:"title"`
-				} `json:"children"`
+				} `json:"epicItems"`
 			} `json:"bean"`
 		}
 
@@ -284,11 +285,11 @@ func TestExecuteQueryWithRelationships(t *testing.T) {
 			t.Fatalf("failed to parse response: %v", err)
 		}
 
-		if len(data.Bean.Children) != 1 {
-			t.Errorf("expected 1 child, got %d", len(data.Bean.Children))
+		if len(data.Bean.EpicItems) != 1 {
+			t.Errorf("expected 1 epicItem, got %d", len(data.Bean.EpicItems))
 		}
-		if len(data.Bean.Children) > 0 && data.Bean.Children[0].ID != "child-1" {
-			t.Errorf("expected child id 'child-1', got %q", data.Bean.Children[0].ID)
+		if len(data.Bean.EpicItems) > 0 && data.Bean.EpicItems[0].ID != "child-1" {
+			t.Errorf("expected epicItem id 'child-1', got %q", data.Bean.EpicItems[0].ID)
 		}
 	})
 
@@ -518,7 +519,6 @@ func TestGetGraphQLSchema(t *testing.T) {
 	expectedTypes := []string{
 		"type Query",
 		"type Bean",
-		"type Link",
 		"input BeanFilter",
 	}
 
@@ -534,8 +534,10 @@ func TestGetGraphQLSchema(t *testing.T) {
 		"beans(filter: BeanFilter)",
 		"blockedBy",
 		"blocks",
-		"parent",
-		"children",
+		"epic",
+		"epicItems",
+		"milestone",
+		"milestoneItems",
 	}
 
 	for _, expected := range expectedFields {

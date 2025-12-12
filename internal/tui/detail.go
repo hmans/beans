@@ -449,8 +449,12 @@ func (m detailModel) formatLinkLabel(linkType string, incoming bool) string {
 		switch linkType {
 		case "blocks":
 			return "Blocked by"
-		case "parent":
-			return "Child"
+		case "milestone":
+			return "In milestone"
+		case "epic":
+			return "In epic"
+		case "feature":
+			return "In feature"
 		case "duplicates":
 			return "Duplicated by"
 		case "related":
@@ -464,8 +468,12 @@ func (m detailModel) formatLinkLabel(linkType string, incoming bool) string {
 	switch linkType {
 	case "blocks":
 		return "Blocks"
-	case "parent":
-		return "Parent"
+	case "milestone":
+		return "Milestone"
+	case "epic":
+		return "Epic"
+	case "feature":
+		return "Feature"
 	case "duplicates":
 		return "Duplicates"
 	case "related":
@@ -480,14 +488,22 @@ func (m detailModel) resolveAllLinks() []resolvedLink {
 	ctx := context.Background()
 	beanResolver := m.resolver.Bean()
 
-	// Resolve outgoing links via GraphQL resolvers
+	// Resolve outgoing hierarchy links via GraphQL resolvers
+	if milestone, _ := beanResolver.Milestone(ctx, m.bean); milestone != nil {
+		links = append(links, resolvedLink{linkType: "milestone", bean: milestone, incoming: false})
+	}
+	if epic, _ := beanResolver.Epic(ctx, m.bean); epic != nil {
+		links = append(links, resolvedLink{linkType: "epic", bean: epic, incoming: false})
+	}
+	if feature, _ := beanResolver.Feature(ctx, m.bean); feature != nil {
+		links = append(links, resolvedLink{linkType: "feature", bean: feature, incoming: false})
+	}
+
+	// Resolve outgoing relationship links
 	if blocks, _ := beanResolver.Blocks(ctx, m.bean); blocks != nil {
 		for _, b := range blocks {
 			links = append(links, resolvedLink{linkType: "blocks", bean: b, incoming: false})
 		}
-	}
-	if parent, _ := beanResolver.Parent(ctx, m.bean); parent != nil {
-		links = append(links, resolvedLink{linkType: "parent", bean: parent, incoming: false})
 	}
 	if duplicates, _ := beanResolver.Duplicates(ctx, m.bean); duplicates != nil {
 		for _, b := range duplicates {
@@ -506,9 +522,20 @@ func (m detailModel) resolveAllLinks() []resolvedLink {
 			links = append(links, resolvedLink{linkType: "blocks", bean: b, incoming: true})
 		}
 	}
-	if children, _ := beanResolver.Children(ctx, m.bean); children != nil {
-		for _, b := range children {
-			links = append(links, resolvedLink{linkType: "parent", bean: b, incoming: true})
+	// Incoming hierarchy links (items that have this bean as their milestone/epic/feature)
+	if milestoneItems, _ := beanResolver.MilestoneItems(ctx, m.bean); milestoneItems != nil {
+		for _, b := range milestoneItems {
+			links = append(links, resolvedLink{linkType: "milestone", bean: b, incoming: true})
+		}
+	}
+	if epicItems, _ := beanResolver.EpicItems(ctx, m.bean); epicItems != nil {
+		for _, b := range epicItems {
+			links = append(links, resolvedLink{linkType: "epic", bean: b, incoming: true})
+		}
+	}
+	if featureItems, _ := beanResolver.FeatureItems(ctx, m.bean); featureItems != nil {
+		for _, b := range featureItems {
+			links = append(links, resolvedLink{linkType: "feature", bean: b, incoming: true})
 		}
 	}
 	// Note: duplicates and related are bidirectional, already handled above

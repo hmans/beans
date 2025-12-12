@@ -11,24 +11,22 @@ func TestFindIncomingLinks(t *testing.T) {
 
 	// Create beans with links
 	// A -> B (blocks)
-	// A -> C (parent)
+	// A -> C (epic - hierarchy)
 	// D -> B (related)
 	beanA := &bean.Bean{
 		ID:     "aaa1",
 		Title:  "Bean A",
 		Status: "todo",
-		Links: bean.Links{
-			{Type: "blocks", Target: "bbb2"},
-			{Type: "parent", Target: "ccc3"},
-		},
+		Blocks: []string{"bbb2"},
+		Epic:   "ccc3",
 	}
 	beanB := &bean.Bean{ID: "bbb2", Title: "Bean B", Status: "todo"}
-	beanC := &bean.Bean{ID: "ccc3", Title: "Bean C", Status: "todo"}
+	beanC := &bean.Bean{ID: "ccc3", Title: "Bean C", Status: "todo", Type: "epic"}
 	beanD := &bean.Bean{
-		ID:     "ddd4",
-		Title:  "Bean D",
-		Status: "todo",
-		Links:  bean.Links{{Type: "related", Target: "bbb2"}},
+		ID:      "ddd4",
+		Title:   "Bean D",
+		Status:  "todo",
+		Related: []string{"bbb2"},
 	}
 
 	for _, b := range []*bean.Bean{beanA, beanB, beanC, beanD} {
@@ -56,13 +54,13 @@ func TestFindIncomingLinks(t *testing.T) {
 		}
 	})
 
-	t.Run("single incoming link", func(t *testing.T) {
+	t.Run("single incoming link (epic hierarchy)", func(t *testing.T) {
 		links := core.FindIncomingLinks("ccc3")
 		if len(links) != 1 {
 			t.Errorf("FindIncomingLinks(ccc3) = %d links, want 1", len(links))
 		}
-		if links[0].FromBean.ID != "aaa1" || links[0].LinkType != "parent" {
-			t.Errorf("expected aaa1 -> ccc3 via parent, got %s -> ccc3 via %s", links[0].FromBean.ID, links[0].LinkType)
+		if links[0].FromBean.ID != "aaa1" || links[0].LinkType != "epic" {
+			t.Errorf("expected aaa1 -> ccc3 via epic, got %s -> ccc3 via %s", links[0].FromBean.ID, links[0].LinkType)
 		}
 	})
 
@@ -89,13 +87,13 @@ func TestDetectCycle(t *testing.T) {
 		ID:     "aaa1",
 		Title:  "Bean A",
 		Status: "todo",
-		Links:  bean.Links{{Type: "blocks", Target: "bbb2"}},
+		Blocks: []string{"bbb2"},
 	}
 	beanB := &bean.Bean{
 		ID:     "bbb2",
 		Title:  "Bean B",
 		Status: "todo",
-		Links:  bean.Links{{Type: "blocks", Target: "ccc3"}},
+		Blocks: []string{"ccc3"},
 	}
 	beanC := &bean.Bean{
 		ID:     "ccc3",
@@ -146,24 +144,26 @@ func TestDetectCycle(t *testing.T) {
 		}
 	})
 
-	t.Run("parent cycle detection", func(t *testing.T) {
-		// Create parent chain: X parent of Y, Y parent of Z
+	t.Run("milestone hierarchy cycle detection", func(t *testing.T) {
+		// Create milestone chain: X -> Y (milestone), Y -> Z (milestone)
 		beanX := &bean.Bean{
-			ID:     "xxx1",
-			Title:  "Bean X",
-			Status: "todo",
-			Links:  bean.Links{{Type: "parent", Target: "yyy2"}},
+			ID:        "xxx1",
+			Title:     "Bean X",
+			Status:    "todo",
+			Milestone: "yyy2",
 		}
 		beanY := &bean.Bean{
-			ID:     "yyy2",
-			Title:  "Bean Y",
-			Status: "todo",
-			Links:  bean.Links{{Type: "parent", Target: "zzz3"}},
+			ID:        "yyy2",
+			Title:     "Bean Y",
+			Status:    "todo",
+			Type:      "milestone",
+			Milestone: "zzz3",
 		}
 		beanZ := &bean.Bean{
 			ID:     "zzz3",
 			Title:  "Bean Z",
 			Status: "todo",
+			Type:   "milestone",
 		}
 
 		for _, b := range []*bean.Bean{beanX, beanY, beanZ} {
@@ -172,10 +172,10 @@ func TestDetectCycle(t *testing.T) {
 			}
 		}
 
-		// Adding Z parent of X would create: X -> Y -> Z -> X
-		cycle := core.DetectCycle("zzz3", "parent", "xxx1")
+		// Adding Z -> X (milestone) would create: X -> Y -> Z -> X
+		cycle := core.DetectCycle("zzz3", "milestone", "xxx1")
 		if cycle == nil {
-			t.Error("DetectCycle should detect parent cycles")
+			t.Error("DetectCycle should detect milestone cycles")
 		}
 	})
 }
@@ -186,22 +186,20 @@ func TestCheckAllLinks(t *testing.T) {
 	// Create a bean with various link issues:
 	// - Broken link to nonexistent bean
 	// - Self-reference
-	// - Cycle (A -> B -> A)
+	// - Cycle (A -> B -> A via blocks)
 	beanA := &bean.Bean{
-		ID:     "aaa1",
-		Title:  "Bean A",
-		Status: "todo",
-		Links: bean.Links{
-			{Type: "blocks", Target: "bbb2"},
-			{Type: "parent", Target: "nonexistent"},
-			{Type: "related", Target: "aaa1"}, // self-reference
-		},
+		ID:        "aaa1",
+		Title:     "Bean A",
+		Status:    "todo",
+		Blocks:    []string{"bbb2"},
+		Milestone: "nonexistent", // broken hierarchy link
+		Related:   []string{"aaa1"}, // self-reference
 	}
 	beanB := &bean.Bean{
 		ID:     "bbb2",
 		Title:  "Bean B",
 		Status: "todo",
-		Links:  bean.Links{{Type: "blocks", Target: "aaa1"}}, // creates cycle
+		Blocks: []string{"aaa1"}, // creates cycle
 	}
 
 	for _, b := range []*bean.Bean{beanA, beanB} {
@@ -218,7 +216,7 @@ func TestCheckAllLinks(t *testing.T) {
 		}
 		if len(result.BrokenLinks) > 0 {
 			bl := result.BrokenLinks[0]
-			if bl.BeanID != "aaa1" || bl.LinkType != "parent" || bl.Target != "nonexistent" {
+			if bl.BeanID != "aaa1" || bl.LinkType != "milestone" || bl.Target != "nonexistent" {
 				t.Errorf("unexpected broken link: %+v", bl)
 			}
 		}
@@ -272,7 +270,7 @@ func TestCheckAllLinksClean(t *testing.T) {
 		ID:     "aaa1",
 		Title:  "Bean A",
 		Status: "todo",
-		Links:  bean.Links{{Type: "blocks", Target: "bbb2"}},
+		Blocks: []string{"bbb2"},
 	}
 	beanB := &bean.Bean{
 		ID:     "bbb2",
@@ -302,21 +300,20 @@ func TestRemoveLinksTo(t *testing.T) {
 		ID:     "aaa1",
 		Title:  "Bean A",
 		Status: "todo",
-		Links: bean.Links{
-			{Type: "blocks", Target: "target"},
-			{Type: "parent", Target: "target"},
-		},
+		Blocks: []string{"target"},
+		Epic:   "target",
 	}
 	beanB := &bean.Bean{
-		ID:     "bbb2",
-		Title:  "Bean B",
-		Status: "todo",
-		Links:  bean.Links{{Type: "related", Target: "target"}},
+		ID:      "bbb2",
+		Title:   "Bean B",
+		Status:  "todo",
+		Related: []string{"target"},
 	}
 	target := &bean.Bean{
 		ID:     "target",
 		Title:  "Target Bean",
 		Status: "todo",
+		Type:   "epic",
 	}
 
 	for _, b := range []*bean.Bean{beanA, beanB, target} {
@@ -337,13 +334,13 @@ func TestRemoveLinksTo(t *testing.T) {
 
 	// Verify links are gone
 	loadedA, _ := core.Get("aaa1")
-	if len(loadedA.Links) != 0 {
-		t.Errorf("Bean A still has %d links, want 0", len(loadedA.Links))
+	if len(loadedA.Blocks) != 0 || loadedA.Epic != "" {
+		t.Errorf("Bean A still has links: Blocks=%v Epic=%q", loadedA.Blocks, loadedA.Epic)
 	}
 
 	loadedB, _ := core.Get("bbb2")
-	if len(loadedB.Links) != 0 {
-		t.Errorf("Bean B still has %d links, want 0", len(loadedB.Links))
+	if len(loadedB.Related) != 0 {
+		t.Errorf("Bean B still has %d related links, want 0", len(loadedB.Related))
 	}
 }
 
@@ -352,14 +349,12 @@ func TestFixBrokenLinks(t *testing.T) {
 
 	// Create bean with broken link and self-reference
 	beanA := &bean.Bean{
-		ID:     "aaa1",
-		Title:  "Bean A",
-		Status: "todo",
-		Links: bean.Links{
-			{Type: "blocks", Target: "bbb2"},       // valid
-			{Type: "parent", Target: "nonexistent"}, // broken
-			{Type: "related", Target: "aaa1"},       // self-reference
-		},
+		ID:        "aaa1",
+		Title:     "Bean A",
+		Status:    "todo",
+		Blocks:    []string{"bbb2"},       // valid
+		Milestone: "nonexistent",          // broken
+		Related:   []string{"aaa1"},       // self-reference
 	}
 	beanB := &bean.Bean{
 		ID:     "bbb2",
@@ -385,11 +380,14 @@ func TestFixBrokenLinks(t *testing.T) {
 
 	// Verify only valid link remains
 	loadedA, _ := core.Get("aaa1")
-	if len(loadedA.Links) != 1 {
-		t.Errorf("Bean A has %d links, want 1", len(loadedA.Links))
-	}
-	if !loadedA.Links.HasLink("blocks", "bbb2") {
+	if !loadedA.HasBlock("bbb2") {
 		t.Error("valid 'blocks' link should be preserved")
+	}
+	if loadedA.Milestone != "" {
+		t.Error("broken milestone link should be removed")
+	}
+	if len(loadedA.Related) != 0 {
+		t.Error("self-reference related link should be removed")
 	}
 }
 
@@ -411,7 +409,7 @@ func TestLinkCheckResultMethods(t *testing.T) {
 	t.Run("with issues", func(t *testing.T) {
 		r := &LinkCheckResult{
 			BrokenLinks: []BrokenLink{{BeanID: "a", LinkType: "blocks", Target: "x"}},
-			SelfLinks:   []SelfLink{{BeanID: "b", LinkType: "parent"}},
+			SelfLinks:   []SelfLink{{BeanID: "b", LinkType: "milestone"}},
 			Cycles:      []Cycle{{LinkType: "blocks", Path: []string{"a", "b", "a"}}},
 		}
 		if !r.HasIssues() {
