@@ -209,17 +209,18 @@ func (m blockingPickerModel) Update(msg tea.Msg) (blockingPickerModel, tea.Cmd) 
 					}
 
 					// Update the list items to reflect new state
-					items := m.list.Items()
-					for i, listItem := range items {
+					oldItems := m.list.Items()
+					newItems := make([]list.Item, len(oldItems))
+					for i, listItem := range oldItems {
 						if bi, ok := listItem.(blockingItem); ok {
-							items[i] = blockingItem{
+							newItems[i] = blockingItem{
 								bean:       bi.bean,
 								cfg:        bi.cfg,
 								isBlocking: m.pendingBlocking[bi.bean.ID],
 							}
 						}
 					}
-					m.list.SetItems(items)
+					m.list.SetItems(newItems)
 
 					// Restore selection position
 					m.list.Select(currentIndex)
