@@ -1,6 +1,9 @@
 package beancore
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/hmans/beans/internal/bean"
 )
 
@@ -53,11 +56,19 @@ func (c *Core) FindIncomingLinks(targetID string) []IncomingLink {
 
 	var result []IncomingLink
 	for _, b := range c.beans {
-		for _, link := range b.Links {
-			if link.Target == targetID {
+		// Check parent link
+		if b.Parent == targetID {
+			result = append(result, IncomingLink{
+				FromBean: b,
+				LinkType: "parent",
+			})
+		}
+		// Check blocks links
+		for _, blocked := range b.Blocks {
+			if blocked == targetID {
 				result = append(result, IncomingLink{
 					FromBean: b,
-					LinkType: link.Type,
+					LinkType: "blocks",
 				})
 			}
 		}
@@ -103,12 +114,20 @@ func (c *Core) findPathToTarget(current, target, linkType string, visited map[st
 		return nil
 	}
 
-	for _, link := range b.Links {
-		if link.Type != linkType {
-			continue
+	// Get targets based on link type
+	var targets []string
+	switch linkType {
+	case "parent":
+		if b.Parent != "" {
+			targets = []string{b.Parent}
 		}
-		newPath := append(path, link.Target)
-		if result := c.findPathToTarget(link.Target, target, linkType, visited, newPath); result != nil {
+	case "blocks":
+		targets = b.Blocks
+	}
+
+	for _, t := range targets {
+		newPath := append(path, t)
+		if result := c.findPathToTarget(t, target, linkType, visited, newPath); result != nil {
 			return result
 		}
 	}
@@ -129,22 +148,34 @@ func (c *Core) CheckAllLinks() *LinkCheckResult {
 
 	// Check for broken links and self-references
 	for _, b := range c.beans {
-		for _, link := range b.Links {
-			// Check for self-reference
-			if link.Target == b.ID {
+		// Check parent link
+		if b.Parent != "" {
+			if b.Parent == b.ID {
 				result.SelfLinks = append(result.SelfLinks, SelfLink{
 					BeanID:   b.ID,
-					LinkType: link.Type,
+					LinkType: "parent",
 				})
-				continue
-			}
-
-			// Check if target exists
-			if _, ok := c.beans[link.Target]; !ok {
+			} else if _, ok := c.beans[b.Parent]; !ok {
 				result.BrokenLinks = append(result.BrokenLinks, BrokenLink{
 					BeanID:   b.ID,
-					LinkType: link.Type,
-					Target:   link.Target,
+					LinkType: "parent",
+					Target:   b.Parent,
+				})
+			}
+		}
+
+		// Check blocks links
+		for _, blocked := range b.Blocks {
+			if blocked == b.ID {
+				result.SelfLinks = append(result.SelfLinks, SelfLink{
+					BeanID:   b.ID,
+					LinkType: "blocks",
+				})
+			} else if _, ok := c.beans[blocked]; !ok {
+				result.BrokenLinks = append(result.BrokenLinks, BrokenLink{
+					BeanID:   b.ID,
+					LinkType: "blocks",
+					Target:   blocked,
 				})
 			}
 		}
@@ -201,10 +232,23 @@ func (c *Core) findCycles(linkType string) []Cycle {
 
 		b, ok := c.beans[id]
 		if ok {
-			for _, link := range b.Links {
-				if link.Type == linkType {
-					dfs(link.Target, append(path, id))
+			// Get targets based on link type
+			var targets []string
+			switch linkType {
+			case "parent":
+				if b.Parent != "" {
+					targets = []string{b.Parent}
 				}
+			case "blocks":
+				targets = b.Blocks
+			}
+
+			for _, target := range targets {
+				// Skip self-references (they're tracked separately as SelfLinks)
+				if target == id {
+					continue
+				}
+				dfs(target, append(path, id))
 			}
 		}
 
@@ -259,20 +303,27 @@ func (c *Core) RemoveLinksTo(targetID string) (int, error) {
 
 	removed := 0
 	for _, b := range c.beans {
-		originalLen := len(b.Links)
-		var newLinks bean.Links
-		for _, link := range b.Links {
-			if link.Target != targetID {
-				newLinks = append(newLinks, link)
-			}
+		changed := false
+
+		// Remove parent link
+		if b.Parent == targetID {
+			b.Parent = ""
+			changed = true
+			removed++
 		}
 
-		if len(newLinks) < originalLen {
-			b.Links = newLinks
+		// Remove blocks links
+		originalBlocksLen := len(b.Blocks)
+		b.RemoveBlock(targetID)
+		if len(b.Blocks) < originalBlocksLen {
+			changed = true
+			removed += originalBlocksLen - len(b.Blocks)
+		}
+
+		if changed {
 			if err := c.saveToDisk(b); err != nil {
 				return removed, err
 			}
-			removed += originalLen - len(newLinks)
 		}
 	}
 
@@ -287,28 +338,106 @@ func (c *Core) FixBrokenLinks() (int, error) {
 
 	fixed := 0
 	for _, b := range c.beans {
-		originalLen := len(b.Links)
-		var newLinks bean.Links
-		for _, link := range b.Links {
+		changed := false
+
+		// Fix parent link
+		if b.Parent != "" {
+			// Remove self-reference or broken link
+			if b.Parent == b.ID {
+				b.Parent = ""
+				changed = true
+				fixed++
+			} else if _, ok := c.beans[b.Parent]; !ok {
+				b.Parent = ""
+				changed = true
+				fixed++
+			}
+		}
+
+		// Fix blocks links
+		originalBlocksLen := len(b.Blocks)
+		var newBlocks []string
+		for _, blocked := range b.Blocks {
 			// Skip self-references
-			if link.Target == b.ID {
+			if blocked == b.ID {
 				continue
 			}
 			// Skip broken links (target doesn't exist)
-			if _, ok := c.beans[link.Target]; !ok {
+			if _, ok := c.beans[blocked]; !ok {
 				continue
 			}
-			newLinks = append(newLinks, link)
+			newBlocks = append(newBlocks, blocked)
+		}
+		if len(newBlocks) < originalBlocksLen {
+			b.Blocks = newBlocks
+			changed = true
+			fixed += originalBlocksLen - len(newBlocks)
 		}
 
-		if len(newLinks) < originalLen {
-			b.Links = newLinks
+		if changed {
 			if err := c.saveToDisk(b); err != nil {
 				return fixed, err
 			}
-			fixed += originalLen - len(newLinks)
 		}
 	}
 
 	return fixed, nil
+}
+
+// ValidParentTypes returns the valid parent types for a given bean type.
+// Returns nil if the bean type cannot have a parent.
+func ValidParentTypes(beanType string) []string {
+	switch beanType {
+	case "milestone":
+		return nil // milestones cannot have parents
+	case "epic":
+		return []string{"milestone"}
+	case "feature":
+		return []string{"milestone", "epic"}
+	case "task", "bug":
+		return []string{"milestone", "epic", "feature"}
+	default:
+		return []string{"milestone", "epic", "feature"} // default for unknown types
+	}
+}
+
+// ValidateParent checks if a parent is valid for the given bean.
+// Returns nil if valid, error otherwise.
+func (c *Core) ValidateParent(b *bean.Bean, parentID string) error {
+	if parentID == "" {
+		return nil
+	}
+
+	validTypes := ValidParentTypes(b.Type)
+	if validTypes == nil {
+		return fmt.Errorf("%s beans cannot have a parent", b.Type)
+	}
+
+	parent, err := c.Get(parentID)
+	if err != nil {
+		return fmt.Errorf("parent bean not found: %s", parentID)
+	}
+
+	for _, t := range validTypes {
+		if parent.Type == t {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("%s beans can only have %s as parent, not %s",
+		b.Type, joinWithOr(validTypes), parent.Type)
+}
+
+// joinWithOr joins strings with commas and "or" for the last element.
+func joinWithOr(items []string) string {
+	switch len(items) {
+	case 0:
+		return ""
+	case 1:
+		return items[0]
+	case 2:
+		return items[0] + " or " + items[1]
+	default:
+		return strings.Join(items[:len(items)-1], ", ") + ", or " + items[len(items)-1]
+	}
 }

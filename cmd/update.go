@@ -20,11 +20,13 @@ var (
 	updateTitle    string
 	updateBody     string
 	updateBodyFile string
-	updateLink     []string
-	updateUnlink   []string
-	updateTag    []string
-	updateUntag  []string
-	updateJSON   bool
+	updateParent   string
+	updateNoParent bool
+	updateBlock    []string
+	updateUnblock  []string
+	updateTag      []string
+	updateUntag    []string
+	updateJSON     bool
 )
 
 var updateCmd = &cobra.Command{
@@ -38,12 +40,12 @@ Use flags to specify which properties to update:
   --priority     Change the priority
   --title        Change the title
   --body         Change the body (use '-' to read from stdin)
-  --link         Add a relationship (format: type:id, can be repeated)
-  --unlink       Remove a relationship (format: type:id, can be repeated)
+  --parent       Set parent bean ID
+  --no-parent    Remove parent
+  --block        Add blocking relationship (can be repeated)
+  --unblock      Remove blocking relationship (can be repeated)
   --tag          Add a tag (can be repeated)
-  --untag        Remove a tag (can be repeated)
-
-Relationship types: blocks, duplicates, parent, related`,
+  --untag        Remove a tag (can be repeated)`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
@@ -76,36 +78,41 @@ Relationship types: blocks, duplicates, parent, related`,
 			}
 		}
 
-		// Process link additions
-		for _, linkStr := range updateLink {
-			linkType, target, err := parseLink(linkStr)
+		// Handle parent changes
+		if cmd.Flags().Changed("parent") || updateNoParent {
+			var parentID *string
+			if !updateNoParent && updateParent != "" {
+				parentID = &updateParent
+			}
+			b, err = resolver.Mutation().SetParent(ctx, b.ID, parentID)
 			if err != nil {
 				return cmdError(updateJSON, output.ErrValidation, "%s", err)
 			}
-			b, err = resolver.Mutation().AddLink(ctx, b.ID, model.LinkInput{Type: linkType, Target: target})
-			if err != nil {
-				return cmdError(updateJSON, output.ErrValidation, "%s", err)
-			}
-			changes = append(changes, "links")
+			changes = append(changes, "parent")
 		}
 
-		// Process link removals
-		for _, linkStr := range updateUnlink {
-			linkType, target, err := parseLink(linkStr)
+		// Process block additions
+		for _, targetID := range updateBlock {
+			b, err = resolver.Mutation().AddBlock(ctx, b.ID, targetID)
 			if err != nil {
 				return cmdError(updateJSON, output.ErrValidation, "%s", err)
 			}
-			b, err = resolver.Mutation().RemoveLink(ctx, b.ID, model.LinkInput{Type: linkType, Target: target})
+			changes = append(changes, "blocks")
+		}
+
+		// Process block removals
+		for _, targetID := range updateUnblock {
+			b, err = resolver.Mutation().RemoveBlock(ctx, b.ID, targetID)
 			if err != nil {
 				return cmdError(updateJSON, output.ErrValidation, "%s", err)
 			}
-			changes = append(changes, "links")
+			changes = append(changes, "blocks")
 		}
 
 		// Require at least one change
 		if len(changes) == 0 {
 			return cmdError(updateJSON, output.ErrValidation,
-				"no changes specified (use --status, --type, --priority, --title, --body, --link, --unlink, --tag, or --untag)")
+				"no changes specified (use --status, --type, --priority, --title, --body, --parent, --block, --unblock, --tag, or --untag)")
 		}
 
 		// Output result
@@ -196,10 +203,13 @@ func init() {
 	updateCmd.Flags().StringVar(&updateTitle, "title", "", "New title")
 	updateCmd.Flags().StringVarP(&updateBody, "body", "d", "", "New body (use '-' to read from stdin)")
 	updateCmd.Flags().StringVar(&updateBodyFile, "body-file", "", "Read body from file")
-	updateCmd.Flags().StringArrayVar(&updateLink, "link", nil, "Add relationship (format: type:id, can be repeated)")
-	updateCmd.Flags().StringArrayVar(&updateUnlink, "unlink", nil, "Remove relationship (format: type:id, can be repeated)")
+	updateCmd.Flags().StringVar(&updateParent, "parent", "", "Set parent bean ID")
+	updateCmd.Flags().BoolVar(&updateNoParent, "no-parent", false, "Remove parent")
+	updateCmd.Flags().StringArrayVar(&updateBlock, "block", nil, "Add blocking relationship (can be repeated)")
+	updateCmd.Flags().StringArrayVar(&updateUnblock, "unblock", nil, "Remove blocking relationship (can be repeated)")
 	updateCmd.Flags().StringArrayVar(&updateTag, "tag", nil, "Add tag (can be repeated)")
 	updateCmd.Flags().StringArrayVar(&updateUntag, "untag", nil, "Remove tag (can be repeated)")
+	updateCmd.MarkFlagsMutuallyExclusive("parent", "no-parent")
 	updateCmd.Flags().BoolVar(&updateJSON, "json", false, "Output as JSON")
 	updateCmd.MarkFlagsMutuallyExclusive("body", "body-file")
 	rootCmd.AddCommand(updateCmd)

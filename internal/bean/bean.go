@@ -162,6 +162,39 @@ func (b *Bean) RemoveTag(tag string) {
 	b.Tags = result
 }
 
+// HasParent returns true if the bean has a parent.
+func (b *Bean) HasParent() bool {
+	return b.Parent != ""
+}
+
+// BlocksBean returns true if this bean blocks the given bean ID.
+func (b *Bean) BlocksBean(id string) bool {
+	for _, target := range b.Blocks {
+		if target == id {
+			return true
+		}
+	}
+	return false
+}
+
+// AddBlock adds a bean ID to the blocks list if not already present.
+func (b *Bean) AddBlock(id string) {
+	if !b.BlocksBean(id) {
+		b.Blocks = append(b.Blocks, id)
+	}
+}
+
+// RemoveBlock removes a bean ID from the blocks list.
+func (b *Bean) RemoveBlock(id string) {
+	result := make([]string, 0, len(b.Blocks))
+	for _, target := range b.Blocks {
+		if target != id {
+			result = append(result, target)
+		}
+	}
+	b.Blocks = result
+}
+
 // Bean represents an issue stored as a markdown file with front matter.
 type Bean struct {
 	// ID is the unique NanoID identifier (from filename).
@@ -183,8 +216,11 @@ type Bean struct {
 	// Body is the markdown content after the front matter.
 	Body string `yaml:"-" json:"body,omitempty"`
 
-	// Links are relationships to other beans (e.g., "blocks", "parent").
-	Links Links `yaml:"links,omitempty" json:"links,omitempty"`
+	// Parent is the optional parent bean ID (milestone, epic, or feature).
+	Parent string `yaml:"parent,omitempty" json:"parent,omitempty"`
+
+	// Blocks is a list of bean IDs that this bean blocks.
+	Blocks []string `yaml:"blocks,omitempty" json:"blocks,omitempty"`
 }
 
 // frontMatter is the subset of Bean that gets serialized to YAML front matter.
@@ -197,7 +233,10 @@ type frontMatter struct {
 	Tags      []string    `yaml:"tags,omitempty"`
 	CreatedAt *time.Time  `yaml:"created_at,omitempty"`
 	UpdatedAt *time.Time  `yaml:"updated_at,omitempty"`
-	Links     interface{} `yaml:"links,omitempty"`
+	Parent    string      `yaml:"parent,omitempty"`
+	Blocks    []string    `yaml:"blocks,omitempty"`
+	// Links is kept for reading old format during migration
+	Links interface{} `yaml:"links,omitempty"`
 }
 
 // convertLinks converts flexible YAML links from frontmatter lib (yaml.v2) to Links.
@@ -239,7 +278,7 @@ func Parse(r io.Reader) (*Bean, error) {
 		return nil, fmt.Errorf("parsing front matter: %w", err)
 	}
 
-	return &Bean{
+	b := &Bean{
 		Title:     fm.Title,
 		Status:    fm.Status,
 		Type:      fm.Type,
@@ -248,8 +287,29 @@ func Parse(r io.Reader) (*Bean, error) {
 		CreatedAt: fm.CreatedAt,
 		UpdatedAt: fm.UpdatedAt,
 		Body:      string(body),
-		Links:     convertLinks(fm.Links),
-	}, nil
+		Parent:    fm.Parent,
+		Blocks:    fm.Blocks,
+	}
+
+	// Migrate old links format if present
+	if fm.Links != nil {
+		oldLinks := convertLinks(fm.Links)
+		for _, link := range oldLinks {
+			switch link.Type {
+			case "parent":
+				if b.Parent == "" {
+					b.Parent = link.Target
+				}
+			case "blocks":
+				if !b.BlocksBean(link.Target) {
+					b.Blocks = append(b.Blocks, link.Target)
+				}
+			// "duplicates" and "related" are silently dropped
+			}
+		}
+	}
+
+	return b, nil
 }
 
 // renderFrontMatter is used for YAML output with yaml.v3 (supports custom marshalers).
@@ -261,7 +321,8 @@ type renderFrontMatter struct {
 	Tags      []string   `yaml:"tags,omitempty"`
 	CreatedAt *time.Time `yaml:"created_at,omitempty"`
 	UpdatedAt *time.Time `yaml:"updated_at,omitempty"`
-	Links     Links      `yaml:"links,omitempty"`
+	Parent    string     `yaml:"parent,omitempty"`
+	Blocks    []string   `yaml:"blocks,omitempty"`
 }
 
 // Render serializes the bean back to markdown with YAML front matter.
@@ -274,7 +335,8 @@ func (b *Bean) Render() ([]byte, error) {
 		Tags:      b.Tags,
 		CreatedAt: b.CreatedAt,
 		UpdatedAt: b.UpdatedAt,
-		Links:     b.Links,
+		Parent:    b.Parent,
+		Blocks:    b.Blocks,
 	}
 
 	fmBytes, err := yaml.Marshal(&fm)

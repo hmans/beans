@@ -49,8 +49,8 @@ func TestBuildRoadmap(t *testing.T) {
 			name: "milestone with epic and items",
 			beans: []*bean.Bean{
 				{ID: "m1", Type: "milestone", Title: "v1.0", Status: "todo", CreatedAt: &now},
-				{ID: "e1", Type: "epic", Title: "Auth", Status: "todo", Links: bean.Links{{Type: "parent", Target: "m1"}}},
-				{ID: "t1", Type: "task", Title: "Login", Status: "todo", Links: bean.Links{{Type: "parent", Target: "e1"}}},
+				{ID: "e1", Type: "epic", Title: "Auth", Status: "todo", Parent: "m1"},
+				{ID: "t1", Type: "task", Title: "Login", Status: "todo", Parent: "e1"},
 			},
 			wantMilestones: 1,
 		},
@@ -58,7 +58,7 @@ func TestBuildRoadmap(t *testing.T) {
 			name: "milestone with direct children (no epic)",
 			beans: []*bean.Bean{
 				{ID: "m1", Type: "milestone", Title: "v1.0", Status: "todo", CreatedAt: &now},
-				{ID: "t1", Type: "task", Title: "Docs", Status: "todo", Links: bean.Links{{Type: "parent", Target: "m1"}}},
+				{ID: "t1", Type: "task", Title: "Docs", Status: "todo", Parent: "m1"},
 			},
 			wantMilestones: 1,
 		},
@@ -66,7 +66,7 @@ func TestBuildRoadmap(t *testing.T) {
 			name: "unscheduled epic",
 			beans: []*bean.Bean{
 				{ID: "e1", Type: "epic", Title: "Future", Status: "todo"},
-				{ID: "t1", Type: "task", Title: "Nice to have", Status: "todo", Links: bean.Links{{Type: "parent", Target: "e1"}}},
+				{ID: "t1", Type: "task", Title: "Nice to have", Status: "todo", Parent: "e1"},
 			},
 			wantMilestones:       0,
 			wantUnscheduledEpics: 1,
@@ -75,7 +75,7 @@ func TestBuildRoadmap(t *testing.T) {
 			name: "done items excluded by default",
 			beans: []*bean.Bean{
 				{ID: "m1", Type: "milestone", Title: "v1.0", Status: "todo", CreatedAt: &now},
-				{ID: "t1", Type: "task", Title: "Done task", Status: "completed", Links: bean.Links{{Type: "parent", Target: "m1"}}},
+				{ID: "t1", Type: "task", Title: "Done task", Status: "completed", Parent: "m1"},
 			},
 			includeDone:    false,
 			wantMilestones: 0, // milestone has no visible children
@@ -84,7 +84,7 @@ func TestBuildRoadmap(t *testing.T) {
 			name: "done items included when requested",
 			beans: []*bean.Bean{
 				{ID: "m1", Type: "milestone", Title: "v1.0", Status: "todo", CreatedAt: &now},
-				{ID: "t1", Type: "task", Title: "Done task", Status: "completed", Links: bean.Links{{Type: "parent", Target: "m1"}}},
+				{ID: "t1", Type: "task", Title: "Done task", Status: "completed", Parent: "m1"},
 			},
 			includeDone:    true,
 			wantMilestones: 1,
@@ -230,8 +230,8 @@ func TestStatusFiltering(t *testing.T) {
 	beans := []*bean.Bean{
 		{ID: "m1", Type: "milestone", Title: "Todo Milestone", Status: "todo", CreatedAt: &now},
 		{ID: "m2", Type: "milestone", Title: "In Progress Milestone", Status: "in-progress", CreatedAt: &now},
-		{ID: "t1", Type: "task", Title: "Task 1", Status: "todo", Links: bean.Links{{Type: "parent", Target: "m1"}}},
-		{ID: "t2", Type: "task", Title: "Task 2", Status: "todo", Links: bean.Links{{Type: "parent", Target: "m2"}}},
+		{ID: "t1", Type: "task", Title: "Task 1", Status: "todo", Parent: "m1"},
+		{ID: "t2", Type: "task", Title: "Task 2", Status: "todo", Parent: "m2"},
 	}
 
 	t.Run("filter by status", func(t *testing.T) {

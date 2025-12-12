@@ -34,14 +34,18 @@ type BeanFilter struct {
 	Tags []string `json:"tags,omitempty"`
 	// Exclude beans with any of these tags
 	ExcludeTags []string `json:"excludeTags,omitempty"`
-	// Include only beans that have outgoing links matching these filters (OR logic)
-	HasLinks []*LinkFilter `json:"hasLinks,omitempty"`
-	// Include only beans that are targets of links matching these filters (OR logic)
-	LinkedAs []*LinkFilter `json:"linkedAs,omitempty"`
-	// Exclude beans that have outgoing links matching these filters
-	NoLinks []*LinkFilter `json:"noLinks,omitempty"`
-	// Exclude beans that are targets of links matching these filters
-	NoLinkedAs []*LinkFilter `json:"noLinkedAs,omitempty"`
+	// Include only beans with a parent
+	HasParent *bool `json:"hasParent,omitempty"`
+	// Include only beans with this specific parent ID
+	ParentID *string `json:"parentId,omitempty"`
+	// Include only beans that block other beans
+	HasBlocks *bool `json:"hasBlocks,omitempty"`
+	// Include only beans that are blocked by others
+	IsBlocked *bool `json:"isBlocked,omitempty"`
+	// Exclude beans that have a parent
+	NoParent *bool `json:"noParent,omitempty"`
+	// Exclude beans that block other beans
+	NoBlocks *bool `json:"noBlocks,omitempty"`
 }
 
 // Input for creating a new bean
@@ -58,24 +62,10 @@ type CreateBeanInput struct {
 	Tags []string `json:"tags,omitempty"`
 	// Markdown body content
 	Body *string `json:"body,omitempty"`
-	// Links to other beans
-	Links []*LinkInput `json:"links,omitempty"`
-}
-
-// A link filter specifies both the link type and optionally a target bean ID.
-type LinkFilter struct {
-	// Link type (blocks, duplicates, parent, related)
-	Type string `json:"type"`
-	// Optional target bean ID - if omitted, matches any target
-	Target *string `json:"target,omitempty"`
-}
-
-// Input for specifying a link
-type LinkInput struct {
-	// Link type (blocks, duplicates, parent, related)
-	Type string `json:"type"`
-	// Target bean ID
-	Target string `json:"target"`
+	// Parent bean ID (validated against type hierarchy)
+	Parent *string `json:"parent,omitempty"`
+	// Bean IDs this bean blocks
+	Blocks []string `json:"blocks,omitempty"`
 }
 
 type Mutation struct {

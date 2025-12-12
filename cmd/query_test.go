@@ -216,7 +216,7 @@ func TestExecuteQueryWithRelationships(t *testing.T) {
 		Slug:   "child-bean",
 		Title:  "Child Bean",
 		Status: "todo",
-		Links:  bean.Links{{Type: "parent", Target: "parent-1"}},
+		Parent: "parent-1",
 	}
 	if err := testCore.Create(child); err != nil {
 		t.Fatalf("failed to create child bean: %v", err)
@@ -228,7 +228,7 @@ func TestExecuteQueryWithRelationships(t *testing.T) {
 		Slug:   "blocker-bean",
 		Title:  "Blocker Bean",
 		Status: "todo",
-		Links:  bean.Links{{Type: "blocks", Target: "child-1"}},
+		Blocks: []string{"child-1"},
 	}
 	if err := testCore.Create(blocker); err != nil {
 		t.Fatalf("failed to create blocker bean: %v", err)
@@ -518,7 +518,6 @@ func TestGetGraphQLSchema(t *testing.T) {
 	expectedTypes := []string{
 		"type Query",
 		"type Bean",
-		"type Link",
 		"input BeanFilter",
 	}
 

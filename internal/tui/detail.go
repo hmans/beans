@@ -489,18 +489,8 @@ func (m detailModel) resolveAllLinks() []resolvedLink {
 	if parent, _ := beanResolver.Parent(ctx, m.bean); parent != nil {
 		links = append(links, resolvedLink{linkType: "parent", bean: parent, incoming: false})
 	}
-	if duplicates, _ := beanResolver.Duplicates(ctx, m.bean); duplicates != nil {
-		for _, b := range duplicates {
-			links = append(links, resolvedLink{linkType: "duplicates", bean: b, incoming: false})
-		}
-	}
-	if related, _ := beanResolver.Related(ctx, m.bean); related != nil {
-		for _, b := range related {
-			links = append(links, resolvedLink{linkType: "related", bean: b, incoming: false})
-		}
-	}
 
-	// Resolve incoming links via GraphQL resolvers (directional relationships only)
+	// Resolve incoming links via GraphQL resolvers
 	if blockedBy, _ := beanResolver.BlockedBy(ctx, m.bean); blockedBy != nil {
 		for _, b := range blockedBy {
 			links = append(links, resolvedLink{linkType: "blocks", bean: b, incoming: true})
@@ -511,7 +501,6 @@ func (m detailModel) resolveAllLinks() []resolvedLink {
 			links = append(links, resolvedLink{linkType: "parent", bean: b, incoming: true})
 		}
 	}
-	// Note: duplicates and related are bidirectional, already handled above
 
 	// Sort all links by link type label first, then by bean status/type/title
 	// This keeps link categories together while ordering beans consistently with the main list

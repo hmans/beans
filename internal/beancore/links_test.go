@@ -9,18 +9,16 @@ import (
 func TestFindIncomingLinks(t *testing.T) {
 	core, _ := setupTestCore(t)
 
-	// Create beans with links
+	// Create beans with relationships
 	// A -> B (blocks)
 	// A -> C (parent)
-	// D -> B (related)
+	// D -> B (blocks)
 	beanA := &bean.Bean{
 		ID:     "aaa1",
 		Title:  "Bean A",
 		Status: "todo",
-		Links: bean.Links{
-			{Type: "blocks", Target: "bbb2"},
-			{Type: "parent", Target: "ccc3"},
-		},
+		Blocks: []string{"bbb2"},
+		Parent: "ccc3",
 	}
 	beanB := &bean.Bean{ID: "bbb2", Title: "Bean B", Status: "todo"}
 	beanC := &bean.Bean{ID: "ccc3", Title: "Bean C", Status: "todo"}
@@ -28,7 +26,7 @@ func TestFindIncomingLinks(t *testing.T) {
 		ID:     "ddd4",
 		Title:  "Bean D",
 		Status: "todo",
-		Links:  bean.Links{{Type: "related", Target: "bbb2"}},
+		Blocks: []string{"bbb2"},
 	}
 
 	for _, b := range []*bean.Bean{beanA, beanB, beanC, beanD} {
@@ -37,13 +35,13 @@ func TestFindIncomingLinks(t *testing.T) {
 		}
 	}
 
-	t.Run("multiple incoming links", func(t *testing.T) {
+	t.Run("multiple incoming blocks", func(t *testing.T) {
 		links := core.FindIncomingLinks("bbb2")
 		if len(links) != 2 {
 			t.Errorf("FindIncomingLinks(bbb2) = %d links, want 2", len(links))
 		}
 
-		// Check both A and D link to B
+		// Check both A and D block B
 		fromIDs := make(map[string]string)
 		for _, link := range links {
 			fromIDs[link.FromBean.ID] = link.LinkType
@@ -51,12 +49,12 @@ func TestFindIncomingLinks(t *testing.T) {
 		if fromIDs["aaa1"] != "blocks" {
 			t.Error("expected aaa1 -> bbb2 via blocks")
 		}
-		if fromIDs["ddd4"] != "related" {
-			t.Error("expected ddd4 -> bbb2 via related")
+		if fromIDs["ddd4"] != "blocks" {
+			t.Error("expected ddd4 -> bbb2 via blocks")
 		}
 	})
 
-	t.Run("single incoming link", func(t *testing.T) {
+	t.Run("single incoming parent link", func(t *testing.T) {
 		links := core.FindIncomingLinks("ccc3")
 		if len(links) != 1 {
 			t.Errorf("FindIncomingLinks(ccc3) = %d links, want 1", len(links))
@@ -89,13 +87,13 @@ func TestDetectCycle(t *testing.T) {
 		ID:     "aaa1",
 		Title:  "Bean A",
 		Status: "todo",
-		Links:  bean.Links{{Type: "blocks", Target: "bbb2"}},
+		Blocks: []string{"bbb2"},
 	}
 	beanB := &bean.Bean{
 		ID:     "bbb2",
 		Title:  "Bean B",
 		Status: "todo",
-		Links:  bean.Links{{Type: "blocks", Target: "ccc3"}},
+		Blocks: []string{"ccc3"},
 	}
 	beanC := &bean.Bean{
 		ID:     "ccc3",
@@ -133,32 +131,19 @@ func TestDetectCycle(t *testing.T) {
 		}
 	})
 
-	t.Run("ignores non-hierarchical links", func(t *testing.T) {
-		// "related" and "duplicates" links should not be checked for cycles
-		cycle := core.DetectCycle("ccc3", "related", "aaa1")
-		if cycle != nil {
-			t.Errorf("DetectCycle should ignore 'related' links, got: %v", cycle)
-		}
-
-		cycle = core.DetectCycle("ccc3", "duplicates", "aaa1")
-		if cycle != nil {
-			t.Errorf("DetectCycle should ignore 'duplicates' links, got: %v", cycle)
-		}
-	})
-
 	t.Run("parent cycle detection", func(t *testing.T) {
-		// Create parent chain: X parent of Y, Y parent of Z
+		// Create parent chain: X -> Y -> Z (X has parent Y, Y has parent Z)
 		beanX := &bean.Bean{
 			ID:     "xxx1",
 			Title:  "Bean X",
 			Status: "todo",
-			Links:  bean.Links{{Type: "parent", Target: "yyy2"}},
+			Parent: "yyy2",
 		}
 		beanY := &bean.Bean{
 			ID:     "yyy2",
 			Title:  "Bean Y",
 			Status: "todo",
-			Links:  bean.Links{{Type: "parent", Target: "zzz3"}},
+			Parent: "zzz3",
 		}
 		beanZ := &bean.Bean{
 			ID:     "zzz3",
@@ -183,25 +168,22 @@ func TestDetectCycle(t *testing.T) {
 func TestCheckAllLinks(t *testing.T) {
 	core, _ := setupTestCore(t)
 
-	// Create a bean with various link issues:
-	// - Broken link to nonexistent bean
-	// - Self-reference
-	// - Cycle (A -> B -> A)
+	// Create beans with various link issues:
+	// - Broken parent link to nonexistent bean
+	// - Self-reference in blocks
+	// - Cycle (A -> B -> A via blocks)
 	beanA := &bean.Bean{
 		ID:     "aaa1",
 		Title:  "Bean A",
 		Status: "todo",
-		Links: bean.Links{
-			{Type: "blocks", Target: "bbb2"},
-			{Type: "parent", Target: "nonexistent"},
-			{Type: "related", Target: "aaa1"}, // self-reference
-		},
+		Blocks: []string{"bbb2", "aaa1"}, // aaa1 is self-reference
+		Parent: "nonexistent",
 	}
 	beanB := &bean.Bean{
 		ID:     "bbb2",
 		Title:  "Bean B",
 		Status: "todo",
-		Links:  bean.Links{{Type: "blocks", Target: "aaa1"}}, // creates cycle
+		Blocks: []string{"aaa1"}, // creates cycle
 	}
 
 	for _, b := range []*bean.Bean{beanA, beanB} {
@@ -230,7 +212,7 @@ func TestCheckAllLinks(t *testing.T) {
 		}
 		if len(result.SelfLinks) > 0 {
 			sl := result.SelfLinks[0]
-			if sl.BeanID != "aaa1" || sl.LinkType != "related" {
+			if sl.BeanID != "aaa1" || sl.LinkType != "blocks" {
 				t.Errorf("unexpected self-link: %+v", sl)
 			}
 		}
@@ -272,7 +254,7 @@ func TestCheckAllLinksClean(t *testing.T) {
 		ID:     "aaa1",
 		Title:  "Bean A",
 		Status: "todo",
-		Links:  bean.Links{{Type: "blocks", Target: "bbb2"}},
+		Blocks: []string{"bbb2"},
 	}
 	beanB := &bean.Bean{
 		ID:     "bbb2",
@@ -302,16 +284,14 @@ func TestRemoveLinksTo(t *testing.T) {
 		ID:     "aaa1",
 		Title:  "Bean A",
 		Status: "todo",
-		Links: bean.Links{
-			{Type: "blocks", Target: "target"},
-			{Type: "parent", Target: "target"},
-		},
+		Blocks: []string{"target"},
+		Parent: "target",
 	}
 	beanB := &bean.Bean{
 		ID:     "bbb2",
 		Title:  "Bean B",
 		Status: "todo",
-		Links:  bean.Links{{Type: "related", Target: "target"}},
+		Blocks: []string{"target"},
 	}
 	target := &bean.Bean{
 		ID:     "target",
@@ -337,13 +317,13 @@ func TestRemoveLinksTo(t *testing.T) {
 
 	// Verify links are gone
 	loadedA, _ := core.Get("aaa1")
-	if len(loadedA.Links) != 0 {
-		t.Errorf("Bean A still has %d links, want 0", len(loadedA.Links))
+	if loadedA.Parent != "" || len(loadedA.Blocks) != 0 {
+		t.Errorf("Bean A still has relationships: parent=%q blocks=%v", loadedA.Parent, loadedA.Blocks)
 	}
 
 	loadedB, _ := core.Get("bbb2")
-	if len(loadedB.Links) != 0 {
-		t.Errorf("Bean B still has %d links, want 0", len(loadedB.Links))
+	if len(loadedB.Blocks) != 0 {
+		t.Errorf("Bean B still has %d blocks, want 0", len(loadedB.Blocks))
 	}
 }
 
@@ -355,11 +335,8 @@ func TestFixBrokenLinks(t *testing.T) {
 		ID:     "aaa1",
 		Title:  "Bean A",
 		Status: "todo",
-		Links: bean.Links{
-			{Type: "blocks", Target: "bbb2"},       // valid
-			{Type: "parent", Target: "nonexistent"}, // broken
-			{Type: "related", Target: "aaa1"},       // self-reference
-		},
+		Blocks: []string{"bbb2", "aaa1"}, // bbb2 is valid, aaa1 is self-reference
+		Parent: "nonexistent",             // broken
 	}
 	beanB := &bean.Bean{
 		ID:     "bbb2",
@@ -385,11 +362,14 @@ func TestFixBrokenLinks(t *testing.T) {
 
 	// Verify only valid link remains
 	loadedA, _ := core.Get("aaa1")
-	if len(loadedA.Links) != 1 {
-		t.Errorf("Bean A has %d links, want 1", len(loadedA.Links))
+	if len(loadedA.Blocks) != 1 {
+		t.Errorf("Bean A has %d blocks, want 1", len(loadedA.Blocks))
 	}
-	if !loadedA.Links.HasLink("blocks", "bbb2") {
+	if !loadedA.BlocksBean("bbb2") {
 		t.Error("valid 'blocks' link should be preserved")
+	}
+	if loadedA.Parent != "" {
+		t.Errorf("broken parent should be removed, got %q", loadedA.Parent)
 	}
 }
 

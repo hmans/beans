@@ -87,12 +87,10 @@ func BuildTree(matchedBeans []*bean.Bean, allBeans []*bean.Bean, sortFn func([]*
 	// Build children index (parent ID -> children)
 	children := make(map[string][]*bean.Bean)
 	for _, b := range neededBeans {
-		parentIDs := b.Links.Targets("parent")
-		if len(parentIDs) > 0 {
-			parentID := parentIDs[0] // beans can only have one parent
+		if b.Parent != "" {
 			// Only add as child if parent is in our needed set
-			if _, ok := neededBeans[parentID]; ok {
-				children[parentID] = append(children[parentID], b)
+			if _, ok := neededBeans[b.Parent]; ok {
+				children[b.Parent] = append(children[b.Parent], b)
 			}
 		}
 	}
@@ -105,13 +103,11 @@ func BuildTree(matchedBeans []*bean.Bean, allBeans []*bean.Bean, sortFn func([]*
 	// Find root beans (no parent or parent not in needed set)
 	var roots []*bean.Bean
 	for _, b := range neededBeans {
-		parentIDs := b.Links.Targets("parent")
-		if len(parentIDs) == 0 {
+		if b.Parent == "" {
 			roots = append(roots, b)
 		} else {
 			// Check if parent is in the tree
-			parentID := parentIDs[0]
-			if _, ok := neededBeans[parentID]; !ok {
+			if _, ok := neededBeans[b.Parent]; !ok {
 				roots = append(roots, b)
 			}
 		}
@@ -124,19 +120,17 @@ func BuildTree(matchedBeans []*bean.Bean, allBeans []*bean.Bean, sortFn func([]*
 
 // addAncestors recursively adds all ancestors of a bean to the needed set.
 func addAncestors(b *bean.Bean, beanByID map[string]*bean.Bean, needed map[string]*bean.Bean) {
-	parentIDs := b.Links.Targets("parent")
-	if len(parentIDs) == 0 {
+	if b.Parent == "" {
 		return
 	}
-	parentID := parentIDs[0]
-	parent, ok := beanByID[parentID]
+	parent, ok := beanByID[b.Parent]
 	if !ok {
 		return // parent doesn't exist (broken link)
 	}
-	if _, alreadyNeeded := needed[parentID]; alreadyNeeded {
+	if _, alreadyNeeded := needed[b.Parent]; alreadyNeeded {
 		return // already processed
 	}
-	needed[parentID] = parent
+	needed[b.Parent] = parent
 	addAncestors(parent, beanByID, needed)
 }
 

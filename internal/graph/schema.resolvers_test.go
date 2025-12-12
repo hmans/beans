@@ -315,19 +315,19 @@ func TestBeanRelationships(t *testing.T) {
 		ID:     "child-1",
 		Title:  "Child 1",
 		Status: "todo",
-		Links:  bean.Links{{Type: "parent", Target: "parent-1"}},
+		Parent: "parent-1",
 	}
 	child2 := &bean.Bean{
 		ID:     "child-2",
 		Title:  "Child 2",
 		Status: "todo",
-		Links:  bean.Links{{Type: "parent", Target: "parent-1"}},
+		Parent: "parent-1",
 	}
 	blocker := &bean.Bean{
 		ID:     "blocker-1",
 		Title:  "Blocker",
 		Status: "todo",
-		Links:  bean.Links{{Type: "blocks", Target: "child-1"}},
+		Blocks: []string{"child-1"},
 	}
 
 	core.Create(parent)
@@ -398,7 +398,7 @@ func TestBrokenLinksFiltered(t *testing.T) {
 		ID:     "orphan-1",
 		Title:  "Orphan",
 		Status: "todo",
-		Links:  bean.Links{{Type: "parent", Target: "nonexistent"}},
+		Parent: "nonexistent",
 	}
 	core.Create(b)
 
@@ -412,47 +412,36 @@ func TestBrokenLinksFiltered(t *testing.T) {
 			t.Errorf("Parent() = %v, want nil for broken link", got)
 		}
 	})
-
-	t.Run("link targetBean returns nil for broken", func(t *testing.T) {
-		lr := resolver.Link()
-		link := &bean.Link{Type: "parent", Target: "nonexistent"}
-		got, err := lr.TargetBean(ctx, link)
-		if err != nil {
-			t.Fatalf("TargetBean() error = %v", err)
-		}
-		if got != nil {
-			t.Errorf("TargetBean() = %v, want nil for broken link", got)
-		}
-	})
 }
 
-func TestQueryBeansWithLinks(t *testing.T) {
+func TestQueryBeansWithParentAndBlocks(t *testing.T) {
 	resolver, core := setupTestResolver(t)
 	ctx := context.Background()
 
-	// Create beans with various link configurations
-	noLinks := &bean.Bean{ID: "no-links", Title: "No Links", Status: "todo"}
+	// Create beans with various relationship configurations
+	noRels := &bean.Bean{ID: "no-rels", Title: "No Relationships", Status: "todo"}
 	hasParent := &bean.Bean{
 		ID:     "has-parent",
 		Title:  "Has Parent",
 		Status: "todo",
-		Links:  bean.Links{{Type: "parent", Target: "no-links"}},
+		Parent: "no-rels",
 	}
 	hasBlocks := &bean.Bean{
 		ID:     "has-blocks",
 		Title:  "Has Blocks",
 		Status: "todo",
-		Links:  bean.Links{{Type: "blocks", Target: "has-parent"}},
+		Blocks: []string{"has-parent"},
 	}
 
-	core.Create(noLinks)
+	core.Create(noRels)
 	core.Create(hasParent)
 	core.Create(hasBlocks)
 
-	t.Run("filter hasLinks parent", func(t *testing.T) {
+	t.Run("filter hasParent", func(t *testing.T) {
 		qr := resolver.Query()
+		hasParentBool := true
 		filter := &model.BeanFilter{
-			HasLinks: []*model.LinkFilter{{Type: "parent"}},
+			HasParent: &hasParentBool,
 		}
 		got, err := qr.Beans(ctx, filter)
 		if err != nil {
@@ -466,10 +455,11 @@ func TestQueryBeansWithLinks(t *testing.T) {
 		}
 	})
 
-	t.Run("filter noLinks parent", func(t *testing.T) {
+	t.Run("filter noParent", func(t *testing.T) {
 		qr := resolver.Query()
+		noParentBool := true
 		filter := &model.BeanFilter{
-			NoLinks: []*model.LinkFilter{{Type: "parent"}},
+			NoParent: &noParentBool,
 		}
 		got, err := qr.Beans(ctx, filter)
 		if err != nil {
@@ -480,43 +470,11 @@ func TestQueryBeansWithLinks(t *testing.T) {
 		}
 	})
 
-	t.Run("filter linkedAs blocks", func(t *testing.T) {
+	t.Run("filter hasBlocks", func(t *testing.T) {
 		qr := resolver.Query()
+		hasBlocksBool := true
 		filter := &model.BeanFilter{
-			LinkedAs: []*model.LinkFilter{{Type: "blocks"}},
-		}
-		got, err := qr.Beans(ctx, filter)
-		if err != nil {
-			t.Fatalf("Beans() error = %v", err)
-		}
-		if len(got) != 1 {
-			t.Errorf("Beans() count = %d, want 1", len(got))
-		}
-		if got[0].ID != "has-parent" {
-			t.Errorf("Beans()[0].ID = %q, want %q", got[0].ID, "has-parent")
-		}
-	})
-
-	t.Run("filter noLinkedAs blocks", func(t *testing.T) {
-		qr := resolver.Query()
-		filter := &model.BeanFilter{
-			NoLinkedAs: []*model.LinkFilter{{Type: "blocks"}},
-		}
-		got, err := qr.Beans(ctx, filter)
-		if err != nil {
-			t.Fatalf("Beans() error = %v", err)
-		}
-		if len(got) != 2 {
-			t.Errorf("Beans() count = %d, want 2", len(got))
-		}
-	})
-
-	// Test type:target link filtering
-	t.Run("filter hasLinks with target", func(t *testing.T) {
-		qr := resolver.Query()
-		target := "has-parent"
-		filter := &model.BeanFilter{
-			HasLinks: []*model.LinkFilter{{Type: "blocks", Target: &target}},
+			HasBlocks: &hasBlocksBool,
 		}
 		got, err := qr.Beans(ctx, filter)
 		if err != nil {
@@ -530,40 +488,45 @@ func TestQueryBeansWithLinks(t *testing.T) {
 		}
 	})
 
-	t.Run("filter hasLinks with non-matching target", func(t *testing.T) {
+	t.Run("filter isBlocked", func(t *testing.T) {
 		qr := resolver.Query()
-		target := "no-links"
+		isBlockedBool := true
 		filter := &model.BeanFilter{
-			HasLinks: []*model.LinkFilter{{Type: "blocks", Target: &target}},
+			IsBlocked: &isBlockedBool,
 		}
 		got, err := qr.Beans(ctx, filter)
 		if err != nil {
 			t.Fatalf("Beans() error = %v", err)
 		}
-		if len(got) != 0 {
-			t.Errorf("Beans() count = %d, want 0", len(got))
+		if len(got) != 1 {
+			t.Errorf("Beans() count = %d, want 1", len(got))
+		}
+		if got[0].ID != "has-parent" {
+			t.Errorf("Beans()[0].ID = %q, want %q", got[0].ID, "has-parent")
 		}
 	})
 
-	t.Run("filter noLinks with target", func(t *testing.T) {
+	t.Run("filter by parentId", func(t *testing.T) {
 		qr := resolver.Query()
-		target := "has-parent"
+		parentID := "no-rels"
 		filter := &model.BeanFilter{
-			NoLinks: []*model.LinkFilter{{Type: "blocks", Target: &target}},
+			ParentID: &parentID,
 		}
 		got, err := qr.Beans(ctx, filter)
 		if err != nil {
 			t.Fatalf("Beans() error = %v", err)
 		}
-		// Should exclude has-blocks (which blocks has-parent), leaving no-links and has-parent
-		if len(got) != 2 {
-			t.Errorf("Beans() count = %d, want 2", len(got))
+		if len(got) != 1 {
+			t.Errorf("Beans() count = %d, want 1", len(got))
+		}
+		if got[0].ID != "has-parent" {
+			t.Errorf("Beans()[0].ID = %q, want %q", got[0].ID, "has-parent")
 		}
 	})
 }
 
 func TestMutationCreateBean(t *testing.T) {
-	resolver, _ := setupTestResolver(t)
+	resolver, core := setupTestResolver(t)
 	ctx := context.Background()
 
 	t.Run("create with required fields only", func(t *testing.T) {
@@ -591,11 +554,28 @@ func TestMutationCreateBean(t *testing.T) {
 	})
 
 	t.Run("create with all fields", func(t *testing.T) {
+		// Create parent and target beans first
+		parentBean := &bean.Bean{
+			ID:     "some-parent",
+			Title:  "Parent Bean",
+			Status: "todo",
+			Type:   "epic",
+		}
+		targetBean := &bean.Bean{
+			ID:     "some-target",
+			Title:  "Target Bean",
+			Status: "todo",
+			Type:   "task",
+		}
+		core.Create(parentBean)
+		core.Create(targetBean)
+
 		mr := resolver.Mutation()
 		beanType := "feature"
 		status := "in-progress"
 		priority := "high"
 		body := "Test body content"
+		parent := "some-parent"
 		input := model.CreateBeanInput{
 			Title:    "Full Bean",
 			Type:     &beanType,
@@ -603,9 +583,8 @@ func TestMutationCreateBean(t *testing.T) {
 			Priority: &priority,
 			Body:     &body,
 			Tags:     []string{"tag1", "tag2"},
-			Links: []*model.LinkInput{
-				{Type: "related", Target: "some-id"},
-			},
+			Parent:   &parent,
+			Blocks:   []string{"some-target"},
 		}
 		got, err := mr.CreateBean(ctx, input)
 		if err != nil {
@@ -626,8 +605,11 @@ func TestMutationCreateBean(t *testing.T) {
 		if len(got.Tags) != 2 {
 			t.Errorf("CreateBean().Tags count = %d, want 2", len(got.Tags))
 		}
-		if len(got.Links) != 1 {
-			t.Errorf("CreateBean().Links count = %d, want 1", len(got.Links))
+		if got.Parent != "some-parent" {
+			t.Errorf("CreateBean().Parent = %q, want %q", got.Parent, "some-parent")
+		}
+		if len(got.Blocks) != 1 {
+			t.Errorf("CreateBean().Blocks count = %d, want 1", len(got.Blocks))
 		}
 	})
 }
@@ -720,75 +702,89 @@ func TestMutationUpdateBean(t *testing.T) {
 	})
 }
 
-func TestMutationAddRemoveLink(t *testing.T) {
+func TestMutationSetParent(t *testing.T) {
 	resolver, core := setupTestResolver(t)
 	ctx := context.Background()
 
-	// Create a test bean
-	b := &bean.Bean{
-		ID:     "link-test",
-		Title:  "Link Test",
-		Status: "todo",
-		Type:   "task",
-	}
-	core.Create(b)
+	// Create test beans
+	parent := &bean.Bean{ID: "parent-1", Title: "Parent", Status: "todo", Type: "epic"}
+	child := &bean.Bean{ID: "child-1", Title: "Child", Status: "todo", Type: "task"}
+	core.Create(parent)
+	core.Create(child)
 
-	t.Run("add link", func(t *testing.T) {
+	t.Run("set parent", func(t *testing.T) {
 		mr := resolver.Mutation()
-		got, err := mr.AddLink(ctx, "link-test", model.LinkInput{
-			Type:   "related",
-			Target: "target-1",
-		})
+		parentID := "parent-1"
+		got, err := mr.SetParent(ctx, "child-1", &parentID)
 		if err != nil {
-			t.Fatalf("AddLink() error = %v", err)
+			t.Fatalf("SetParent() error = %v", err)
 		}
-		if len(got.Links) != 1 {
-			t.Errorf("AddLink().Links count = %d, want 1", len(got.Links))
-		}
-		if got.Links[0].Type != "related" || got.Links[0].Target != "target-1" {
-			t.Errorf("AddLink().Links[0] = %+v, want related:target-1", got.Links[0])
+		if got.Parent != "parent-1" {
+			t.Errorf("SetParent().Parent = %q, want %q", got.Parent, "parent-1")
 		}
 	})
 
-	t.Run("add another link", func(t *testing.T) {
+	t.Run("clear parent", func(t *testing.T) {
 		mr := resolver.Mutation()
-		got, err := mr.AddLink(ctx, "link-test", model.LinkInput{
-			Type:   "blocks",
-			Target: "target-2",
-		})
+		got, err := mr.SetParent(ctx, "child-1", nil)
 		if err != nil {
-			t.Fatalf("AddLink() error = %v", err)
+			t.Fatalf("SetParent() error = %v", err)
 		}
-		if len(got.Links) != 2 {
-			t.Errorf("AddLink().Links count = %d, want 2", len(got.Links))
+		if got.Parent != "" {
+			t.Errorf("SetParent().Parent = %q, want empty", got.Parent)
 		}
 	})
 
-	t.Run("remove link", func(t *testing.T) {
+	t.Run("set parent on nonexistent bean", func(t *testing.T) {
 		mr := resolver.Mutation()
-		got, err := mr.RemoveLink(ctx, "link-test", model.LinkInput{
-			Type:   "related",
-			Target: "target-1",
-		})
-		if err != nil {
-			t.Fatalf("RemoveLink() error = %v", err)
-		}
-		if len(got.Links) != 1 {
-			t.Errorf("RemoveLink().Links count = %d, want 1", len(got.Links))
-		}
-		if got.Links[0].Type != "blocks" {
-			t.Errorf("RemoveLink().Links[0].Type = %q, want %q", got.Links[0].Type, "blocks")
-		}
-	})
-
-	t.Run("add link to nonexistent bean", func(t *testing.T) {
-		mr := resolver.Mutation()
-		_, err := mr.AddLink(ctx, "nonexistent", model.LinkInput{
-			Type:   "related",
-			Target: "whatever",
-		})
+		parentID := "parent-1"
+		_, err := mr.SetParent(ctx, "nonexistent", &parentID)
 		if err == nil {
-			t.Error("AddLink() expected error for nonexistent bean")
+			t.Error("SetParent() expected error for nonexistent bean")
+		}
+	})
+}
+
+func TestMutationAddRemoveBlock(t *testing.T) {
+	resolver, core := setupTestResolver(t)
+	ctx := context.Background()
+
+	// Create test beans
+	blocker := &bean.Bean{ID: "blocker-1", Title: "Blocker", Status: "todo", Type: "task"}
+	target := &bean.Bean{ID: "target-1", Title: "Target", Status: "todo", Type: "task"}
+	core.Create(blocker)
+	core.Create(target)
+
+	t.Run("add block", func(t *testing.T) {
+		mr := resolver.Mutation()
+		got, err := mr.AddBlock(ctx, "blocker-1", "target-1")
+		if err != nil {
+			t.Fatalf("AddBlock() error = %v", err)
+		}
+		if len(got.Blocks) != 1 {
+			t.Errorf("AddBlock().Blocks count = %d, want 1", len(got.Blocks))
+		}
+		if got.Blocks[0] != "target-1" {
+			t.Errorf("AddBlock().Blocks[0] = %q, want %q", got.Blocks[0], "target-1")
+		}
+	})
+
+	t.Run("remove block", func(t *testing.T) {
+		mr := resolver.Mutation()
+		got, err := mr.RemoveBlock(ctx, "blocker-1", "target-1")
+		if err != nil {
+			t.Fatalf("RemoveBlock() error = %v", err)
+		}
+		if len(got.Blocks) != 0 {
+			t.Errorf("RemoveBlock().Blocks count = %d, want 0", len(got.Blocks))
+		}
+	})
+
+	t.Run("add block to nonexistent bean", func(t *testing.T) {
+		mr := resolver.Mutation()
+		_, err := mr.AddBlock(ctx, "nonexistent", "target-1")
+		if err == nil {
+			t.Error("AddBlock() expected error for nonexistent bean")
 		}
 	})
 }
@@ -830,7 +826,7 @@ func TestMutationDeleteBean(t *testing.T) {
 			Title:  "Linker",
 			Status: "todo",
 			Type:   "task",
-			Links:  bean.Links{{Type: "blocks", Target: "target-bean"}},
+			Blocks: []string{"target-bean"},
 		}
 		core.Create(linker)
 
@@ -847,8 +843,8 @@ func TestMutationDeleteBean(t *testing.T) {
 		if updated == nil {
 			t.Fatal("Linker bean was deleted unexpectedly")
 		}
-		if len(updated.Links) != 0 {
-			t.Errorf("Linker still has %d links, want 0", len(updated.Links))
+		if len(updated.Blocks) != 0 {
+			t.Errorf("Linker still has %d blocks, want 0", len(updated.Blocks))
 		}
 	})
 
