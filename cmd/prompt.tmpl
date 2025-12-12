@@ -30,7 +30,7 @@ If you identify something that should be changed or fixed after completing the u
 Use GraphQL to query for actionable beans (not completed, not blocked):
 
 ```bash
-beans query '{ beans(filter: { excludeStatus: ["completed", "scrapped"], noLinkedAs: [{type: BLOCKS}] }) { id title status type priority } }'
+beans query '{ beans(filter: { excludeStatus: ["completed", "scrapped"], isBlocked: false }) { id title status type priority } }'
 ```
 
 Other useful queries:
@@ -50,7 +50,7 @@ beans query '{ beans(filter: { search: "authentication" }) { id title } }'
 
 1. **Read the bean** using GraphQL to get full details:
    ```bash
-   beans query '{ bean(id: "<id>") { title status type body epic { title } epicItems { title status } } }'
+   beans query '{ bean(id: "<id>") { title status type body parent { title } children { title status } } }'
    ```
 2. **Mark as in-progress**: `beans update <bean-id> --status in-progress`
 3. Adhere to the instructions in the bean's body when working on it
@@ -65,38 +65,32 @@ beans query '{ beans(filter: { search: "authentication" }) { id title } }'
 
 ## Relationships
 
-Beans can have relationships to other beans. Use these to express dependencies and connections.
+Beans can have relationships to other beans. Use these to express dependencies and hierarchy.
 
-**Hierarchy links (single value):**
-- `milestone` - assigns bean to a milestone (target must be type=milestone)
-- `epic` - assigns bean to an epic (target must be type=epic)
-- `feature` - assigns task/bug to a feature (target must be type=feature)
+**Parent (single value):**
+- `parent` - assigns a bean to a parent bean (type-restricted hierarchy: milestone → epic → feature → task/bug)
 
-**Relationship links (multiple values):**
-- `blocks` - this bean blocks another
-- `related` - related beans
+**Blocks (multiple values):**
+- `blocks` - this bean blocks another bean (prevents work on the blocked bean until this one is done)
 
 **Managing relationships (CLI):**
 
-- `beans update <bean-id> --block <other-id>` - Add a block relationship
-- `beans update <bean-id> --unblock <other-id>` - Remove a block relationship
-- `beans update <bean-id> --epic <other-id>` - Set the epic (parent)
-- `beans update <bean-id> --no-epic` - Clear the epic
-- `beans update <bean-id> --milestone <other-id>` - Set the milestone
-
-**Note:** A bean can have one milestone, one epic, and one feature simultaneously for multi-dimensional organization (e.g., "This task is part of the Login feature, under the Auth epic, targeting v2.0 milestone").
+- `beans update <bean-id> --parent <other-id>` - Set the parent
+- `beans update <bean-id> --no-parent` - Remove the parent
+- `beans update <bean-id> --block <other-id>` - Add a blocking relationship
+- `beans update <bean-id> --unblock <other-id>` - Remove a blocking relationship
 
 **Querying relationships (GraphQL):**
 
 ```bash
 # Get a bean with its relationships
-beans query '{ bean(id: "abc") { title epic { id title } epicItems { id title status } blockedBy { title } blocks { title } } }'
+beans query '{ bean(id: "abc") { title parent { id title } children { id title status } blockedBy { title } blocks { title } } }'
 
 # Find beans blocked by something
-beans query '{ beans(filter: { linkedAs: [{type: BLOCKS}] }) { id title blockedBy { title } } }'
+beans query '{ beans(filter: { isBlocked: true }) { id title blockedBy { title } } }'
 
-# Find top-level beans (no epic)
-beans query '{ beans(filter: { noLinks: [{type: EPIC}] }) { id title type } }'
+# Find top-level beans (no parent)
+beans query '{ beans(filter: { noParent: true }) { id title type } }'
 ```
 
 ## Creating new beans
