@@ -25,9 +25,6 @@ models:
   # Use existing Bean type from bean package
   Bean:
     model: github.com/hmans/beans/internal/bean.Bean
-  # Use existing Link type from bean package
-  Link:
-    model: github.com/hmans/beans/internal/bean.Link
   # Map ID scalar to string
   ID:
     model:

@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/charmbracelet/glamour"
@@ -93,11 +92,11 @@ var showCmd = &cobra.Command{
 		header.WriteString(ui.Title.Render(b.Title))
 
 		// Display relationships
-		if len(b.Links) > 0 {
+		if b.Parent != "" || len(b.Blocking) > 0 {
 			header.WriteString("\n")
 			header.WriteString(ui.Muted.Render(strings.Repeat("─", 50)))
 			header.WriteString("\n")
-			header.WriteString(formatLinks(b.Links))
+			header.WriteString(formatRelationships(b))
 		}
 
 		header.WriteString("\n")
@@ -131,32 +130,22 @@ var showCmd = &cobra.Command{
 	},
 }
 
-// formatLinks formats links for display with consistent ordering.
-func formatLinks(links bean.Links) string {
-	if len(links) == 0 {
-		return ""
-	}
-
-	// Group links by type, then sort types for deterministic output
-	byType := make(map[string][]string)
-	for _, link := range links {
-		byType[link.Type] = append(byType[link.Type], link.Target)
-	}
-
-	types := make([]string, 0, len(byType))
-	for t := range byType {
-		types = append(types, t)
-	}
-	sort.Strings(types)
-
+// formatRelationships formats parent and blocks for display.
+func formatRelationships(b *bean.Bean) string {
 	var parts []string
-	for _, linkType := range types {
-		targets := byType[linkType]
-		for _, target := range targets {
-			parts = append(parts, fmt.Sprintf("%s %s",
-				ui.Muted.Render(linkType+":"),
-				ui.ID.Render(target)))
-		}
+
+	// Display parent
+	if b.Parent != "" {
+		parts = append(parts, fmt.Sprintf("%s %s",
+			ui.Muted.Render("parent:"),
+			ui.ID.Render(b.Parent)))
+	}
+
+	// Display blocking
+	for _, target := range b.Blocking {
+		parts = append(parts, fmt.Sprintf("%s %s",
+			ui.Muted.Render("blocking:"),
+			ui.ID.Render(target)))
 	}
 	return strings.Join(parts, "\n")
 }

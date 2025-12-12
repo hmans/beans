@@ -101,8 +101,8 @@ func buildRoadmap(allBeans []*bean.Bean, includeDone bool, statusFilter, noStatu
 	// This maps each bean ID to the beans that have it as a parent
 	children := make(map[string][]*bean.Bean)
 	for _, b := range allBeans {
-		for _, parentID := range b.Links.Targets("parent") {
-			children[parentID] = append(children[parentID], b)
+		if b.Parent != "" {
+			children[b.Parent] = append(children[b.Parent], b)
 		}
 	}
 
@@ -185,7 +185,7 @@ func buildRoadmap(allBeans []*bean.Bean, includeDone bool, statusFilter, noStatu
 			continue
 		}
 		// Skip if has a parent (it's under an unscheduled epic, handled above)
-		if len(b.Links.Targets("parent")) > 0 {
+		if b.Parent != "" {
 			continue
 		}
 		// Apply done filter

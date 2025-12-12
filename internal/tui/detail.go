@@ -447,14 +447,10 @@ func (m detailModel) renderHeader() string {
 func (m detailModel) formatLinkLabel(linkType string, incoming bool) string {
 	if incoming {
 		switch linkType {
-		case "blocks":
+		case "blocking":
 			return "Blocked by"
 		case "parent":
 			return "Child"
-		case "duplicates":
-			return "Duplicated by"
-		case "related":
-			return "Related"
 		default:
 			return linkType + " (incoming)"
 		}
@@ -462,14 +458,10 @@ func (m detailModel) formatLinkLabel(linkType string, incoming bool) string {
 
 	// Outgoing labels - capitalize first letter
 	switch linkType {
-	case "blocks":
-		return "Blocks"
+	case "blocking":
+		return "Blocking"
 	case "parent":
 		return "Parent"
-	case "duplicates":
-		return "Duplicates"
-	case "related":
-		return "Related"
 	default:
 		return linkType
 	}
@@ -481,29 +473,19 @@ func (m detailModel) resolveAllLinks() []resolvedLink {
 	beanResolver := m.resolver.Bean()
 
 	// Resolve outgoing links via GraphQL resolvers
-	if blocks, _ := beanResolver.Blocks(ctx, m.bean); blocks != nil {
-		for _, b := range blocks {
-			links = append(links, resolvedLink{linkType: "blocks", bean: b, incoming: false})
+	if blocking, _ := beanResolver.Blocking(ctx, m.bean); blocking != nil {
+		for _, b := range blocking {
+			links = append(links, resolvedLink{linkType: "blocking", bean: b, incoming: false})
 		}
 	}
 	if parent, _ := beanResolver.Parent(ctx, m.bean); parent != nil {
 		links = append(links, resolvedLink{linkType: "parent", bean: parent, incoming: false})
 	}
-	if duplicates, _ := beanResolver.Duplicates(ctx, m.bean); duplicates != nil {
-		for _, b := range duplicates {
-			links = append(links, resolvedLink{linkType: "duplicates", bean: b, incoming: false})
-		}
-	}
-	if related, _ := beanResolver.Related(ctx, m.bean); related != nil {
-		for _, b := range related {
-			links = append(links, resolvedLink{linkType: "related", bean: b, incoming: false})
-		}
-	}
 
-	// Resolve incoming links via GraphQL resolvers (directional relationships only)
+	// Resolve incoming links via GraphQL resolvers
 	if blockedBy, _ := beanResolver.BlockedBy(ctx, m.bean); blockedBy != nil {
 		for _, b := range blockedBy {
-			links = append(links, resolvedLink{linkType: "blocks", bean: b, incoming: true})
+			links = append(links, resolvedLink{linkType: "blocking", bean: b, incoming: true})
 		}
 	}
 	if children, _ := beanResolver.Children(ctx, m.bean); children != nil {
@@ -511,7 +493,6 @@ func (m detailModel) resolveAllLinks() []resolvedLink {
 			links = append(links, resolvedLink{linkType: "parent", bean: b, incoming: true})
 		}
 	}
-	// Note: duplicates and related are bidirectional, already handled above
 
 	// Sort all links by link type label first, then by bean status/type/title
 	// This keeps link categories together while ordering beans consistently with the main list

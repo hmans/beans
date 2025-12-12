@@ -4,15 +4,14 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/hmans/beans/internal/bean"
 	"github.com/hmans/beans/internal/config"
 	"github.com/hmans/beans/internal/graph"
 	"github.com/hmans/beans/internal/graph/model"
 	"github.com/hmans/beans/internal/output"
 	"github.com/hmans/beans/internal/ui"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -24,35 +23,18 @@ var (
 	listNoType     []string
 	listPriority   []string
 	listNoPriority []string
-	listLinks      []string
-	listLinkedAs   []string
-	listNoLinks    []string
-	listNoLinkedAs []string
 	listTag        []string
 	listNoTag      []string
+	listHasParent   bool
+	listNoParent    bool
+	listParentID    string
+	listHasBlocking bool
+	listNoBlocking  bool
+	listIsBlocked   bool
 	listQuiet      bool
 	listSort       string
 	listFull       bool
 )
-
-// parseLinkFilters parses CLI link filter strings (e.g., "blocks" or "blocks:id")
-// into GraphQL LinkFilter models.
-func parseLinkFilters(filters []string) []*model.LinkFilter {
-	if len(filters) == 0 {
-		return nil
-	}
-	result := make([]*model.LinkFilter, len(filters))
-	for i, f := range filters {
-		parts := strings.SplitN(f, ":", 2)
-		lf := &model.LinkFilter{Type: parts[0]}
-		if len(parts) == 2 {
-			target := parts[1]
-			lf.Target = &target
-		}
-		result[i] = lf
-	}
-	return result
-}
 
 var listCmd = &cobra.Command{
 	Use:     "list",
@@ -84,15 +66,31 @@ Search Syntax (--search/-S):
 			ExcludePriority: listNoPriority,
 			Tags:            listTag,
 			ExcludeTags:     listNoTag,
-			HasLinks:        parseLinkFilters(listLinks),
-			LinkedAs:        parseLinkFilters(listLinkedAs),
-			NoLinks:         parseLinkFilters(listNoLinks),
-			NoLinkedAs:      parseLinkFilters(listNoLinkedAs),
 		}
 
 		// Add search filter if provided
 		if listSearch != "" {
 			filter.Search = &listSearch
+		}
+
+		// Add parent/blocks filters
+		if listHasParent {
+			filter.HasParent = &listHasParent
+		}
+		if listNoParent {
+			filter.NoParent = &listNoParent
+		}
+		if listParentID != "" {
+			filter.ParentID = &listParentID
+		}
+		if listHasBlocking {
+			filter.HasBlocking = &listHasBlocking
+		}
+		if listNoBlocking {
+			filter.NoBlocking = &listNoBlocking
+		}
+		if listIsBlocked {
+			filter.IsBlocked = &listIsBlocked
 		}
 
 		// Execute query via GraphQL resolver
@@ -269,12 +267,14 @@ func init() {
 	listCmd.Flags().StringArrayVar(&listNoType, "no-type", nil, "Exclude by type (can be repeated)")
 	listCmd.Flags().StringArrayVarP(&listPriority, "priority", "p", nil, "Filter by priority (can be repeated)")
 	listCmd.Flags().StringArrayVar(&listNoPriority, "no-priority", nil, "Exclude by priority (can be repeated)")
-	listCmd.Flags().StringArrayVar(&listLinks, "links", nil, "Filter by outgoing relationship (format: type or type:id)")
-	listCmd.Flags().StringArrayVar(&listLinkedAs, "linked-as", nil, "Filter by incoming relationship (format: type or type:id)")
-	listCmd.Flags().StringArrayVar(&listNoLinks, "no-links", nil, "Exclude beans with outgoing relationship (format: type or type:id)")
-	listCmd.Flags().StringArrayVar(&listNoLinkedAs, "no-linked-as", nil, "Exclude beans with incoming relationship (format: type or type:id)")
 	listCmd.Flags().StringArrayVar(&listTag, "tag", nil, "Filter by tag (can be repeated, OR logic)")
 	listCmd.Flags().StringArrayVar(&listNoTag, "no-tag", nil, "Exclude beans with tag (can be repeated)")
+	listCmd.Flags().BoolVar(&listHasParent, "has-parent", false, "Filter beans with a parent")
+	listCmd.Flags().BoolVar(&listNoParent, "no-parent", false, "Filter beans without a parent")
+	listCmd.Flags().StringVar(&listParentID, "parent", "", "Filter by parent ID")
+	listCmd.Flags().BoolVar(&listHasBlocking, "has-blocking", false, "Filter beans that are blocking others")
+	listCmd.Flags().BoolVar(&listNoBlocking, "no-blocking", false, "Filter beans that aren't blocking others")
+	listCmd.Flags().BoolVar(&listIsBlocked, "is-blocked", false, "Filter beans that are blocked by others")
 	listCmd.Flags().BoolVarP(&listQuiet, "quiet", "q", false, "Only output IDs (one per line)")
 	listCmd.Flags().StringVar(&listSort, "sort", "", "Sort by: created, updated, status, priority, id (default: status, priority, type, title)")
 	listCmd.Flags().BoolVar(&listFull, "full", false, "Include bean body in JSON output")

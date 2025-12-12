@@ -19,8 +19,8 @@ var archiveCmd = &cobra.Command{
 	Short: "Delete all beans with an archive status",
 	Long: `Deletes all beans with status "completed" or "scrapped". Asks for confirmation unless --force is provided.
 
-If other beans link to beans being archived, you will be warned and those references
-will be removed. Use -f to skip all warnings.`,
+If other beans reference beans being archived (as parent or via blocking), you will be
+warned and those references will be removed. Use -f to skip all warnings.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		beans := core.All()
 

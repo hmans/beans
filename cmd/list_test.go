@@ -6,7 +6,6 @@ import (
 
 	"github.com/hmans/beans/internal/bean"
 	"github.com/hmans/beans/internal/config"
-	"github.com/hmans/beans/internal/graph/model"
 )
 
 func TestSortBeans(t *testing.T) {
@@ -139,61 +138,3 @@ func TestTruncate(t *testing.T) {
 	}
 }
 
-func TestParseLinkFilters(t *testing.T) {
-	tests := []struct {
-		name    string
-		input   []string
-		want    []*model.LinkFilter
-	}{
-		{
-			name:  "empty input",
-			input: nil,
-			want:  nil,
-		},
-		{
-			name:  "type only",
-			input: []string{"blocks"},
-			want:  []*model.LinkFilter{{Type: "blocks"}},
-		},
-		{
-			name:  "type with target",
-			input: []string{"blocks:abc123"},
-			want:  []*model.LinkFilter{{Type: "blocks", Target: strPtr("abc123")}},
-		},
-		{
-			name:  "multiple filters",
-			input: []string{"blocks", "parent:epic1"},
-			want:  []*model.LinkFilter{{Type: "blocks"}, {Type: "parent", Target: strPtr("epic1")}},
-		},
-		{
-			name:  "target with colons",
-			input: []string{"blocks:id:with:colons"},
-			want:  []*model.LinkFilter{{Type: "blocks", Target: strPtr("id:with:colons")}},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := parseLinkFilters(tt.input)
-			if len(got) != len(tt.want) {
-				t.Errorf("parseLinkFilters() returned %d filters, want %d", len(got), len(tt.want))
-				return
-			}
-			for i, f := range got {
-				if f.Type != tt.want[i].Type {
-					t.Errorf("parseLinkFilters()[%d].Type = %q, want %q", i, f.Type, tt.want[i].Type)
-				}
-				if (f.Target == nil) != (tt.want[i].Target == nil) {
-					t.Errorf("parseLinkFilters()[%d].Target nil mismatch", i)
-				} else if f.Target != nil && *f.Target != *tt.want[i].Target {
-					t.Errorf("parseLinkFilters()[%d].Target = %q, want %q", i, *f.Target, *tt.want[i].Target)
-				}
-			}
-		})
-	}
-}
-
-// Helper function to create string pointer
-func strPtr(s string) *string {
-	return &s
-}

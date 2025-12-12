@@ -25,8 +25,8 @@ var deleteCmd = &cobra.Command{
 	Short:   "Delete a bean",
 	Long: `Deletes a bean after confirmation (use -f to skip confirmation).
 
-If other beans link to this bean, you will be warned and those references
-will be removed after confirmation. Use -f to skip all warnings.`,
+If other beans reference this bean (as parent or via blocking), you will be warned
+and those references will be removed after confirmation. Use -f to skip all warnings.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()

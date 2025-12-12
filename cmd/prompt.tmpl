@@ -30,7 +30,7 @@ If you identify something that should be changed or fixed after completing the u
 Use GraphQL to query for actionable beans (not completed, not blocked):
 
 ```bash
-beans query '{ beans(filter: { excludeStatus: ["completed", "scrapped"], noLinkedAs: [{type: "blocks"}] }) { id title status type priority } }'
+beans query '{ beans(filter: { excludeStatus: ["completed", "scrapped"], isBlocked: false }) { id title status type priority } }'
 ```
 
 Other useful queries:
@@ -65,29 +65,32 @@ beans query '{ beans(filter: { search: "authentication" }) { id title } }'
 
 ## Relationships
 
-Beans can have relationships to other beans. Use these to express dependencies and connections.
+Beans can have relationships to other beans. Use these to express dependencies and hierarchy.
 
-**Relationship types:** `blocks`, `duplicates`, `parent`, `related`
+**Parent (single value):**
+- `parent` - assigns a bean to a parent bean (type-restricted hierarchy: milestone → epic → feature → task/bug)
+
+**Blocking (multiple values):**
+- `blocking` - this bean is blocking another bean (prevents work on the blocked bean until this one is done)
 
 **Managing relationships (CLI):**
 
-- `beans update <bean-id> --link blocks:<other-id>` - This bean blocks another
-- `beans update <bean-id> --link parent:<other-id>` - This bean has a parent
-- `beans update <bean-id> --unlink blocks:<other-id>` - Remove a relationship
-
-**Note:** A bean can only have **one parent**. To change a bean's parent, first remove the existing parent with `--unlink parent:<old-id>`, then add the new one. Use chaining for hierarchy (e.g., task → epic → milestone).
+- `beans update <bean-id> --parent <other-id>` - Set the parent
+- `beans update <bean-id> --remove-parent` - Remove the parent
+- `beans update <bean-id> --blocking <other-id>` - Add a blocking relationship
+- `beans update <bean-id> --remove-blocking <other-id>` - Remove a blocking relationship
 
 **Querying relationships (GraphQL):**
 
 ```bash
 # Get a bean with its relationships
-beans query '{ bean(id: "abc") { title parent { id title } children { id title status } blockedBy { title } blocks { title } } }'
+beans query '{ bean(id: "abc") { title parent { id title } children { id title status } blockedBy { title } blocking { title } } }'
 
 # Find beans blocked by something
-beans query '{ beans(filter: { linkedAs: [{type: "blocks"}] }) { id title blockedBy { title } } }'
+beans query '{ beans(filter: { isBlocked: true }) { id title blockedBy { title } } }'
 
 # Find top-level beans (no parent)
-beans query '{ beans(filter: { noLinks: [{type: "parent"}] }) { id title type } }'
+beans query '{ beans(filter: { noParent: true }) { id title type } }'
 ```
 
 ## Creating new beans

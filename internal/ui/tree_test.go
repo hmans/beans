@@ -14,8 +14,8 @@ func TestBuildTree(t *testing.T) {
 	// task2 (orphan)
 
 	milestone1 := &bean.Bean{ID: "m1", Title: "Milestone 1", Type: "milestone"}
-	epic1 := &bean.Bean{ID: "e1", Title: "Epic 1", Type: "epic", Links: bean.Links{{Type: "parent", Target: "m1"}}}
-	task1 := &bean.Bean{ID: "t1", Title: "Task 1", Type: "task", Links: bean.Links{{Type: "parent", Target: "e1"}}}
+	epic1 := &bean.Bean{ID: "e1", Title: "Epic 1", Type: "epic", Parent: "m1"}
+	task1 := &bean.Bean{ID: "t1", Title: "Task 1", Type: "task", Parent: "e1"}
 	task2 := &bean.Bean{ID: "t2", Title: "Task 2", Type: "task"} // orphan
 
 	allBeans := []*bean.Bean{milestone1, epic1, task1, task2}
@@ -145,7 +145,7 @@ func TestBuildTree(t *testing.T) {
 
 	t.Run("broken parent link", func(t *testing.T) {
 		// Bean with parent that doesn't exist
-		brokenBean := &bean.Bean{ID: "broken", Title: "Broken", Links: bean.Links{{Type: "parent", Target: "nonexistent"}}}
+		brokenBean := &bean.Bean{ID: "broken", Title: "Broken", Parent: "nonexistent"}
 		matchedBeans := []*bean.Bean{brokenBean}
 		allBeansWithBroken := append(allBeans, brokenBean)
 

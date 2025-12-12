@@ -31,14 +31,19 @@ type Mutation {
   deleteBean(id: ID!): Boolean!
 
   """
-  Add a link from one bean to another
+  Set or clear the parent of a bean (validates type hierarchy)
   """
-  addLink(id: ID!, link: LinkInput!): Bean!
+  setParent(id: ID!, parentId: String): Bean!
 
   """
-  Remove a link from one bean to another
+  Add a bean to the blocking list
   """
-  removeLink(id: ID!, link: LinkInput!): Bean!
+  addBlocking(id: ID!, targetId: ID!): Bean!
+
+  """
+  Remove a bean from the blocking list
+  """
+  removeBlocking(id: ID!, targetId: ID!): Bean!
 }
 
 """
@@ -57,8 +62,10 @@ input CreateBeanInput {
   tags: [String!]
   "Markdown body content"
   body: String
-  "Links to other beans"
-  links: [LinkInput!]
+  "Parent bean ID (validated against type hierarchy)"
+  parent: String
+  "Bean IDs this bean is blocking"
+  blocking: [String!]
 }
 
 """
@@ -77,16 +84,6 @@ input UpdateBeanInput {
   tags: [String!]
   "New body content"
   body: String
-}
-
-"""
-Input for specifying a link
-"""
-input LinkInput {
-  "Link type (blocks, duplicates, parent, related)"
-  type: String!
-  "Target bean ID"
-  target: String!
 }
 
 """
@@ -115,44 +112,22 @@ type Bean {
   updatedAt: Time!
   "Markdown body content"
   body: String!
-  "Direct links to other beans"
-  links: [Link!]!
+
+  # Direct link fields
+  "Parent bean ID (optional, type-restricted)"
+  parentId: String
+  "IDs of beans this bean is blocking"
+  blockingIds: [String!]!
 
   # Computed relationship fields
-  "Beans that block this one (incoming 'blocks' links)"
+  "Beans that block this one (incoming blocking links)"
   blockedBy: [Bean!]!
-  "Beans this one blocks (outgoing 'blocks' links)"
-  blocks: [Bean!]!
-  "Parent bean if linked"
+  "Beans this one is blocking (resolved from blockingIds)"
+  blocking: [Bean!]!
+  "Parent bean (resolved from parentId)"
   parent: Bean
   "Child beans (beans with this as parent)"
   children: [Bean!]!
-  "Duplicate beans (bidirectional - both outgoing and incoming 'duplicates' links)"
-  duplicates: [Bean!]!
-  "Related beans (bidirectional - both outgoing and incoming 'related' links)"
-  related: [Bean!]!
-}
-
-"""
-A link represents a relationship from one bean to another
-"""
-type Link {
-  "Relationship type (blocks, duplicates, parent, related)"
-  type: String!
-  "Target bean ID"
-  target: String!
-  "Resolved target bean (null if broken link)"
-  targetBean: Bean
-}
-
-"""
-A link filter specifies both the link type and optionally a target bean ID.
-"""
-input LinkFilter {
-  "Link type (blocks, duplicates, parent, related)"
-  type: String!
-  "Optional target bean ID - if omitted, matches any target"
-  target: String
 }
 
 """
@@ -191,12 +166,18 @@ input BeanFilter {
   tags: [String!]
   "Exclude beans with any of these tags"
   excludeTags: [String!]
-  "Include only beans that have outgoing links matching these filters (OR logic)"
-  hasLinks: [LinkFilter!]
-  "Include only beans that are targets of links matching these filters (OR logic)"
-  linkedAs: [LinkFilter!]
-  "Exclude beans that have outgoing links matching these filters"
-  noLinks: [LinkFilter!]
-  "Exclude beans that are targets of links matching these filters"
-  noLinkedAs: [LinkFilter!]
+  "Include only beans with a parent"
+  hasParent: Boolean
+  "Include only beans with this specific parent ID"
+  parentId: String
+  "Include only beans that are blocking other beans"
+  hasBlocking: Boolean
+  "Include only beans that are blocking this specific bean ID"
+  blockingId: String
+  "Include only beans that are blocked by others"
+  isBlocked: Boolean
+  "Exclude beans that have a parent"
+  noParent: Boolean
+  "Exclude beans that are blocking other beans"
+  noBlocking: Boolean
 }
