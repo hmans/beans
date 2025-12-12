@@ -1,10 +1,10 @@
 ---
 title: Add 'u' alias for 'beans update'
-status: todo
+status: completed
 type: feature
 priority: normal
 created_at: 2025-12-12T22:39:31Z
-updated_at: 2025-12-12T23:04:38Z
+updated_at: 2025-12-12T23:22:29Z
 parent: beans-xnp8
 ---
 

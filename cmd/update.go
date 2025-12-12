@@ -30,9 +30,10 @@ var (
 )
 
 var updateCmd = &cobra.Command{
-	Use:   "update <id>",
-	Short: "Update a bean's properties",
-	Long:  `Updates one or more properties of an existing bean.`,
+	Use:     "update <id>",
+	Aliases: []string{"u"},
+	Short:   "Update a bean's properties",
+	Long:    `Updates one or more properties of an existing bean.`,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
