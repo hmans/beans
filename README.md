@@ -65,19 +65,12 @@ An official Beans plugin for Claude is in the works, but for the time being, ple
 
 ```json
 {
-  // ... other settings ...
   "hooks": {
     "SessionStart": [
-      {
-        "matcher": "",
-        "hooks": [{ "type": "command", "command": "beans prime" }]
-      }
+      { "hooks": [{ "type": "command", "command": "beans prime" }] }
     ],
     "PreCompact": [
-      {
-        "matcher": "",
-        "hooks": [{ "type": "command", "command": "beans prime" }]
-      }
+      { "hooks": [{ "type": "command", "command": "beans prime" }] }
     ]
   }
 }
