@@ -46,8 +46,6 @@ func stringToLinkType(s string) model.LinkType {
 		return model.LinkTypeFeature
 	case "BLOCKS":
 		return model.LinkTypeBlocks
-	case "RELATED":
-		return model.LinkTypeRelated
 	default:
 		// Return the input as-is converted to LinkType (will fail validation if invalid)
 		return model.LinkType(strings.ToUpper(s))

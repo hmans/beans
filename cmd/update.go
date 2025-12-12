@@ -32,10 +32,8 @@ var (
 	updateNoFeature   bool
 
 	// Relationship link flags
-	updateBlock     []string
-	updateUnblock   []string
-	updateRelated   []string
-	updateUnrelated []string
+	updateBlock   []string
+	updateUnblock []string
 
 	updateJSON bool
 )
@@ -59,8 +57,7 @@ Hierarchy links:
   --feature/--no-feature        Set/clear feature
 
 Relationship links:
-  --block/--unblock             Add/remove block relationships
-  --related/--unrelated         Add/remove related relationships`,
+  --block/--unblock             Add/remove block relationships`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
@@ -150,22 +147,6 @@ Relationship links:
 				return cmdError(updateJSON, output.ErrValidation, "failed to remove block: %s", err)
 			}
 			changes = append(changes, "blocks")
-		}
-
-		// Process related changes
-		for _, target := range updateRelated {
-			b, err = resolver.Mutation().AddRelated(ctx, b.ID, target)
-			if err != nil {
-				return cmdError(updateJSON, output.ErrValidation, "failed to add related: %s", err)
-			}
-			changes = append(changes, "related")
-		}
-		for _, target := range updateUnrelated {
-			b, err = resolver.Mutation().RemoveRelated(ctx, b.ID, target)
-			if err != nil {
-				return cmdError(updateJSON, output.ErrValidation, "failed to remove related: %s", err)
-			}
-			changes = append(changes, "related")
 		}
 
 		// Require at least one change
@@ -276,8 +257,6 @@ func init() {
 	// Relationship link flags
 	updateCmd.Flags().StringArrayVar(&updateBlock, "block", nil, "Add block relationship (can be repeated)")
 	updateCmd.Flags().StringArrayVar(&updateUnblock, "unblock", nil, "Remove block relationship (can be repeated)")
-	updateCmd.Flags().StringArrayVar(&updateRelated, "related", nil, "Add related relationship (can be repeated)")
-	updateCmd.Flags().StringArrayVar(&updateUnrelated, "unrelated", nil, "Remove related relationship (can be repeated)")
 
 	updateCmd.Flags().BoolVar(&updateJSON, "json", false, "Output as JSON")
 	updateCmd.MarkFlagsMutuallyExclusive("body", "body-file")

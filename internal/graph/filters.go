@@ -161,19 +161,6 @@ func hasOutgoingLink(b *bean.Bean, filter *model.LinkFilter) bool {
 			}
 		}
 		return false
-	case model.LinkTypeRelated:
-		if len(b.Related) == 0 {
-			return false
-		}
-		if filter.Target == nil {
-			return true
-		}
-		for _, target := range b.Related {
-			if target == *filter.Target {
-				return true
-			}
-		}
-		return false
 	default:
 		return false
 	}

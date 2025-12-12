@@ -20,7 +20,7 @@ type beanDocument struct {
 	Body  string `json:"body"`
 
 	// Combined link targets for efficient reverse lookup (single query)
-	// Contains all targets from milestone, epic, feature, blocks, related
+	// Contains all targets from milestone, epic, feature, blocks
 	LinkTargets []string `json:"link_targets,omitempty"`
 }
 
@@ -100,7 +100,6 @@ func collectLinkTargets(b *bean.Bean) []string {
 		targets = append(targets, b.Feature)
 	}
 	targets = append(targets, b.Blocks...)
-	targets = append(targets, b.Related...)
 	return targets
 }
 

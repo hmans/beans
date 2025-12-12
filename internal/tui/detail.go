@@ -455,8 +455,6 @@ func (m detailModel) formatLinkLabel(linkType string, incoming bool) string {
 			return "In epic"
 		case "feature":
 			return "In feature"
-		case "related":
-			return "Related"
 		default:
 			return linkType + " (incoming)"
 		}
@@ -472,8 +470,6 @@ func (m detailModel) formatLinkLabel(linkType string, incoming bool) string {
 		return "Epic"
 	case "feature":
 		return "Feature"
-	case "related":
-		return "Related"
 	default:
 		return linkType
 	}
@@ -501,11 +497,6 @@ func (m detailModel) resolveAllLinks() []resolvedLink {
 			links = append(links, resolvedLink{linkType: "blocks", bean: b, incoming: false})
 		}
 	}
-	if related, _ := beanResolver.Related(ctx, m.bean); related != nil {
-		for _, b := range related {
-			links = append(links, resolvedLink{linkType: "related", bean: b, incoming: false})
-		}
-	}
 
 	// Resolve incoming links via GraphQL resolvers (directional relationships only)
 	if blockedBy, _ := beanResolver.BlockedBy(ctx, m.bean); blockedBy != nil {
@@ -529,7 +520,6 @@ func (m detailModel) resolveAllLinks() []resolvedLink {
 			links = append(links, resolvedLink{linkType: "feature", bean: b, incoming: true})
 		}
 	}
-	// Note: related is bidirectional, already handled above
 
 	// Sort all links by link type label first, then by bean status/type/title
 	// This keeps link categories together while ordering beans consistently with the main list

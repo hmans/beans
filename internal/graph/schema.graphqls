@@ -57,16 +57,6 @@ type Mutation {
   """
   removeBlock(id: ID!, target: ID!): Bean!
 
-  """
-  Add a related relationship
-  """
-  addRelated(id: ID!, target: ID!): Bean!
-
-  """
-  Remove a related relationship
-  """
-  removeRelated(id: ID!, target: ID!): Bean!
-
 }
 
 """
@@ -151,16 +141,12 @@ type Bean {
   # Relationship links (raw IDs)
   "IDs of beans this one blocks"
   blockIds: [String!]!
-  "IDs of related beans"
-  relatedIds: [String!]!
 
   # Computed relationship fields (resolved beans)
   "Beans that block this one (incoming 'blocks' links)"
   blockedBy: [Bean!]!
   "Beans this one blocks (outgoing 'blocks' links)"
   blocks: [Bean!]!
-  "Related beans (bidirectional)"
-  related: [Bean!]!
 
   # Computed inverse hierarchy fields
   "Beans that have this milestone set (only for milestones)"
@@ -183,8 +169,6 @@ enum LinkType {
   FEATURE
   "Relationship: this bean blocks another"
   BLOCKS
-  "Relationship: beans are related"
-  RELATED
 }
 
 """

@@ -66,9 +66,6 @@ func getAllLinkTargets(b *bean.Bean) [][2]string {
 	for _, target := range b.Blocks {
 		result = append(result, [2]string{"blocks", target})
 	}
-	for _, target := range b.Related {
-		result = append(result, [2]string{"related", target})
-	}
 
 	return result
 }
@@ -376,13 +373,6 @@ func (c *Core) RemoveLinksTo(targetID string) (int, error) {
 			removed += originalBlocks - len(b.Blocks)
 		}
 
-		originalRelated := len(b.Related)
-		b.Related = removeFromSlice(b.Related, targetID)
-		if len(b.Related) < originalRelated {
-			changed = true
-			removed += originalRelated - len(b.Related)
-		}
-
 		if changed {
 			if err := c.saveToDisk(b); err != nil {
 				return removed, err
@@ -437,13 +427,6 @@ func (c *Core) FixBrokenLinks() (int, error) {
 		if len(b.Blocks) < originalBlocks {
 			changed = true
 			fixed += originalBlocks - len(b.Blocks)
-		}
-
-		originalRelated := len(b.Related)
-		b.Related = filterValidLinks(b.Related, b.ID, c.beans)
-		if len(b.Related) < originalRelated {
-			changed = true
-			fixed += originalRelated - len(b.Related)
 		}
 
 		if changed {

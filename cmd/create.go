@@ -23,9 +23,8 @@ var (
 	createMilestone string
 	createEpic      string
 	createFeature   string
-	createBlock   []string
-	createRelated []string
-	createJSON    bool
+	createBlock []string
+	createJSON  bool
 )
 
 var createCmd = &cobra.Command{
@@ -80,11 +79,6 @@ var createCmd = &cobra.Command{
 		for _, id := range createBlock {
 			if _, err := core.Get(id); err != nil {
 				return cmdError(createJSON, output.ErrValidation, "block target %q not found", id)
-			}
-		}
-		for _, id := range createRelated {
-			if _, err := core.Get(id); err != nil {
-				return cmdError(createJSON, output.ErrValidation, "related target %q not found", id)
 			}
 		}
 
@@ -150,11 +144,6 @@ var createCmd = &cobra.Command{
 				return cmdError(createJSON, output.ErrValidation, "failed to add block: %v", err)
 			}
 		}
-		for _, target := range createRelated {
-			if b, err = mutation.AddRelated(ctx, b.ID, target); err != nil {
-				return cmdError(createJSON, output.ErrValidation, "failed to add related: %v", err)
-			}
-		}
 
 		if createJSON {
 			return output.Success(b, "Bean created")
@@ -194,7 +183,6 @@ func init() {
 
 	// Relationship link flags
 	createCmd.Flags().StringArrayVar(&createBlock, "block", nil, "Add block relationship (can be repeated)")
-	createCmd.Flags().StringArrayVar(&createRelated, "related", nil, "Add related relationship (can be repeated)")
 
 	createCmd.Flags().BoolVar(&createJSON, "json", false, "Output as JSON")
 	createCmd.MarkFlagsMutuallyExclusive("body", "body-file")

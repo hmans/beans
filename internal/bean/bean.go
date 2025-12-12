@@ -124,8 +124,7 @@ type Bean struct {
 	Feature   string `yaml:"feature,omitempty" json:"feature,omitempty"`
 
 	// Relationship links (multiple targets)
-	Blocks  []string `yaml:"blocks,omitempty" json:"blocks,omitempty"`
-	Related []string `yaml:"related,omitempty" json:"related,omitempty"`
+	Blocks []string `yaml:"blocks,omitempty" json:"blocks,omitempty"`
 }
 
 // Link helper methods for Blocks
@@ -145,23 +144,6 @@ func (b *Bean) RemoveBlock(target string) {
 	b.Blocks = sliceRemove(b.Blocks, target)
 }
 
-// Link helper methods for Related
-
-// HasRelated returns true if this bean is related to the given target.
-func (b *Bean) HasRelated(target string) bool {
-	return sliceContains(b.Related, target)
-}
-
-// AddRelated adds a related relationship to the given target.
-func (b *Bean) AddRelated(target string) {
-	b.Related = sliceAdd(b.Related, target)
-}
-
-// RemoveRelated removes a related relationship to the given target.
-func (b *Bean) RemoveRelated(target string) {
-	b.Related = sliceRemove(b.Related, target)
-}
-
 // frontMatter is the subset of Bean that gets serialized to YAML front matter.
 // Used for parsing via yaml.v2 (from frontmatter lib).
 type frontMatter struct {
@@ -179,8 +161,7 @@ type frontMatter struct {
 	Feature   string `yaml:"feature,omitempty"`
 
 	// Relationship links
-	Blocks  []string `yaml:"blocks,omitempty"`
-	Related []string `yaml:"related,omitempty"`
+	Blocks []string `yaml:"blocks,omitempty"`
 }
 
 // Parse reads a bean from a reader (markdown with YAML front matter).
@@ -205,8 +186,7 @@ func Parse(r io.Reader) (*Bean, error) {
 		Epic:      fm.Epic,
 		Feature:   fm.Feature,
 		// Relationship links
-		Blocks:  fm.Blocks,
-		Related: fm.Related,
+		Blocks: fm.Blocks,
 	}, nil
 }
 
@@ -226,8 +206,7 @@ type renderFrontMatter struct {
 	Feature   string `yaml:"feature,omitempty"`
 
 	// Relationship links
-	Blocks  []string `yaml:"blocks,omitempty"`
-	Related []string `yaml:"related,omitempty"`
+	Blocks []string `yaml:"blocks,omitempty"`
 }
 
 // Render serializes the bean back to markdown with YAML front matter.
@@ -245,8 +224,7 @@ func (b *Bean) Render() ([]byte, error) {
 		Epic:      b.Epic,
 		Feature:   b.Feature,
 		// Relationship links
-		Blocks:  b.Blocks,
-		Related: b.Related,
+		Blocks: b.Blocks,
 	}
 
 	fmBytes, err := yaml.Marshal(&fm)

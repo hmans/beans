@@ -78,11 +78,6 @@ func (r *beanResolver) BlockIds(ctx context.Context, obj *bean.Bean) ([]string, 
 	return obj.Blocks, nil
 }
 
-// RelatedIds is the resolver for the relatedIds field.
-func (r *beanResolver) RelatedIds(ctx context.Context, obj *bean.Bean) ([]string, error) {
-	return obj.Related, nil
-}
-
 // BlockedBy is the resolver for the blockedBy field.
 func (r *beanResolver) BlockedBy(ctx context.Context, obj *bean.Bean) ([]*bean.Bean, error) {
 	incoming := r.Core.FindIncomingLinks(obj.ID)
@@ -103,31 +98,6 @@ func (r *beanResolver) Blocks(ctx context.Context, obj *bean.Bean) ([]*bean.Bean
 			result = append(result, target)
 		}
 	}
-	return result, nil
-}
-
-// Related is the resolver for the related field.
-// Bidirectional: returns both outgoing and incoming 'related' links.
-func (r *beanResolver) Related(ctx context.Context, obj *bean.Bean) ([]*bean.Bean, error) {
-	seen := make(map[string]bool)
-	var result []*bean.Bean
-
-	// Outgoing links
-	for _, targetID := range obj.Related {
-		if target, err := r.Core.Get(targetID); err == nil && !seen[target.ID] {
-			seen[target.ID] = true
-			result = append(result, target)
-		}
-	}
-
-	// Incoming links
-	for _, link := range r.Core.FindIncomingLinks(obj.ID) {
-		if link.LinkType == "related" && !seen[link.FromBean.ID] {
-			seen[link.FromBean.ID] = true
-			result = append(result, link.FromBean)
-		}
-	}
-
 	return result, nil
 }
 
@@ -338,38 +308,6 @@ func (r *mutationResolver) RemoveBlock(ctx context.Context, id string, target st
 	}
 
 	b.RemoveBlock(target)
-
-	if err := r.Core.Update(b); err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
-// AddRelated is the resolver for the addRelated field.
-func (r *mutationResolver) AddRelated(ctx context.Context, id string, target string) (*bean.Bean, error) {
-	b, err := r.Core.Get(id)
-	if err != nil {
-		return nil, err
-	}
-
-	b.AddRelated(target)
-
-	if err := r.Core.Update(b); err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
-// RemoveRelated is the resolver for the removeRelated field.
-func (r *mutationResolver) RemoveRelated(ctx context.Context, id string, target string) (*bean.Bean, error) {
-	b, err := r.Core.Get(id)
-	if err != nil {
-		return nil, err
-	}
-
-	b.RemoveRelated(target)
 
 	if err := r.Core.Update(b); err != nil {
 		return nil, err

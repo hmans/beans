@@ -394,9 +394,8 @@ func TestFindLinkingBeans(t *testing.T) {
 	feature := &bean.Bean{ID: "feature1", Title: "Feature", Epic: "epic1"}
 	task1 := &bean.Bean{ID: "task1", Title: "Task 1", Epic: "epic1", Milestone: "milestone1"}
 	task2 := &bean.Bean{ID: "task2", Title: "Task 2", Epic: "epic1", Blocks: []string{"task1"}}
-	task3 := &bean.Bean{ID: "task3", Title: "Task 3", Related: []string{"task1", "task2"}}
 
-	beans := []*bean.Bean{epic, milestone, feature, task1, task2, task3}
+	beans := []*bean.Bean{epic, milestone, feature, task1, task2}
 	if err := idx.IndexBeans(beans); err != nil {
 		t.Fatalf("IndexBeans() error = %v", err)
 	}
@@ -433,9 +432,9 @@ func TestFindLinkingBeans(t *testing.T) {
 			t.Fatalf("FindLinkingBeans() error = %v", err)
 		}
 
-		// task2 blocks task1, task3 is related to task1
-		if len(ids) != 2 {
-			t.Errorf("FindLinkingBeans(task1) returned %d results, want 2: %v", len(ids), ids)
+		// task2 blocks task1
+		if len(ids) != 1 {
+			t.Errorf("FindLinkingBeans(task1) returned %d results, want 1: %v", len(ids), ids)
 		}
 	})
 

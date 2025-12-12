@@ -549,8 +549,6 @@ status: todo
 blocks:
     - abc123
     - def456
-related:
-    - xyz789
 ---`
 		bean, err := Parse(strings.NewReader(input))
 		if err != nil {
@@ -558,9 +556,6 @@ related:
 		}
 		if len(bean.Blocks) != 2 || bean.Blocks[0] != "abc123" || bean.Blocks[1] != "def456" {
 			t.Errorf("Blocks = %v, want [abc123 def456]", bean.Blocks)
-		}
-		if len(bean.Related) != 1 || bean.Related[0] != "xyz789" {
-			t.Errorf("Related = %v, want [xyz789]", bean.Related)
 		}
 	})
 
@@ -576,7 +571,7 @@ status: todo
 		if bean.Milestone != "" || bean.Epic != "" || bean.Feature != "" {
 			t.Error("expected empty hierarchy links")
 		}
-		if len(bean.Blocks) != 0 || len(bean.Related) != 0 {
+		if len(bean.Blocks) != 0 {
 			t.Error("expected empty relationship links")
 		}
 	})
@@ -648,7 +643,6 @@ func TestLinksRoundtrip(t *testing.T) {
 		Epic:      "e1",
 		Feature:   "f1",
 		Blocks:    []string{"b1", "b2"},
-		Related:   []string{"r1"},
 	}
 
 	rendered, err := original.Render()
@@ -672,9 +666,6 @@ func TestLinksRoundtrip(t *testing.T) {
 	}
 	if len(parsed.Blocks) != len(original.Blocks) {
 		t.Errorf("Blocks count = %d, want %d", len(parsed.Blocks), len(original.Blocks))
-	}
-	if len(parsed.Related) != len(original.Related) {
-		t.Errorf("Related count = %d, want %d", len(parsed.Related), len(original.Related))
 	}
 }
 
