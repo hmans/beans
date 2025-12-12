@@ -149,11 +149,11 @@ func buildNodes(beans []*bean.Bean, children map[string][]*bean.Bean, matchedSet
 
 // Tree rendering constants
 const (
-	treeBranch     = "├─"
-	treeLastBranch = "└─"
-	treePipe       = "" // no continuation lines
-	treeSpace      = "" // no spacing for completed branches
-	treeIndent     = 2  // width of connector (├─ or └─)
+	treeBranch     = "├─ "
+	treeLastBranch = "└─ "
+	treePipe       = ""  // no continuation lines
+	treeSpace      = ""  // no spacing for completed branches
+	treeIndent     = 3   // width of connector (├─  or └─ )
 )
 
 // calculateMaxDepth returns the maximum depth of the tree.
@@ -174,11 +174,11 @@ func RenderTree(nodes []*TreeNode, cfg *config.Config, maxIDWidth int, hasTags b
 
 	// Calculate max depth to determine ID column width
 	maxDepth := calculateMaxDepth(nodes)
-	// ID column needs: indent (2 chars per level beyond depth 1) + connector (2 chars) + ID width
+	// ID column needs: indent (3 chars per level beyond depth 1) + connector (3 chars) + ID width
 	// depth 0: 0 extra chars
-	// depth 1: 2 chars (connector only)
-	// depth 2: 4 chars (2 indent + 2 connector)
-	// depth N: (N-1)*2 + 2 = N*2 chars
+	// depth 1: 3 chars (connector only)
+	// depth 2: 6 chars (3 indent + 3 connector)
+	// depth N: (N-1)*3 + 3 = N*3 chars
 	treeColWidth := maxIDWidth
 	if maxDepth > 0 {
 		treeColWidth = maxIDWidth + maxDepth*treeIndent
@@ -275,9 +275,9 @@ func renderNode(sb *strings.Builder, node *TreeNode, depth int, isLast bool, cfg
 	var indent string
 	var connector string
 	if depth > 0 {
-		// Add indentation for depth > 1 (2 spaces per level beyond first)
+		// Add indentation for depth > 1 (3 spaces per level beyond first)
 		if depth > 1 {
-			indent = strings.Repeat("  ", depth-1)
+			indent = strings.Repeat("   ", depth-1)
 		}
 		if isLast {
 			connector = treeLastBranch
@@ -295,6 +295,9 @@ func renderNode(sb *strings.Builder, node *TreeNode, depth int, isLast bool, cfg
 		idText = Muted.Render(b.ID)
 	}
 
+	// Style the tree connector with subtle color
+	styledConnector := TreeLine.Render(indent + connector)
+
 	// Calculate visual width of indent + connector + ID (without ANSI codes)
 	visualWidth := len(indent) + runeWidth(connector) + len(b.ID)
 	// Pad to fixed width
@@ -302,7 +305,7 @@ func renderNode(sb *strings.Builder, node *TreeNode, depth int, isLast bool, cfg
 	if treeColWidth > visualWidth {
 		padding = strings.Repeat(" ", treeColWidth-visualWidth)
 	}
-	idCell := indent + connector + idText + padding
+	idCell := styledConnector + idText + padding
 
 	typeText := ""
 	if b.Type != "" {
@@ -402,9 +405,9 @@ func flattenNodes(nodes []*TreeNode, depth int, items *[]FlatItem) {
 		// Compute tree prefix
 		var prefix string
 		if depth > 0 {
-			// Add indentation for depth > 1
+			// Add indentation for depth > 1 (3 spaces per level beyond first)
 			if depth > 1 {
-				prefix = strings.Repeat("  ", depth-1)
+				prefix = strings.Repeat("   ", depth-1)
 			}
 			// Add connector
 			if isLast {

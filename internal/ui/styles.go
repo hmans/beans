@@ -15,6 +15,7 @@ var (
 	ColorWarning   = lipgloss.Color("#F59E0B") // Amber
 	ColorDanger    = lipgloss.Color("#EF4444") // Red
 	ColorMuted     = lipgloss.Color("#9CA3AF") // Light gray
+	ColorSubtle    = lipgloss.Color("#555555") // Dark gray (for tree lines)
 	ColorBlue      = lipgloss.Color("#3B82F6") // Blue
 	ColorCyan      = lipgloss.Color("14")      // Bright Cyan (ANSI)
 )
@@ -152,6 +153,9 @@ var (
 var ID = lipgloss.NewStyle().
 	Foreground(ColorPrimary).
 	Bold(true)
+
+// TreeLine style - subtle for tree connectors
+var TreeLine = lipgloss.NewStyle().Foreground(ColorSubtle)
 
 // Title style
 var Title = lipgloss.NewStyle().Bold(true)
@@ -414,9 +418,9 @@ func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string
 	// Build columns - apply dimming if needed
 	var idCol string
 	if cfg.Dimmed {
-		idCol = idStyle.Render(Muted.Render(cfg.TreePrefix + id))
+		idCol = idStyle.Render(Muted.Render(cfg.TreePrefix) + Muted.Render(id))
 	} else {
-		idCol = idStyle.Render(cfg.TreePrefix + ID.Render(id))
+		idCol = idStyle.Render(TreeLine.Render(cfg.TreePrefix) + ID.Render(id))
 	}
 
 	var typeCol string

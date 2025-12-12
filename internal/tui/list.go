@@ -188,7 +188,7 @@ func (m listModel) loadBeans() tea.Msg {
 	// ID column = base ID width + tree indent (2 chars per depth level for depth > 0)
 	idColWidth := maxIDLen + 2 // base padding
 	if maxDepth > 0 {
-		idColWidth += maxDepth * 2 // 2 chars per depth level
+		idColWidth += maxDepth * 3 // 3 chars per depth level (├─ + space)
 	}
 
 	return beansLoadedMsg{items: items, idColWidth: idColWidth}
