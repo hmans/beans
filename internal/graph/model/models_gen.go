@@ -65,18 +65,6 @@ type CreateBeanInput struct {
 	Tags []string `json:"tags,omitempty"`
 	// Markdown body content
 	Body *string `json:"body,omitempty"`
-	// Milestone bean ID (target must be type=milestone)
-	Milestone *string `json:"milestone,omitempty"`
-	// Epic bean ID (target must be type=epic)
-	Epic *string `json:"epic,omitempty"`
-	// Feature bean ID (bean must be task/bug, target must be type=feature)
-	Feature *string `json:"feature,omitempty"`
-	// IDs of beans this one blocks
-	Blocks []string `json:"blocks,omitempty"`
-	// IDs of related beans
-	Related []string `json:"related,omitempty"`
-	// IDs of duplicate beans
-	Duplicates []string `json:"duplicates,omitempty"`
 }
 
 // A link filter specifies both the link type and optionally a target bean ID.
@@ -107,18 +95,6 @@ type UpdateBeanInput struct {
 	Tags []string `json:"tags,omitempty"`
 	// New body content
 	Body *string `json:"body,omitempty"`
-	// Milestone bean ID (target must be type=milestone)
-	Milestone *string `json:"milestone,omitempty"`
-	// Epic bean ID (target must be type=epic)
-	Epic *string `json:"epic,omitempty"`
-	// Feature bean ID (bean must be task/bug, target must be type=feature)
-	Feature *string `json:"feature,omitempty"`
-	// IDs of beans this one blocks
-	Blocks []string `json:"blocks,omitempty"`
-	// IDs of related beans
-	Related []string `json:"related,omitempty"`
-	// IDs of duplicate beans
-	Duplicates []string `json:"duplicates,omitempty"`
 }
 
 // Types of links between beans.

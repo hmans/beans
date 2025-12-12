@@ -222,28 +222,6 @@ func (r *mutationResolver) CreateBean(ctx context.Context, input model.CreateBea
 		b.Tags = input.Tags
 	}
 
-	// Hierarchy links
-	if input.Milestone != nil {
-		b.Milestone = *input.Milestone
-	}
-	if input.Epic != nil {
-		b.Epic = *input.Epic
-	}
-	if input.Feature != nil {
-		b.Feature = *input.Feature
-	}
-
-	// Relationship links
-	if len(input.Blocks) > 0 {
-		b.Blocks = input.Blocks
-	}
-	if len(input.Related) > 0 {
-		b.Related = input.Related
-	}
-	if len(input.Duplicates) > 0 {
-		b.Duplicates = input.Duplicates
-	}
-
 	if err := r.Core.Create(b); err != nil {
 		return nil, err
 	}
@@ -276,28 +254,6 @@ func (r *mutationResolver) UpdateBean(ctx context.Context, id string, input mode
 	}
 	if input.Tags != nil {
 		b.Tags = input.Tags
-	}
-
-	// Hierarchy links (empty string clears)
-	if input.Milestone != nil {
-		b.Milestone = *input.Milestone
-	}
-	if input.Epic != nil {
-		b.Epic = *input.Epic
-	}
-	if input.Feature != nil {
-		b.Feature = *input.Feature
-	}
-
-	// Relationship links (replaces existing)
-	if input.Blocks != nil {
-		b.Blocks = input.Blocks
-	}
-	if input.Related != nil {
-		b.Related = input.Related
-	}
-	if input.Duplicates != nil {
-		b.Duplicates = input.Duplicates
 	}
 
 	if err := r.Core.Update(b); err != nil {

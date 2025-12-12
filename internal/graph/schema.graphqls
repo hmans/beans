@@ -94,22 +94,6 @@ input CreateBeanInput {
   tags: [String!]
   "Markdown body content"
   body: String
-
-  # Hierarchy links
-  "Milestone bean ID (target must be type=milestone)"
-  milestone: String
-  "Epic bean ID (target must be type=epic)"
-  epic: String
-  "Feature bean ID (bean must be task/bug, target must be type=feature)"
-  feature: String
-
-  # Relationship links
-  "IDs of beans this one blocks"
-  blocks: [String!]
-  "IDs of related beans"
-  related: [String!]
-  "IDs of duplicate beans"
-  duplicates: [String!]
 }
 
 """
@@ -128,22 +112,6 @@ input UpdateBeanInput {
   tags: [String!]
   "New body content"
   body: String
-
-  # Hierarchy links (set to "" to clear)
-  "Milestone bean ID (target must be type=milestone)"
-  milestone: String
-  "Epic bean ID (target must be type=epic)"
-  epic: String
-  "Feature bean ID (bean must be task/bug, target must be type=feature)"
-  feature: String
-
-  # Relationship links (replaces existing)
-  "IDs of beans this one blocks"
-  blocks: [String!]
-  "IDs of related beans"
-  related: [String!]
-  "IDs of duplicate beans"
-  duplicates: [String!]
 }
 
 """

@@ -5188,7 +5188,7 @@ func (ec *executionContext) unmarshalInputCreateBeanInput(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"title", "type", "status", "priority", "tags", "body", "milestone", "epic", "feature", "blocks", "related", "duplicates"}
+	fieldsInOrder := [...]string{"title", "type", "status", "priority", "tags", "body"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -5237,48 +5237,6 @@ func (ec *executionContext) unmarshalInputCreateBeanInput(ctx context.Context, o
 				return it, err
 			}
 			it.Body = data
-		case "milestone":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("milestone"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Milestone = data
-		case "epic":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("epic"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Epic = data
-		case "feature":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("feature"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Feature = data
-		case "blocks":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("blocks"))
-			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Blocks = data
-		case "related":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("related"))
-			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Related = data
-		case "duplicates":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("duplicates"))
-			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Duplicates = data
 		}
 	}
 
@@ -5326,7 +5284,7 @@ func (ec *executionContext) unmarshalInputUpdateBeanInput(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"title", "status", "type", "priority", "tags", "body", "milestone", "epic", "feature", "blocks", "related", "duplicates"}
+	fieldsInOrder := [...]string{"title", "status", "type", "priority", "tags", "body"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -5375,48 +5333,6 @@ func (ec *executionContext) unmarshalInputUpdateBeanInput(ctx context.Context, o
 				return it, err
 			}
 			it.Body = data
-		case "milestone":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("milestone"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Milestone = data
-		case "epic":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("epic"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Epic = data
-		case "feature":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("feature"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Feature = data
-		case "blocks":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("blocks"))
-			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Blocks = data
-		case "related":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("related"))
-			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Related = data
-		case "duplicates":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("duplicates"))
-			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Duplicates = data
 		}
 	}
 

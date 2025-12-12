@@ -79,33 +79,48 @@ var createCmd = &cobra.Command{
 			input.Tags = createTag
 		}
 
-		// Hierarchy links
-		if createMilestone != "" {
-			input.Milestone = &createMilestone
-		}
-		if createEpic != "" {
-			input.Epic = &createEpic
-		}
-		if createFeature != "" {
-			input.Feature = &createFeature
-		}
-
-		// Relationship links
-		if len(createBlock) > 0 {
-			input.Blocks = createBlock
-		}
-		if len(createRelated) > 0 {
-			input.Related = createRelated
-		}
-		if len(createDuplicate) > 0 {
-			input.Duplicates = createDuplicate
-		}
-
 		// Create via GraphQL mutation
 		resolver := &graph.Resolver{Core: core}
-		b, err := resolver.Mutation().CreateBean(context.Background(), input)
+		mutation := resolver.Mutation()
+		ctx := context.Background()
+
+		b, err := mutation.CreateBean(ctx, input)
 		if err != nil {
 			return cmdError(createJSON, output.ErrFileError, "failed to create bean: %v", err)
+		}
+
+		// Apply hierarchy links via separate mutations
+		if createMilestone != "" {
+			if b, err = mutation.SetMilestone(ctx, b.ID, &createMilestone); err != nil {
+				return cmdError(createJSON, output.ErrFileError, "failed to set milestone: %v", err)
+			}
+		}
+		if createEpic != "" {
+			if b, err = mutation.SetEpic(ctx, b.ID, &createEpic); err != nil {
+				return cmdError(createJSON, output.ErrFileError, "failed to set epic: %v", err)
+			}
+		}
+		if createFeature != "" {
+			if b, err = mutation.SetFeature(ctx, b.ID, &createFeature); err != nil {
+				return cmdError(createJSON, output.ErrFileError, "failed to set feature: %v", err)
+			}
+		}
+
+		// Apply relationship links via separate mutations
+		for _, target := range createBlock {
+			if b, err = mutation.AddBlock(ctx, b.ID, target); err != nil {
+				return cmdError(createJSON, output.ErrFileError, "failed to add block: %v", err)
+			}
+		}
+		for _, target := range createRelated {
+			if b, err = mutation.AddRelated(ctx, b.ID, target); err != nil {
+				return cmdError(createJSON, output.ErrFileError, "failed to add related: %v", err)
+			}
+		}
+		for _, target := range createDuplicate {
+			if b, err = mutation.AddDuplicate(ctx, b.ID, target); err != nil {
+				return cmdError(createJSON, output.ErrFileError, "failed to add duplicate: %v", err)
+			}
 		}
 
 		if createJSON {

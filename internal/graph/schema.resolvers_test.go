@@ -591,7 +591,6 @@ func TestMutationCreateBean(t *testing.T) {
 			Priority: &priority,
 			Body:     &body,
 			Tags:     []string{"tag1", "tag2"},
-			Related:  []string{"some-id"},
 		}
 		got, err := mr.CreateBean(ctx, input)
 		if err != nil {
@@ -611,9 +610,6 @@ func TestMutationCreateBean(t *testing.T) {
 		}
 		if len(got.Tags) != 2 {
 			t.Errorf("CreateBean().Tags count = %d, want 2", len(got.Tags))
-		}
-		if len(got.Related) != 1 {
-			t.Errorf("CreateBean().Related count = %d, want 1", len(got.Related))
 		}
 	})
 }
