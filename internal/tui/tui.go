@@ -2,6 +2,9 @@ package tui
 
 import (
 	"context"
+	"os"
+	"os/exec"
+	"path/filepath"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/hmans/beans/internal/beancore"
@@ -37,6 +40,17 @@ type tagSelectedMsg struct {
 
 // clearFilterMsg is sent to clear any active filter
 type clearFilterMsg struct{}
+
+// openEditorMsg requests opening the editor for a bean
+type openEditorMsg struct {
+	beanID   string
+	beanPath string
+}
+
+// editorFinishedMsg is sent when the editor closes
+type editorFinishedMsg struct {
+	err error
+}
 
 // openParentPickerMsg requests opening the parent picker for a bean
 type openParentPickerMsg struct {
@@ -307,6 +321,20 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.state = viewList
 		return a, a.list.loadBeans
 
+	case openEditorMsg:
+		// Launch editor for the bean file
+		editor := getEditor()
+		fullPath := filepath.Join(a.core.Root(), msg.beanPath)
+		c := exec.Command(editor, fullPath)
+		return a, tea.ExecProcess(c, func(err error) tea.Msg {
+			return editorFinishedMsg{err: err}
+		})
+
+	case editorFinishedMsg:
+		// Editor closed - the file watcher will handle refreshing
+		// Just return to trigger a re-render
+		return a, nil
+
 	case parentSelectedMsg:
 		// Set the new parent via GraphQL mutation
 		var parentID *string
@@ -432,6 +460,22 @@ func (a *App) getBackgroundView() string {
 	default:
 		return a.list.View()
 	}
+}
+
+// getEditor returns the user's preferred editor using the fallback chain:
+// $VISUAL -> $EDITOR -> nano -> vi
+func getEditor() string {
+	if editor := os.Getenv("VISUAL"); editor != "" {
+		return editor
+	}
+	if editor := os.Getenv("EDITOR"); editor != "" {
+		return editor
+	}
+	// Fallback chain: nano is more user-friendly, vi is more universal
+	if _, err := exec.LookPath("nano"); err == nil {
+		return "nano"
+	}
+	return "vi"
 }
 
 // Run starts the TUI application with file watching

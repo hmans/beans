@@ -307,6 +307,16 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 				return m, func() tea.Msg {
 					return openCreateModalMsg{}
 				}
+			case "e":
+				// Open editor for selected bean
+				if item, ok := m.list.SelectedItem().(beanItem); ok {
+					return m, func() tea.Msg {
+						return openEditorMsg{
+							beanID:   item.bean.ID,
+							beanPath: item.bean.Path,
+						}
+					}
+				}
 			case "esc", "backspace":
 				// If we have an active filter, clear it instead of quitting
 				if m.hasActiveFilter() {
@@ -365,6 +375,7 @@ func (m listModel) View() string {
 	if m.hasActiveFilter() {
 		help = helpKeyStyle.Render("enter") + " " + helpStyle.Render("view") + "  " +
 			helpKeyStyle.Render("c") + " " + helpStyle.Render("create") + "  " +
+			helpKeyStyle.Render("e") + " " + helpStyle.Render("edit") + "  " +
 			helpKeyStyle.Render("s") + " " + helpStyle.Render("status") + "  " +
 			helpKeyStyle.Render("t") + " " + helpStyle.Render("type") + "  " +
 			helpKeyStyle.Render("p") + " " + helpStyle.Render("parent") + "  " +
@@ -374,6 +385,7 @@ func (m listModel) View() string {
 	} else {
 		help = helpKeyStyle.Render("enter") + " " + helpStyle.Render("view") + "  " +
 			helpKeyStyle.Render("c") + " " + helpStyle.Render("create") + "  " +
+			helpKeyStyle.Render("e") + " " + helpStyle.Render("edit") + "  " +
 			helpKeyStyle.Render("s") + " " + helpStyle.Render("status") + "  " +
 			helpKeyStyle.Render("t") + " " + helpStyle.Render("type") + "  " +
 			helpKeyStyle.Render("p") + " " + helpStyle.Render("parent") + "  " +

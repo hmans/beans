@@ -355,6 +355,15 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 					currentBlocking: m.bean.Blocking,
 				}
 			}
+
+		case "e":
+			// Open editor for this bean
+			return m, func() tea.Msg {
+				return openEditorMsg{
+					beanID:   m.bean.ID,
+					beanPath: m.bean.Path,
+				}
+			}
 		}
 	}
 
@@ -423,7 +432,8 @@ func (m detailModel) View() string {
 		}
 		footer += helpKeyStyle.Render("enter") + " " + helpStyle.Render("go to") + "  "
 	}
-	footer += helpKeyStyle.Render("s") + " " + helpStyle.Render("status") + "  " +
+	footer += helpKeyStyle.Render("e") + " " + helpStyle.Render("edit") + "  " +
+		helpKeyStyle.Render("s") + " " + helpStyle.Render("status") + "  " +
 		helpKeyStyle.Render("t") + " " + helpStyle.Render("type") + "  " +
 		helpKeyStyle.Render("p") + " " + helpStyle.Render("parent") + "  " +
 		helpKeyStyle.Render("b") + " " + helpStyle.Render("blocking") + "  " +
