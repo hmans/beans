@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/hmans/beans/internal/beancore"
@@ -88,6 +89,10 @@ type App struct {
 
 	// Modal state - tracks view behind modal pickers
 	previousState viewState
+
+	// Editor state - tracks bean being edited to update updated_at on save
+	editingBeanID      string
+	editingBeanModTime time.Time
 }
 
 // New creates a new TUI application
@@ -398,14 +403,38 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Launch editor for the bean file
 		editor := getEditor()
 		fullPath := filepath.Join(a.core.Root(), msg.beanPath)
+
+		// Record the bean ID and file mod time before editing
+		a.editingBeanID = msg.beanID
+		if info, err := os.Stat(fullPath); err == nil {
+			a.editingBeanModTime = info.ModTime()
+		}
+
 		c := exec.Command(editor, fullPath)
 		return a, tea.ExecProcess(c, func(err error) tea.Msg {
 			return editorFinishedMsg{err: err}
 		})
 
 	case editorFinishedMsg:
-		// Editor closed - the file watcher will handle refreshing
-		// Just return to trigger a re-render
+		// Editor closed - check if file was modified and update updated_at if so
+		if a.editingBeanID != "" {
+			if b, err := a.core.Get(a.editingBeanID); err == nil {
+				fullPath := filepath.Join(a.core.Root(), b.Path)
+				if info, err := os.Stat(fullPath); err == nil {
+					if info.ModTime().After(a.editingBeanModTime) {
+						// File was modified - reload from disk first to get user's changes,
+						// then call Update to set updated_at
+						_ = a.core.Load()
+						if b, err = a.core.Get(a.editingBeanID); err == nil {
+							_ = a.core.Update(b)
+						}
+					}
+				}
+			}
+			// Clear editing state
+			a.editingBeanID = ""
+			a.editingBeanModTime = time.Time{}
+		}
 		return a, nil
 
 	case parentSelectedMsg:
