@@ -1,12 +1,13 @@
 ---
+# beans-kp3h
 title: Wrap beans in an MCP server
-status: draft
+status: completed
 type: feature
 priority: normal
 tags:
     - idea
 created_at: 2025-12-13T12:00:03Z
-updated_at: 2025-12-13T12:11:07Z
+updated_at: 2025-12-13T12:46:50Z
 ---
 
 Expose beans functionality through a Model Context Protocol (MCP) server, allowing AI assistants and other MCP-compatible clients to interact with beans programmatically.
@@ -43,8 +44,8 @@ The `beans web` feature (beans-lbjp) plans to expose GraphQL over HTTP. These co
 
 ## Implementation
 
-- [ ] Choose Go MCP library (or implement minimal stdio protocol)
-- [ ] Create `beans mcp` command that runs stdio MCP server
-- [ ] Single `beans_graphql` tool wrapping the existing GraphQL engine
-- [ ] Tool description generated from schema + usage docs
+- [x] Choose Go MCP library (or implement minimal stdio protocol)
+- [x] Create `beans mcp` command that runs stdio MCP server
+- [x] Single `beans_graphql` tool wrapping the existing GraphQL engine
+- [x] Tool description generated from schema + usage docs
 - [ ] Test with Claude Code MCP integration
