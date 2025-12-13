@@ -26,20 +26,16 @@ var primeCmd = &cobra.Command{
 	Long:  `Outputs a prompt that primes AI coding agents on how to use the beans CLI to manage project issues.`,
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// If no explicit path given, check if a beans project exists
+		// If no explicit path given, check if a beans project exists by searching
+		// upward for a .beans.yml config file
 		if beansPath == "" && configPath == "" {
 			cwd, err := os.Getwd()
 			if err != nil {
 				return nil // Silently exit on error
 			}
-			cfg, err := config.LoadFromDirectory(cwd)
-			if err != nil {
-				return nil // Silently exit on error
-			}
-			// Check if the beans directory exists
-			beansDir := cfg.ResolveBeansPath()
-			if _, err := os.Stat(beansDir); os.IsNotExist(err) {
-				// No beans directory found - silently exit
+			configFile, err := config.FindConfig(cwd)
+			if err != nil || configFile == "" {
+				// No config file found - silently exit
 				return nil
 			}
 		}
