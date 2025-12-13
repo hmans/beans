@@ -1,10 +1,10 @@
 ---
 title: Update README with TUI shortcuts and beans graphql command
-status: todo
+status: completed
 type: task
 priority: normal
 created_at: 2025-12-13T00:47:21Z
-updated_at: 2025-12-13T00:48:10Z
+updated_at: 2025-12-13T01:23:44Z
 parent: beans-xnp8
 ---
 

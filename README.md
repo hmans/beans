@@ -111,6 +111,78 @@ You can also specifically ask it to start working on a particular bean:
 
 > "It's time to tackle myproj-123."
 
+## TUI (Terminal User Interface)
+
+Launch the interactive TUI with:
+
+```bash
+beans tui
+```
+
+### Keyboard Shortcuts
+
+**List View:**
+
+| Key | Action |
+|-----|--------|
+| `j`/`k`, `↓`/`↑` | Navigate up/down |
+| `enter` | View bean details |
+| `c` | Create new bean |
+| `e` | Edit bean in $EDITOR |
+| `s` | Change status |
+| `t` | Change type |
+| `P` | Change priority |
+| `p` | Set parent |
+| `b` | Manage blocking relationships |
+| `/` | Filter list |
+| `g t` | Go to tags (filter by tag) |
+| `esc` | Clear filter |
+| `?` | Show help overlay |
+| `q` | Quit |
+
+**Detail View:**
+
+| Key | Action |
+|-----|--------|
+| `j`/`k`, `↓`/`↑` | Scroll up/down |
+| `tab` | Switch focus (links/body) |
+| `enter` | Navigate to linked bean |
+| `e` | Edit bean in $EDITOR |
+| `s` | Change status |
+| `t` | Change type |
+| `P` | Change priority |
+| `p` | Set parent |
+| `b` | Manage blocking relationships |
+| `?` | Show help overlay |
+| `esc`/`backspace` | Back to list/previous bean |
+| `q` | Quit |
+
+## GraphQL Queries
+
+For advanced queries and mutations, use the `beans graphql` command:
+
+```bash
+# List all beans with basic info
+beans graphql '{ beans { id title status type priority } }'
+
+# Find high-priority bugs
+beans graphql '{ beans(filter: { type: ["bug"], priority: ["critical", "high"] }) { id title status body } }'
+
+# Search by text
+beans graphql '{ beans(filter: { search: "authentication" }) { id title } }'
+
+# Get a specific bean with its relationships
+beans graphql '{ bean(id: "beans-abc") { title parent { title } children { title status } blockedBy { title } } }'
+
+# Create a new bean
+beans graphql 'mutation { createBean(input: { title: "Fix bug", type: "bug", status: "todo" }) { id title } }'
+
+# Update a bean
+beans graphql 'mutation { updateBean(id: "beans-abc", input: { status: "completed" }) { id status } }'
+```
+
+Use `beans graphql --schema` to print the full GraphQL schema.
+
 ## Contributing
 
 This project currently does not accept contributions -- it's just way too early for that!
