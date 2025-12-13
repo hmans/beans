@@ -62,9 +62,9 @@ func TestExecuteQuery(t *testing.T) {
 
 	t.Run("basic query all beans", func(t *testing.T) {
 		query := `{ beans { id title status } }`
-		result, err := executeQuery(query, nil, "")
+		result, err := ExecuteQuery(query, nil, "")
 		if err != nil {
-			t.Fatalf("executeQuery() error = %v", err)
+			t.Fatalf("ExecuteQuery() error = %v", err)
 		}
 
 		var data struct {
@@ -86,9 +86,9 @@ func TestExecuteQuery(t *testing.T) {
 
 	t.Run("query single bean by id", func(t *testing.T) {
 		query := `{ bean(id: "test-1") { id title } }`
-		result, err := executeQuery(query, nil, "")
+		result, err := ExecuteQuery(query, nil, "")
 		if err != nil {
-			t.Fatalf("executeQuery() error = %v", err)
+			t.Fatalf("ExecuteQuery() error = %v", err)
 		}
 
 		var data struct {
@@ -112,9 +112,9 @@ func TestExecuteQuery(t *testing.T) {
 
 	t.Run("query with filter", func(t *testing.T) {
 		query := `{ beans(filter: { status: ["todo"] }) { id } }`
-		result, err := executeQuery(query, nil, "")
+		result, err := ExecuteQuery(query, nil, "")
 		if err != nil {
-			t.Fatalf("executeQuery() error = %v", err)
+			t.Fatalf("ExecuteQuery() error = %v", err)
 		}
 
 		var data struct {
@@ -140,9 +140,9 @@ func TestExecuteQuery(t *testing.T) {
 		variables := map[string]any{
 			"id": "test-2",
 		}
-		result, err := executeQuery(query, variables, "GetBean")
+		result, err := ExecuteQuery(query, variables, "GetBean")
 		if err != nil {
-			t.Fatalf("executeQuery() error = %v", err)
+			t.Fatalf("ExecuteQuery() error = %v", err)
 		}
 
 		var data struct {
@@ -163,9 +163,9 @@ func TestExecuteQuery(t *testing.T) {
 
 	t.Run("query nonexistent bean returns null", func(t *testing.T) {
 		query := `{ bean(id: "nonexistent") { id } }`
-		result, err := executeQuery(query, nil, "")
+		result, err := ExecuteQuery(query, nil, "")
 		if err != nil {
-			t.Fatalf("executeQuery() error = %v", err)
+			t.Fatalf("ExecuteQuery() error = %v", err)
 		}
 
 		var data struct {
@@ -185,7 +185,7 @@ func TestExecuteQuery(t *testing.T) {
 
 	t.Run("invalid query returns error", func(t *testing.T) {
 		query := `{ invalid { field } }`
-		_, err := executeQuery(query, nil, "")
+		_, err := ExecuteQuery(query, nil, "")
 		if err == nil {
 			t.Fatal("expected error for invalid query, got nil")
 		}
@@ -236,9 +236,9 @@ func TestExecuteQueryWithRelationships(t *testing.T) {
 
 	t.Run("query parent relationship", func(t *testing.T) {
 		query := `{ bean(id: "child-1") { id parent { id title } } }`
-		result, err := executeQuery(query, nil, "")
+		result, err := ExecuteQuery(query, nil, "")
 		if err != nil {
-			t.Fatalf("executeQuery() error = %v", err)
+			t.Fatalf("ExecuteQuery() error = %v", err)
 		}
 
 		var data struct {
@@ -265,9 +265,9 @@ func TestExecuteQueryWithRelationships(t *testing.T) {
 
 	t.Run("query children relationship", func(t *testing.T) {
 		query := `{ bean(id: "parent-1") { id children { id title } } }`
-		result, err := executeQuery(query, nil, "")
+		result, err := ExecuteQuery(query, nil, "")
 		if err != nil {
-			t.Fatalf("executeQuery() error = %v", err)
+			t.Fatalf("ExecuteQuery() error = %v", err)
 		}
 
 		var data struct {
@@ -294,9 +294,9 @@ func TestExecuteQueryWithRelationships(t *testing.T) {
 
 	t.Run("query blockedBy relationship", func(t *testing.T) {
 		query := `{ bean(id: "child-1") { id blockedBy { id title } } }`
-		result, err := executeQuery(query, nil, "")
+		result, err := ExecuteQuery(query, nil, "")
 		if err != nil {
-			t.Fatalf("executeQuery() error = %v", err)
+			t.Fatalf("ExecuteQuery() error = %v", err)
 		}
 
 		var data struct {
@@ -323,9 +323,9 @@ func TestExecuteQueryWithRelationships(t *testing.T) {
 
 	t.Run("query blocking relationship", func(t *testing.T) {
 		query := `{ bean(id: "blocker-1") { id blocking { id title } } }`
-		result, err := executeQuery(query, nil, "")
+		result, err := ExecuteQuery(query, nil, "")
 		if err != nil {
-			t.Fatalf("executeQuery() error = %v", err)
+			t.Fatalf("ExecuteQuery() error = %v", err)
 		}
 
 		var data struct {
@@ -390,9 +390,9 @@ func TestExecuteQueryWithFilters(t *testing.T) {
 
 	t.Run("filter by type", func(t *testing.T) {
 		query := `{ beans(filter: { type: ["bug"] }) { id type } }`
-		result, err := executeQuery(query, nil, "")
+		result, err := ExecuteQuery(query, nil, "")
 		if err != nil {
-			t.Fatalf("executeQuery() error = %v", err)
+			t.Fatalf("ExecuteQuery() error = %v", err)
 		}
 
 		var data struct {
@@ -413,9 +413,9 @@ func TestExecuteQueryWithFilters(t *testing.T) {
 
 	t.Run("filter by priority", func(t *testing.T) {
 		query := `{ beans(filter: { priority: ["critical", "high"] }) { id priority } }`
-		result, err := executeQuery(query, nil, "")
+		result, err := ExecuteQuery(query, nil, "")
 		if err != nil {
-			t.Fatalf("executeQuery() error = %v", err)
+			t.Fatalf("ExecuteQuery() error = %v", err)
 		}
 
 		var data struct {
@@ -436,9 +436,9 @@ func TestExecuteQueryWithFilters(t *testing.T) {
 
 	t.Run("filter by tags", func(t *testing.T) {
 		query := `{ beans(filter: { tags: ["frontend"] }) { id tags } }`
-		result, err := executeQuery(query, nil, "")
+		result, err := ExecuteQuery(query, nil, "")
 		if err != nil {
-			t.Fatalf("executeQuery() error = %v", err)
+			t.Fatalf("ExecuteQuery() error = %v", err)
 		}
 
 		var data struct {
@@ -459,9 +459,9 @@ func TestExecuteQueryWithFilters(t *testing.T) {
 
 	t.Run("exclude by status", func(t *testing.T) {
 		query := `{ beans(filter: { excludeStatus: ["completed"] }) { id status } }`
-		result, err := executeQuery(query, nil, "")
+		result, err := ExecuteQuery(query, nil, "")
 		if err != nil {
-			t.Fatalf("executeQuery() error = %v", err)
+			t.Fatalf("ExecuteQuery() error = %v", err)
 		}
 
 		var data struct {
@@ -487,9 +487,9 @@ func TestExecuteQueryWithFilters(t *testing.T) {
 
 	t.Run("combined filters", func(t *testing.T) {
 		query := `{ beans(filter: { status: ["todo", "in-progress"], type: ["bug", "feature"] }) { id } }`
-		result, err := executeQuery(query, nil, "")
+		result, err := ExecuteQuery(query, nil, "")
 		if err != nil {
-			t.Fatalf("executeQuery() error = %v", err)
+			t.Fatalf("ExecuteQuery() error = %v", err)
 		}
 
 		var data struct {

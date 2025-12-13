@@ -1,0 +1,62 @@
+Execute GraphQL queries and mutations against the beans issue tracker.
+
+Beans is a file-based issue tracker where issues ("beans") are stored as markdown files.
+
+## Usage
+
+Send a GraphQL query or mutation as the `query` parameter. Optionally include `variables` and `operationName`.
+
+## Example Queries
+
+```graphql
+# List all beans
+{ beans { id title status type } }
+
+# Get a specific bean by ID
+{ bean(id: "abc") { title status body } }
+
+# Filter beans by status
+{ beans(filter: { status: ["todo", "in-progress"] }) { id title } }
+
+# Find actionable beans (not completed, not blocked)
+{ beans(filter: { excludeStatus: ["completed", "scrapped", "draft"], isBlocked: false }) { id title status type priority } }
+
+# Search by text
+{ beans(filter: { search: "authentication" }) { id title } }
+
+# Get bean with relationships
+{ bean(id: "abc") { title parent { title } children { title status } blockedBy { title } } }
+```
+
+## Example Mutations
+
+```graphql
+# Create a new bean
+mutation { createBean(input: { title: "Fix login bug", type: "bug", status: "todo" }) { id title } }
+
+# Update a bean's status
+mutation { updateBean(id: "abc", input: { status: "completed" }) { id status } }
+
+# Set a bean's parent
+mutation { setParent(id: "abc", parentId: "xyz") { id parent { title } } }
+```
+
+## GraphQL Schema
+
+```graphql
+{{.GraphQLSchema}}```
+
+## Issue Types
+{{range .Types}}
+- **{{.Name}}**{{if .Description}}: {{.Description}}{{end}}
+{{- end}}
+
+## Statuses
+{{range .Statuses}}
+- **{{.Name}}**{{if .Description}}: {{.Description}}{{end}}
+{{- end}}
+
+## Priorities
+{{range .Priorities}}
+- **{{.Name}}**{{if .Description}}: {{.Description}}{{end}}
+{{- end}}
