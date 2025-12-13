@@ -3,3 +3,4 @@
 /.worktrees/
 # Added by goreleaser init:
 dist/
+/.docs.local
