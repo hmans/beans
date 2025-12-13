@@ -1132,3 +1132,87 @@ func TestTagsRoundtrip(t *testing.T) {
 		})
 	}
 }
+
+func TestRenderWithIDComment(t *testing.T) {
+	tests := []struct {
+		name          string
+		bean          *Bean
+		expectComment string
+	}{
+		{
+			name: "with ID",
+			bean: &Bean{
+				ID:     "beans-abc123",
+				Title:  "Test Bean",
+				Status: "todo",
+			},
+			expectComment: "# beans-abc123",
+		},
+		{
+			name: "without ID",
+			bean: &Bean{
+				Title:  "Test Bean",
+				Status: "todo",
+			},
+			expectComment: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := tt.bean.Render()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			result := string(output)
+
+			if tt.expectComment != "" {
+				// Check that comment appears right after opening ---
+				expectedStart := "---\n" + tt.expectComment + "\n"
+				if !strings.HasPrefix(result, expectedStart) {
+					t.Errorf("expected output to start with %q\ngot:\n%s", expectedStart, result)
+				}
+			} else {
+				// When no ID, should not have a comment line
+				lines := strings.Split(result, "\n")
+				if len(lines) > 1 && strings.HasPrefix(lines[1], "#") {
+					t.Errorf("expected no comment line when ID is empty\ngot:\n%s", result)
+				}
+			}
+		})
+	}
+}
+
+func TestRenderWithIDCommentRoundtrip(t *testing.T) {
+	// Verify that the ID comment doesn't interfere with parsing
+	original := &Bean{
+		ID:     "beans-xyz789",
+		Title:  "Test Bean",
+		Status: "in-progress",
+		Body:   "Some body content.",
+	}
+
+	rendered, err := original.Render()
+	if err != nil {
+		t.Fatalf("Render error: %v", err)
+	}
+
+	// Verify the comment is present
+	if !strings.Contains(string(rendered), "# beans-xyz789") {
+		t.Errorf("rendered output should contain ID comment\ngot:\n%s", rendered)
+	}
+
+	// Parse should work correctly (comment is ignored)
+	parsed, err := Parse(strings.NewReader(string(rendered)))
+	if err != nil {
+		t.Fatalf("Parse error: %v", err)
+	}
+
+	if parsed.Title != original.Title {
+		t.Errorf("Title roundtrip: got %q, want %q", parsed.Title, original.Title)
+	}
+	if parsed.Status != original.Status {
+		t.Errorf("Status roundtrip: got %q, want %q", parsed.Status, original.Status)
+	}
+}

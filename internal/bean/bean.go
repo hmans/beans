@@ -198,6 +198,11 @@ func (b *Bean) Render() ([]byte, error) {
 
 	var buf bytes.Buffer
 	buf.WriteString("---\n")
+	if b.ID != "" {
+		buf.WriteString("# ")
+		buf.WriteString(b.ID)
+		buf.WriteString("\n")
+	}
 	buf.Write(fmBytes)
 	buf.WriteString("---\n")
 	if b.Body != "" {
