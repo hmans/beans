@@ -485,8 +485,10 @@ func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string
 	if maxWidth > 0 && prioritySymbol != "" {
 		maxWidth -= 2 // Account for symbol + space
 	}
-	if maxWidth > 0 && len(title) > maxWidth {
+	if maxWidth > 3 && len(title) > maxWidth {
 		displayTitle = title[:maxWidth-3] + "..."
+	} else if maxWidth > 0 && maxWidth <= 3 && len(title) > maxWidth {
+		displayTitle = title[:maxWidth]
 	}
 
 	// Cursor and title styling
