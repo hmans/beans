@@ -69,10 +69,18 @@ type PriorityConfig struct {
 	Description string `yaml:"description,omitempty"`
 }
 
+// Launcher defines a configured launcher command.
+type Launcher struct {
+	Name        string `yaml:"name"`
+	Command     string `yaml:"command"`
+	Description string `yaml:"description,omitempty"`
+}
+
 // Config holds the beans configuration.
 // Note: Statuses are no longer stored in config - they are hardcoded like types.
 type Config struct {
-	Beans BeansConfig `yaml:"beans"`
+	Beans     BeansConfig `yaml:"beans"`
+	Launchers []Launcher  `yaml:"launchers,omitempty"`
 
 	// configDir is the directory containing the config file (not serialized)
 	// Used to resolve relative paths

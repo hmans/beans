@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -28,6 +29,9 @@ const (
 	viewPriorityPicker
 	viewCreateModal
 	viewHelpOverlay
+	viewLauncherPicker
+	viewLauncherError
+	viewNoLaunchers
 )
 
 // beansChangedMsg is sent when beans change on disk (via file watcher)
@@ -76,6 +80,9 @@ type App struct {
 	priorityPicker priorityPickerModel
 	createModal    createModalModel
 	helpOverlay    helpOverlayModel
+	launcherPicker launcherPickerModel
+	launcherError  launcherErrorModel
+	noLaunchers    noLaunchersModel
 	history        []detailModel // stack of previous detail views for back navigation
 	core           *beancore.Core
 	resolver       *graph.Resolver
@@ -463,6 +470,64 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, a.list.loadBeans
 
+	case openLauncherPickerMsg:
+		// Discover available launchers
+		launchers := discoverLaunchers(a.config, a.core.Root())
+
+		if len(launchers) == 0 {
+			// No launchers available
+			a.previousState = a.state
+			a.noLaunchers = newNoLaunchersModel(a.width, a.height)
+			a.state = viewNoLaunchers
+			return a, nil
+		}
+
+		// Open launcher picker
+		a.previousState = a.state
+		a.launcherPicker = newLauncherPickerModel(launchers, msg.beanID, msg.beanTitle, a.width, a.height)
+		a.state = viewLauncherPicker
+		return a, a.launcherPicker.Init()
+
+	case launcherSelectedMsg:
+		// Execute launcher
+		cmd := exec.Command(msg.launcher.command, msg.beanID)
+
+		// Set environment variables
+		beanPath := filepath.Join(a.core.Root(), ".beans", "beans-"+msg.beanID+".md")
+		cmd.Env = append(os.Environ(),
+			fmt.Sprintf("BEANS_ROOT=%s", a.core.Root()),
+			fmt.Sprintf("BEANS_ID=%s", msg.beanID),
+			fmt.Sprintf("BEANS_TASK=%s", beanPath),
+		)
+
+		// Set working directory to project root
+		cmd.Dir = a.core.Root()
+
+		// Store launcher name for error reporting
+		launcherName := msg.launcher.name
+
+		return a, tea.ExecProcess(cmd, func(err error) tea.Msg {
+			return launcherFinishedMsg{
+				err:          err,
+				launcherName: launcherName,
+			}
+		})
+
+	case launcherFinishedMsg:
+		if msg.err != nil {
+			// Show error modal
+			a.previousState = viewDetail
+			a.launcherError = newLauncherErrorModel(msg.launcherName, msg.err, a.width, a.height)
+			a.state = viewLauncherError
+			return a, nil
+		}
+		// Success - already back in detail view
+		return a, nil
+
+	case closeLauncherPickerMsg:
+		a.state = a.previousState
+		return a, nil
+
 	case clearFilterMsg:
 		a.list.clearFilter()
 		return a, a.list.loadBeans
@@ -513,6 +578,20 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.createModal, cmd = a.createModal.Update(msg)
 	case viewHelpOverlay:
 		a.helpOverlay, cmd = a.helpOverlay.Update(msg)
+	case viewLauncherPicker:
+		a.launcherPicker, cmd = a.launcherPicker.Update(msg)
+	case viewLauncherError:
+		// Any key dismisses error modal
+		if _, ok := msg.(tea.KeyMsg); ok {
+			a.state = a.previousState
+			return a, nil
+		}
+	case viewNoLaunchers:
+		// Any key dismisses no-launchers modal
+		if _, ok := msg.(tea.KeyMsg); ok {
+			a.state = a.previousState
+			return a, nil
+		}
 	}
 
 	return a, cmd
@@ -559,6 +638,12 @@ func (a *App) View() string {
 		return a.createModal.ModalView(a.getBackgroundView(), a.width, a.height)
 	case viewHelpOverlay:
 		return a.helpOverlay.ModalView(a.getBackgroundView(), a.width, a.height)
+	case viewLauncherPicker:
+		return a.launcherPicker.ModalView(a.getBackgroundView(), a.width, a.height)
+	case viewLauncherError:
+		return a.launcherError.ModalView(a.getBackgroundView(), a.width, a.height)
+	case viewNoLaunchers:
+		return a.noLaunchers.ModalView(a.getBackgroundView(), a.width, a.height)
 	}
 	return ""
 }

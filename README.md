@@ -125,6 +125,39 @@ You can also specifically ask it to start working on a particular bean:
 
 > "It's time to tackle myproj-123."
 
+## Launchers
+
+You can configure external tools to launch from the TUI detail view. Press `l` when viewing a bean to open the launcher picker.
+
+Configure launchers in `.beans.yml`:
+
+```yaml
+launchers:
+  - name: opencode
+    command: opencode
+    description: "Open in OpenCode"
+  - name: claude
+    command: claude
+    description: "Open in Claude"
+  - name: custom-tool
+    command: .beans/scripts/my-tool.sh
+    description: "Run custom analysis"
+```
+
+**Command types:**
+- **Executable name** (e.g., `opencode`) - must be in PATH
+- **Relative path** (e.g., `.beans/scripts/tool.sh`) - relative to project root
+- **Absolute path** (e.g., `/usr/local/bin/tool`)
+
+**Environment variables passed to launchers:**
+- `BEANS_ROOT`: Project root directory
+- `BEANS_ID`: Bean ID (e.g., `abc123`)
+- `BEANS_TASK`: Full path to bean file (e.g., `/path/to/project/.beans/beans-abc123.md`)
+
+**Working directory:** Launchers execute with CWD set to project root.
+
+Only launchers that are available (executable exists and is executable for file paths, or exists in PATH for command names) will be shown in the picker.
+
 ## Contributing
 
 This project currently does not accept contributions -- it's just way too early for that!

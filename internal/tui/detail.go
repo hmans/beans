@@ -50,16 +50,18 @@ type resolvedLink struct {
 
 // linkItem wraps a resolvedLink to implement list.Item
 type linkItem struct {
-	link   resolvedLink
-	cfg    *config.Config
-	width  int
-	cols   ui.ResponsiveColumns
-	label  string // pre-computed label like "Blocks:" or "Blocked by:"
+	link  resolvedLink
+	cfg   *config.Config
+	width int
+	cols  ui.ResponsiveColumns
+	label string // pre-computed label like "Blocks:" or "Blocked by:"
 }
 
 func (i linkItem) Title() string       { return i.link.bean.Title }
 func (i linkItem) Description() string { return i.link.bean.ID }
-func (i linkItem) FilterValue() string { return i.link.bean.Title + " " + i.link.bean.ID + " " + i.label }
+func (i linkItem) FilterValue() string {
+	return i.link.bean.Title + " " + i.link.bean.ID + " " + i.label
+}
 
 // linkDelegate handles rendering of link list items
 type linkDelegate struct {
@@ -376,6 +378,15 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 					beanPath: m.bean.Path,
 				}
 			}
+
+		case "l":
+			// Open launcher picker
+			return m, func() tea.Msg {
+				return openLauncherPickerMsg{
+					beanID:    m.bean.ID,
+					beanTitle: m.bean.Title,
+				}
+			}
 		}
 	}
 
@@ -444,7 +455,8 @@ func (m detailModel) View() string {
 		}
 		footer += helpKeyStyle.Render("enter") + " " + helpStyle.Render("go to") + "  "
 	}
-	footer += helpKeyStyle.Render("e") + " " + helpStyle.Render("edit") + "  " +
+	footer += helpKeyStyle.Render("l") + " " + helpStyle.Render("launch") + "  " +
+		helpKeyStyle.Render("e") + " " + helpStyle.Render("edit") + "  " +
 		helpKeyStyle.Render("s") + " " + helpStyle.Render("status") + "  " +
 		helpKeyStyle.Render("t") + " " + helpStyle.Render("type") + "  " +
 		helpKeyStyle.Render("P") + " " + helpStyle.Render("priority") + "  " +
@@ -648,7 +660,6 @@ func compareBeansByStatusPriorityAndType(a, b *bean.Bean, statusNames, priorityN
 	// Quaternary: title (case-insensitive)
 	return strings.ToLower(a.Title) < strings.ToLower(b.Title)
 }
-
 
 func (m detailModel) renderBody(_ int) string {
 	if m.bean.Body == "" {
