@@ -140,40 +140,42 @@ launchers:
     exec: opencode -p "Work on task $BEANS_ID"
     description: "Open task in OpenCode"
   
-  # Complex multi-line launcher with bash
-  - name: analyze
-    description: "Run comprehensive analysis"
+  # Git worktree + tmux launcher
+  - name: worktree-tmux
+    description: "Create git worktree and open in new tmux pane"
     exec: |
       #!/bin/bash
       set -euo pipefail
       
-      echo "🔍 Analyzing bean: $BEANS_ID"
+      WORKTREE_DIR=".worktrees/$BEANS_ID"
       
-      # Extract title from markdown
-      TITLE=$(head -n1 "$BEANS_TASK" | sed 's/^# //')
-      echo "Title: $TITLE"
+      # Create worktree if it doesn't exist
+      if [ ! -d "$WORKTREE_DIR" ]; then
+        git worktree add "$WORKTREE_DIR" -b "task/$BEANS_ID"
+      fi
       
-      # Run checks
-      cd "$BEANS_ROOT"
-      npm run lint
-      npm run test
-      
-      # Open in editor
-      opencode -p "Fix issues in $BEANS_ID: $TITLE"
+      # Create new tmux pane with task ID as title
+      tmux split-window -h -c "$BEANS_ROOT/$WORKTREE_DIR" \
+        "printf '\033]2;%s\033\\' '$BEANS_ID'; opencode -p 'Work on task $BEANS_ID'; exec bash"
   
-  # Python example
-  - name: python-analysis
-    description: "Custom Python script"
+  # Kitty terminal window launcher
+  - name: worktree-kitty
+    description: "Create git worktree and open in new kitty window"
     exec: |
-      #!/usr/bin/env python3
-      import os
+      #!/bin/bash
+      set -euo pipefail
       
-      bean_id = os.environ['BEANS_ID']
-      bean_path = os.environ['BEANS_TASK']
-      beans_root = os.environ['BEANS_ROOT']
+      WORKTREE_DIR=".worktrees/$BEANS_ID"
       
-      print(f"Analyzing {bean_id}")
-      # Your Python logic here
+      # Create worktree if it doesn't exist
+      if [ ! -d "$WORKTREE_DIR" ]; then
+        git worktree add "$WORKTREE_DIR" -b "task/$BEANS_ID"
+      fi
+      
+      # Launch kitty window with task ID as title
+      kitty @ launch --type=window --title="$BEANS_ID" \
+        --cwd="$BEANS_ROOT/$WORKTREE_DIR" \
+        bash -c "opencode -p 'Work on task $BEANS_ID'; exec bash"
 ```
 
 ### How It Works
