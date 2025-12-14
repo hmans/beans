@@ -379,7 +379,7 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 				}
 			}
 
-		case "l":
+		case "!":
 			// Open launcher picker
 			return m, func() tea.Msg {
 				return openLauncherPickerMsg{
