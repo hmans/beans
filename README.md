@@ -129,25 +129,40 @@ You can also specifically ask it to start working on a particular bean:
 
 You can configure external tools to launch from the TUI detail view. Press `l` when viewing a bean to open the launcher picker.
 
+**First-time setup:** If no launchers are configured, you'll be prompted to select from default options (opencode, claude, crush). Only installed tools will be pre-selected. This provides a quick start with sensible defaults.
+
 Configure launchers in `.beans.yml`:
 
 ```yaml
 launchers:
   - name: opencode
-    command: opencode
-    description: "Open in OpenCode"
+    command: opencode run "Work on task $BEANS_ID"
+    description: "Open task in OpenCode"
   - name: claude
-    command: claude
-    description: "Open in Claude"
+    command: claude "Work on task $BEANS_ID"
+    description: "Open task in Claude Code"
   - name: custom-tool
     command: .beans/scripts/my-tool.sh
     description: "Run custom analysis"
 ```
 
-**Command types:**
-- **Executable name** (e.g., `opencode`) - must be in PATH
-- **Relative path** (e.g., `.beans/scripts/tool.sh`) - relative to project root
-- **Absolute path** (e.g., `/usr/local/bin/tool`)
+**Command execution:**
+- All launcher commands execute via shell (`sh -c`), allowing environment variable expansion
+- Use `$BEANS_ID`, `$BEANS_ROOT`, `$BEANS_TASK` in your commands
+- Commands can be executable names in PATH, relative paths, or absolute paths
+
+**Command templates:** The default launchers serve as templates for custom commands. You can create sophisticated launcher commands using shell features:
+
+```yaml
+# Extract and use the task title
+command: opencode run "Work on $(head -n1 $BEANS_TASK | sed 's/^# //')"
+
+# Pass multiple environment variables
+command: my-tool --id=$BEANS_ID --root=$BEANS_ROOT
+
+# Chain commands
+command: cd $BEANS_ROOT && my-script.sh $BEANS_ID
+```
 
 **Environment variables passed to launchers:**
 - `BEANS_ROOT`: Project root directory
@@ -155,8 +170,6 @@ launchers:
 - `BEANS_TASK`: Full path to bean file (e.g., `/path/to/project/.beans/beans-abc123.md`)
 
 **Working directory:** Launchers execute with CWD set to project root.
-
-Only launchers that are available (executable exists and is executable for file paths, or exists in PATH for command names) will be shown in the picker.
 
 ## Contributing
 

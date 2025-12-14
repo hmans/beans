@@ -3,6 +3,7 @@ package tui
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/hmans/beans/internal/config"
@@ -73,53 +74,52 @@ func TestIsCommandAvailable(t *testing.T) {
 	// Create a temp directory for test files
 	tmpDir := t.TempDir()
 
-	// Create an executable script
-	executablePath := filepath.Join(tmpDir, "executable.sh")
-	if err := os.WriteFile(executablePath, []byte("#!/bin/sh\necho test"), 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create a non-executable file
-	nonExecutablePath := filepath.Join(tmpDir, "non-executable.sh")
-	if err := os.WriteFile(nonExecutablePath, []byte("#!/bin/sh\necho test"), 0644); err != nil {
+	// Create a test file (doesn't need to be executable since we use shell)
+	testFilePath := filepath.Join(tmpDir, "test-script.sh")
+	if err := os.WriteFile(testFilePath, []byte("#!/bin/sh\necho test"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
 	tests := []struct {
-		name         string
-		resolvedPath string
-		want         bool
+		name    string
+		command string
+		want    bool
 	}{
 		{
-			name:         "executable file returns true",
-			resolvedPath: executablePath,
-			want:         true,
+			name:    "file exists returns true",
+			command: testFilePath,
+			want:    true,
 		},
 		{
-			name:         "non-executable file returns false",
-			resolvedPath: nonExecutablePath,
-			want:         false,
+			name:    "nonexistent file returns false",
+			command: filepath.Join(tmpDir, "nonexistent"),
+			want:    false,
 		},
 		{
-			name:         "nonexistent file returns false",
-			resolvedPath: filepath.Join(tmpDir, "nonexistent"),
-			want:         false,
+			name:    "PATH command found",
+			command: "ls",
+			want:    true,
 		},
 		{
-			name:         "PATH command assumed available",
-			resolvedPath: "ls",
-			want:         true,
+			name:    "PATH command not found",
+			command: "nonexistent-command-xyz-123",
+			want:    false,
 		},
 		{
-			name:         "command without path separator assumed available",
-			resolvedPath: "my-command",
-			want:         true,
+			name:    "command with args extracts main command",
+			command: "ls -la /tmp",
+			want:    true,
+		},
+		{
+			name:    "relative path with args",
+			command: testFilePath + " arg1 arg2",
+			want:    true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := isCommandAvailable(tt.resolvedPath)
+			got := isCommandAvailable(tt.command)
 			if got != tt.want {
 				t.Errorf("isCommandAvailable() = %v, want %v", got, tt.want)
 			}
@@ -185,15 +185,15 @@ func TestDiscoverLaunchers(t *testing.T) {
 			wantNames: []string{"my-tool"},
 		},
 		{
-			name: "non-executable relative path skipped",
+			name: "non-executable relative path available (shell will execute)",
 			cfg: &config.Config{
 				Launchers: []config.Launcher{
 					{Name: "broken", Command: "scripts/broken.sh", Description: "Broken"},
 				},
 			},
 			beansRoot: tmpDir,
-			wantCount: 0,
-			wantNames: []string{},
+			wantCount: 1,
+			wantNames: []string{"broken"},
 		},
 		{
 			name: "nonexistent path skipped",
@@ -217,8 +217,8 @@ func TestDiscoverLaunchers(t *testing.T) {
 				},
 			},
 			beansRoot: tmpDir,
-			wantCount: 2,
-			wantNames: []string{"ls-tool", "my-tool"},
+			wantCount: 3,
+			wantNames: []string{"ls-tool", "my-tool", "broken"},
 		},
 	}
 
@@ -247,5 +247,167 @@ func TestDiscoverLaunchers(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestExtractMainCommand(t *testing.T) {
+	tests := []struct {
+		name    string
+		command string
+		want    string
+	}{
+		{
+			name:    "simple command",
+			command: "opencode",
+			want:    "opencode",
+		},
+		{
+			name:    "command with args",
+			command: "opencode run \"Work on task $BEANS_ID\"",
+			want:    "opencode",
+		},
+		{
+			name:    "absolute path",
+			command: "/usr/bin/tool --flag",
+			want:    "/usr/bin/tool",
+		},
+		{
+			name:    "relative path with args",
+			command: ".beans/scripts/tool.sh arg1 arg2",
+			want:    ".beans/scripts/tool.sh",
+		},
+		{
+			name:    "command with quotes",
+			command: "claude \"Work on task $BEANS_ID\"",
+			want:    "claude",
+		},
+		{
+			name:    "empty command",
+			command: "",
+			want:    "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractMainCommand(tt.command)
+			if got != tt.want {
+				t.Errorf("extractMainCommand() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHasLaunchersConfigured(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  *config.Config
+		want bool
+	}{
+		{
+			name: "no launchers configured",
+			cfg: &config.Config{
+				Launchers: []config.Launcher{},
+			},
+			want: false,
+		},
+		{
+			name: "one launcher configured",
+			cfg: &config.Config{
+				Launchers: []config.Launcher{
+					{Name: "test", Command: "test"},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "multiple launchers configured",
+			cfg: &config.Config{
+				Launchers: []config.Launcher{
+					{Name: "test1", Command: "test1"},
+					{Name: "test2", Command: "test2"},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "nil launchers slice",
+			cfg: &config.Config{
+				Launchers: nil,
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := hasLaunchersConfigured(tt.cfg)
+			if got != tt.want {
+				t.Errorf("hasLaunchersConfigured() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAppendLaunchersToConfig(t *testing.T) {
+	// Create temp directory with .beans.yml
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, ".beans.yml")
+
+	// Write initial config
+	initialConfig := `beans:
+  path: .beans
+  prefix: beans-
+`
+	if err := os.WriteFile(configPath, []byte(initialConfig), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Launchers to append
+	launchers := []config.Launcher{
+		{Name: "opencode", Command: "opencode run \"Work on task $BEANS_ID\"", Description: "Open task in OpenCode"},
+		{Name: "claude", Command: "claude \"Work on task $BEANS_ID\"", Description: "Open task in Claude Code"},
+	}
+
+	// Append launchers
+	if err := appendLaunchersToConfig(tmpDir, launchers); err != nil {
+		t.Fatalf("appendLaunchersToConfig() error = %v", err)
+	}
+
+	// Read result
+	result, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resultStr := string(result)
+
+	// Verify launchers section exists
+	if !strings.Contains(resultStr, "launchers:") {
+		t.Error("Result does not contain launchers section")
+	}
+
+	// Verify first launcher
+	if !strings.Contains(resultStr, "name: opencode") {
+		t.Error("Result does not contain opencode launcher name")
+	}
+	if !strings.Contains(resultStr, "command: opencode run") {
+		t.Error("Result does not contain opencode launcher command")
+	}
+	if !strings.Contains(resultStr, "description: \"Open task in OpenCode\"") {
+		t.Error("Result does not contain opencode launcher description")
+	}
+
+	// Verify second launcher
+	if !strings.Contains(resultStr, "name: claude") {
+		t.Error("Result does not contain claude launcher name")
+	}
+
+	// Verify original content is preserved
+	if !strings.Contains(resultStr, "beans:") {
+		t.Error("Original config content was lost")
+	}
+	if !strings.Contains(resultStr, "path: .beans") {
+		t.Error("Original beans path was lost")
 	}
 }

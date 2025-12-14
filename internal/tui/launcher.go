@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -33,23 +34,26 @@ func resolveCommand(cmd string, beansRoot string) string {
 	return cmd
 }
 
-// isCommandAvailable checks if a resolved command path is available.
-// For local file paths, checks if file exists and is executable.
-// For PATH commands (no path separator), assumes available.
-func isCommandAvailable(resolvedPath string) bool {
-	// If it looks like a local file path, check if it exists and is executable
-	if filepath.IsAbs(resolvedPath) || strings.Contains(resolvedPath, string(filepath.Separator)) {
-		info, err := os.Stat(resolvedPath)
-		if err != nil {
-			return false
-		}
-		// Check if executable (any execute bit set)
-		mode := info.Mode()
-		return mode&0111 != 0
+// isCommandAvailable checks if a launcher command is available.
+// Since we execute via shell, we extract the main command and check if it exists.
+// For file paths, checks if file exists. For command names, checks if in PATH.
+func isCommandAvailable(command string) bool {
+	// Extract the main executable from the command string
+	mainCmd := extractMainCommand(command)
+
+	if mainCmd == "" {
+		return false
 	}
 
-	// For PATH commands, assume available (let exec fail with proper error)
-	return true
+	// If it looks like a local file path, check if it exists
+	if filepath.IsAbs(mainCmd) || strings.Contains(mainCmd, string(filepath.Separator)) {
+		_, err := os.Stat(mainCmd)
+		return err == nil
+	}
+
+	// For command names, check if in PATH
+	_, err := exec.LookPath(mainCmd)
+	return err == nil
 }
 
 // launcher represents a discovered and available launcher
@@ -86,4 +90,56 @@ func discoverLaunchers(cfg *config.Config, beansRoot string) []launcher {
 	}
 
 	return launchers
+}
+
+// extractMainCommand extracts the primary executable from a launcher command string.
+// For shell commands, this returns the first space-separated token.
+// Examples:
+//
+//	"opencode run ..." -> "opencode"
+//	"/usr/bin/tool --flag" -> "/usr/bin/tool"
+//	".beans/scripts/tool.sh arg" -> ".beans/scripts/tool.sh"
+func extractMainCommand(command string) string {
+	parts := strings.Fields(command)
+	if len(parts) == 0 {
+		return command
+	}
+	return parts[0]
+}
+
+// hasLaunchersConfigured returns true if the config has any launchers defined.
+func hasLaunchersConfigured(cfg *config.Config) bool {
+	return len(cfg.Launchers) > 0
+}
+
+// appendLaunchersToConfig appends launcher configurations to .beans.yml.
+// This is a simple append operation that doesn't preserve comments or formatting.
+// projectRoot should be the directory containing .beans.yml (not the .beans directory).
+func appendLaunchersToConfig(projectRoot string, launchers []config.Launcher) error {
+	configPath := filepath.Join(projectRoot, config.ConfigFileName)
+
+	// Read current file
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config: %w", err)
+	}
+
+	// Build launchers YAML section
+	var launchersYAML strings.Builder
+	launchersYAML.WriteString("\nlaunchers:\n")
+	for _, l := range launchers {
+		launchersYAML.WriteString(fmt.Sprintf("  - name: %s\n", l.Name))
+		launchersYAML.WriteString(fmt.Sprintf("    command: %s\n", l.Command))
+		if l.Description != "" {
+			launchersYAML.WriteString(fmt.Sprintf("    description: \"%s\"\n", l.Description))
+		}
+	}
+
+	// Append to file
+	newData := append(data, []byte(launchersYAML.String())...)
+	if err := os.WriteFile(configPath, newData, 0644); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+
+	return nil
 }

@@ -32,6 +32,8 @@ const (
 	viewLauncherPicker
 	viewLauncherError
 	viewNoLaunchers
+	viewConfigureLaunchers
+	viewConfigWriteError
 )
 
 // beansChangedMsg is sent when beans change on disk (via file watcher)
@@ -69,27 +71,29 @@ type openParentPickerMsg struct {
 
 // App is the main TUI application model
 type App struct {
-	state          viewState
-	list           listModel
-	detail         detailModel
-	tagPicker      tagPickerModel
-	parentPicker   parentPickerModel
-	statusPicker   statusPickerModel
-	typePicker     typePickerModel
-	blockingPicker blockingPickerModel
-	priorityPicker priorityPickerModel
-	createModal    createModalModel
-	helpOverlay    helpOverlayModel
-	launcherPicker launcherPickerModel
-	launcherError  launcherErrorModel
-	noLaunchers    noLaunchersModel
-	history        []detailModel // stack of previous detail views for back navigation
-	core           *beancore.Core
-	resolver       *graph.Resolver
-	config         *config.Config
-	width          int
-	height         int
-	program        *tea.Program // reference to program for sending messages from watcher
+	state              viewState
+	list               listModel
+	detail             detailModel
+	tagPicker          tagPickerModel
+	parentPicker       parentPickerModel
+	statusPicker       statusPickerModel
+	typePicker         typePickerModel
+	blockingPicker     blockingPickerModel
+	priorityPicker     priorityPickerModel
+	createModal        createModalModel
+	helpOverlay        helpOverlayModel
+	launcherPicker     launcherPickerModel
+	launcherError      launcherErrorModel
+	noLaunchers        noLaunchersModel
+	configureLaunchers configureLaunchersModel
+	configWriteError   configWriteErrorModel
+	history            []detailModel // stack of previous detail views for back navigation
+	core               *beancore.Core
+	resolver           *graph.Resolver
+	config             *config.Config
+	width              int
+	height             int
+	program            *tea.Program // reference to program for sending messages from watcher
 
 	// Key chord state - tracks partial key sequences like "g" waiting for "t"
 	pendingKey string
@@ -475,7 +479,16 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		launchers := discoverLaunchers(a.config, a.core.Root())
 
 		if len(launchers) == 0 {
-			// No launchers available
+			// Check if any launchers are configured at all
+			if !hasLaunchersConfigured(a.config) {
+				// First time - offer to configure defaults
+				a.previousState = a.state
+				a.configureLaunchers = newConfigureLaunchersModel(msg.beanID, msg.beanTitle, a.width, a.height)
+				a.state = viewConfigureLaunchers
+				return a, a.configureLaunchers.Init()
+			}
+
+			// Launchers configured but none available
 			a.previousState = a.state
 			a.noLaunchers = newNoLaunchersModel(a.width, a.height)
 			a.state = viewNoLaunchers
@@ -489,8 +502,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.launcherPicker.Init()
 
 	case launcherSelectedMsg:
-		// Execute launcher
-		cmd := exec.Command(msg.launcher.command, msg.beanID)
+		// Close the picker before launching
+		a.state = a.previousState
+
+		// Execute launcher via shell to allow environment variable expansion
+		cmd := exec.Command("sh", "-c", msg.launcher.command)
 
 		// Set environment variables
 		beanPath := filepath.Join(a.core.Root(), ".beans", "beans-"+msg.beanID+".md")
@@ -525,6 +541,36 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case closeLauncherPickerMsg:
+		a.state = a.previousState
+		return a, nil
+
+	case launchersConfiguredMsg:
+		// Append selected launchers to .beans.yml
+		projectRoot := a.config.ConfigDir()
+		if projectRoot == "" {
+			// Fallback: try to get parent of beans directory
+			projectRoot = filepath.Dir(a.core.Root())
+		}
+
+		if err := appendLaunchersToConfig(projectRoot, msg.launchers); err != nil {
+			// Show error modal
+			a.previousState = viewDetail
+			a.configWriteError = newConfigWriteErrorModel(err, a.width, a.height)
+			a.state = viewConfigWriteError
+			return a, nil
+		}
+
+		// Reload config to pick up the new launchers
+		if newCfg, err := config.LoadFromDirectory(projectRoot); err == nil {
+			a.config = newCfg
+		}
+
+		// Return to previous state (detail view)
+		a.state = a.previousState
+		return a, nil
+
+	case closeConfigureLaunchersMsg:
+		// User cancelled - return to previous state
 		a.state = a.previousState
 		return a, nil
 
@@ -592,6 +638,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.state = a.previousState
 			return a, nil
 		}
+	case viewConfigureLaunchers:
+		a.configureLaunchers, cmd = a.configureLaunchers.Update(msg)
+	case viewConfigWriteError:
+		// Any key dismisses error modal
+		if _, ok := msg.(tea.KeyMsg); ok {
+			a.state = a.previousState
+			return a, nil
+		}
 	}
 
 	return a, cmd
@@ -644,6 +698,10 @@ func (a *App) View() string {
 		return a.launcherError.ModalView(a.getBackgroundView(), a.width, a.height)
 	case viewNoLaunchers:
 		return a.noLaunchers.ModalView(a.getBackgroundView(), a.width, a.height)
+	case viewConfigureLaunchers:
+		return a.configureLaunchers.ModalView(a.getBackgroundView(), a.width, a.height)
+	case viewConfigWriteError:
+		return a.configWriteError.ModalView(a.getBackgroundView(), a.width, a.height)
 	}
 	return ""
 }
