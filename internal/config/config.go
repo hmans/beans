@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -72,7 +73,7 @@ type PriorityConfig struct {
 // Launcher defines a configured launcher command.
 type Launcher struct {
 	Name        string `yaml:"name"`
-	Command     string `yaml:"command"`
+	Exec        string `yaml:"exec"`
 	Description string `yaml:"description,omitempty"`
 }
 
@@ -171,6 +172,14 @@ func Load(configPath string) (*Config, error) {
 	}
 	if cfg.Beans.DefaultType == "" {
 		cfg.Beans.DefaultType = DefaultTypes[0].Name
+	}
+
+	// Validate launchers
+	for _, launcher := range cfg.Launchers {
+		// Multi-line exec must have shebang
+		if strings.Contains(launcher.Exec, "\n") && !strings.HasPrefix(launcher.Exec, "#!") {
+			return nil, fmt.Errorf("launcher '%s' has multi-line exec but no shebang (#!). Multi-line scripts must start with a shebang (e.g., #!/bin/bash)", launcher.Name)
+		}
 	}
 
 	return &cfg, nil

@@ -163,10 +163,10 @@ func TestDiscoverLaunchers(t *testing.T) {
 			wantNames: []string{},
 		},
 		{
-			name: "path command in PATH",
+			name: "single-line exec",
 			cfg: &config.Config{
 				Launchers: []config.Launcher{
-					{Name: "ls-tool", Command: "ls", Description: "List files"},
+					{Name: "ls-tool", Exec: "ls", Description: "List files"},
 				},
 			},
 			beansRoot: tmpDir,
@@ -174,10 +174,10 @@ func TestDiscoverLaunchers(t *testing.T) {
 			wantNames: []string{"ls-tool"},
 		},
 		{
-			name: "executable relative path",
+			name: "single-line exec with args",
 			cfg: &config.Config{
 				Launchers: []config.Launcher{
-					{Name: "my-tool", Command: "scripts/my-tool.sh", Description: "My tool"},
+					{Name: "my-tool", Exec: "echo hello", Description: "My tool"},
 				},
 			},
 			beansRoot: tmpDir,
@@ -185,21 +185,21 @@ func TestDiscoverLaunchers(t *testing.T) {
 			wantNames: []string{"my-tool"},
 		},
 		{
-			name: "non-executable relative path available (shell will execute)",
+			name: "multi-line exec with shebang",
 			cfg: &config.Config{
 				Launchers: []config.Launcher{
-					{Name: "broken", Command: "scripts/broken.sh", Description: "Broken"},
+					{Name: "script", Exec: "#!/bin/bash\necho hello", Description: "Script"},
 				},
 			},
 			beansRoot: tmpDir,
 			wantCount: 1,
-			wantNames: []string{"broken"},
+			wantNames: []string{"script"},
 		},
 		{
-			name: "nonexistent path skipped",
+			name: "empty exec skipped",
 			cfg: &config.Config{
 				Launchers: []config.Launcher{
-					{Name: "missing", Command: "scripts/nonexistent.sh", Description: "Missing"},
+					{Name: "missing", Exec: "", Description: "Missing"},
 				},
 			},
 			beansRoot: tmpDir,
@@ -207,18 +207,17 @@ func TestDiscoverLaunchers(t *testing.T) {
 			wantNames: []string{},
 		},
 		{
-			name: "mix of available and unavailable",
+			name: "mix of single and multi-line exec",
 			cfg: &config.Config{
 				Launchers: []config.Launcher{
-					{Name: "ls-tool", Command: "ls", Description: "List"},
-					{Name: "my-tool", Command: "scripts/my-tool.sh", Description: "My tool"},
-					{Name: "broken", Command: "scripts/broken.sh", Description: "Broken"},
-					{Name: "missing", Command: "scripts/nonexistent.sh", Description: "Missing"},
+					{Name: "ls-tool", Exec: "ls", Description: "List"},
+					{Name: "my-tool", Exec: "echo hello", Description: "My tool"},
+					{Name: "script", Exec: "#!/bin/bash\necho world", Description: "Script"},
 				},
 			},
 			beansRoot: tmpDir,
 			wantCount: 3,
-			wantNames: []string{"ls-tool", "my-tool", "broken"},
+			wantNames: []string{"ls-tool", "my-tool", "script"},
 		},
 	}
 
@@ -315,7 +314,7 @@ func TestHasLaunchersConfigured(t *testing.T) {
 			name: "one launcher configured",
 			cfg: &config.Config{
 				Launchers: []config.Launcher{
-					{Name: "test", Command: "test"},
+					{Name: "test", Exec: "test"},
 				},
 			},
 			want: true,
@@ -324,8 +323,8 @@ func TestHasLaunchersConfigured(t *testing.T) {
 			name: "multiple launchers configured",
 			cfg: &config.Config{
 				Launchers: []config.Launcher{
-					{Name: "test1", Command: "test1"},
-					{Name: "test2", Command: "test2"},
+					{Name: "test1", Exec: "test1"},
+					{Name: "test2", Exec: "test2"},
 				},
 			},
 			want: true,
@@ -365,8 +364,8 @@ func TestAppendLaunchersToConfig(t *testing.T) {
 
 	// Launchers to append
 	launchers := []config.Launcher{
-		{Name: "opencode", Command: "opencode run \"Work on task $BEANS_ID\"", Description: "Open task in OpenCode"},
-		{Name: "claude", Command: "claude \"Work on task $BEANS_ID\"", Description: "Open task in Claude Code"},
+		{Name: "opencode", Exec: "opencode -p \"Work on task $BEANS_ID\"", Description: "Open task in OpenCode"},
+		{Name: "claude", Exec: "claude \"Work on task $BEANS_ID\"", Description: "Open task in Claude Code"},
 	}
 
 	// Append launchers
@@ -391,8 +390,8 @@ func TestAppendLaunchersToConfig(t *testing.T) {
 	if !strings.Contains(resultStr, "name: opencode") {
 		t.Error("Result does not contain opencode launcher name")
 	}
-	if !strings.Contains(resultStr, "command: opencode run") {
-		t.Error("Result does not contain opencode launcher command")
+	if !strings.Contains(resultStr, "exec: opencode -p") {
+		t.Error("Result does not contain opencode launcher exec")
 	}
 	if !strings.Contains(resultStr, "description: \"Open task in OpenCode\"") {
 		t.Error("Result does not contain opencode launcher description")

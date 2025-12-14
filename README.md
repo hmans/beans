@@ -127,7 +127,7 @@ You can also specifically ask it to start working on a particular bean:
 
 ## Launchers
 
-You can configure external tools to launch from the TUI detail view. Press `l` when viewing a bean to open the launcher picker.
+You can configure external tools to launch from the TUI. Press `!` when viewing or selecting a bean to open the launcher picker.
 
 **First-time setup:** If no launchers are configured, you'll be prompted to select from default options (opencode, claude, crush). Only installed tools will be pre-selected. This provides a quick start with sensible defaults.
 
@@ -135,41 +135,90 @@ Configure launchers in `.beans.yml`:
 
 ```yaml
 launchers:
+  # Simple single-line launcher
   - name: opencode
-    command: opencode run "Work on task $BEANS_ID"
+    exec: opencode -p "Work on task $BEANS_ID"
     description: "Open task in OpenCode"
-  - name: claude
-    command: claude "Work on task $BEANS_ID"
-    description: "Open task in Claude Code"
-  - name: custom-tool
-    command: .beans/scripts/my-tool.sh
-    description: "Run custom analysis"
+  
+  # Complex multi-line launcher with bash
+  - name: analyze
+    description: "Run comprehensive analysis"
+    exec: |
+      #!/bin/bash
+      set -euo pipefail
+      
+      echo "🔍 Analyzing bean: $BEANS_ID"
+      
+      # Extract title from markdown
+      TITLE=$(head -n1 "$BEANS_TASK" | sed 's/^# //')
+      echo "Title: $TITLE"
+      
+      # Run checks
+      cd "$BEANS_ROOT"
+      npm run lint
+      npm run test
+      
+      # Open in editor
+      opencode -p "Fix issues in $BEANS_ID: $TITLE"
+  
+  # Python example
+  - name: python-analysis
+    description: "Custom Python script"
+    exec: |
+      #!/usr/bin/env python3
+      import os
+      
+      bean_id = os.environ['BEANS_ID']
+      bean_path = os.environ['BEANS_TASK']
+      beans_root = os.environ['BEANS_ROOT']
+      
+      print(f"Analyzing {bean_id}")
+      # Your Python logic here
 ```
 
-**Command execution:**
-- All launcher commands execute via shell (`sh -c`), allowing environment variable expansion
-- Use `$BEANS_ID`, `$BEANS_ROOT`, `$BEANS_TASK` in your commands
-- Commands can be executable names in PATH, relative paths, or absolute paths
+### How It Works
 
-**Command templates:** The default launchers serve as templates for custom commands. You can create sophisticated launcher commands using shell features:
+- **Single-line exec**: Runs via `sh -c`, just like a shell command. Use for simple commands.
+- **Multi-line exec**: Creates a temporary executable script file. **Must start with a shebang** (`#!/bin/bash`, `#!/usr/bin/env python3`, etc.). The shebang determines which interpreter executes your script.
+- **Environment variables**: All launchers receive `$BEANS_ID`, `$BEANS_ROOT`, `$BEANS_TASK`
+- **Working directory**: Set to project root (`$BEANS_ROOT`)
+- **Unix/Linux/macOS only**: Shebang mechanism is Unix-specific
+
+### Examples
 
 ```yaml
-# Extract and use the task title
-command: opencode run "Work on $(head -n1 $BEANS_TASK | sed 's/^# //')"
+# Simple tool invocation
+- name: cursor
+  exec: cursor "$BEANS_TASK"
 
-# Pass multiple environment variables
-command: my-tool --id=$BEANS_ID --root=$BEANS_ROOT
+# Shell command with pipes
+- name: show-bean
+  exec: cat "$BEANS_TASK" | less
 
-# Chain commands
-command: cd $BEANS_ROOT && my-script.sh $BEANS_ID
+# Multi-step bash script
+- name: test-and-open
+  exec: |
+    #!/bin/bash
+    set -e
+    cd "$BEANS_ROOT"
+    npm test -- "$BEANS_ID" || true
+    code "$BEANS_TASK"
+
+# Ruby script
+- name: ruby-tool
+  exec: |
+    #!/usr/bin/env ruby
+    bean_id = ENV['BEANS_ID']
+    puts "Processing #{bean_id}"
 ```
 
-**Environment variables passed to launchers:**
+### Environment Variables
+
+Launchers receive these environment variables:
+
 - `BEANS_ROOT`: Project root directory
 - `BEANS_ID`: Bean ID (e.g., `abc123`)
 - `BEANS_TASK`: Full path to bean file (e.g., `/path/to/project/.beans/beans-abc123.md`)
-
-**Working directory:** Launchers execute with CWD set to project root.
 
 ## Contributing
 

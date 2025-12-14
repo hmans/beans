@@ -14,24 +14,24 @@ import (
 // Default launcher configurations
 type defaultLauncher struct {
 	name        string
-	command     string
+	exec        string
 	description string
 }
 
 var defaultLaunchers = []defaultLauncher{
 	{
 		name:        "opencode",
-		command:     "opencode -p \"Work on task $BEANS_ID\"",
+		exec:        "opencode -p \"Work on task $BEANS_ID\"",
 		description: "Open task in OpenCode",
 	},
 	{
 		name:        "claude",
-		command:     "claude \"Work on task $BEANS_ID\"",
+		exec:        "claude \"Work on task $BEANS_ID\"",
 		description: "Open task in Claude Code",
 	},
 	{
 		name:        "crush",
-		command:     "crush run \"Work on task $BEANS_ID\"",
+		exec:        "crush run \"Work on task $BEANS_ID\"",
 		description: "Open task in Crush",
 	},
 }
@@ -78,7 +78,7 @@ func newConfigureLaunchersModel(beanID, beanTitle string, width, height int) con
 
 	// Check which default launchers are installed and pre-select them
 	for _, dl := range defaultLaunchers {
-		cmdName := extractMainCommand(dl.command)
+		cmdName := extractMainCommand(dl.exec)
 		_, err := exec.LookPath(cmdName)
 		installed := err == nil
 
@@ -134,7 +134,7 @@ func (m configureLaunchersModel) Update(msg tea.Msg) (configureLaunchersModel, t
 				if item.selected {
 					selectedLaunchers = append(selectedLaunchers, config.Launcher{
 						Name:        item.launcher.name,
-						Command:     item.launcher.command,
+						Exec:        item.launcher.exec,
 						Description: item.launcher.description,
 					})
 				}

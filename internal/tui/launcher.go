@@ -59,32 +59,26 @@ func isCommandAvailable(command string) bool {
 // launcher represents a discovered and available launcher
 type launcher struct {
 	name        string
-	command     string // resolved command path
+	exec        string // exec script (single-line or multi-line)
 	description string
 }
 
 // discoverLaunchers discovers all available launchers from config.
-// It resolves command paths and filters out unavailable launchers.
+// All configured launchers are considered available (validation happens at execution time).
 func discoverLaunchers(cfg *config.Config, beansRoot string) []launcher {
 	var launchers []launcher
 
 	for _, lc := range cfg.Launchers {
 		// Skip launchers with missing required fields
-		if lc.Name == "" || lc.Command == "" {
+		if lc.Name == "" || lc.Exec == "" {
 			continue
 		}
 
-		// Resolve command path
-		cmdPath := resolveCommand(lc.Command, beansRoot)
-
-		// Check if available
-		if !isCommandAvailable(cmdPath) {
-			continue
-		}
-
+		// All exec launchers are shown - single-line and multi-line
+		// Availability is checked at execution time
 		launchers = append(launchers, launcher{
 			name:        lc.Name,
-			command:     cmdPath,
+			exec:        lc.Exec,
 			description: lc.Description,
 		})
 	}
@@ -129,7 +123,7 @@ func appendLaunchersToConfig(projectRoot string, launchers []config.Launcher) er
 	launchersYAML.WriteString("\nlaunchers:\n")
 	for _, l := range launchers {
 		launchersYAML.WriteString(fmt.Sprintf("  - name: %s\n", l.Name))
-		launchersYAML.WriteString(fmt.Sprintf("    command: %s\n", l.Command))
+		launchersYAML.WriteString(fmt.Sprintf("    exec: %s\n", l.Exec))
 		if l.Description != "" {
 			launchersYAML.WriteString(fmt.Sprintf("    description: \"%s\"\n", l.Description))
 		}
