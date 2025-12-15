@@ -1,8 +1,10 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -798,5 +800,343 @@ func TestPriorityDescriptions(t *testing.T) {
 func TestDefaultPrioritiesCount(t *testing.T) {
 	if len(DefaultPriorities) != 5 {
 		t.Errorf("len(DefaultPriorities) = %d, want 5", len(DefaultPriorities))
+	}
+}
+
+// Launcher config validation tests
+
+func TestLauncherMultipleDefaultValue(t *testing.T) {
+	// Test that Launcher.Multiple defaults to false
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, ConfigFileName)
+
+	// Config with launcher but no Multiple field specified
+	configYAML := `beans:
+  prefix: "test-"
+launchers:
+  - name: "build"
+    exec: "make build"
+`
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("WriteFile error = %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if len(cfg.Launchers) != 1 {
+		t.Fatalf("len(Launchers) = %d, want 1", len(cfg.Launchers))
+	}
+
+	if cfg.Launchers[0].Multiple != false {
+		t.Errorf("Launcher.Multiple = %v, want false", cfg.Launchers[0].Multiple)
+	}
+}
+
+func TestTUIDisableLauncherWarningDefaultValue(t *testing.T) {
+	// Test that TUIConfig.DisableLauncherWarning defaults to false
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, ConfigFileName)
+
+	// Config without TUI section
+	configYAML := `beans:
+  prefix: "test-"
+`
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("WriteFile error = %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.TUI.DisableLauncherWarning != false {
+		t.Errorf("TUI.DisableLauncherWarning = %v, want false", cfg.TUI.DisableLauncherWarning)
+	}
+}
+
+func TestLauncherConfigPersistence(t *testing.T) {
+	// Test that launcher config fields persist through save/load cycle
+	tmpDir := t.TempDir()
+
+	cfg := &Config{
+		Beans: BeansConfig{
+			Path:        ".beans",
+			Prefix:      "test-",
+			IDLength:    4,
+			DefaultType: "task",
+		},
+		TUI: TUIConfig{
+			DisableLauncherWarning: true,
+		},
+		Launchers: []Launcher{
+			{
+				Name:        "build",
+				Exec:        "make build",
+				Description: "Build the project",
+				Multiple:    true,
+			},
+		},
+	}
+	cfg.SetConfigDir(tmpDir)
+
+	// Save it
+	if err := cfg.Save(tmpDir); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	// Load it back
+	configPath := filepath.Join(tmpDir, ConfigFileName)
+	loaded, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Verify TUI.DisableLauncherWarning persisted
+	if loaded.TUI.DisableLauncherWarning != true {
+		t.Errorf("TUI.DisableLauncherWarning = %v, want true", loaded.TUI.DisableLauncherWarning)
+	}
+
+	// Verify Launcher.Multiple persisted
+	if len(loaded.Launchers) != 1 {
+		t.Fatalf("len(Launchers) = %d, want 1", len(loaded.Launchers))
+	}
+	if loaded.Launchers[0].Multiple != true {
+		t.Errorf("Launcher.Multiple = %v, want true", loaded.Launchers[0].Multiple)
+	}
+}
+
+func TestLauncherWithShebangButEmptyBody(t *testing.T) {
+	// Test launcher with just a shebang and no actual commands
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, ConfigFileName)
+
+	configYAML := `beans:
+  prefix: "test-"
+launchers:
+  - name: "empty"
+    exec: "#!/bin/bash"
+`
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("WriteFile error = %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Should load successfully - empty body with shebang is valid
+	if len(cfg.Launchers) != 1 {
+		t.Fatalf("len(Launchers) = %d, want 1", len(cfg.Launchers))
+	}
+	if cfg.Launchers[0].Exec != "#!/bin/bash" {
+		t.Errorf("Launcher.Exec = %q, want %q", cfg.Launchers[0].Exec, "#!/bin/bash")
+	}
+}
+
+func TestLauncherWithWindowsLineEndings(t *testing.T) {
+	// Test launcher with Windows-style line endings (\r\n)
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, ConfigFileName)
+
+	configYAML := "beans:\r\n  prefix: \"test-\"\r\nlaunchers:\r\n  - name: \"build\"\r\n    exec: \"#!/bin/bash\\necho 'hello'\"\r\n"
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("WriteFile error = %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Should load successfully
+	if len(cfg.Launchers) != 1 {
+		t.Fatalf("len(Launchers) = %d, want 1", len(cfg.Launchers))
+	}
+}
+
+func TestMultipleLaunchersWithSameName(t *testing.T) {
+	// Test that multiple launchers can have the same name (last one wins)
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, ConfigFileName)
+
+	configYAML := `beans:
+  prefix: "test-"
+launchers:
+  - name: "build"
+    exec: "make build-first"
+  - name: "build"
+    exec: "make build-second"
+`
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("WriteFile error = %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Should load both launchers without error
+	if len(cfg.Launchers) != 2 {
+		t.Fatalf("len(Launchers) = %d, want 2", len(cfg.Launchers))
+	}
+}
+
+func TestVeryLongLauncherScript(t *testing.T) {
+	// Test launcher with very long script (10KB+)
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, ConfigFileName)
+
+	// Generate a script larger than 10KB
+	var scriptBuilder strings.Builder
+	scriptBuilder.WriteString("#!/bin/bash\n")
+	for i := 0; i < 1000; i++ {
+		scriptBuilder.WriteString("echo 'This is line ")
+		scriptBuilder.WriteString(fmt.Sprintf("%d", i))
+		scriptBuilder.WriteString(" of a very long script'\n")
+	}
+	longScript := scriptBuilder.String()
+
+	cfg := &Config{
+		Beans: BeansConfig{
+			Prefix:   "test-",
+			IDLength: 4,
+		},
+		Launchers: []Launcher{
+			{
+				Name: "long",
+				Exec: longScript,
+			},
+		},
+	}
+	cfg.SetConfigDir(tmpDir)
+
+	// Save it
+	if err := cfg.Save(tmpDir); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	// Load it back
+	loaded, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if len(loaded.Launchers) != 1 {
+		t.Fatalf("len(Launchers) = %d, want 1", len(loaded.Launchers))
+	}
+
+	// Verify the script is preserved
+	if len(loaded.Launchers[0].Exec) < 10000 {
+		t.Errorf("Launcher.Exec length = %d, want > 10000", len(loaded.Launchers[0].Exec))
+	}
+}
+
+func TestLauncherNameWithSpecialCharacters(t *testing.T) {
+	// Test launcher names with special characters
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, ConfigFileName)
+
+	configYAML := `beans:
+  prefix: "test-"
+launchers:
+  - name: "build:prod"
+    exec: "make build-prod"
+  - name: "test-all"
+    exec: "npm test"
+  - name: "deploy.staging"
+    exec: "deploy staging"
+`
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("WriteFile error = %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Should load successfully
+	if len(cfg.Launchers) != 3 {
+		t.Fatalf("len(Launchers) = %d, want 3", len(cfg.Launchers))
+	}
+
+	// Verify special characters are preserved
+	expectedNames := []string{"build:prod", "test-all", "deploy.staging"}
+	for i, expectedName := range expectedNames {
+		if cfg.Launchers[i].Name != expectedName {
+			t.Errorf("Launchers[%d].Name = %q, want %q", i, cfg.Launchers[i].Name, expectedName)
+		}
+	}
+}
+
+func TestLauncherExecWithNullBytes(t *testing.T) {
+	// Test that launcher exec with null bytes is handled
+	tmpDir := t.TempDir()
+
+	cfg := &Config{
+		Beans: BeansConfig{
+			Prefix:   "test-",
+			IDLength: 4,
+		},
+		Launchers: []Launcher{
+			{
+				Name: "nullbyte",
+				Exec: "echo 'test'\x00rm -rf /",
+			},
+		},
+	}
+	cfg.SetConfigDir(tmpDir)
+
+	// Save it
+	if err := cfg.Save(tmpDir); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	// Load it back
+	configPath := filepath.Join(tmpDir, ConfigFileName)
+	loaded, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Should load - YAML might strip null bytes or preserve them
+	// The important thing is it doesn't crash
+	if len(loaded.Launchers) != 1 {
+		t.Fatalf("len(Launchers) = %d, want 1", len(loaded.Launchers))
+	}
+}
+
+func TestShebangInMiddleOfScript(t *testing.T) {
+	// Test that shebang in middle of script (not at start) is invalid for multi-line
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, ConfigFileName)
+
+	configYAML := `beans:
+  prefix: "test-"
+launchers:
+  - name: "invalid"
+    exec: |
+      echo 'start'
+      #!/bin/bash
+      echo 'end'
+`
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("WriteFile error = %v", err)
+	}
+
+	_, err := Load(configPath)
+	// Should fail because multi-line exec without shebang at start
+	if err == nil {
+		t.Fatal("Load() error = nil, want error for multi-line exec without shebang at start")
+	}
+
+	if !strings.Contains(err.Error(), "shebang") {
+		t.Errorf("error message = %q, want to contain 'shebang'", err.Error())
 	}
 }
