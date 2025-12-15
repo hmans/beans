@@ -226,7 +226,7 @@ launchers:
 
 - **Single-line exec**: Runs via `sh -c`, just like a shell command. Use for simple commands.
 - **Multi-line exec**: Passed to the interpreter via stdin. **Must start with a shebang** (`#!/bin/bash`, `#!/usr/bin/env python3`, etc.). The shebang determines which interpreter executes your script.
-- **Environment variables**: All launchers receive `$BEANS_ID`, `$BEANS_ROOT`, `$BEANS_TASK`
+- **Environment variables**: All launchers receive `$BEANS_ROOT`, `$BEANS_DIR`, `$BEANS_ID`, `$BEANS_TASK`
 - **Working directory**: Set to project root (`$BEANS_ROOT`)
 - **Unix/Linux/macOS only**: Shebang mechanism is Unix-specific
 

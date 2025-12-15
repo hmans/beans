@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/hmans/beans/internal/config"
+	launcherexec "github.com/hmans/beans/internal/launcher"
 )
 
 func TestResolveCommand(t *testing.T) {
@@ -343,6 +344,69 @@ func TestHasLaunchersConfigured(t *testing.T) {
 			got := hasLaunchersConfigured(tt.cfg)
 			if got != tt.want {
 				t.Errorf("hasLaunchersConfigured() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLauncherIntegration_EnvironmentVariables(t *testing.T) {
+	// This test verifies that the TUI properly uses the launcher package's CreateExecCommand
+	// which includes all required environment variables including BEANS_DIR
+	tests := []struct {
+		name      string
+		script    string
+		beansDir  string
+		beanID    string
+		beanTitle string
+		wantEnv   map[string]string
+	}{
+		{
+			name:      "single-line script sets all env vars including BEANS_DIR",
+			script:    "echo test",
+			beansDir:  "/project/.beans",
+			beanID:    "xyz",
+			beanTitle: "Test Task",
+			wantEnv: map[string]string{
+				"BEANS_ROOT": "/project",
+				"BEANS_DIR":  "/project/.beans",
+				"BEANS_ID":   "xyz",
+				"BEANS_TASK": "Test Task",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Use the launcher package directly (this is what TUI now uses)
+			cmd, result, err := launcherexec.CreateExecCommand(tt.script, tt.beansDir, tt.beanID, tt.beanTitle)
+			if err != nil {
+				t.Fatalf("CreateExecCommand() error = %v", err)
+			}
+			defer result.Cleanup()
+
+			if cmd == nil {
+				t.Fatal("CreateExecCommand() returned nil cmd")
+			}
+
+			// Convert env slice to map for easier checking
+			envMap := make(map[string]string)
+			for _, env := range cmd.Env {
+				parts := strings.SplitN(env, "=", 2)
+				if len(parts) == 2 {
+					envMap[parts[0]] = parts[1]
+				}
+			}
+
+			// Check each expected env var
+			for key, wantValue := range tt.wantEnv {
+				gotValue, exists := envMap[key]
+				if !exists {
+					t.Errorf("Environment variable %s not set", key)
+					continue
+				}
+				if gotValue != wantValue {
+					t.Errorf("Environment variable %s = %v, want %v", key, gotValue, wantValue)
+				}
 			}
 		})
 	}

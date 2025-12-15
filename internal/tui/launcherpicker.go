@@ -18,8 +18,9 @@ type openLauncherPickerMsg struct {
 
 // launcherSelectedMsg is sent when a launcher is selected
 type launcherSelectedMsg struct {
-	launcher launcher
-	beanIDs  []string
+	launcher  launcher
+	beanIDs   []string
+	beanTitle string
 }
 
 // closeLauncherPickerMsg is sent when the launcher picker is cancelled
@@ -139,7 +140,7 @@ func (m launcherPickerModel) Update(msg tea.Msg) (launcherPickerModel, tea.Cmd) 
 			case "enter":
 				if item, ok := m.list.SelectedItem().(launcherItem); ok {
 					return m, func() tea.Msg {
-						return launcherSelectedMsg{launcher: item.launcher, beanIDs: m.beanIDs}
+						return launcherSelectedMsg{launcher: item.launcher, beanIDs: m.beanIDs, beanTitle: m.beanTitle}
 					}
 				}
 			case "esc", "backspace":

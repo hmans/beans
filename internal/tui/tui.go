@@ -2,11 +2,9 @@ package tui
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -538,16 +536,25 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Single bean - use original ExecProcess approach
 			a.state = a.previousState
 
-			// Create command (handles both single-line and multi-line exec)
+			// Create command using launcher package (handles both single-line and multi-line exec)
 			beanID := msg.beanIDs[0]
-			beanPath := filepath.Join(a.core.Root(), ".beans", "beans-"+beanID+".md")
-			result := createExecCommand(msg.launcher.exec, beanID, a.core.Root(), beanPath)
+			beansDir := filepath.Join(a.core.Root(), ".beans")
+			cmd, result, err := launcherexec.CreateExecCommand(msg.launcher.exec, beansDir, beanID, msg.beanTitle)
+
+			if err != nil {
+				return a, func() tea.Msg {
+					return launcherFinishedMsg{
+						err:          err,
+						launcherName: msg.launcher.name,
+					}
+				}
+			}
 
 			// Store launcher name and cleanup function for callback
 			launcherName := msg.launcher.name
-			cleanup := result.cleanup
+			cleanup := result.Cleanup
 
-			return a, tea.ExecProcess(result.cmd, func(err error) tea.Msg {
+			return a, tea.ExecProcess(cmd, func(err error) tea.Msg {
 				// Clean up temp file if created
 				if cleanup != nil {
 					cleanup()
@@ -882,65 +889,6 @@ func (a *App) getBackgroundView() string {
 	default:
 		return a.list.View()
 	}
-}
-
-// execResult holds a command and its cleanup function
-type execResult struct {
-	cmd     *exec.Cmd
-	cleanup func()
-}
-
-// createExecCommand creates a command for executing an exec script.
-// For multi-line scripts with shebang, passes script via stdin to the interpreter.
-// For single-line scripts, it executes via sh -c.
-func createExecCommand(execScript, beanID, beansRoot, beanPath string) execResult {
-	env := append(os.Environ(),
-		fmt.Sprintf("BEANS_ROOT=%s", beansRoot),
-		fmt.Sprintf("BEANS_ID=%s", beanID),
-		fmt.Sprintf("BEANS_TASK=%s", beanPath),
-	)
-
-	// Check if this is multi-line (contains newline)
-	if !strings.Contains(execScript, "\n") {
-		// Single-line: execute via sh -c
-		cmd := exec.Command("sh", "-c", execScript)
-		cmd.Env = env
-		cmd.Dir = beansRoot
-		return execResult{cmd: cmd, cleanup: func() {}}
-	}
-
-	// Multi-line: extract shebang and pass script via stdin
-	lines := strings.SplitN(execScript, "\n", 2)
-	if !strings.HasPrefix(lines[0], "#!") {
-		// Return error command
-		cmd := exec.Command("sh", "-c", "echo 'Error: multi-line script must start with shebang' >&2 && exit 1")
-		return execResult{cmd: cmd, cleanup: func() {}}
-	}
-
-	// Extract interpreter from shebang
-	shebang := strings.TrimPrefix(lines[0], "#!")
-	shebang = strings.TrimSpace(shebang)
-
-	// Parse shebang into command and args
-	parts := strings.Fields(shebang)
-	if len(parts) == 0 {
-		cmd := exec.Command("sh", "-c", fmt.Sprintf("echo 'Error: invalid shebang: %s' >&2 && exit 1", lines[0]))
-		return execResult{cmd: cmd, cleanup: func() {}}
-	}
-
-	// Build command - pass script content via stdin
-	var cmd *exec.Cmd
-	if len(parts) == 1 {
-		cmd = exec.Command(parts[0])
-	} else {
-		cmd = exec.Command(parts[0], parts[1:]...)
-	}
-
-	cmd.Env = env
-	cmd.Dir = beansRoot
-	cmd.Stdin = strings.NewReader(execScript)
-
-	return execResult{cmd: cmd, cleanup: func() {}}
 }
 
 // getEditor returns the user's preferred editor using the fallback chain:
