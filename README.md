@@ -154,9 +154,9 @@ launchers:
         git worktree add "$WORKTREE_DIR" -b "task/$BEANS_ID"
       fi
       
-      # Create new tmux pane with task ID as title
-      tmux split-window -h -c "$BEANS_ROOT/$WORKTREE_DIR" \
-        "printf '\033]2;%s\033\\' '$BEANS_ID'; opencode -p 'Work on task $BEANS_ID'; exec bash"
+      # Open in new tmux pane
+      tmux split-window -h -c "$BEANS_ROOT/$WORKTREE_DIR"
+      tmux send-keys "opencode -p 'Work on task $BEANS_ID'" Enter
   
   # Kitty terminal window launcher
   - name: worktree-kitty
@@ -172,10 +172,9 @@ launchers:
         git worktree add "$WORKTREE_DIR" -b "task/$BEANS_ID"
       fi
       
-      # Launch kitty window with task ID as title
-      kitty @ launch --type=window --title="$BEANS_ID" \
-        --cwd="$BEANS_ROOT/$WORKTREE_DIR" \
-        bash -c "opencode -p 'Work on task $BEANS_ID'; exec bash"
+      # Open in new kitty window
+      kitty @ launch --type=window --cwd="$BEANS_ROOT/$WORKTREE_DIR" \
+        opencode -p "Work on task $BEANS_ID"
 ```
 
 ### How It Works
@@ -219,8 +218,40 @@ launchers:
 Launchers receive these environment variables:
 
 - `BEANS_ROOT`: Project root directory
-- `BEANS_ID`: Bean ID (e.g., `abc123`)
+- `BEANS_ID`: Bean ID (e.g., `beans-abc123`)
 - `BEANS_TASK`: Full path to bean file (e.g., `/path/to/project/.beans/beans-abc123.md`)
+
+### CLI Usage
+
+Launch beans from the command line:
+
+```bash
+# List all configured launchers with availability status
+beans launch -l
+
+# Example output:
+# NAME            AVAILABLE  DESCRIPTION
+# opencode        ✓          Open task in OpenCode
+# worktree-tmux   ✓          Create git worktree and open in new tmux pane
+# test-echo       ✓          Simple test launcher
+
+# Launch a specific launcher for a bean
+beans launch opencode beans-abc123    # Full ID
+beans launch opencode beans-abc       # Partial ID (if unique)
+
+# Launch worktree launchers
+beans launch worktree-tmux beans-def456
+beans launch worktree-kitty beans-ghi789
+
+# JSON output for scripting
+beans launch -l --json
+```
+
+**CLI launcher features:**
+- Supports partial bean ID matching (like other commands)
+- Executes launchers interactively (you see output in your terminal)
+- Shows availability status with `-l` (✓ if command/interpreter found, ✗ if not)
+- Returns non-zero exit code on failure
 
 ## Contributing
 
