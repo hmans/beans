@@ -292,7 +292,8 @@ tui:
 
 Launchers receive these environment variables:
 
-- `BEANS_ROOT`: Project root directory
+- `BEANS_ROOT`: Project root directory (parent of `.beans/`, your working directory)
+- `BEANS_DIR`: Beans directory (e.g., `/path/to/project/.beans`)
 - `BEANS_ID`: Bean ID (e.g., `beans-abc123`)
 - `BEANS_TASK`: Full path to bean file (e.g., `/path/to/project/.beans/beans-abc123.md`)
 
