@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/hmans/beans/internal/ui"
 )
 
@@ -83,7 +84,7 @@ func overlayModal(bgView, modal string, width, height int) string {
 	// Dim the background
 	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#555"))
 	for i, line := range bgLines {
-		bgLines[i] = dimStyle.Render(stripAnsi(line))
+		bgLines[i] = dimStyle.Render(ansi.Strip(line))
 	}
 
 	// Split modal into lines
@@ -114,7 +115,7 @@ func overlayModal(bgView, modal string, width, height int) string {
 
 // overlayLine places a modal line on top of a background line at position x
 func overlayLine(bgLine, modalLine string, startX, maxWidth int) string {
-	bgRunes := []rune(stripAnsi(bgLine))
+	bgRunes := []rune(ansi.Strip(bgLine))
 	for len(bgRunes) < maxWidth {
 		bgRunes = append(bgRunes, ' ')
 	}
@@ -129,24 +130,4 @@ func overlayLine(bgLine, modalLine string, startX, maxWidth int) string {
 
 	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#555"))
 	return dimStyle.Render(prefix) + modalLine + dimStyle.Render(suffix)
-}
-
-// stripAnsi removes ANSI escape codes from a string
-func stripAnsi(s string) string {
-	result := strings.Builder{}
-	inEscape := false
-	for _, r := range s {
-		if r == '\x1b' {
-			inEscape = true
-			continue
-		}
-		if inEscape {
-			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
-				inEscape = false
-			}
-			continue
-		}
-		result.WriteRune(r)
-	}
-	return result.String()
 }
