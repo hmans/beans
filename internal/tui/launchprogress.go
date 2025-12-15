@@ -51,19 +51,21 @@ func (m launchProgress) Update(msg tea.Msg) (launchProgress, tea.Cmd) {
 		m.height = msg.Height
 
 	case launchProgressMsg:
+		summary := m.manager.GetSummary()
+
 		// Check if complete
-		if m.manager.IsComplete() {
+		if summary.Complete {
 			m.ticker.Stop()
 
 			// Check for failures
-			if failedLaunch, err := m.manager.GetFirstError(); err != nil {
+			if summary.FirstError != nil {
 				// Stop all other processes
 				m.manager.Stop()
 
 				return m, func() tea.Msg {
 					return launchFailedMsg{
-						beanID: failedLaunch.Bean.ID,
-						err:    err,
+						beanID: summary.FirstError.Bean.ID,
+						err:    summary.FirstError.Error,
 					}
 				}
 			}
@@ -93,14 +95,13 @@ func (m launchProgress) View() string {
 	b.WriteString(launchTitleStyle.Render(title))
 	b.WriteString("\n\n")
 
-	// Get status counts
-	pending, running, success, failed := m.manager.GetCounts()
-	total := pending + running + success + failed
+	// Get complete summary
+	summary := m.manager.GetSummary()
 
 	// Progress bar (simple text-based)
 	percent := 0.0
-	if total > 0 {
-		percent = float64(success+failed) / float64(total)
+	if summary.Counts.Total > 0 {
+		percent = float64(summary.Counts.Success+summary.Counts.Failed) / float64(summary.Counts.Total)
 	}
 	barWidth := min(m.width-10, 60)
 	bar := renderProgressBar(percent, barWidth)
@@ -108,13 +109,13 @@ func (m launchProgress) View() string {
 	b.WriteString("\n\n")
 
 	// Status summary
-	summary := fmt.Sprintf("Total: %d | Running: %d | Success: %d | Failed: %d",
-		total, running, success, failed)
-	b.WriteString(summaryStyle.Render(summary))
+	statusSummary := fmt.Sprintf("Total: %d | Running: %d | Success: %d | Failed: %d",
+		summary.Counts.Total, summary.Counts.Running, summary.Counts.Success, summary.Counts.Failed)
+	b.WriteString(summaryStyle.Render(statusSummary))
 	b.WriteString("\n\n")
 
 	// List all beans with status indicators
-	launches := m.manager.GetStatus()
+	launches := summary.Launches
 	maxLines := m.height - 12 // Reserve space for header, progress, summary, help
 
 	for i, launch := range launches {

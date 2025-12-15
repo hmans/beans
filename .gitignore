@@ -4,3 +4,4 @@
 # Added by goreleaser init:
 dist/
 /.docs.local
+.beans/.worktrees

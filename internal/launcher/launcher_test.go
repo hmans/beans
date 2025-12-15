@@ -1,9 +1,13 @@
 package launcher
 
 import (
+	"errors"
 	"os/exec"
 	"strings"
 	"testing"
+
+	"github.com/hmans/beans/internal/bean"
+	"github.com/hmans/beans/internal/config"
 )
 
 func TestCreateExecCommand_EnvironmentVariables(t *testing.T) {
@@ -188,4 +192,129 @@ func envSliceToMap(envSlice []string) map[string]string {
 // mockCmd wraps exec.Cmd for testing without executing
 func mockCmd(name string, arg ...string) *exec.Cmd {
 	return exec.Command(name, arg...)
+}
+
+func TestGetSummary_AllFields(t *testing.T) {
+	// Create test beans
+	beans := []*bean.Bean{
+		{ID: "beans-1", Title: "Pending Task"},
+		{ID: "beans-2", Title: "Running Task"},
+		{ID: "beans-3", Title: "Success Task"},
+		{ID: "beans-4", Title: "Failed Task"},
+		{ID: "beans-5", Title: "Another Success"},
+	}
+
+	launcher := &config.Launcher{Name: "test"}
+	manager := NewLaunchManager(launcher, beans)
+
+	// Manually set states to test different scenarios
+	manager.launches[0].Status = LaunchPending
+	manager.launches[1].Status = LaunchRunning
+	manager.launches[2].Status = LaunchSuccess
+	manager.launches[3].Status = LaunchFailed
+	manager.launches[3].Error = errors.New("test error")
+	manager.launches[4].Status = LaunchSuccess
+
+	summary := manager.GetSummary()
+
+	// Verify Counts
+	if summary.Counts.Total != 5 {
+		t.Errorf("Counts.Total = %d, want 5", summary.Counts.Total)
+	}
+	if summary.Counts.Pending != 1 {
+		t.Errorf("Counts.Pending = %d, want 1", summary.Counts.Pending)
+	}
+	if summary.Counts.Running != 1 {
+		t.Errorf("Counts.Running = %d, want 1", summary.Counts.Running)
+	}
+	if summary.Counts.Success != 2 {
+		t.Errorf("Counts.Success = %d, want 2", summary.Counts.Success)
+	}
+	if summary.Counts.Failed != 1 {
+		t.Errorf("Counts.Failed = %d, want 1", summary.Counts.Failed)
+	}
+
+	// Verify Complete flag (false because pending and running exist)
+	if summary.Complete {
+		t.Error("Complete = true, want false (has pending/running)")
+	}
+
+	// Verify AllSuccessful flag (false because has failed/pending/running)
+	if summary.AllSuccessful {
+		t.Error("AllSuccessful = true, want false (has failures)")
+	}
+
+	// Verify FirstError
+	if summary.FirstError == nil {
+		t.Fatal("FirstError = nil, want failed launch")
+	}
+	if summary.FirstError.Bean.ID != "beans-4" {
+		t.Errorf("FirstError.Bean.ID = %s, want beans-4", summary.FirstError.Bean.ID)
+	}
+
+	// Verify Launches is a deep copy (same length, different addresses)
+	if len(summary.Launches) != 5 {
+		t.Errorf("len(Launches) = %d, want 5", len(summary.Launches))
+	}
+	if &summary.Launches[0] == &manager.launches[0] {
+		t.Error("Launches should be deep copy, got same pointer")
+	}
+}
+
+func TestGetSummary_AllSuccessful(t *testing.T) {
+	beans := []*bean.Bean{
+		{ID: "beans-1", Title: "Task 1"},
+		{ID: "beans-2", Title: "Task 2"},
+	}
+
+	launcher := &config.Launcher{Name: "test"}
+	manager := NewLaunchManager(launcher, beans)
+
+	// Set all to success
+	manager.launches[0].Status = LaunchSuccess
+	manager.launches[1].Status = LaunchSuccess
+
+	summary := manager.GetSummary()
+
+	// Verify Complete and AllSuccessful both true
+	if !summary.Complete {
+		t.Error("Complete = false, want true (all finished)")
+	}
+	if !summary.AllSuccessful {
+		t.Error("AllSuccessful = false, want true (all succeeded)")
+	}
+
+	// Verify FirstError is nil
+	if summary.FirstError != nil {
+		t.Errorf("FirstError = %v, want nil", summary.FirstError)
+	}
+
+	// Verify counts
+	if summary.Counts.Success != 2 {
+		t.Errorf("Counts.Success = %d, want 2", summary.Counts.Success)
+	}
+	if summary.Counts.Failed != 0 {
+		t.Errorf("Counts.Failed = %d, want 0", summary.Counts.Failed)
+	}
+}
+
+func TestGetSummary_Empty(t *testing.T) {
+	launcher := &config.Launcher{Name: "test"}
+	manager := NewLaunchManager(launcher, []*bean.Bean{})
+
+	summary := manager.GetSummary()
+
+	// Empty should be complete and successful
+	if !summary.Complete {
+		t.Error("Complete = false, want true (empty is complete)")
+	}
+	if !summary.AllSuccessful {
+		t.Error("AllSuccessful = false, want true (empty is successful)")
+	}
+	if summary.Counts.Total != 0 {
+		t.Errorf("Counts.Total = %d, want 0", summary.Counts.Total)
+	}
+	if summary.FirstError != nil {
+		t.Errorf("FirstError = %v, want nil", summary.FirstError)
+	}
 }

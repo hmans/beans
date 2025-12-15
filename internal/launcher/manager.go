@@ -59,6 +59,24 @@ func (bl *BeanLaunch) Duration() time.Duration {
 	return bl.finished.Sub(bl.started)
 }
 
+// LaunchCounts represents counts of launches by status
+type LaunchCounts struct {
+	Pending int
+	Running int
+	Success int
+	Failed  int
+	Total   int
+}
+
+// LaunchSummary provides a complete snapshot of launch manager state
+type LaunchSummary struct {
+	Launches      []*BeanLaunch // Deep copy of all launches
+	Complete      bool          // True if all launches finished
+	AllSuccessful bool          // True if all launches succeeded
+	FirstError    *BeanLaunch   // First failed launch (nil if none)
+	Counts        LaunchCounts  // Status counts
+}
+
 // LaunchManager manages parallel execution of launchers for multiple beans
 type LaunchManager struct {
 	launcher *config.Launcher
@@ -191,80 +209,47 @@ func (m *LaunchManager) Stop() {
 	})
 }
 
-// GetStatus returns a snapshot of all launch statuses
-func (m *LaunchManager) GetStatus() []*BeanLaunch {
+// GetSummary returns a comprehensive snapshot of the launch manager state
+func (m *LaunchManager) GetSummary() LaunchSummary {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	// Create a copy to avoid race conditions
-	snapshot := make([]*BeanLaunch, len(m.launches))
+	summary := LaunchSummary{
+		Complete:      true,
+		AllSuccessful: true,
+		Counts: LaunchCounts{
+			Total: len(m.launches),
+		},
+	}
+
+	// Deep copy launches and compute all fields in single pass
+	summary.Launches = make([]*BeanLaunch, len(m.launches))
 	for i, launch := range m.launches {
+		// Deep copy
 		launchCopy := *launch
-		snapshot[i] = &launchCopy
-	}
+		summary.Launches[i] = &launchCopy
 
-	return snapshot
-}
-
-// IsComplete returns true if all launches have finished (success or failure)
-func (m *LaunchManager) IsComplete() bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	for _, launch := range m.launches {
-		if launch.Status == LaunchPending || launch.Status == LaunchRunning {
-			return false
-		}
-	}
-
-	return true
-}
-
-// AllSuccessful returns true if all launches completed successfully
-func (m *LaunchManager) AllSuccessful() bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	for _, launch := range m.launches {
-		if launch.Status != LaunchSuccess {
-			return false
-		}
-	}
-
-	return true
-}
-
-// GetFirstError returns the first error encountered, if any
-func (m *LaunchManager) GetFirstError() (*BeanLaunch, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	for _, launch := range m.launches {
-		if launch.Status == LaunchFailed && launch.Error != nil {
-			return launch, launch.Error
-		}
-	}
-
-	return nil, nil
-}
-
-// GetCounts returns counts of launches by status
-func (m *LaunchManager) GetCounts() (pending, running, success, failed int) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	for _, launch := range m.launches {
+		// Update counts and flags based on status
 		switch launch.Status {
 		case LaunchPending:
-			pending++
+			summary.Counts.Pending++
+			summary.Complete = false
+			summary.AllSuccessful = false
 		case LaunchRunning:
-			running++
+			summary.Counts.Running++
+			summary.Complete = false
+			summary.AllSuccessful = false
 		case LaunchSuccess:
-			success++
+			summary.Counts.Success++
 		case LaunchFailed:
-			failed++
+			summary.Counts.Failed++
+			summary.AllSuccessful = false
+			// Capture first error
+			if summary.FirstError == nil && launch.Error != nil {
+				summary.FirstError = &launchCopy
+			}
 		}
 	}
 
-	return
+	return summary
 }
