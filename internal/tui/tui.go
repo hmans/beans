@@ -531,42 +531,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.launcherPicker.Init()
 
 	case launcherSelectedMsg:
-		// Check if single bean or multiple beans
-		if len(msg.beanIDs) == 1 {
-			// Single bean - use original ExecProcess approach
-			a.state = a.previousState
-
-			// Create command using launcher package (handles both single-line and multi-line exec)
-			beanID := msg.beanIDs[0]
-			beansDir := filepath.Join(a.core.Root(), ".beans")
-			cmd, result, err := launcherexec.CreateExecCommand(msg.launcher.exec, beansDir, beanID, msg.beanTitle)
-
-			if err != nil {
-				return a, func() tea.Msg {
-					return launcherFinishedMsg{
-						err:          err,
-						launcherName: msg.launcher.name,
-					}
-				}
-			}
-
-			// Store launcher name and cleanup function for callback
-			launcherName := msg.launcher.name
-			cleanup := result.Cleanup
-
-			return a, tea.ExecProcess(cmd, func(err error) tea.Msg {
-				// Clean up temp file if created
-				if cleanup != nil {
-					cleanup()
-				}
-				return launcherFinishedMsg{
-					err:          err,
-					launcherName: launcherName,
-				}
-			})
-		}
-
-		// Multiple beans - check if we need confirmation
+		// Check if we need confirmation (5+ beans)
 		needsConfirm := len(msg.beanIDs) >= 5 && !a.config.TUI.DisableLauncherWarning
 
 		if needsConfirm {
@@ -600,24 +565,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	case launcherFinishedMsg:
-		if msg.err != nil {
-			// Show error modal
-			a.previousState = viewDetail
-			a.launcherError = newLauncherErrorModel(msg.launcherName, msg.err, a.width, a.height)
-			a.state = viewLauncherError
-			return a, nil
-		}
-		// Success - already back in detail view
-		return a, nil
-
 	case closeLauncherPickerMsg:
 		a.state = a.previousState
 		return a, nil
 
 	case launchConfirmedMsg:
-		// User confirmed multi-bean launch or skipped confirmation
-		// Fetch all beans
+		// User confirmed launch or skipped confirmation - fetch all beans
 		var beans []*bean.Bean
 		for _, beanID := range msg.beanIDs {
 			b, err := a.core.Get(beanID)

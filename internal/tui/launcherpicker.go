@@ -26,12 +26,6 @@ type launcherSelectedMsg struct {
 // closeLauncherPickerMsg is sent when the launcher picker is cancelled
 type closeLauncherPickerMsg struct{}
 
-// launcherFinishedMsg is sent when launcher execution completes
-type launcherFinishedMsg struct {
-	err          error
-	launcherName string
-}
-
 // launcherItem wraps a launcher to implement list.Item
 type launcherItem struct {
 	launcher launcher
@@ -85,7 +79,6 @@ type launcherPickerModel struct {
 func newLauncherPickerModel(launchers []launcher, beanIDs []string, beanTitle string, width, height int) launcherPickerModel {
 	delegate := launcherItemDelegate{}
 
-	// Build items list
 	items := make([]list.Item, len(launchers))
 	for i, l := range launchers {
 		items[i] = launcherItem{launcher: l}
