@@ -3,58 +3,11 @@ package tui
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/hmans/beans/internal/config"
 )
-
-// resolveCommand resolves a command string to an absolute path.
-// - Absolute paths are returned as-is
-// - Relative paths (containing "/" or starting with ".") are resolved from beansRoot
-// - Command names are looked up in PATH
-func resolveCommand(cmd string, beansRoot string) string {
-	// Absolute path - return as-is
-	if filepath.IsAbs(cmd) {
-		return cmd
-	}
-
-	// Relative path - resolve from beansRoot
-	if strings.Contains(cmd, string(filepath.Separator)) || strings.HasPrefix(cmd, ".") {
-		return filepath.Join(beansRoot, cmd)
-	}
-
-	// Command name - check in PATH
-	if path, err := exec.LookPath(cmd); err == nil {
-		return path
-	}
-
-	// Not found in PATH, return as-is (will fail at execution with good error)
-	return cmd
-}
-
-// isCommandAvailable checks if a launcher command is available.
-// Since we execute via shell, we extract the main command and check if it exists.
-// For file paths, checks if file exists. For command names, checks if in PATH.
-func isCommandAvailable(command string) bool {
-	// Extract the main executable from the command string
-	mainCmd := extractMainCommand(command)
-
-	if mainCmd == "" {
-		return false
-	}
-
-	// If it looks like a local file path, check if it exists
-	if filepath.IsAbs(mainCmd) || strings.Contains(mainCmd, string(filepath.Separator)) {
-		_, err := os.Stat(mainCmd)
-		return err == nil
-	}
-
-	// For command names, check if in PATH
-	_, err := exec.LookPath(mainCmd)
-	return err == nil
-}
 
 // launcher represents a discovered and available launcher
 type launcher struct {
