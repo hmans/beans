@@ -383,7 +383,7 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 			// Open launcher picker
 			return m, func() tea.Msg {
 				return openLauncherPickerMsg{
-					beanID:    m.bean.ID,
+					beanIDs:   []string{m.bean.ID},
 					beanTitle: m.bean.Title,
 				}
 			}

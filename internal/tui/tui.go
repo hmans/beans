@@ -10,10 +10,12 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/hmans/beans/internal/bean"
 	"github.com/hmans/beans/internal/beancore"
 	"github.com/hmans/beans/internal/config"
 	"github.com/hmans/beans/internal/graph"
 	"github.com/hmans/beans/internal/graph/model"
+	launcherexec "github.com/hmans/beans/internal/launcher"
 )
 
 // viewState represents which view is currently active
@@ -33,8 +35,11 @@ const (
 	viewLauncherPicker
 	viewLauncherError
 	viewNoLaunchers
+	viewNoLaunchersMulti
 	viewConfigureLaunchers
 	viewConfigWriteError
+	viewLaunchConfirm
+	viewLaunchProgress
 )
 
 // beansChangedMsg is sent when beans change on disk (via file watcher)
@@ -86,8 +91,11 @@ type App struct {
 	launcherPicker     launcherPickerModel
 	launcherError      launcherErrorModel
 	noLaunchers        noLaunchersModel
+	noLaunchersMulti   noLaunchersMultiModel
 	configureLaunchers configureLaunchersModel
 	configWriteError   configWriteErrorModel
+	launchConfirm      launchConfirm
+	launchProgress     launchProgress
 	history            []detailModel // stack of previous detail views for back navigation
 	core               *beancore.Core
 	resolver           *graph.Resolver
@@ -476,15 +484,37 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.list.loadBeans
 
 	case openLauncherPickerMsg:
-		// Discover available launchers
-		launchers := discoverLaunchers(a.config, a.core.Root())
+		// Discover available launchers based on bean count
+		var launchers []launcher
+
+		if len(msg.beanIDs) > 1 {
+			// Multiple beans - only show launchers with multiple: true
+			launchers = discoverLaunchersForMultiple(a.config, a.core.Root())
+		} else {
+			// Single bean - show all launchers
+			launchers = discoverLaunchers(a.config, a.core.Root())
+		}
 
 		if len(launchers) == 0 {
+			// Check if this is multi-bean with no multiple-capable launchers
+			if len(msg.beanIDs) > 1 {
+				// Show specific error for multi-bean
+				a.previousState = a.state
+				a.noLaunchersMulti = newNoLaunchersMultiModel(a.width, a.height)
+				a.state = viewNoLaunchersMulti
+				return a, nil
+			}
+
 			// Check if any launchers are configured at all
 			if !hasLaunchersConfigured(a.config) {
 				// First time - offer to configure defaults
+				// For configure dialog, just show the first bean ID
+				firstBeanID := ""
+				if len(msg.beanIDs) > 0 {
+					firstBeanID = msg.beanIDs[0]
+				}
 				a.previousState = a.state
-				a.configureLaunchers = newConfigureLaunchersModel(msg.beanID, msg.beanTitle, a.width, a.height)
+				a.configureLaunchers = newConfigureLaunchersModel(firstBeanID, msg.beanTitle, a.width, a.height)
 				a.state = viewConfigureLaunchers
 				return a, a.configureLaunchers.Init()
 			}
@@ -498,32 +528,70 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Open launcher picker
 		a.previousState = a.state
-		a.launcherPicker = newLauncherPickerModel(launchers, msg.beanID, msg.beanTitle, a.width, a.height)
+		a.launcherPicker = newLauncherPickerModel(launchers, msg.beanIDs, msg.beanTitle, a.width, a.height)
 		a.state = viewLauncherPicker
 		return a, a.launcherPicker.Init()
 
 	case launcherSelectedMsg:
-		// Close the picker before launching
-		a.state = a.previousState
+		// Check if single bean or multiple beans
+		if len(msg.beanIDs) == 1 {
+			// Single bean - use original ExecProcess approach
+			a.state = a.previousState
 
-		// Create command (handles both single-line and multi-line exec)
-		beanPath := filepath.Join(a.core.Root(), ".beans", "beans-"+msg.beanID+".md")
-		result := createExecCommand(msg.launcher.exec, msg.beanID, a.core.Root(), beanPath)
+			// Create command (handles both single-line and multi-line exec)
+			beanID := msg.beanIDs[0]
+			beanPath := filepath.Join(a.core.Root(), ".beans", "beans-"+beanID+".md")
+			result := createExecCommand(msg.launcher.exec, beanID, a.core.Root(), beanPath)
 
-		// Store launcher name and cleanup function for callback
-		launcherName := msg.launcher.name
-		cleanup := result.cleanup
+			// Store launcher name and cleanup function for callback
+			launcherName := msg.launcher.name
+			cleanup := result.cleanup
 
-		return a, tea.ExecProcess(result.cmd, func(err error) tea.Msg {
-			// Clean up temp file if created
-			if cleanup != nil {
-				cleanup()
+			return a, tea.ExecProcess(result.cmd, func(err error) tea.Msg {
+				// Clean up temp file if created
+				if cleanup != nil {
+					cleanup()
+				}
+				return launcherFinishedMsg{
+					err:          err,
+					launcherName: launcherName,
+				}
+			})
+		}
+
+		// Multiple beans - check if we need confirmation
+		needsConfirm := len(msg.beanIDs) >= 5 && !a.config.TUI.DisableLauncherWarning
+
+		if needsConfirm {
+			// Show confirmation dialog
+			a.previousState = a.state
+
+			// Convert launcher to config.Launcher
+			configLauncher := &config.Launcher{
+				Name:        msg.launcher.name,
+				Exec:        msg.launcher.exec,
+				Description: msg.launcher.description,
 			}
-			return launcherFinishedMsg{
-				err:          err,
-				launcherName: launcherName,
+
+			a.launchConfirm = newLaunchConfirm(configLauncher, msg.beanIDs)
+			a.state = viewLaunchConfirm
+			return a, a.launchConfirm.Init()
+		}
+
+		// No confirmation needed - launch directly
+		return a, func() tea.Msg {
+			// Convert launcher to config.Launcher
+			configLauncher := &config.Launcher{
+				Name:        msg.launcher.name,
+				Exec:        msg.launcher.exec,
+				Description: msg.launcher.description,
 			}
-		})
+
+			return launchConfirmedMsg{
+				launcher: configLauncher,
+				beanIDs:  msg.beanIDs,
+			}
+		}
 
 	case launcherFinishedMsg:
 		if msg.err != nil {
@@ -538,6 +606,74 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case closeLauncherPickerMsg:
 		a.state = a.previousState
+		return a, nil
+
+	case launchConfirmedMsg:
+		// User confirmed multi-bean launch or skipped confirmation
+		// Fetch all beans
+		var beans []*bean.Bean
+		for _, beanID := range msg.beanIDs {
+			b, err := a.core.Get(beanID)
+			if err != nil {
+				// Skip beans that can't be loaded
+				continue
+			}
+			beans = append(beans, b)
+		}
+
+		if len(beans) == 0 {
+			// All beans failed to load - return to previous state
+			a.state = a.previousState
+			return a, nil
+		}
+
+		// Create launch manager
+		manager := launcherexec.NewLaunchManager(msg.launcher, beans)
+
+		// Start all launches
+		if err := manager.Start(a.core.Root()); err != nil {
+			// Failed to start - show error and return
+			a.previousState = viewDetail
+			a.launcherError = newLauncherErrorModel(msg.launcher.Name, err, a.width, a.height)
+			a.state = viewLauncherError
+			return a, nil
+		}
+
+		// Show progress view
+		a.previousState = a.state
+		a.launchProgress = newLaunchProgress(manager, msg.launcher.Name)
+		a.state = viewLaunchProgress
+		return a, a.launchProgress.Init()
+
+	case launchCancelledMsg:
+		// User cancelled confirmation
+		a.state = a.previousState
+		return a, nil
+
+	case launchCompleteMsg:
+		// All launches completed successfully
+		a.state = a.previousState
+
+		// Clear selection if we're in list view
+		if a.state == viewList {
+			clear(a.list.selectedBeans)
+		}
+
+		// Cleanup the progress view
+		a.launchProgress.Cleanup()
+
+		return a, nil
+
+	case launchFailedMsg:
+		// A launch failed - cleanup and show error
+		a.launchProgress.Cleanup()
+
+		// Show error modal
+		a.previousState = viewDetail
+		a.launcherError = newLauncherErrorModel("launcher", msg.err, a.width, a.height)
+		a.state = viewLauncherError
+
+		// Note: We don't clear selection so user can retry
 		return a, nil
 
 	case launchersConfiguredMsg:
@@ -634,9 +770,37 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.state = a.previousState
 			return a, nil
 		}
+	case viewNoLaunchersMulti:
+		// Any key dismisses no multi-bean launchers modal
+		if _, ok := msg.(tea.KeyMsg); ok {
+			a.state = a.previousState
+			return a, nil
+		}
 	case viewConfigureLaunchers:
 		a.configureLaunchers, cmd = a.configureLaunchers.Update(msg)
 	case viewConfigWriteError:
+		// Any key dismisses error modal
+		if _, ok := msg.(tea.KeyMsg); ok {
+			a.state = a.previousState
+			return a, nil
+		}
+	case viewLaunchConfirm:
+		a.launchConfirm, cmd = a.launchConfirm.Update(msg)
+	case viewLaunchProgress:
+		// Handle q/esc to cancel and stop all processes
+		if keyMsg, ok := msg.(tea.KeyMsg); ok {
+			switch keyMsg.String() {
+			case "q", "esc":
+				// Stop all processes
+				if a.launchProgress.manager != nil {
+					a.launchProgress.manager.Stop()
+				}
+				a.launchProgress.Cleanup()
+				a.state = a.previousState
+				return a, nil
+			}
+		}
+		a.launchProgress, cmd = a.launchProgress.Update(msg)
 		// Any key dismisses error modal
 		if _, ok := msg.(tea.KeyMsg); ok {
 			a.state = a.previousState
@@ -694,10 +858,16 @@ func (a *App) View() string {
 		return a.launcherError.ModalView(a.getBackgroundView(), a.width, a.height)
 	case viewNoLaunchers:
 		return a.noLaunchers.ModalView(a.getBackgroundView(), a.width, a.height)
+	case viewNoLaunchersMulti:
+		return a.noLaunchersMulti.ModalView(a.getBackgroundView(), a.width, a.height)
 	case viewConfigureLaunchers:
 		return a.configureLaunchers.ModalView(a.getBackgroundView(), a.width, a.height)
 	case viewConfigWriteError:
 		return a.configWriteError.ModalView(a.getBackgroundView(), a.width, a.height)
+	case viewLaunchConfirm:
+		return a.launchConfirm.View()
+	case viewLaunchProgress:
+		return a.launchProgress.View()
 	}
 	return ""
 }
@@ -721,63 +891,56 @@ type execResult struct {
 }
 
 // createExecCommand creates a command for executing an exec script.
-// For multi-line scripts, it creates a temp file and returns cleanup function.
+// For multi-line scripts with shebang, passes script via stdin to the interpreter.
 // For single-line scripts, it executes via sh -c.
 func createExecCommand(execScript, beanID, beansRoot, beanPath string) execResult {
-	// Check if this is multi-line (contains newline)
-	if !strings.Contains(execScript, "\n") {
-		// Single-line: execute via sh -c
-		cmd := exec.Command("sh", "-c", execScript)
-		cmd.Env = append(os.Environ(),
-			fmt.Sprintf("BEANS_ROOT=%s", beansRoot),
-			fmt.Sprintf("BEANS_ID=%s", beanID),
-			fmt.Sprintf("BEANS_TASK=%s", beanPath),
-		)
-		cmd.Dir = beansRoot
-		return execResult{cmd: cmd, cleanup: func() {}}
-	}
-
-	// Multi-line: create temp file
-	tmpFile, err := os.CreateTemp("", "beans-launcher-*.sh")
-	if err != nil {
-		// Return command that will fail with good error message
-		cmd := exec.Command("sh", "-c", fmt.Sprintf("echo 'Error: failed to create temp script: %v' >&2 && exit 1", err))
-		return execResult{cmd: cmd, cleanup: func() {}}
-	}
-
-	tmpPath := tmpFile.Name()
-
-	// Write script content
-	if _, err := tmpFile.WriteString(execScript); err != nil {
-		tmpFile.Close()
-		os.Remove(tmpPath)
-		cmd := exec.Command("sh", "-c", fmt.Sprintf("echo 'Error: failed to write script: %v' >&2 && exit 1", err))
-		return execResult{cmd: cmd, cleanup: func() {}}
-	}
-	tmpFile.Close()
-
-	// Make executable
-	if err := os.Chmod(tmpPath, 0755); err != nil {
-		os.Remove(tmpPath)
-		cmd := exec.Command("sh", "-c", fmt.Sprintf("echo 'Error: failed to make script executable: %v' >&2 && exit 1", err))
-		return execResult{cmd: cmd, cleanup: func() {}}
-	}
-
-	// Create command to execute temp file
-	cmd := exec.Command(tmpPath)
-	cmd.Env = append(os.Environ(),
+	env := append(os.Environ(),
 		fmt.Sprintf("BEANS_ROOT=%s", beansRoot),
 		fmt.Sprintf("BEANS_ID=%s", beanID),
 		fmt.Sprintf("BEANS_TASK=%s", beanPath),
 	)
-	cmd.Dir = beansRoot
 
-	// Return with cleanup function
-	cleanup := func() {
-		os.Remove(tmpPath)
+	// Check if this is multi-line (contains newline)
+	if !strings.Contains(execScript, "\n") {
+		// Single-line: execute via sh -c
+		cmd := exec.Command("sh", "-c", execScript)
+		cmd.Env = env
+		cmd.Dir = beansRoot
+		return execResult{cmd: cmd, cleanup: func() {}}
 	}
 
-	return execResult{cmd: cmd, cleanup: cleanup}
+	// Multi-line: extract shebang and pass script via stdin
+	lines := strings.SplitN(execScript, "\n", 2)
+	if !strings.HasPrefix(lines[0], "#!") {
+		// Return error command
+		cmd := exec.Command("sh", "-c", "echo 'Error: multi-line script must start with shebang' >&2 && exit 1")
+		return execResult{cmd: cmd, cleanup: func() {}}
+	}
+
+	// Extract interpreter from shebang
+	shebang := strings.TrimPrefix(lines[0], "#!")
+	shebang = strings.TrimSpace(shebang)
+
+	// Parse shebang into command and args
+	parts := strings.Fields(shebang)
+	if len(parts) == 0 {
+		cmd := exec.Command("sh", "-c", fmt.Sprintf("echo 'Error: invalid shebang: %s' >&2 && exit 1", lines[0]))
+		return execResult{cmd: cmd, cleanup: func() {}}
+	}
+
+	// Build command - pass script content via stdin
+	var cmd *exec.Cmd
+	if len(parts) == 1 {
+		cmd = exec.Command(parts[0])
+	} else {
+		cmd = exec.Command(parts[0], parts[1:]...)
+	}
+
+	cmd.Env = env
+	cmd.Dir = beansRoot
+	cmd.Stdin = strings.NewReader(execScript)
+
+	return execResult{cmd: cmd, cleanup: func() {}}
 }
 
 // getEditor returns the user's preferred editor using the fallback chain:

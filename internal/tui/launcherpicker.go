@@ -12,14 +12,14 @@ import (
 
 // openLauncherPickerMsg requests opening the launcher picker
 type openLauncherPickerMsg struct {
-	beanID    string
+	beanIDs   []string
 	beanTitle string
 }
 
 // launcherSelectedMsg is sent when a launcher is selected
 type launcherSelectedMsg struct {
 	launcher launcher
-	beanID   string
+	beanIDs  []string
 }
 
 // closeLauncherPickerMsg is sent when the launcher picker is cancelled
@@ -75,13 +75,13 @@ func (d launcherItemDelegate) Render(w io.Writer, m list.Model, index int, listI
 // launcherPickerModel is the model for the launcher picker view
 type launcherPickerModel struct {
 	list      list.Model
-	beanID    string
+	beanIDs   []string
 	beanTitle string
 	width     int
 	height    int
 }
 
-func newLauncherPickerModel(launchers []launcher, beanID, beanTitle string, width, height int) launcherPickerModel {
+func newLauncherPickerModel(launchers []launcher, beanIDs []string, beanTitle string, width, height int) launcherPickerModel {
 	delegate := launcherItemDelegate{}
 
 	// Build items list
@@ -109,7 +109,7 @@ func newLauncherPickerModel(launchers []launcher, beanID, beanTitle string, widt
 
 	return launcherPickerModel{
 		list:      l,
-		beanID:    beanID,
+		beanIDs:   beanIDs,
 		beanTitle: beanTitle,
 		width:     width,
 		height:    height,
@@ -139,7 +139,7 @@ func (m launcherPickerModel) Update(msg tea.Msg) (launcherPickerModel, tea.Cmd) 
 			case "enter":
 				if item, ok := m.list.SelectedItem().(launcherItem); ok {
 					return m, func() tea.Msg {
-						return launcherSelectedMsg{launcher: item.launcher, beanID: m.beanID}
+						return launcherSelectedMsg{launcher: item.launcher, beanIDs: m.beanIDs}
 					}
 				}
 			case "esc", "backspace":
@@ -159,10 +159,18 @@ func (m launcherPickerModel) View() string {
 		return "Loading..."
 	}
 
+	// For display, show the first bean ID if there's only one, or count if multiple
+	beanIDDisplay := ""
+	if len(m.beanIDs) == 1 {
+		beanIDDisplay = m.beanIDs[0]
+	} else if len(m.beanIDs) > 1 {
+		beanIDDisplay = fmt.Sprintf("%d selected beans", len(m.beanIDs))
+	}
+
 	return renderPickerModal(pickerModalConfig{
 		Title:       "Select Launcher",
 		BeanTitle:   m.beanTitle,
-		BeanID:      m.beanID,
+		BeanID:      beanIDDisplay,
 		ListContent: m.list.View(),
 		Width:       m.width,
 	})

@@ -177,13 +177,88 @@ launchers:
         opencode -p "Work on task $BEANS_ID"
 ```
 
+### Multi-Bean Launchers
+
+Some launchers can handle multiple beans in parallel, while others can only work with one bean at a time. Mark launchers that support parallel execution with `multiple: true`:
+
+```yaml
+launchers:
+  # Single-bean only (default)
+  - name: opencode
+    exec: opencode -p "Work on task $BEANS_ID"
+    description: "Open task in OpenCode"
+    # multiple: false (default)
+  
+  # Can handle multiple beans in parallel
+  - name: worktree-tmux
+    multiple: true  # ← Supports multi-bean launching
+    description: "Create git worktree and open in new tmux pane"
+    exec: |
+      #!/bin/bash
+      set -euo pipefail
+      
+      WORKTREE_DIR=".worktrees/$BEANS_ID"
+      
+      if [ ! -d "$WORKTREE_DIR" ]; then
+        git worktree add "$WORKTREE_DIR" -b "task/$BEANS_ID"
+      fi
+      
+      tmux split-window -h -c "$BEANS_ROOT/$WORKTREE_DIR"
+      tmux send-keys "opencode -p 'Work on task $BEANS_ID'" Enter
+```
+
+**When to use `multiple: true`:**
+- Launchers that create separate workspaces (worktrees, tmux panes, kitty windows)
+- Scripts that can safely run in parallel without conflicts
+- Tools that operate on isolated resources per bean
+
+**When to keep default `multiple: false`:**
+- Interactive tools that can only open one file/project at a time (editors, IDEs)
+- Tools that modify shared state
+- Single-instance applications
+
+**Behavior:**
+- **Single bean selected** → All launchers shown
+- **Multiple beans selected** → Only `multiple: true` launchers shown
+- **No `multiple: true` launchers available** → Error message displayed
+
 ### How It Works
 
 - **Single-line exec**: Runs via `sh -c`, just like a shell command. Use for simple commands.
-- **Multi-line exec**: Creates a temporary executable script file. **Must start with a shebang** (`#!/bin/bash`, `#!/usr/bin/env python3`, etc.). The shebang determines which interpreter executes your script.
+- **Multi-line exec**: Passed to the interpreter via stdin. **Must start with a shebang** (`#!/bin/bash`, `#!/usr/bin/env python3`, etc.). The shebang determines which interpreter executes your script.
 - **Environment variables**: All launchers receive `$BEANS_ID`, `$BEANS_ROOT`, `$BEANS_TASK`
 - **Working directory**: Set to project root (`$BEANS_ROOT`)
 - **Unix/Linux/macOS only**: Shebang mechanism is Unix-specific
+
+### Multi-Select Launching
+
+In the TUI, you can launch for multiple beans simultaneously using launchers marked with `multiple: true`:
+
+1. **Select multiple beans** using `x` (mark/unmark) or `X` (mark all visible)
+2. **Press `!`** to open the launcher picker (only shows `multiple: true` launchers)
+3. **Choose a launcher** - it will run in parallel for all selected beans
+
+**Features:**
+- **Parallel execution**: All launchers start simultaneously (perfect for creating multiple tmux panes or worktrees)
+- **Real-time progress**: See status for each bean as it runs
+- **Stop on failure**: If any bean fails, all others are immediately stopped
+- **Confirmation prompt**: For 5+ beans, you'll be asked to confirm (can be disabled in config)
+- **Selection management**: Selection is cleared on success, kept on failure (so you can retry)
+
+**Use cases:**
+- Create git worktrees for multiple tasks at once
+- Open multiple beans in separate tmux panes/kitty windows
+- Batch process related beans
+
+### TUI Configuration
+
+You can customize TUI behavior in `.beans.yml`:
+
+```yaml
+tui:
+  # Disable confirmation prompt when launching for 5+ beans
+  disable_launcher_warning: false
+```
 
 ### Examples
 

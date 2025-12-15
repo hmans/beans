@@ -75,12 +75,20 @@ type Launcher struct {
 	Name        string `yaml:"name"`
 	Exec        string `yaml:"exec"`
 	Description string `yaml:"description,omitempty"`
+	Multiple    bool   `yaml:"multiple,omitempty"` // Supports launching for multiple beans in parallel
+}
+
+// TUIConfig holds TUI-specific configuration.
+type TUIConfig struct {
+	// DisableLauncherWarning disables the confirmation prompt when launching for 5+ beans
+	DisableLauncherWarning bool `yaml:"disable_launcher_warning,omitempty"`
 }
 
 // Config holds the beans configuration.
 // Note: Statuses are no longer stored in config - they are hardcoded like types.
 type Config struct {
 	Beans     BeansConfig `yaml:"beans"`
+	TUI       TUIConfig   `yaml:"tui,omitempty"`
 	Launchers []Launcher  `yaml:"launchers,omitempty"`
 
 	// configDir is the directory containing the config file (not serialized)

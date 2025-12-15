@@ -409,11 +409,24 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 					}
 				}
 			case "!":
-				// Open launcher picker for selected bean
-				if item, ok := m.list.SelectedItem().(beanItem); ok {
+				// Open launcher picker for selected bean(s)
+				if len(m.selectedBeans) > 0 {
+					// Multi-select: collect all IDs
+					ids := make([]string, 0, len(m.selectedBeans))
+					for id := range m.selectedBeans {
+						ids = append(ids, id)
+					}
 					return m, func() tea.Msg {
 						return openLauncherPickerMsg{
-							beanID:    item.bean.ID,
+							beanIDs:   ids,
+							beanTitle: fmt.Sprintf("%d selected beans", len(ids)),
+						}
+					}
+				} else if item, ok := m.list.SelectedItem().(beanItem); ok {
+					// Single bean
+					return m, func() tea.Msg {
+						return openLauncherPickerMsg{
+							beanIDs:   []string{item.bean.ID},
 							beanTitle: item.bean.Title,
 						}
 					}

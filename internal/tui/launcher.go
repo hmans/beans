@@ -86,6 +86,25 @@ func discoverLaunchers(cfg *config.Config, beansRoot string) []launcher {
 	return launchers
 }
 
+// discoverLaunchersForMultiple discovers launchers that support multiple beans in parallel.
+// Returns only launchers configured with multiple: true.
+func discoverLaunchersForMultiple(cfg *config.Config, beansRoot string) []launcher {
+	allLaunchers := discoverLaunchers(cfg, beansRoot)
+
+	var multiLaunchers []launcher
+	for _, l := range allLaunchers {
+		// Find the config launcher to check Multiple flag
+		for _, cfgLauncher := range cfg.Launchers {
+			if cfgLauncher.Name == l.name && cfgLauncher.Multiple {
+				multiLaunchers = append(multiLaunchers, l)
+				break
+			}
+		}
+	}
+
+	return multiLaunchers
+}
+
 // extractMainCommand extracts the primary executable from a launcher command string.
 // For shell commands, this returns the first space-separated token.
 // Examples:
