@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -26,7 +27,7 @@ func (r *ExecutionResult) Cleanup() {
 //
 // Parameters:
 //   - execScript: The script to execute (single-line or multi-line with shebang)
-//   - beansRoot: The root directory of the beans project
+//   - beansDir: The .beans directory (absolute path)
 //   - beanID: The ID of the bean being worked on
 //   - beanTitle: The title of the bean
 //
@@ -34,9 +35,13 @@ func (r *ExecutionResult) Cleanup() {
 //   - *exec.Cmd: The command to execute
 //   - *ExecutionResult: Result containing cleanup function
 //   - error: Any error that occurred during setup
-func CreateExecCommand(execScript, beansRoot, beanID, beanTitle string) (*exec.Cmd, *ExecutionResult, error) {
+func CreateExecCommand(execScript, beansDir, beanID, beanTitle string) (*exec.Cmd, *ExecutionResult, error) {
+	// Project root is the parent of the beans directory
+	projectRoot := filepath.Dir(beansDir)
+
 	env := append(os.Environ(),
-		fmt.Sprintf("BEANS_ROOT=%s", beansRoot),
+		fmt.Sprintf("BEANS_ROOT=%s", projectRoot),
+		fmt.Sprintf("BEANS_DIR=%s", beansDir),
 		fmt.Sprintf("BEANS_ID=%s", beanID),
 		fmt.Sprintf("BEANS_TASK=%s", beanTitle),
 	)
@@ -46,7 +51,7 @@ func CreateExecCommand(execScript, beansRoot, beanID, beanTitle string) (*exec.C
 		// Single-line: execute via sh -c
 		cmd := exec.Command("sh", "-c", execScript)
 		cmd.Env = env
-		cmd.Dir = beansRoot
+		cmd.Dir = projectRoot
 
 		result := &ExecutionResult{
 			Cmd:     cmd,
@@ -82,14 +87,12 @@ func CreateExecCommand(execScript, beansRoot, beanID, beanTitle string) (*exec.C
 	}
 
 	cmd.Env = env
-	cmd.Dir = beansRoot
+	cmd.Dir = projectRoot
 
 	// Pass the script (including shebang line) via stdin
 	cmd.Stdin = strings.NewReader(execScript)
 
-	// Redirect outputs to avoid TUI interference
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	// Note: Stdout/Stderr will be set by caller (either os.Stdout or captured buffer)
 
 	result := &ExecutionResult{
 		Cmd:     cmd,

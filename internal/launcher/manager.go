@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"bytes"
 	"fmt"
 	"os/exec"
 	"sync"
@@ -40,6 +41,7 @@ type BeanLaunch struct {
 	Bean     *bean.Bean
 	Status   LaunchStatus
 	Error    error
+	Output   string // Captured stderr output
 	cmd      *exec.Cmd
 	result   *ExecutionResult
 	started  time.Time
@@ -113,6 +115,10 @@ func (m *LaunchManager) startLaunch(launch *BeanLaunch, beansRoot string) error 
 	launch.cmd = cmd
 	launch.result = result
 
+	// Capture stderr to provide better error messages
+	var stderrBuf bytes.Buffer
+	cmd.Stderr = &stderrBuf
+
 	// Start the command in background
 	if err := cmd.Start(); err != nil {
 		result.Cleanup()
@@ -125,13 +131,13 @@ func (m *LaunchManager) startLaunch(launch *BeanLaunch, beansRoot string) error 
 	launch.started = time.Now()
 
 	// Monitor completion in background
-	go m.monitorLaunch(launch)
+	go m.monitorLaunch(launch, &stderrBuf)
 
 	return nil
 }
 
 // monitorLaunch monitors a single launch for completion
-func (m *LaunchManager) monitorLaunch(launch *BeanLaunch) {
+func (m *LaunchManager) monitorLaunch(launch *BeanLaunch, stderrBuf *bytes.Buffer) {
 	err := launch.cmd.Wait()
 
 	m.mu.Lock()
@@ -141,7 +147,14 @@ func (m *LaunchManager) monitorLaunch(launch *BeanLaunch) {
 
 	if err != nil {
 		launch.Status = LaunchFailed
-		launch.Error = err
+		// Include stderr output in error if available
+		stderr := stderrBuf.String()
+		if stderr != "" {
+			launch.Output = stderr
+			launch.Error = fmt.Errorf("%w\n\nOutput:\n%s", err, stderr)
+		} else {
+			launch.Error = err
+		}
 	} else {
 		launch.Status = LaunchSuccess
 	}
