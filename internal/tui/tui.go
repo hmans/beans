@@ -808,11 +808,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		a.launchProgress, cmd = a.launchProgress.Update(msg)
-		// Any key dismisses error modal
-		if _, ok := msg.(tea.KeyMsg); ok {
-			a.state = a.previousState
-			return a, nil
-		}
 	}
 
 	return a, cmd
