@@ -76,9 +76,9 @@ func runServer() error {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Channel to listen for shutdown signals
-	shutdown := make(chan os.Signal, 1)
-	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
+	// Set up signal handling with context
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	// Channel to listen for server errors
 	serverErr := make(chan error, 1)
@@ -96,14 +96,14 @@ func runServer() error {
 		if err != http.ErrServerClosed {
 			return fmt.Errorf("server error: %w", err)
 		}
-	case sig := <-shutdown:
-		fmt.Printf("\nReceived %v, shutting down...\n", sig)
+	case <-ctx.Done():
+		fmt.Printf("\nShutting down...\n")
 
 		// Create context with timeout for graceful shutdown
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		if err := server.Shutdown(ctx); err != nil {
+		if err := server.Shutdown(shutdownCtx); err != nil {
 			return fmt.Errorf("graceful shutdown failed: %w", err)
 		}
 		fmt.Println("Server stopped")
