@@ -1,6 +1,10 @@
 [tools]
 go = "latest"
+node = "latest"
 svu = "latest"
+
+[hooks]
+postinstall = 'npx corepack enable'
 
 [tasks.codegen]
 run = "go generate ./..."
