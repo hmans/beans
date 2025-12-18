@@ -1,10 +1,11 @@
 ---
 # beans-sli4
 title: Embed web assets into Go binary
-status: todo
+status: completed
 type: task
+priority: normal
 created_at: 2025-12-18T16:44:50Z
-updated_at: 2025-12-18T16:44:50Z
+updated_at: 2025-12-18T17:26:56Z
 parent: beans-lbjp
 ---
 

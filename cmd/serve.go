@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/hmans/beans/internal/graph"
+	"github.com/hmans/beans/internal/web"
 )
 
 var (
@@ -62,6 +63,9 @@ func runServer() error {
 		srv.ServeHTTP(w, r)
 	}))
 
+	// Serve the embedded frontend SPA
+	mux.Handle("/", web.Handler())
+
 	// Create HTTP server
 	addr := fmt.Sprintf(":%d", servePort)
 	server := &http.Server{
@@ -81,7 +85,7 @@ func runServer() error {
 
 	// Start server in goroutine
 	go func() {
-		fmt.Printf("Starting server at http://localhost:%d\n", servePort)
+		fmt.Printf("Starting server at http://localhost:%d/\n", servePort)
 		fmt.Printf("GraphQL Playground: http://localhost:%d/graphql\n", servePort)
 		serverErr <- server.ListenAndServe()
 	}()

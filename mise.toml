@@ -13,8 +13,23 @@ run = "go generate ./..."
 depends = "codegen"
 run = "go test ./..."
 
+[tasks."build:frontend"]
+description = "Build the SvelteKit frontend"
+dir = "frontend"
+run = "pnpm build"
+
+[tasks."build:embed"]
+description = "Copy frontend build to embed directory"
+depends = "build:frontend"
+run = """
+rm -rf internal/web/dist
+mkdir -p internal/web/dist
+cp -r frontend/build/* internal/web/dist/
+touch internal/web/dist/.gitkeep
+"""
+
 [tasks.build]
-depends = "codegen"
+depends = ["codegen", "build:embed"]
 run = """
 go build -ldflags "\
   -X github.com/hmans/beans/cmd.version=$(git describe --tags --always --dirty 2>/dev/null || echo dev) \
