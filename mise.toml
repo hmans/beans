@@ -75,3 +75,15 @@ git tag "$NEW_VERSION"
 echo "Created tag: $NEW_VERSION"
 echo "To release, run: git push && git push --tags"
 """
+
+
+[tasks."dev:serve"]
+run = "wgo run . serve"
+
+[tasks."dev:frontend"]
+dir = "frontend"
+run = "pnpm dev"
+
+[tasks.dev]
+description = "Run the development server"
+run = { tasks = ["dev:serve", "dev:frontend"] }
