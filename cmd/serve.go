@@ -41,7 +41,7 @@ func runServer() error {
 	mux := http.NewServeMux()
 
 	// GraphQL API endpoint with CORS support
-	mux.Handle("/api/graphql", corsMiddleware(srv))
+	mux.Handle("/api/graphql", srv)
 
 	// GraphQL Playground
 	mux.Handle("/playground", playground.Handler("Beans GraphQL", "/api/graphql"))
@@ -93,24 +93,6 @@ func runServer() error {
 	}
 
 	return nil
-}
-
-// corsMiddleware adds CORS headers for cross-origin requests (e.g., Vite dev server)
-func corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Allow requests from any origin during development
-		// w.Header().Set("Access-Control-Allow-Origin", "*")
-		// w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		// w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-		// Handle preflight requests
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
 }
 
 func init() {
