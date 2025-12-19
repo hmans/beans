@@ -14,6 +14,7 @@ All commands support --json for machine-readable output. Use this flag to parse 
 1. FIRST: Create a bean with `beans create "Title" -t <type> -d "Description..." -s in-progress`
 2. THEN: Do the work
 3. FINALLY: Mark completed with `beans update <bean-id> --status completed`
+   - You CAN NOT mark a bean as "completed" if it still contains unchecked todo items. Doing so is a failure state!
 4. IF and WHEN you COMMIT: Include both your code changes AND the bean file(s) in the commit!
 
 If you identify something that should be changed or fixed after completing the user's request, create a new bean for that work instead of doing it immediately.
