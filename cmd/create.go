@@ -20,14 +20,16 @@ var (
 	createBody     string
 	createBodyFile string
 	createTag      []string
-	createLink     []string
+	createParent   string
+	createBlocking []string
 	createJSON     bool
 )
 
 var createCmd = &cobra.Command{
-	Use:   "create [title]",
-	Short: "Create a new bean",
-	Long:  `Creates a new bean (issue) with a generated ID and optional title.`,
+	Use:     "create [title]",
+	Aliases: []string{"c", "new"},
+	Short:   "Create a new bean",
+	Long:    `Creates a new bean (issue) with a generated ID and optional title.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		title := strings.Join(args, " ")
 		if title == "" {
@@ -74,13 +76,14 @@ var createCmd = &cobra.Command{
 			input.Tags = createTag
 		}
 
-		// Parse and add links
-		for _, linkStr := range createLink {
-			linkType, target, err := parseLink(linkStr)
-			if err != nil {
-				return cmdError(createJSON, output.ErrValidation, "%s", err)
-			}
-			input.Links = append(input.Links, &model.LinkInput{Type: linkType, Target: target})
+		// Add parent
+		if createParent != "" {
+			input.Parent = &createParent
+		}
+
+		// Add blocking
+		if len(createBlocking) > 0 {
+			input.Blocking = createBlocking
 		}
 
 		// Create via GraphQL mutation
@@ -120,7 +123,8 @@ func init() {
 	createCmd.Flags().StringVarP(&createBody, "body", "d", "", "Body content (use '-' to read from stdin)")
 	createCmd.Flags().StringVar(&createBodyFile, "body-file", "", "Read body from file")
 	createCmd.Flags().StringArrayVar(&createTag, "tag", nil, "Add tag (can be repeated)")
-	createCmd.Flags().StringArrayVar(&createLink, "link", nil, "Add relationship (format: type:id, can be repeated)")
+	createCmd.Flags().StringVar(&createParent, "parent", "", "Parent bean ID")
+	createCmd.Flags().StringArrayVar(&createBlocking, "blocking", nil, "ID of bean this blocks (can be repeated)")
 	createCmd.Flags().BoolVar(&createJSON, "json", false, "Output as JSON")
 	createCmd.MarkFlagsMutuallyExclusive("body", "body-file")
 	rootCmd.AddCommand(createCmd)

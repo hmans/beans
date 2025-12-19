@@ -57,6 +57,14 @@ func SuccessWithWarnings(b *bean.Bean, message string, warnings []string) error 
 	})
 }
 
+// SuccessSingle outputs a single bean directly (no wrapper).
+// This allows intuitive jq usage: beans show --json <id> | jq '.title'
+func SuccessSingle(b *bean.Bean) error {
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(b)
+}
+
 // SuccessMultiple outputs a bean array directly (no wrapper).
 // This allows intuitive jq usage: beans list --json | jq '.[]'
 func SuccessMultiple(beans []*bean.Bean) error {

@@ -49,7 +49,7 @@ func TestIsValidStatus(t *testing.T) {
 		status string
 		want   bool
 	}{
-		{"backlog", true},
+		{"draft", true},
 		{"todo", true},
 		{"in-progress", true},
 		{"completed", true},
@@ -62,6 +62,7 @@ func TestIsValidStatus(t *testing.T) {
 		{"done", false},
 		{"ready", false},
 		{"not-ready", false},
+		{"backlog", false}, // renamed to draft
 	}
 
 	for _, tt := range tests {
@@ -77,7 +78,7 @@ func TestIsValidStatus(t *testing.T) {
 func TestStatusList(t *testing.T) {
 	cfg := Default()
 	got := cfg.StatusList()
-	want := "in-progress, todo, backlog, completed, scrapped"
+	want := "in-progress, todo, draft, completed, scrapped"
 
 	if got != want {
 		t.Errorf("StatusList() = %q, want %q", got, want)
@@ -91,7 +92,7 @@ func TestStatusNames(t *testing.T) {
 	if len(got) != 5 {
 		t.Fatalf("len(StatusNames()) = %d, want 5", len(got))
 	}
-	expected := []string{"in-progress", "todo", "backlog", "completed", "scrapped"}
+	expected := []string{"in-progress", "todo", "draft", "completed", "scrapped"}
 	for i, name := range expected {
 		if got[i] != name {
 			t.Errorf("StatusNames()[%d] = %q, want %q", i, got[i], name)
@@ -165,7 +166,7 @@ func TestIsArchiveStatus(t *testing.T) {
 	}{
 		{"completed", true},
 		{"scrapped", true},
-		{"backlog", false},
+		{"draft", false},
 		{"todo", false},
 		{"in-progress", false},
 		{"invalid", false},
@@ -285,7 +286,7 @@ func TestStatusesAreHardcoded(t *testing.T) {
 	cfg := Default()
 
 	// All hardcoded statuses should be valid
-	hardcodedStatuses := []string{"backlog", "todo", "in-progress", "completed", "scrapped"}
+	hardcodedStatuses := []string{"draft", "todo", "in-progress", "completed", "scrapped"}
 	for _, status := range hardcodedStatuses {
 		if !cfg.IsValidStatus(status) {
 			t.Errorf("IsValidStatus(%q) = false, want true", status)
@@ -491,7 +492,7 @@ func TestStatusDescriptions(t *testing.T) {
 		cfg := Default()
 
 		expectedDescriptions := map[string]string{
-			"backlog":     "Not yet ready to be worked on",
+			"draft":       "Needs refinement before it can be worked on",
 			"todo":        "Ready to be worked on",
 			"in-progress": "Currently being worked on",
 			"completed":   "Finished successfully",

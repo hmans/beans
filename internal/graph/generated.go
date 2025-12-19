@@ -42,7 +42,6 @@ type Config struct {
 
 type ResolverRoot interface {
 	Bean() BeanResolver
-	Link() LinkResolver
 	Mutation() MutationResolver
 	Query() QueryResolver
 }
@@ -52,38 +51,32 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	Bean struct {
-		BlockedBy  func(childComplexity int) int
-		Blocks     func(childComplexity int) int
-		Body       func(childComplexity int) int
-		Children   func(childComplexity int) int
-		CreatedAt  func(childComplexity int) int
-		Duplicates func(childComplexity int) int
-		ID         func(childComplexity int) int
-		Links      func(childComplexity int) int
-		Parent     func(childComplexity int) int
-		Path       func(childComplexity int) int
-		Priority   func(childComplexity int) int
-		Related    func(childComplexity int) int
-		Slug       func(childComplexity int) int
-		Status     func(childComplexity int) int
-		Tags       func(childComplexity int) int
-		Title      func(childComplexity int) int
-		Type       func(childComplexity int) int
-		UpdatedAt  func(childComplexity int) int
-	}
-
-	Link struct {
-		Target     func(childComplexity int) int
-		TargetBean func(childComplexity int) int
-		Type       func(childComplexity int) int
+		BlockedBy   func(childComplexity int, filter *model.BeanFilter) int
+		Blocking    func(childComplexity int, filter *model.BeanFilter) int
+		BlockingIds func(childComplexity int) int
+		Body        func(childComplexity int) int
+		Children    func(childComplexity int, filter *model.BeanFilter) int
+		CreatedAt   func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Parent      func(childComplexity int) int
+		ParentID    func(childComplexity int) int
+		Path        func(childComplexity int) int
+		Priority    func(childComplexity int) int
+		Slug        func(childComplexity int) int
+		Status      func(childComplexity int) int
+		Tags        func(childComplexity int) int
+		Title       func(childComplexity int) int
+		Type        func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
 	}
 
 	Mutation struct {
-		AddLink    func(childComplexity int, id string, link model.LinkInput) int
-		CreateBean func(childComplexity int, input model.CreateBeanInput) int
-		DeleteBean func(childComplexity int, id string) int
-		RemoveLink func(childComplexity int, id string, link model.LinkInput) int
-		UpdateBean func(childComplexity int, id string, input model.UpdateBeanInput) int
+		AddBlocking    func(childComplexity int, id string, targetID string) int
+		CreateBean     func(childComplexity int, input model.CreateBeanInput) int
+		DeleteBean     func(childComplexity int, id string) int
+		RemoveBlocking func(childComplexity int, id string, targetID string) int
+		SetParent      func(childComplexity int, id string, parentID *string) int
+		UpdateBean     func(childComplexity int, id string, input model.UpdateBeanInput) int
 	}
 
 	Query struct {
@@ -93,23 +86,20 @@ type ComplexityRoot struct {
 }
 
 type BeanResolver interface {
-	Links(ctx context.Context, obj *bean.Bean) ([]*bean.Link, error)
-	BlockedBy(ctx context.Context, obj *bean.Bean) ([]*bean.Bean, error)
-	Blocks(ctx context.Context, obj *bean.Bean) ([]*bean.Bean, error)
+	ParentID(ctx context.Context, obj *bean.Bean) (*string, error)
+	BlockingIds(ctx context.Context, obj *bean.Bean) ([]string, error)
+	BlockedBy(ctx context.Context, obj *bean.Bean, filter *model.BeanFilter) ([]*bean.Bean, error)
+	Blocking(ctx context.Context, obj *bean.Bean, filter *model.BeanFilter) ([]*bean.Bean, error)
 	Parent(ctx context.Context, obj *bean.Bean) (*bean.Bean, error)
-	Children(ctx context.Context, obj *bean.Bean) ([]*bean.Bean, error)
-	Duplicates(ctx context.Context, obj *bean.Bean) ([]*bean.Bean, error)
-	Related(ctx context.Context, obj *bean.Bean) ([]*bean.Bean, error)
-}
-type LinkResolver interface {
-	TargetBean(ctx context.Context, obj *bean.Link) (*bean.Bean, error)
+	Children(ctx context.Context, obj *bean.Bean, filter *model.BeanFilter) ([]*bean.Bean, error)
 }
 type MutationResolver interface {
 	CreateBean(ctx context.Context, input model.CreateBeanInput) (*bean.Bean, error)
 	UpdateBean(ctx context.Context, id string, input model.UpdateBeanInput) (*bean.Bean, error)
 	DeleteBean(ctx context.Context, id string) (bool, error)
-	AddLink(ctx context.Context, id string, link model.LinkInput) (*bean.Bean, error)
-	RemoveLink(ctx context.Context, id string, link model.LinkInput) (*bean.Bean, error)
+	SetParent(ctx context.Context, id string, parentID *string) (*bean.Bean, error)
+	AddBlocking(ctx context.Context, id string, targetID string) (*bean.Bean, error)
+	RemoveBlocking(ctx context.Context, id string, targetID string) (*bean.Bean, error)
 }
 type QueryResolver interface {
 	Bean(ctx context.Context, id string) (*bean.Bean, error)
@@ -140,13 +130,29 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			break
 		}
 
-		return e.complexity.Bean.BlockedBy(childComplexity), true
-	case "Bean.blocks":
-		if e.complexity.Bean.Blocks == nil {
+		args, err := ec.field_Bean_blockedBy_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Bean.BlockedBy(childComplexity, args["filter"].(*model.BeanFilter)), true
+	case "Bean.blocking":
+		if e.complexity.Bean.Blocking == nil {
 			break
 		}
 
-		return e.complexity.Bean.Blocks(childComplexity), true
+		args, err := ec.field_Bean_blocking_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Bean.Blocking(childComplexity, args["filter"].(*model.BeanFilter)), true
+	case "Bean.blockingIds":
+		if e.complexity.Bean.BlockingIds == nil {
+			break
+		}
+
+		return e.complexity.Bean.BlockingIds(childComplexity), true
 	case "Bean.body":
 		if e.complexity.Bean.Body == nil {
 			break
@@ -158,37 +164,36 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			break
 		}
 
-		return e.complexity.Bean.Children(childComplexity), true
+		args, err := ec.field_Bean_children_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Bean.Children(childComplexity, args["filter"].(*model.BeanFilter)), true
 	case "Bean.createdAt":
 		if e.complexity.Bean.CreatedAt == nil {
 			break
 		}
 
 		return e.complexity.Bean.CreatedAt(childComplexity), true
-	case "Bean.duplicates":
-		if e.complexity.Bean.Duplicates == nil {
-			break
-		}
-
-		return e.complexity.Bean.Duplicates(childComplexity), true
 	case "Bean.id":
 		if e.complexity.Bean.ID == nil {
 			break
 		}
 
 		return e.complexity.Bean.ID(childComplexity), true
-	case "Bean.links":
-		if e.complexity.Bean.Links == nil {
-			break
-		}
-
-		return e.complexity.Bean.Links(childComplexity), true
 	case "Bean.parent":
 		if e.complexity.Bean.Parent == nil {
 			break
 		}
 
 		return e.complexity.Bean.Parent(childComplexity), true
+	case "Bean.parentId":
+		if e.complexity.Bean.ParentID == nil {
+			break
+		}
+
+		return e.complexity.Bean.ParentID(childComplexity), true
 	case "Bean.path":
 		if e.complexity.Bean.Path == nil {
 			break
@@ -201,12 +206,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Bean.Priority(childComplexity), true
-	case "Bean.related":
-		if e.complexity.Bean.Related == nil {
-			break
-		}
-
-		return e.complexity.Bean.Related(childComplexity), true
 	case "Bean.slug":
 		if e.complexity.Bean.Slug == nil {
 			break
@@ -244,36 +243,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Bean.UpdatedAt(childComplexity), true
 
-	case "Link.target":
-		if e.complexity.Link.Target == nil {
+	case "Mutation.addBlocking":
+		if e.complexity.Mutation.AddBlocking == nil {
 			break
 		}
 
-		return e.complexity.Link.Target(childComplexity), true
-	case "Link.targetBean":
-		if e.complexity.Link.TargetBean == nil {
-			break
-		}
-
-		return e.complexity.Link.TargetBean(childComplexity), true
-	case "Link.type":
-		if e.complexity.Link.Type == nil {
-			break
-		}
-
-		return e.complexity.Link.Type(childComplexity), true
-
-	case "Mutation.addLink":
-		if e.complexity.Mutation.AddLink == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_addLink_args(ctx, rawArgs)
+		args, err := ec.field_Mutation_addBlocking_args(ctx, rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.complexity.Mutation.AddLink(childComplexity, args["id"].(string), args["link"].(model.LinkInput)), true
+		return e.complexity.Mutation.AddBlocking(childComplexity, args["id"].(string), args["targetId"].(string)), true
 	case "Mutation.createBean":
 		if e.complexity.Mutation.CreateBean == nil {
 			break
@@ -296,17 +276,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.DeleteBean(childComplexity, args["id"].(string)), true
-	case "Mutation.removeLink":
-		if e.complexity.Mutation.RemoveLink == nil {
+	case "Mutation.removeBlocking":
+		if e.complexity.Mutation.RemoveBlocking == nil {
 			break
 		}
 
-		args, err := ec.field_Mutation_removeLink_args(ctx, rawArgs)
+		args, err := ec.field_Mutation_removeBlocking_args(ctx, rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.complexity.Mutation.RemoveLink(childComplexity, args["id"].(string), args["link"].(model.LinkInput)), true
+		return e.complexity.Mutation.RemoveBlocking(childComplexity, args["id"].(string), args["targetId"].(string)), true
+	case "Mutation.setParent":
+		if e.complexity.Mutation.SetParent == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setParent_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.SetParent(childComplexity, args["id"].(string), args["parentId"].(*string)), true
 	case "Mutation.updateBean":
 		if e.complexity.Mutation.UpdateBean == nil {
 			break
@@ -352,8 +343,6 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputBeanFilter,
 		ec.unmarshalInputCreateBeanInput,
-		ec.unmarshalInputLinkFilter,
-		ec.unmarshalInputLinkInput,
 		ec.unmarshalInputUpdateBeanInput,
 	)
 	first := true
@@ -471,7 +460,40 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
 // region    ***************************** args.gotpl *****************************
 
-func (ec *executionContext) field_Mutation_addLink_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+func (ec *executionContext) field_Bean_blockedBy_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "filter", ec.unmarshalOBeanFilter2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐBeanFilter)
+	if err != nil {
+		return nil, err
+	}
+	args["filter"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Bean_blocking_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "filter", ec.unmarshalOBeanFilter2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐBeanFilter)
+	if err != nil {
+		return nil, err
+	}
+	args["filter"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Bean_children_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "filter", ec.unmarshalOBeanFilter2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐBeanFilter)
+	if err != nil {
+		return nil, err
+	}
+	args["filter"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_addBlocking_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
@@ -479,11 +501,11 @@ func (ec *executionContext) field_Mutation_addLink_args(ctx context.Context, raw
 		return nil, err
 	}
 	args["id"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "link", ec.unmarshalNLinkInput2githubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐLinkInput)
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "targetId", ec.unmarshalNID2string)
 	if err != nil {
 		return nil, err
 	}
-	args["link"] = arg1
+	args["targetId"] = arg1
 	return args, nil
 }
 
@@ -509,7 +531,7 @@ func (ec *executionContext) field_Mutation_deleteBean_args(ctx context.Context, 
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_removeLink_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+func (ec *executionContext) field_Mutation_removeBlocking_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
@@ -517,11 +539,27 @@ func (ec *executionContext) field_Mutation_removeLink_args(ctx context.Context, 
 		return nil, err
 	}
 	args["id"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "link", ec.unmarshalNLinkInput2githubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐLinkInput)
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "targetId", ec.unmarshalNID2string)
 	if err != nil {
 		return nil, err
 	}
-	args["link"] = arg1
+	args["targetId"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setParent_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "parentId", ec.unmarshalOString2ᚖstring)
+	if err != nil {
+		return nil, err
+	}
+	args["parentId"] = arg1
 	return args, nil
 }
 
@@ -945,38 +983,59 @@ func (ec *executionContext) fieldContext_Bean_body(_ context.Context, field grap
 	return fc, nil
 }
 
-func (ec *executionContext) _Bean_links(ctx context.Context, field graphql.CollectedField, obj *bean.Bean) (ret graphql.Marshaler) {
+func (ec *executionContext) _Bean_parentId(ctx context.Context, field graphql.CollectedField, obj *bean.Bean) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_Bean_links,
+		ec.fieldContext_Bean_parentId,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Bean().Links(ctx, obj)
+			return ec.resolvers.Bean().ParentID(ctx, obj)
 		},
 		nil,
-		ec.marshalNLink2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋbeanᚐLinkᚄ,
+		ec.marshalOString2ᚖstring,
 		true,
-		true,
+		false,
 	)
 }
 
-func (ec *executionContext) fieldContext_Bean_links(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Bean_parentId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Bean",
 		Field:      field,
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "type":
-				return ec.fieldContext_Link_type(ctx, field)
-			case "target":
-				return ec.fieldContext_Link_target(ctx, field)
-			case "targetBean":
-				return ec.fieldContext_Link_targetBean(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Link", field.Name)
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Bean_blockingIds(ctx context.Context, field graphql.CollectedField, obj *bean.Bean) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Bean_blockingIds,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Bean().BlockingIds(ctx, obj)
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Bean_blockingIds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Bean",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -989,7 +1048,8 @@ func (ec *executionContext) _Bean_blockedBy(ctx context.Context, field graphql.C
 		field,
 		ec.fieldContext_Bean_blockedBy,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Bean().BlockedBy(ctx, obj)
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Bean().BlockedBy(ctx, obj, fc.Args["filter"].(*model.BeanFilter))
 		},
 		nil,
 		ec.marshalNBean2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋbeanᚐBeanᚄ,
@@ -998,7 +1058,7 @@ func (ec *executionContext) _Bean_blockedBy(ctx context.Context, field graphql.C
 	)
 }
 
-func (ec *executionContext) fieldContext_Bean_blockedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Bean_blockedBy(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Bean",
 		Field:      field,
@@ -1028,35 +1088,45 @@ func (ec *executionContext) fieldContext_Bean_blockedBy(_ context.Context, field
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
-			case "links":
-				return ec.fieldContext_Bean_links(ctx, field)
+			case "parentId":
+				return ec.fieldContext_Bean_parentId(ctx, field)
+			case "blockingIds":
+				return ec.fieldContext_Bean_blockingIds(ctx, field)
 			case "blockedBy":
 				return ec.fieldContext_Bean_blockedBy(ctx, field)
-			case "blocks":
-				return ec.fieldContext_Bean_blocks(ctx, field)
+			case "blocking":
+				return ec.fieldContext_Bean_blocking(ctx, field)
 			case "parent":
 				return ec.fieldContext_Bean_parent(ctx, field)
 			case "children":
 				return ec.fieldContext_Bean_children(ctx, field)
-			case "duplicates":
-				return ec.fieldContext_Bean_duplicates(ctx, field)
-			case "related":
-				return ec.fieldContext_Bean_related(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
 		},
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Bean_blockedBy_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
 	return fc, nil
 }
 
-func (ec *executionContext) _Bean_blocks(ctx context.Context, field graphql.CollectedField, obj *bean.Bean) (ret graphql.Marshaler) {
+func (ec *executionContext) _Bean_blocking(ctx context.Context, field graphql.CollectedField, obj *bean.Bean) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_Bean_blocks,
+		ec.fieldContext_Bean_blocking,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Bean().Blocks(ctx, obj)
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Bean().Blocking(ctx, obj, fc.Args["filter"].(*model.BeanFilter))
 		},
 		nil,
 		ec.marshalNBean2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋbeanᚐBeanᚄ,
@@ -1065,7 +1135,7 @@ func (ec *executionContext) _Bean_blocks(ctx context.Context, field graphql.Coll
 	)
 }
 
-func (ec *executionContext) fieldContext_Bean_blocks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Bean_blocking(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Bean",
 		Field:      field,
@@ -1095,23 +1165,32 @@ func (ec *executionContext) fieldContext_Bean_blocks(_ context.Context, field gr
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
-			case "links":
-				return ec.fieldContext_Bean_links(ctx, field)
+			case "parentId":
+				return ec.fieldContext_Bean_parentId(ctx, field)
+			case "blockingIds":
+				return ec.fieldContext_Bean_blockingIds(ctx, field)
 			case "blockedBy":
 				return ec.fieldContext_Bean_blockedBy(ctx, field)
-			case "blocks":
-				return ec.fieldContext_Bean_blocks(ctx, field)
+			case "blocking":
+				return ec.fieldContext_Bean_blocking(ctx, field)
 			case "parent":
 				return ec.fieldContext_Bean_parent(ctx, field)
 			case "children":
 				return ec.fieldContext_Bean_children(ctx, field)
-			case "duplicates":
-				return ec.fieldContext_Bean_duplicates(ctx, field)
-			case "related":
-				return ec.fieldContext_Bean_related(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
 		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Bean_blocking_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -1162,20 +1241,18 @@ func (ec *executionContext) fieldContext_Bean_parent(_ context.Context, field gr
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
-			case "links":
-				return ec.fieldContext_Bean_links(ctx, field)
+			case "parentId":
+				return ec.fieldContext_Bean_parentId(ctx, field)
+			case "blockingIds":
+				return ec.fieldContext_Bean_blockingIds(ctx, field)
 			case "blockedBy":
 				return ec.fieldContext_Bean_blockedBy(ctx, field)
-			case "blocks":
-				return ec.fieldContext_Bean_blocks(ctx, field)
+			case "blocking":
+				return ec.fieldContext_Bean_blocking(ctx, field)
 			case "parent":
 				return ec.fieldContext_Bean_parent(ctx, field)
 			case "children":
 				return ec.fieldContext_Bean_children(ctx, field)
-			case "duplicates":
-				return ec.fieldContext_Bean_duplicates(ctx, field)
-			case "related":
-				return ec.fieldContext_Bean_related(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
 		},
@@ -1190,7 +1267,8 @@ func (ec *executionContext) _Bean_children(ctx context.Context, field graphql.Co
 		field,
 		ec.fieldContext_Bean_children,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Bean().Children(ctx, obj)
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Bean().Children(ctx, obj, fc.Args["filter"].(*model.BeanFilter))
 		},
 		nil,
 		ec.marshalNBean2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋbeanᚐBeanᚄ,
@@ -1199,7 +1277,7 @@ func (ec *executionContext) _Bean_children(ctx context.Context, field graphql.Co
 	)
 }
 
-func (ec *executionContext) fieldContext_Bean_children(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Bean_children(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Bean",
 		Field:      field,
@@ -1229,282 +1307,32 @@ func (ec *executionContext) fieldContext_Bean_children(_ context.Context, field 
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
-			case "links":
-				return ec.fieldContext_Bean_links(ctx, field)
+			case "parentId":
+				return ec.fieldContext_Bean_parentId(ctx, field)
+			case "blockingIds":
+				return ec.fieldContext_Bean_blockingIds(ctx, field)
 			case "blockedBy":
 				return ec.fieldContext_Bean_blockedBy(ctx, field)
-			case "blocks":
-				return ec.fieldContext_Bean_blocks(ctx, field)
+			case "blocking":
+				return ec.fieldContext_Bean_blocking(ctx, field)
 			case "parent":
 				return ec.fieldContext_Bean_parent(ctx, field)
 			case "children":
 				return ec.fieldContext_Bean_children(ctx, field)
-			case "duplicates":
-				return ec.fieldContext_Bean_duplicates(ctx, field)
-			case "related":
-				return ec.fieldContext_Bean_related(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
 		},
 	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Bean_duplicates(ctx context.Context, field graphql.CollectedField, obj *bean.Bean) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Bean_duplicates,
-		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Bean().Duplicates(ctx, obj)
-		},
-		nil,
-		ec.marshalNBean2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋbeanᚐBeanᚄ,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_Bean_duplicates(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Bean",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_Bean_id(ctx, field)
-			case "slug":
-				return ec.fieldContext_Bean_slug(ctx, field)
-			case "path":
-				return ec.fieldContext_Bean_path(ctx, field)
-			case "title":
-				return ec.fieldContext_Bean_title(ctx, field)
-			case "status":
-				return ec.fieldContext_Bean_status(ctx, field)
-			case "type":
-				return ec.fieldContext_Bean_type(ctx, field)
-			case "priority":
-				return ec.fieldContext_Bean_priority(ctx, field)
-			case "tags":
-				return ec.fieldContext_Bean_tags(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_Bean_createdAt(ctx, field)
-			case "updatedAt":
-				return ec.fieldContext_Bean_updatedAt(ctx, field)
-			case "body":
-				return ec.fieldContext_Bean_body(ctx, field)
-			case "links":
-				return ec.fieldContext_Bean_links(ctx, field)
-			case "blockedBy":
-				return ec.fieldContext_Bean_blockedBy(ctx, field)
-			case "blocks":
-				return ec.fieldContext_Bean_blocks(ctx, field)
-			case "parent":
-				return ec.fieldContext_Bean_parent(ctx, field)
-			case "children":
-				return ec.fieldContext_Bean_children(ctx, field)
-			case "duplicates":
-				return ec.fieldContext_Bean_duplicates(ctx, field)
-			case "related":
-				return ec.fieldContext_Bean_related(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Bean_related(ctx context.Context, field graphql.CollectedField, obj *bean.Bean) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Bean_related,
-		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Bean().Related(ctx, obj)
-		},
-		nil,
-		ec.marshalNBean2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋbeanᚐBeanᚄ,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_Bean_related(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Bean",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_Bean_id(ctx, field)
-			case "slug":
-				return ec.fieldContext_Bean_slug(ctx, field)
-			case "path":
-				return ec.fieldContext_Bean_path(ctx, field)
-			case "title":
-				return ec.fieldContext_Bean_title(ctx, field)
-			case "status":
-				return ec.fieldContext_Bean_status(ctx, field)
-			case "type":
-				return ec.fieldContext_Bean_type(ctx, field)
-			case "priority":
-				return ec.fieldContext_Bean_priority(ctx, field)
-			case "tags":
-				return ec.fieldContext_Bean_tags(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_Bean_createdAt(ctx, field)
-			case "updatedAt":
-				return ec.fieldContext_Bean_updatedAt(ctx, field)
-			case "body":
-				return ec.fieldContext_Bean_body(ctx, field)
-			case "links":
-				return ec.fieldContext_Bean_links(ctx, field)
-			case "blockedBy":
-				return ec.fieldContext_Bean_blockedBy(ctx, field)
-			case "blocks":
-				return ec.fieldContext_Bean_blocks(ctx, field)
-			case "parent":
-				return ec.fieldContext_Bean_parent(ctx, field)
-			case "children":
-				return ec.fieldContext_Bean_children(ctx, field)
-			case "duplicates":
-				return ec.fieldContext_Bean_duplicates(ctx, field)
-			case "related":
-				return ec.fieldContext_Bean_related(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Link_type(ctx context.Context, field graphql.CollectedField, obj *bean.Link) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Link_type,
-		func(ctx context.Context) (any, error) {
-			return obj.Type, nil
-		},
-		nil,
-		ec.marshalNString2string,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_Link_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Link",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Link_target(ctx context.Context, field graphql.CollectedField, obj *bean.Link) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Link_target,
-		func(ctx context.Context) (any, error) {
-			return obj.Target, nil
-		},
-		nil,
-		ec.marshalNString2string,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_Link_target(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Link",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Link_targetBean(ctx context.Context, field graphql.CollectedField, obj *bean.Link) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Link_targetBean,
-		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Link().TargetBean(ctx, obj)
-		},
-		nil,
-		ec.marshalOBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋbeanᚐBean,
-		true,
-		false,
-	)
-}
-
-func (ec *executionContext) fieldContext_Link_targetBean(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Link",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_Bean_id(ctx, field)
-			case "slug":
-				return ec.fieldContext_Bean_slug(ctx, field)
-			case "path":
-				return ec.fieldContext_Bean_path(ctx, field)
-			case "title":
-				return ec.fieldContext_Bean_title(ctx, field)
-			case "status":
-				return ec.fieldContext_Bean_status(ctx, field)
-			case "type":
-				return ec.fieldContext_Bean_type(ctx, field)
-			case "priority":
-				return ec.fieldContext_Bean_priority(ctx, field)
-			case "tags":
-				return ec.fieldContext_Bean_tags(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_Bean_createdAt(ctx, field)
-			case "updatedAt":
-				return ec.fieldContext_Bean_updatedAt(ctx, field)
-			case "body":
-				return ec.fieldContext_Bean_body(ctx, field)
-			case "links":
-				return ec.fieldContext_Bean_links(ctx, field)
-			case "blockedBy":
-				return ec.fieldContext_Bean_blockedBy(ctx, field)
-			case "blocks":
-				return ec.fieldContext_Bean_blocks(ctx, field)
-			case "parent":
-				return ec.fieldContext_Bean_parent(ctx, field)
-			case "children":
-				return ec.fieldContext_Bean_children(ctx, field)
-			case "duplicates":
-				return ec.fieldContext_Bean_duplicates(ctx, field)
-			case "related":
-				return ec.fieldContext_Bean_related(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
-		},
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Bean_children_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -1556,20 +1384,18 @@ func (ec *executionContext) fieldContext_Mutation_createBean(ctx context.Context
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
-			case "links":
-				return ec.fieldContext_Bean_links(ctx, field)
+			case "parentId":
+				return ec.fieldContext_Bean_parentId(ctx, field)
+			case "blockingIds":
+				return ec.fieldContext_Bean_blockingIds(ctx, field)
 			case "blockedBy":
 				return ec.fieldContext_Bean_blockedBy(ctx, field)
-			case "blocks":
-				return ec.fieldContext_Bean_blocks(ctx, field)
+			case "blocking":
+				return ec.fieldContext_Bean_blocking(ctx, field)
 			case "parent":
 				return ec.fieldContext_Bean_parent(ctx, field)
 			case "children":
 				return ec.fieldContext_Bean_children(ctx, field)
-			case "duplicates":
-				return ec.fieldContext_Bean_duplicates(ctx, field)
-			case "related":
-				return ec.fieldContext_Bean_related(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
 		},
@@ -1635,20 +1461,18 @@ func (ec *executionContext) fieldContext_Mutation_updateBean(ctx context.Context
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
-			case "links":
-				return ec.fieldContext_Bean_links(ctx, field)
+			case "parentId":
+				return ec.fieldContext_Bean_parentId(ctx, field)
+			case "blockingIds":
+				return ec.fieldContext_Bean_blockingIds(ctx, field)
 			case "blockedBy":
 				return ec.fieldContext_Bean_blockedBy(ctx, field)
-			case "blocks":
-				return ec.fieldContext_Bean_blocks(ctx, field)
+			case "blocking":
+				return ec.fieldContext_Bean_blocking(ctx, field)
 			case "parent":
 				return ec.fieldContext_Bean_parent(ctx, field)
 			case "children":
 				return ec.fieldContext_Bean_children(ctx, field)
-			case "duplicates":
-				return ec.fieldContext_Bean_duplicates(ctx, field)
-			case "related":
-				return ec.fieldContext_Bean_related(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
 		},
@@ -1708,15 +1532,15 @@ func (ec *executionContext) fieldContext_Mutation_deleteBean(ctx context.Context
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_addLink(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Mutation_setParent(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_Mutation_addLink,
+		ec.fieldContext_Mutation_setParent,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Mutation().AddLink(ctx, fc.Args["id"].(string), fc.Args["link"].(model.LinkInput))
+			return ec.resolvers.Mutation().SetParent(ctx, fc.Args["id"].(string), fc.Args["parentId"].(*string))
 		},
 		nil,
 		ec.marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋbeanᚐBean,
@@ -1725,7 +1549,7 @@ func (ec *executionContext) _Mutation_addLink(ctx context.Context, field graphql
 	)
 }
 
-func (ec *executionContext) fieldContext_Mutation_addLink(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_setParent(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -1755,20 +1579,18 @@ func (ec *executionContext) fieldContext_Mutation_addLink(ctx context.Context, f
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
-			case "links":
-				return ec.fieldContext_Bean_links(ctx, field)
+			case "parentId":
+				return ec.fieldContext_Bean_parentId(ctx, field)
+			case "blockingIds":
+				return ec.fieldContext_Bean_blockingIds(ctx, field)
 			case "blockedBy":
 				return ec.fieldContext_Bean_blockedBy(ctx, field)
-			case "blocks":
-				return ec.fieldContext_Bean_blocks(ctx, field)
+			case "blocking":
+				return ec.fieldContext_Bean_blocking(ctx, field)
 			case "parent":
 				return ec.fieldContext_Bean_parent(ctx, field)
 			case "children":
 				return ec.fieldContext_Bean_children(ctx, field)
-			case "duplicates":
-				return ec.fieldContext_Bean_duplicates(ctx, field)
-			case "related":
-				return ec.fieldContext_Bean_related(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
 		},
@@ -1780,22 +1602,22 @@ func (ec *executionContext) fieldContext_Mutation_addLink(ctx context.Context, f
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_addLink_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Mutation_setParent_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_removeLink(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Mutation_addBlocking(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_Mutation_removeLink,
+		ec.fieldContext_Mutation_addBlocking,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Mutation().RemoveLink(ctx, fc.Args["id"].(string), fc.Args["link"].(model.LinkInput))
+			return ec.resolvers.Mutation().AddBlocking(ctx, fc.Args["id"].(string), fc.Args["targetId"].(string))
 		},
 		nil,
 		ec.marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋbeanᚐBean,
@@ -1804,7 +1626,7 @@ func (ec *executionContext) _Mutation_removeLink(ctx context.Context, field grap
 	)
 }
 
-func (ec *executionContext) fieldContext_Mutation_removeLink(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_addBlocking(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -1834,20 +1656,18 @@ func (ec *executionContext) fieldContext_Mutation_removeLink(ctx context.Context
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
-			case "links":
-				return ec.fieldContext_Bean_links(ctx, field)
+			case "parentId":
+				return ec.fieldContext_Bean_parentId(ctx, field)
+			case "blockingIds":
+				return ec.fieldContext_Bean_blockingIds(ctx, field)
 			case "blockedBy":
 				return ec.fieldContext_Bean_blockedBy(ctx, field)
-			case "blocks":
-				return ec.fieldContext_Bean_blocks(ctx, field)
+			case "blocking":
+				return ec.fieldContext_Bean_blocking(ctx, field)
 			case "parent":
 				return ec.fieldContext_Bean_parent(ctx, field)
 			case "children":
 				return ec.fieldContext_Bean_children(ctx, field)
-			case "duplicates":
-				return ec.fieldContext_Bean_duplicates(ctx, field)
-			case "related":
-				return ec.fieldContext_Bean_related(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
 		},
@@ -1859,7 +1679,84 @@ func (ec *executionContext) fieldContext_Mutation_removeLink(ctx context.Context
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_removeLink_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Mutation_addBlocking_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_removeBlocking(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_removeBlocking,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().RemoveBlocking(ctx, fc.Args["id"].(string), fc.Args["targetId"].(string))
+		},
+		nil,
+		ec.marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋbeanᚐBean,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_removeBlocking(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Bean_id(ctx, field)
+			case "slug":
+				return ec.fieldContext_Bean_slug(ctx, field)
+			case "path":
+				return ec.fieldContext_Bean_path(ctx, field)
+			case "title":
+				return ec.fieldContext_Bean_title(ctx, field)
+			case "status":
+				return ec.fieldContext_Bean_status(ctx, field)
+			case "type":
+				return ec.fieldContext_Bean_type(ctx, field)
+			case "priority":
+				return ec.fieldContext_Bean_priority(ctx, field)
+			case "tags":
+				return ec.fieldContext_Bean_tags(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Bean_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Bean_updatedAt(ctx, field)
+			case "body":
+				return ec.fieldContext_Bean_body(ctx, field)
+			case "parentId":
+				return ec.fieldContext_Bean_parentId(ctx, field)
+			case "blockingIds":
+				return ec.fieldContext_Bean_blockingIds(ctx, field)
+			case "blockedBy":
+				return ec.fieldContext_Bean_blockedBy(ctx, field)
+			case "blocking":
+				return ec.fieldContext_Bean_blocking(ctx, field)
+			case "parent":
+				return ec.fieldContext_Bean_parent(ctx, field)
+			case "children":
+				return ec.fieldContext_Bean_children(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_removeBlocking_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -1913,20 +1810,18 @@ func (ec *executionContext) fieldContext_Query_bean(ctx context.Context, field g
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
-			case "links":
-				return ec.fieldContext_Bean_links(ctx, field)
+			case "parentId":
+				return ec.fieldContext_Bean_parentId(ctx, field)
+			case "blockingIds":
+				return ec.fieldContext_Bean_blockingIds(ctx, field)
 			case "blockedBy":
 				return ec.fieldContext_Bean_blockedBy(ctx, field)
-			case "blocks":
-				return ec.fieldContext_Bean_blocks(ctx, field)
+			case "blocking":
+				return ec.fieldContext_Bean_blocking(ctx, field)
 			case "parent":
 				return ec.fieldContext_Bean_parent(ctx, field)
 			case "children":
 				return ec.fieldContext_Bean_children(ctx, field)
-			case "duplicates":
-				return ec.fieldContext_Bean_duplicates(ctx, field)
-			case "related":
-				return ec.fieldContext_Bean_related(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
 		},
@@ -1992,20 +1887,18 @@ func (ec *executionContext) fieldContext_Query_beans(ctx context.Context, field 
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
-			case "links":
-				return ec.fieldContext_Bean_links(ctx, field)
+			case "parentId":
+				return ec.fieldContext_Bean_parentId(ctx, field)
+			case "blockingIds":
+				return ec.fieldContext_Bean_blockingIds(ctx, field)
 			case "blockedBy":
 				return ec.fieldContext_Bean_blockedBy(ctx, field)
-			case "blocks":
-				return ec.fieldContext_Bean_blocks(ctx, field)
+			case "blocking":
+				return ec.fieldContext_Bean_blocking(ctx, field)
 			case "parent":
 				return ec.fieldContext_Bean_parent(ctx, field)
 			case "children":
 				return ec.fieldContext_Bean_children(ctx, field)
-			case "duplicates":
-				return ec.fieldContext_Bean_duplicates(ctx, field)
-			case "related":
-				return ec.fieldContext_Bean_related(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
 		},
@@ -3585,13 +3478,20 @@ func (ec *executionContext) unmarshalInputBeanFilter(ctx context.Context, obj an
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"status", "excludeStatus", "type", "excludeType", "priority", "excludePriority", "tags", "excludeTags", "hasLinks", "linkedAs", "noLinks", "noLinkedAs"}
+	fieldsInOrder := [...]string{"search", "status", "excludeStatus", "type", "excludeType", "priority", "excludePriority", "tags", "excludeTags", "hasParent", "parentId", "hasBlocking", "blockingId", "isBlocked", "noParent", "noBlocking"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
+		case "search":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("search"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Search = data
 		case "status":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("status"))
 			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
@@ -3648,34 +3548,55 @@ func (ec *executionContext) unmarshalInputBeanFilter(ctx context.Context, obj an
 				return it, err
 			}
 			it.ExcludeTags = data
-		case "hasLinks":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hasLinks"))
-			data, err := ec.unmarshalOLinkFilter2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐLinkFilterᚄ(ctx, v)
+		case "hasParent":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hasParent"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.HasLinks = data
-		case "linkedAs":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("linkedAs"))
-			data, err := ec.unmarshalOLinkFilter2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐLinkFilterᚄ(ctx, v)
+			it.HasParent = data
+		case "parentId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("parentId"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.LinkedAs = data
-		case "noLinks":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("noLinks"))
-			data, err := ec.unmarshalOLinkFilter2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐLinkFilterᚄ(ctx, v)
+			it.ParentID = data
+		case "hasBlocking":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hasBlocking"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.NoLinks = data
-		case "noLinkedAs":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("noLinkedAs"))
-			data, err := ec.unmarshalOLinkFilter2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐLinkFilterᚄ(ctx, v)
+			it.HasBlocking = data
+		case "blockingId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("blockingId"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.NoLinkedAs = data
+			it.BlockingID = data
+		case "isBlocked":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isBlocked"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IsBlocked = data
+		case "noParent":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("noParent"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NoParent = data
+		case "noBlocking":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("noBlocking"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NoBlocking = data
 		}
 	}
 
@@ -3689,7 +3610,7 @@ func (ec *executionContext) unmarshalInputCreateBeanInput(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"title", "type", "status", "priority", "tags", "body", "links"}
+	fieldsInOrder := [...]string{"title", "type", "status", "priority", "tags", "body", "parent", "blocking"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -3738,81 +3659,20 @@ func (ec *executionContext) unmarshalInputCreateBeanInput(ctx context.Context, o
 				return it, err
 			}
 			it.Body = data
-		case "links":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("links"))
-			data, err := ec.unmarshalOLinkInput2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐLinkInputᚄ(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Links = data
-		}
-	}
-
-	return it, nil
-}
-
-func (ec *executionContext) unmarshalInputLinkFilter(ctx context.Context, obj any) (model.LinkFilter, error) {
-	var it model.LinkFilter
-	asMap := map[string]any{}
-	for k, v := range obj.(map[string]any) {
-		asMap[k] = v
-	}
-
-	fieldsInOrder := [...]string{"type", "target"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "type":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("type"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Type = data
-		case "target":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("target"))
+		case "parent":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("parent"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.Target = data
-		}
-	}
-
-	return it, nil
-}
-
-func (ec *executionContext) unmarshalInputLinkInput(ctx context.Context, obj any) (model.LinkInput, error) {
-	var it model.LinkInput
-	asMap := map[string]any{}
-	for k, v := range obj.(map[string]any) {
-		asMap[k] = v
-	}
-
-	fieldsInOrder := [...]string{"type", "target"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "type":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("type"))
-			data, err := ec.unmarshalNString2string(ctx, v)
+			it.Parent = data
+		case "blocking":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("blocking"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.Type = data
-		case "target":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("target"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Target = data
+			it.Blocking = data
 		}
 	}
 
@@ -3952,7 +3812,40 @@ func (ec *executionContext) _Bean(ctx context.Context, sel ast.SelectionSet, obj
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
-		case "links":
+		case "parentId":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Bean_parentId(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "blockingIds":
 			field := field
 
 			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
@@ -3961,7 +3854,7 @@ func (ec *executionContext) _Bean(ctx context.Context, sel ast.SelectionSet, obj
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Bean_links(ctx, field, obj)
+				res = ec._Bean_blockingIds(ctx, field, obj)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -4024,7 +3917,7 @@ func (ec *executionContext) _Bean(ctx context.Context, sel ast.SelectionSet, obj
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-		case "blocks":
+		case "blocking":
 			field := field
 
 			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
@@ -4033,7 +3926,7 @@ func (ec *executionContext) _Bean(ctx context.Context, sel ast.SelectionSet, obj
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Bean_blocks(ctx, field, obj)
+				res = ec._Bean_blocking(ctx, field, obj)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -4129,155 +4022,6 @@ func (ec *executionContext) _Bean(ctx context.Context, sel ast.SelectionSet, obj
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-		case "duplicates":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Bean_duplicates(ctx, field, obj)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			if field.Deferrable != nil {
-				dfs, ok := deferred[field.Deferrable.Label]
-				di := 0
-				if ok {
-					dfs.AddField(field)
-					di = len(dfs.Values) - 1
-				} else {
-					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
-					deferred[field.Deferrable.Label] = dfs
-				}
-				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
-					return innerFunc(ctx, dfs)
-				})
-
-				// don't run the out.Concurrently() call below
-				out.Values[i] = graphql.Null
-				continue
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-		case "related":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Bean_related(ctx, field, obj)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			if field.Deferrable != nil {
-				dfs, ok := deferred[field.Deferrable.Label]
-				di := 0
-				if ok {
-					dfs.AddField(field)
-					di = len(dfs.Values) - 1
-				} else {
-					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
-					deferred[field.Deferrable.Label] = dfs
-				}
-				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
-					return innerFunc(ctx, dfs)
-				})
-
-				// don't run the out.Concurrently() call below
-				out.Values[i] = graphql.Null
-				continue
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
-
-	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
-			Label:    label,
-			Path:     graphql.GetPath(ctx),
-			FieldSet: dfs,
-			Context:  ctx,
-		})
-	}
-
-	return out
-}
-
-var linkImplementors = []string{"Link"}
-
-func (ec *executionContext) _Link(ctx context.Context, sel ast.SelectionSet, obj *bean.Link) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, linkImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferred := make(map[string]*graphql.FieldSet)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("Link")
-		case "type":
-			out.Values[i] = ec._Link_type(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
-			}
-		case "target":
-			out.Values[i] = ec._Link_target(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
-			}
-		case "targetBean":
-			field := field
-
-			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Link_targetBean(ctx, field, obj)
-				return res
-			}
-
-			if field.Deferrable != nil {
-				dfs, ok := deferred[field.Deferrable.Label]
-				di := 0
-				if ok {
-					dfs.AddField(field)
-					di = len(dfs.Values) - 1
-				} else {
-					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
-					deferred[field.Deferrable.Label] = dfs
-				}
-				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
-					return innerFunc(ctx, dfs)
-				})
-
-				// don't run the out.Concurrently() call below
-				out.Values[i] = graphql.Null
-				continue
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -4341,16 +4085,23 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "addLink":
+		case "setParent":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_addLink(ctx, field)
+				return ec._Mutation_setParent(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "removeLink":
+		case "addBlocking":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_removeLink(ctx, field)
+				return ec._Mutation_addBlocking(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "removeBlocking":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_removeBlocking(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -4899,75 +4650,6 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 	return res
 }
 
-func (ec *executionContext) marshalNLink2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋbeanᚐLinkᚄ(ctx context.Context, sel ast.SelectionSet, v []*bean.Link) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNLink2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋbeanᚐLink(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNLink2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋbeanᚐLink(ctx context.Context, sel ast.SelectionSet, v *bean.Link) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._Link(ctx, sel, v)
-}
-
-func (ec *executionContext) unmarshalNLinkFilter2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐLinkFilter(ctx context.Context, v any) (*model.LinkFilter, error) {
-	res, err := ec.unmarshalInputLinkFilter(ctx, v)
-	return &res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) unmarshalNLinkInput2githubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐLinkInput(ctx context.Context, v any) (model.LinkInput, error) {
-	res, err := ec.unmarshalInputLinkInput(ctx, v)
-	return res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) unmarshalNLinkInput2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐLinkInput(ctx context.Context, v any) (*model.LinkInput, error) {
-	res, err := ec.unmarshalInputLinkInput(ctx, v)
-	return &res, graphql.ErrorOnPath(ctx, err)
-}
-
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {
 	res, err := graphql.UnmarshalString(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -5337,42 +5019,6 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	_ = ctx
 	res := graphql.MarshalBoolean(*v)
 	return res
-}
-
-func (ec *executionContext) unmarshalOLinkFilter2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐLinkFilterᚄ(ctx context.Context, v any) ([]*model.LinkFilter, error) {
-	if v == nil {
-		return nil, nil
-	}
-	var vSlice []any
-	vSlice = graphql.CoerceList(v)
-	var err error
-	res := make([]*model.LinkFilter, len(vSlice))
-	for i := range vSlice {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNLinkFilter2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐLinkFilter(ctx, vSlice[i])
-		if err != nil {
-			return nil, err
-		}
-	}
-	return res, nil
-}
-
-func (ec *executionContext) unmarshalOLinkInput2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐLinkInputᚄ(ctx context.Context, v any) ([]*model.LinkInput, error) {
-	if v == nil {
-		return nil, nil
-	}
-	var vSlice []any
-	vSlice = graphql.CoerceList(v)
-	var err error
-	res := make([]*model.LinkInput, len(vSlice))
-	for i := range vSlice {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNLinkInput2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐLinkInput(ctx, vSlice[i])
-		if err != nil {
-			return nil, err
-		}
-	}
-	return res, nil
 }
 
 func (ec *executionContext) unmarshalOString2string(ctx context.Context, v any) (string, error) {

@@ -5,6 +5,7 @@ package beancore
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/hmans/beans/internal/bean"
 	"github.com/hmans/beans/internal/config"
+	"github.com/hmans/beans/internal/search"
 )
 
 const BeansDir = ".beans"
@@ -21,9 +23,6 @@ var (
 	ErrNotFound    = errors.New("bean not found")
 	ErrAmbiguousID = errors.New("ambiguous ID prefix matches multiple beans")
 )
-
-// KnownLinkTypes lists the recognized relationship types.
-var KnownLinkTypes = []string{"blocks", "duplicates", "parent", "related"}
 
 // Core provides thread-safe in-memory storage for beans with filesystem persistence.
 type Core struct {
@@ -34,18 +33,38 @@ type Core struct {
 	mu    sync.RWMutex
 	beans map[string]*bean.Bean // ID -> Bean
 
+	// Search index (optional, lazy-initialized)
+	searchIndex *search.Index
+
 	// File watching (optional)
 	watching bool
 	done     chan struct{}
 	onChange func() // callback when beans change
+
+	// Warning logger for non-fatal errors (defaults to stderr)
+	warnWriter io.Writer
 }
 
 // New creates a new Core with the given root path and configuration.
 func New(root string, cfg *config.Config) *Core {
 	return &Core{
-		root:   root,
-		config: cfg,
-		beans:  make(map[string]*bean.Bean),
+		root:       root,
+		config:     cfg,
+		beans:      make(map[string]*bean.Bean),
+		warnWriter: os.Stderr,
+	}
+}
+
+// SetWarnWriter sets the writer for warning messages.
+// Pass nil to disable warnings.
+func (c *Core) SetWarnWriter(w io.Writer) {
+	c.warnWriter = w
+}
+
+// logWarn logs a warning message if a warn writer is configured.
+func (c *Core) logWarn(format string, args ...any) {
+	if c.warnWriter != nil {
+		fmt.Fprintf(c.warnWriter, "warning: "+format+"\n", args...)
 	}
 }
 
@@ -93,6 +112,16 @@ func (c *Core) loadFromDisk() error {
 		c.beans[b.ID] = b
 	}
 
+	// Reinitialize search index if it was active: close and re-create (best-effort, don't fail load)
+	if c.searchIndex != nil {
+		c.searchIndex.Close()
+		c.searchIndex = nil
+
+		if err := c.ensureSearchIndexLocked(); err != nil {
+			c.logWarn("failed to reinitialize search index after reload: %v", err)
+		}
+	}
+
 	return nil
 }
 
@@ -130,8 +159,8 @@ func (c *Core) loadBean(path string) (*bean.Bean, error) {
 	if b.Tags == nil {
 		b.Tags = []string{}
 	}
-	if b.Links == nil {
-		b.Links = bean.Links{}
+	if b.Blocking == nil {
+		b.Blocking = []string{}
 	}
 	if b.CreatedAt == nil {
 		if b.UpdatedAt != nil {
@@ -150,6 +179,64 @@ func (c *Core) loadBean(path string) (*bean.Bean, error) {
 	}
 
 	return b, nil
+}
+
+// ensureSearchIndexLocked initializes the in-memory search index if not already created.
+// Must be called with lock held or from a method that holds the lock.
+func (c *Core) ensureSearchIndexLocked() error {
+	if c.searchIndex != nil {
+		return nil
+	}
+
+	idx, err := search.NewIndex()
+	if err != nil {
+		return fmt.Errorf("initializing search index: %w", err)
+	}
+
+	c.searchIndex = idx
+
+	// Populate the in-memory index with existing beans
+	allBeans := make([]*bean.Bean, 0, len(c.beans))
+	for _, b := range c.beans {
+		allBeans = append(allBeans, b)
+	}
+	if err := c.searchIndex.IndexBeans(allBeans); err != nil {
+		return fmt.Errorf("populating search index: %w", err)
+	}
+
+	return nil
+}
+
+// Search performs full-text search and returns matching beans.
+// The search index is lazily initialized on first use.
+func (c *Core) Search(query string) ([]*bean.Bean, error) {
+	// Ensure index is initialized (needs write lock for lazy init)
+	c.mu.Lock()
+	if err := c.ensureSearchIndexLocked(); err != nil {
+		c.mu.Unlock()
+		return nil, err
+	}
+	// Capture searchIndex reference while holding lock
+	idx := c.searchIndex
+	c.mu.Unlock()
+
+	// Perform search outside the lock (Bleve is thread-safe)
+	ids, err := idx.Search(query, search.DefaultSearchLimit)
+	if err != nil {
+		return nil, err
+	}
+
+	// Read from beans map (needs read lock only)
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	result := make([]*bean.Bean, 0, len(ids))
+	for _, id := range ids {
+		if b, ok := c.beans[id]; ok {
+			result = append(result, b)
+		}
+	}
+	return result, nil
 }
 
 // All returns a slice of all beans.
@@ -223,6 +310,13 @@ func (c *Core) Create(b *bean.Bean) error {
 	// Add to in-memory map
 	c.beans[b.ID] = b
 
+	// Update search index if active (best-effort, don't fail create)
+	if c.searchIndex != nil {
+		if err := c.searchIndex.IndexBean(b); err != nil {
+			c.logWarn("failed to index bean %s: %v", b.ID, err)
+		}
+	}
+
 	return nil
 }
 
@@ -247,6 +341,13 @@ func (c *Core) Update(b *bean.Bean) error {
 
 	// Update in-memory map
 	c.beans[b.ID] = b
+
+	// Update search index if active (best-effort, don't fail update)
+	if c.searchIndex != nil {
+		if err := c.searchIndex.IndexBean(b); err != nil {
+			c.logWarn("failed to update bean %s in search index: %v", b.ID, err)
+		}
+	}
 
 	return nil
 }
@@ -324,6 +425,13 @@ func (c *Core) Delete(idPrefix string) error {
 	// Remove from in-memory map
 	delete(c.beans, targetID)
 
+	// Update search index if active (best-effort, don't fail delete)
+	if c.searchIndex != nil {
+		if err := c.searchIndex.DeleteBean(targetID); err != nil {
+			c.logWarn("failed to remove bean %s from search index: %v", targetID, err)
+		}
+	}
+
 	return nil
 }
 
@@ -339,7 +447,18 @@ func (c *Core) FullPath(b *bean.Bean) string {
 
 // Close stops any active file watcher and cleans up resources.
 func (c *Core) Close() error {
-	return c.Unwatch()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Close search index if open
+	if c.searchIndex != nil {
+		if err := c.searchIndex.Close(); err != nil {
+			return err
+		}
+		c.searchIndex = nil
+	}
+
+	return c.unwatchLocked()
 }
 
 // Init creates the .beans directory at the given path if it doesn't exist.

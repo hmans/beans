@@ -83,7 +83,7 @@ func newTagPickerModel(tags []tagWithCount, width, height int) tagPickerModel {
 	l.SetFilteringEnabled(true)
 	l.SetShowHelp(false)
 	l.Styles.Title = listTitleStyle
-	l.Styles.TitleBar = lipgloss.NewStyle().Padding(0, 0, 1, 2)
+	l.Styles.TitleBar = lipgloss.NewStyle().Padding(0, 0, 1, 1)
 	l.Styles.FilterPrompt = lipgloss.NewStyle().Foreground(ui.ColorPrimary)
 	l.Styles.FilterCursor = lipgloss.NewStyle().Foreground(ui.ColorPrimary)
 

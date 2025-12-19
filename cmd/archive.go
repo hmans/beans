@@ -4,9 +4,11 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/huh"
-	"github.com/spf13/cobra"
+	"github.com/hmans/beans/internal/bean"
 	"github.com/hmans/beans/internal/beancore"
 	"github.com/hmans/beans/internal/output"
+	"github.com/hmans/beans/internal/ui"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -19,17 +21,17 @@ var archiveCmd = &cobra.Command{
 	Short: "Delete all beans with an archive status",
 	Long: `Deletes all beans with status "completed" or "scrapped". Asks for confirmation unless --force is provided.
 
-If other beans link to beans being archived, you will be warned and those references
-will be removed. Use -f to skip all warnings.`,
+If other beans reference beans being archived (as parent or via blocking), you will be
+warned and those references will be removed. Use -f to skip all warnings.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		beans := core.All()
+		allBeans := core.All()
 
 		// Find beans with any archive status
-		var archiveBeans []string
+		var archiveBeans []*bean.Bean
 		archiveSet := make(map[string]bool)
-		for _, b := range beans {
+		for _, b := range allBeans {
 			if cfg.IsArchiveStatus(b.Status) {
-				archiveBeans = append(archiveBeans, b.ID)
+				archiveBeans = append(archiveBeans, b)
 				archiveSet[b.ID] = true
 			}
 		}
@@ -42,10 +44,13 @@ will be removed. Use -f to skip all warnings.`,
 			return nil
 		}
 
+		// Sort beans for consistent display
+		bean.SortByStatusPriorityAndType(archiveBeans, cfg.StatusNames(), cfg.PriorityNames(), cfg.TypeNames())
+
 		// Find incoming links from non-archived beans to beans being archived
 		var externalLinks []beancore.IncomingLink
-		for _, id := range archiveBeans {
-			links := core.FindIncomingLinks(id)
+		for _, b := range archiveBeans {
+			links := core.FindIncomingLinks(b.ID)
 			for _, link := range links {
 				// Only count links from beans NOT being archived
 				if !archiveSet[link.FromBean.ID] {
@@ -57,6 +62,11 @@ will be removed. Use -f to skip all warnings.`,
 
 		// JSON implies force (no prompts for machines)
 		if !archiveForce && !archiveJSON {
+			// Show list of beans to be archived
+			fmt.Printf("Beans to archive (%d):\n\n", len(archiveBeans))
+			printBeanList(archiveBeans)
+			fmt.Println()
+
 			// Show warning if there are external links
 			if hasExternalLinks {
 				fmt.Printf("Warning: %d bean(s) link to beans being archived:\n", len(externalLinks))
@@ -93,27 +103,27 @@ will be removed. Use -f to skip all warnings.`,
 
 		// Remove external links before deletion
 		removedRefs := 0
-		for _, id := range archiveBeans {
-			removed, err := core.RemoveLinksTo(id)
+		for _, b := range archiveBeans {
+			removed, err := core.RemoveLinksTo(b.ID)
 			if err != nil {
 				if archiveJSON {
-					return output.Error(output.ErrFileError, fmt.Sprintf("failed to remove references to %s: %s", id, err))
+					return output.Error(output.ErrFileError, fmt.Sprintf("failed to remove references to %s: %s", b.ID, err))
 				}
-				return fmt.Errorf("failed to remove references to %s: %w", id, err)
+				return fmt.Errorf("failed to remove references to %s: %w", b.ID, err)
 			}
 			removedRefs += removed
 		}
 
 		// Delete all beans with archive status
 		var deleted []string
-		for _, id := range archiveBeans {
-			if err := core.Delete(id); err != nil {
+		for _, b := range archiveBeans {
+			if err := core.Delete(b.ID); err != nil {
 				if archiveJSON {
-					return output.Error(output.ErrFileError, fmt.Sprintf("failed to delete bean %s: %s", id, err.Error()))
+					return output.Error(output.ErrFileError, fmt.Sprintf("failed to delete bean %s: %s", b.ID, err.Error()))
 				}
-				return fmt.Errorf("failed to delete bean %s: %w", id, err)
+				return fmt.Errorf("failed to delete bean %s: %w", b.ID, err)
 			}
-			deleted = append(deleted, id)
+			deleted = append(deleted, b.ID)
 		}
 
 		if archiveJSON {
@@ -126,6 +136,46 @@ will be removed. Use -f to skip all warnings.`,
 		fmt.Printf("Archived %d bean(s)\n", len(deleted))
 		return nil
 	},
+}
+
+// printBeanList prints a formatted list of beans
+func printBeanList(beans []*bean.Bean) {
+	// Calculate max ID width
+	maxIDWidth := 0
+	for _, b := range beans {
+		if len(b.ID) > maxIDWidth {
+			maxIDWidth = len(b.ID)
+		}
+	}
+	maxIDWidth += 2 // padding
+
+	// Check if any beans have tags
+	hasTags := false
+	for _, b := range beans {
+		if len(b.Tags) > 0 {
+			hasTags = true
+			break
+		}
+	}
+
+	// Print each bean
+	for _, b := range beans {
+		colors := cfg.GetBeanColors(b.Status, b.Type, b.Priority)
+		row := ui.RenderBeanRow(b.ID, b.Status, b.Type, b.Title, ui.BeanRowConfig{
+			StatusColor:   colors.StatusColor,
+			TypeColor:     colors.TypeColor,
+			PriorityColor: colors.PriorityColor,
+			Priority:      b.Priority,
+			IsArchive:     colors.IsArchive,
+			MaxTitleWidth: 60,
+			ShowCursor:    false,
+			IsSelected:    false,
+			Tags:          b.Tags,
+			ShowTags:      hasTags,
+			IDColWidth:    maxIDWidth,
+		})
+		fmt.Println(row)
+	}
 }
 
 func init() {

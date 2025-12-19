@@ -1,11 +1,14 @@
 ---
+# beans-lbjp
 title: beans web - Web UI server
-status: backlog
+status: draft
 type: feature
+priority: normal
 tags:
     - idea
 created_at: 2025-12-08T17:11:36Z
-updated_at: 2025-12-08T17:11:55Z
+updated_at: 2025-12-13T14:44:14Z
+parent: beans-f11p
 ---
 
 Add a `beans web` command that starts a webserver providing a Beans web UI.

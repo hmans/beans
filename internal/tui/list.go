@@ -15,10 +15,12 @@ import (
 	"github.com/hmans/beans/internal/ui"
 )
 
-// beanItem wraps a Bean to implement list.Item
+// beanItem wraps a Bean to implement list.Item, with tree context
 type beanItem struct {
-	bean *bean.Bean
-	cfg  *config.Config
+	bean       *bean.Bean
+	cfg        *config.Config
+	treePrefix string // tree prefix for rendering (e.g., "├─" or "  └─")
+	matched    bool   // true if bean matched filter (vs. ancestor shown for context)
 }
 
 func (i beanItem) Title() string       { return i.bean.Title }
@@ -27,10 +29,12 @@ func (i beanItem) FilterValue() string { return i.bean.Title + " " + i.bean.ID }
 
 // itemDelegate handles rendering of list items
 type itemDelegate struct {
-	cfg     *config.Config
-	hasTags bool
-	width   int
-	cols    ui.ResponsiveColumns // cached responsive columns
+	cfg           *config.Config
+	hasTags       bool
+	width         int
+	cols          ui.ResponsiveColumns // cached responsive columns
+	idColWidth    int                  // ID column width (accounts for tree prefix)
+	selectedBeans *map[string]bool     // pointer to marked beans for multi-select
 }
 
 func newItemDelegate(cfg *config.Config) itemDelegate {
@@ -51,11 +55,21 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 	colors := d.cfg.GetBeanColors(item.bean.Status, item.bean.Type, item.bean.Priority)
 
 	// Calculate max title width using responsive columns
-	baseWidth := d.cols.ID + d.cols.Status + d.cols.Type + 4 // 4 for cursor + padding
+	idWidth := d.cols.ID
+	if d.idColWidth > 0 {
+		idWidth = d.idColWidth
+	}
+	baseWidth := idWidth + d.cols.Status + d.cols.Type + 4 // 4 for cursor + padding
 	if d.cols.ShowTags {
 		baseWidth += d.cols.Tags
 	}
 	maxTitleWidth := max(0, m.Width()-baseWidth)
+
+	// Check if bean is marked for multi-select
+	var isMarked bool
+	if d.selectedBeans != nil {
+		isMarked = (*d.selectedBeans)[item.bean.ID]
+	}
 
 	str := ui.RenderBeanRow(
 		item.bean.ID,
@@ -71,10 +85,14 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 			MaxTitleWidth: maxTitleWidth,
 			ShowCursor:    true,
 			IsSelected:    index == m.Index(),
+			IsMarked:      isMarked,
 			Tags:          item.bean.Tags,
 			ShowTags:      d.cols.ShowTags,
 			TagsColWidth:  d.cols.Tags,
 			MaxTags:       d.cols.MaxTags,
+			TreePrefix:    item.treePrefix,
+			Dimmed:        !item.matched,
+			IDColWidth:    d.idColWidth,
 		},
 	)
 
@@ -91,15 +109,20 @@ type listModel struct {
 	err      error
 
 	// Responsive column state
-	hasTags bool                 // whether any beans have tags
-	cols    ui.ResponsiveColumns // calculated responsive columns
+	hasTags    bool                 // whether any beans have tags
+	cols       ui.ResponsiveColumns // calculated responsive columns
+	idColWidth int                  // ID column width (accounts for tree depth)
 
 	// Active filters
 	tagFilter string // if set, only show beans with this tag
+
+	// Multi-select state
+	selectedBeans map[string]bool // IDs of beans marked for multi-edit
 }
 
 func newListModel(resolver *graph.Resolver, cfg *config.Config) listModel {
-	delegate := newItemDelegate(cfg)
+	selectedBeans := make(map[string]bool)
+	delegate := itemDelegate{cfg: cfg, selectedBeans: &selectedBeans}
 
 	l := list.New([]list.Item{}, delegate, 0, 0)
 	l.Title = "Beans"
@@ -107,20 +130,22 @@ func newListModel(resolver *graph.Resolver, cfg *config.Config) listModel {
 	l.SetFilteringEnabled(true)
 	l.SetShowHelp(false)
 	l.Styles.Title = listTitleStyle
-	l.Styles.TitleBar = lipgloss.NewStyle().Padding(0, 0, 1, 2)
+	l.Styles.TitleBar = lipgloss.NewStyle().Padding(0, 0, 1, 1)
 	l.Styles.FilterPrompt = lipgloss.NewStyle().Foreground(ui.ColorPrimary)
 	l.Styles.FilterCursor = lipgloss.NewStyle().Foreground(ui.ColorPrimary)
 
 	return listModel{
-		list:     l,
-		resolver: resolver,
-		config:   cfg,
+		list:          l,
+		resolver:      resolver,
+		config:        cfg,
+		selectedBeans: selectedBeans,
 	}
 }
 
 // beansLoadedMsg is sent when beans are loaded
 type beansLoadedMsg struct {
-	beans []*bean.Bean
+	items      []ui.FlatItem // flattened tree items
+	idColWidth int           // calculated ID column width for tree
 }
 
 // errMsg is sent when an error occurs
@@ -144,13 +169,42 @@ func (m listModel) loadBeans() tea.Msg {
 		filter = &model.BeanFilter{Tags: []string{m.tagFilter}}
 	}
 
-	// Query beans via GraphQL resolver
-	beans, err := m.resolver.Query().Beans(context.Background(), filter)
+	// Query filtered beans
+	filteredBeans, err := m.resolver.Query().Beans(context.Background(), filter)
 	if err != nil {
 		return errMsg{err}
 	}
 
-	return beansLoadedMsg{beans}
+	// Query all beans for tree context (ancestors)
+	allBeans, err := m.resolver.Query().Beans(context.Background(), nil)
+	if err != nil {
+		return errMsg{err}
+	}
+
+	// Sort function for tree building
+	sortFn := func(beans []*bean.Bean) {
+		bean.SortByStatusPriorityAndType(beans, m.config.StatusNames(), m.config.PriorityNames(), m.config.TypeNames())
+	}
+
+	// Build tree and flatten it
+	tree := ui.BuildTree(filteredBeans, allBeans, sortFn)
+	items := ui.FlattenTree(tree)
+
+	// Calculate ID column width based on max ID length and tree depth
+	maxIDLen := 0
+	for _, b := range allBeans {
+		if len(b.ID) > maxIDLen {
+			maxIDLen = len(b.ID)
+		}
+	}
+	maxDepth := ui.MaxTreeDepth(items)
+	// ID column = base ID width + tree indent (3 chars per depth level)
+	idColWidth := maxIDLen + 2 // base padding
+	if maxDepth > 0 {
+		idColWidth += maxDepth * 3 // 3 chars per depth level (├─ + space)
+	}
+
+	return beansLoadedMsg{items: items, idColWidth: idColWidth}
 }
 
 // setTagFilter sets the tag filter
@@ -182,17 +236,22 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 		m.updateDelegate()
 
 	case beansLoadedMsg:
-		bean.SortByStatusPriorityAndType(msg.beans, m.config.StatusNames(), m.config.PriorityNames(), m.config.TypeNames())
-		items := make([]list.Item, len(msg.beans))
+		items := make([]list.Item, len(msg.items))
 		// Check if any beans have tags
 		m.hasTags = false
-		for i, b := range msg.beans {
-			items[i] = beanItem{bean: b, cfg: m.config}
-			if len(b.Tags) > 0 {
+		for i, flatItem := range msg.items {
+			items[i] = beanItem{
+				bean:       flatItem.Bean,
+				cfg:        m.config,
+				treePrefix: flatItem.TreePrefix,
+				matched:    flatItem.Matched,
+			}
+			if len(flatItem.Bean.Tags) > 0 {
 				m.hasTags = true
 			}
 		}
 		m.list.SetItems(items)
+		m.idColWidth = msg.idColWidth
 		// Calculate responsive columns based on hasTags and width
 		m.cols = ui.CalculateResponsiveColumns(m.width, m.hasTags)
 		m.updateDelegate()
@@ -205,14 +264,157 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 	case tea.KeyMsg:
 		if m.list.FilterState() != list.Filtering {
 			switch msg.String() {
+			case " ":
+				// Toggle selection for multi-select
+				if item, ok := m.list.SelectedItem().(beanItem); ok {
+					if m.selectedBeans[item.bean.ID] {
+						delete(m.selectedBeans, item.bean.ID)
+					} else {
+						m.selectedBeans[item.bean.ID] = true
+					}
+				}
+				return m, nil
 			case "enter":
 				if item, ok := m.list.SelectedItem().(beanItem); ok {
 					return m, func() tea.Msg {
 						return selectBeanMsg{bean: item.bean}
 					}
 				}
+			case "p":
+				// Open parent picker for selected bean(s)
+				if len(m.selectedBeans) > 0 {
+					// Multi-select mode
+					ids := make([]string, 0, len(m.selectedBeans))
+					types := make([]string, 0, len(m.selectedBeans))
+					for id := range m.selectedBeans {
+						ids = append(ids, id)
+						// Find the bean to get its type
+						for _, item := range m.list.Items() {
+							if bi, ok := item.(beanItem); ok && bi.bean.ID == id {
+								types = append(types, bi.bean.Type)
+								break
+							}
+						}
+					}
+					return m, func() tea.Msg {
+						return openParentPickerMsg{
+							beanIDs:   ids,
+							beanTitle: fmt.Sprintf("%d selected beans", len(ids)),
+							beanTypes: types,
+						}
+					}
+				} else if item, ok := m.list.SelectedItem().(beanItem); ok {
+					return m, func() tea.Msg {
+						return openParentPickerMsg{
+							beanIDs:       []string{item.bean.ID},
+							beanTitle:     item.bean.Title,
+							beanTypes:     []string{item.bean.Type},
+							currentParent: item.bean.Parent,
+						}
+					}
+				}
+			case "s":
+				// Open status picker for selected bean(s)
+				if len(m.selectedBeans) > 0 {
+					// Multi-select mode
+					ids := make([]string, 0, len(m.selectedBeans))
+					for id := range m.selectedBeans {
+						ids = append(ids, id)
+					}
+					return m, func() tea.Msg {
+						return openStatusPickerMsg{
+							beanIDs:   ids,
+							beanTitle: fmt.Sprintf("%d selected beans", len(ids)),
+						}
+					}
+				} else if item, ok := m.list.SelectedItem().(beanItem); ok {
+					return m, func() tea.Msg {
+						return openStatusPickerMsg{
+							beanIDs:       []string{item.bean.ID},
+							beanTitle:     item.bean.Title,
+							currentStatus: item.bean.Status,
+						}
+					}
+				}
+			case "t":
+				// Open type picker for selected bean(s)
+				if len(m.selectedBeans) > 0 {
+					// Multi-select mode
+					ids := make([]string, 0, len(m.selectedBeans))
+					for id := range m.selectedBeans {
+						ids = append(ids, id)
+					}
+					return m, func() tea.Msg {
+						return openTypePickerMsg{
+							beanIDs:   ids,
+							beanTitle: fmt.Sprintf("%d selected beans", len(ids)),
+						}
+					}
+				} else if item, ok := m.list.SelectedItem().(beanItem); ok {
+					return m, func() tea.Msg {
+						return openTypePickerMsg{
+							beanIDs:     []string{item.bean.ID},
+							beanTitle:   item.bean.Title,
+							currentType: item.bean.Type,
+						}
+					}
+				}
+			case "P":
+				// Open priority picker for selected bean(s)
+				if len(m.selectedBeans) > 0 {
+					// Multi-select mode
+					ids := make([]string, 0, len(m.selectedBeans))
+					for id := range m.selectedBeans {
+						ids = append(ids, id)
+					}
+					return m, func() tea.Msg {
+						return openPriorityPickerMsg{
+							beanIDs:   ids,
+							beanTitle: fmt.Sprintf("%d selected beans", len(ids)),
+						}
+					}
+				} else if item, ok := m.list.SelectedItem().(beanItem); ok {
+					return m, func() tea.Msg {
+						return openPriorityPickerMsg{
+							beanIDs:         []string{item.bean.ID},
+							beanTitle:       item.bean.Title,
+							currentPriority: item.bean.Priority,
+						}
+					}
+				}
+			case "b":
+				// Open blocking picker for selected bean
+				if item, ok := m.list.SelectedItem().(beanItem); ok {
+					return m, func() tea.Msg {
+						return openBlockingPickerMsg{
+							beanID:          item.bean.ID,
+							beanTitle:       item.bean.Title,
+							currentBlocking: item.bean.Blocking,
+						}
+					}
+				}
+			case "c":
+				// Open create modal
+				return m, func() tea.Msg {
+					return openCreateModalMsg{}
+				}
+			case "e":
+				// Open editor for selected bean
+				if item, ok := m.list.SelectedItem().(beanItem); ok {
+					return m, func() tea.Msg {
+						return openEditorMsg{
+							beanID:   item.bean.ID,
+							beanPath: item.bean.Path,
+						}
+					}
+				}
 			case "esc", "backspace":
-				// If we have an active filter, clear it instead of quitting
+				// First clear selection if any beans are selected
+				if len(m.selectedBeans) > 0 {
+					clear(m.selectedBeans)
+					return m, nil
+				}
+				// Then clear active filter if any
 				if m.hasActiveFilter() {
 					return m, func() tea.Msg {
 						return clearFilterMsg{}
@@ -230,10 +432,12 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 // updateDelegate updates the list delegate with current responsive columns
 func (m *listModel) updateDelegate() {
 	delegate := itemDelegate{
-		cfg:     m.config,
-		hasTags: m.hasTags,
-		width:   m.width,
-		cols:    m.cols,
+		cfg:           m.config,
+		hasTags:       m.hasTags,
+		width:         m.width,
+		cols:          m.cols,
+		idColWidth:    m.idColWidth,
+		selectedBeans: &m.selectedBeans,
 	}
 	m.list.SetDelegate(delegate)
 }
@@ -263,19 +467,53 @@ func (m listModel) View() string {
 
 	content := border.Render(m.list.View())
 
-	// Footer - show different help based on filter state
+	// Footer - show different help based on filter/selection state
 	var help string
-	if m.hasActiveFilter() {
-		help = helpKeyStyle.Render("enter") + " " + helpStyle.Render("view") + "  " +
+
+	// Show selection count if any beans are selected
+	var selectionPrefix string
+	if len(m.selectedBeans) > 0 {
+		selectionStyle := lipgloss.NewStyle().Foreground(ui.ColorWarning).Bold(true)
+		selectionPrefix = selectionStyle.Render(fmt.Sprintf("(%d selected) ", len(m.selectedBeans)))
+	}
+
+	if len(m.selectedBeans) > 0 {
+		// When beans are selected, show esc to clear selection
+		help = helpKeyStyle.Render("space") + " " + helpStyle.Render("toggle") + "  " +
+			helpKeyStyle.Render("s") + " " + helpStyle.Render("status") + "  " +
+			helpKeyStyle.Render("t") + " " + helpStyle.Render("type") + "  " +
+			helpKeyStyle.Render("P") + " " + helpStyle.Render("priority") + "  " +
+			helpKeyStyle.Render("esc") + " " + helpStyle.Render("clear selection") + "  " +
+			helpKeyStyle.Render("?") + " " + helpStyle.Render("help") + "  " +
+			helpKeyStyle.Render("q") + " " + helpStyle.Render("quit")
+	} else if m.hasActiveFilter() {
+		help = helpKeyStyle.Render("space") + " " + helpStyle.Render("select") + "  " +
+			helpKeyStyle.Render("enter") + " " + helpStyle.Render("view") + "  " +
+			helpKeyStyle.Render("c") + " " + helpStyle.Render("create") + "  " +
+			helpKeyStyle.Render("e") + " " + helpStyle.Render("edit") + "  " +
+			helpKeyStyle.Render("s") + " " + helpStyle.Render("status") + "  " +
+			helpKeyStyle.Render("t") + " " + helpStyle.Render("type") + "  " +
+			helpKeyStyle.Render("P") + " " + helpStyle.Render("priority") + "  " +
+			helpKeyStyle.Render("p") + " " + helpStyle.Render("parent") + "  " +
+			helpKeyStyle.Render("b") + " " + helpStyle.Render("blocking") + "  " +
 			helpKeyStyle.Render("esc") + " " + helpStyle.Render("clear filter") + "  " +
+			helpKeyStyle.Render("?") + " " + helpStyle.Render("help") + "  " +
 			helpKeyStyle.Render("q") + " " + helpStyle.Render("quit")
 	} else {
-		help = helpKeyStyle.Render("enter") + " " + helpStyle.Render("view") + "  " +
+		help = helpKeyStyle.Render("space") + " " + helpStyle.Render("select") + "  " +
+			helpKeyStyle.Render("enter") + " " + helpStyle.Render("view") + "  " +
+			helpKeyStyle.Render("c") + " " + helpStyle.Render("create") + "  " +
+			helpKeyStyle.Render("e") + " " + helpStyle.Render("edit") + "  " +
+			helpKeyStyle.Render("s") + " " + helpStyle.Render("status") + "  " +
+			helpKeyStyle.Render("t") + " " + helpStyle.Render("type") + "  " +
+			helpKeyStyle.Render("P") + " " + helpStyle.Render("priority") + "  " +
+			helpKeyStyle.Render("p") + " " + helpStyle.Render("parent") + "  " +
+			helpKeyStyle.Render("b") + " " + helpStyle.Render("blocking") + "  " +
 			helpKeyStyle.Render("/") + " " + helpStyle.Render("filter") + "  " +
-			helpKeyStyle.Render("g t") + " " + helpStyle.Render("filter by tag") + "  " +
+			helpKeyStyle.Render("?") + " " + helpStyle.Render("help") + "  " +
 			helpKeyStyle.Render("q") + " " + helpStyle.Render("quit")
 	}
 
-	return content + "\n" + help
+	return content + "\n" + selectionPrefix + help
 }
 

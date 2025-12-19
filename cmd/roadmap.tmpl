@@ -1,44 +1,51 @@
+{{- define "beanLine" -}}
+- {{typeBadge .}} {{.Title}} {{beanRef .}}
+{{end -}}
+
+{{- define "epicGroup" -}}
+### Epic: {{.Epic.Title}} {{beanRef .Epic}}
+{{with firstParagraph .Epic.Body}}
+> {{.}}
+{{end}}
+
+{{range .Items -}}
+{{template "beanLine" .}}
+{{- end}}
+{{- end -}}
+
 # Roadmap
-{{range .Data.Milestones}}
-## Milestone: {{.Milestone.Title}} {{beanRef .Milestone $.Links $.LinkPrefix}}
+{{range .Milestones}}
+## Milestone: {{.Milestone.Title}} {{beanRef .Milestone}}
 {{with firstParagraph .Milestone.Body}}
 > {{.}}
 {{end}}
-{{range .Epics}}
-### Epic: {{.Epic.Title}} {{beanRef .Epic $.Links $.LinkPrefix}}
-{{with firstParagraph .Epic.Body}}
-> {{.}}
-{{end}}
-
-{{range .Items -}}
-- {{typeBadge .}} {{.Title}} {{beanRef . $.Links $.LinkPrefix}}
-{{end}}
+{{range .Epics -}}
+{{template "epicGroup" .}}
 {{- end}}
 {{- if .Other}}
+{{- if len .Epics}}
 ### Miscellaneous
+{{end}}
 
 {{range .Other -}}
-- {{typeBadge .}} {{.Title}} {{beanRef . $.Links $.LinkPrefix}}
-{{end}}
+{{template "beanLine" .}}
 {{- end}}
 {{- end}}
-{{- if .Data.Unscheduled}}
+{{- end}}
+{{- if .Unscheduled}}
+{{- if len $.Milestones}}
 ## No Milestone
-{{range .Data.Unscheduled.Epics}}
-### Epic: {{.Epic.Title}} {{beanRef .Epic $.Links $.LinkPrefix}}
-{{with firstParagraph .Epic.Body}}
-> {{.}}
 {{end}}
-
-{{range .Items -}}
-- {{typeBadge .}} {{.Title}} {{beanRef . $.Links $.LinkPrefix}}
-{{end}}
+{{- range .Unscheduled.Epics -}}
+{{template "epicGroup" .}}
 {{- end}}
-{{- if .Data.Unscheduled.Other}}
+{{- if .Unscheduled.Other}}
+{{- if len .Unscheduled.Epics}}
 ### Miscellaneous
-
-{{range .Data.Unscheduled.Other -}}
-- {{typeBadge .}} {{.Title}} {{beanRef . $.Links $.LinkPrefix}}
 {{end}}
+
+{{range .Unscheduled.Other -}}
+{{template "beanLine" .}}
+{{- end}}
 {{- end}}
 {{- end}}

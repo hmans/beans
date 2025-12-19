@@ -6,6 +6,79 @@ import (
 	"github.com/hmans/beans/internal/graph/model"
 )
 
+// ApplyFilter applies BeanFilter to a slice of beans and returns filtered results.
+// This is used by both the top-level beans query and relationship field resolvers.
+func ApplyFilter(beans []*bean.Bean, filter *model.BeanFilter, core *beancore.Core) []*bean.Bean {
+	if filter == nil {
+		return beans
+	}
+
+	result := beans
+
+	// Status filters
+	if len(filter.Status) > 0 {
+		result = filterByField(result, filter.Status, func(b *bean.Bean) string { return b.Status })
+	}
+	if len(filter.ExcludeStatus) > 0 {
+		result = excludeByField(result, filter.ExcludeStatus, func(b *bean.Bean) string { return b.Status })
+	}
+
+	// Type filters
+	if len(filter.Type) > 0 {
+		result = filterByField(result, filter.Type, func(b *bean.Bean) string { return b.Type })
+	}
+	if len(filter.ExcludeType) > 0 {
+		result = excludeByField(result, filter.ExcludeType, func(b *bean.Bean) string { return b.Type })
+	}
+
+	// Priority filters (empty priority treated as "normal")
+	if len(filter.Priority) > 0 {
+		result = filterByPriority(result, filter.Priority)
+	}
+	if len(filter.ExcludePriority) > 0 {
+		result = excludeByPriority(result, filter.ExcludePriority)
+	}
+
+	// Tag filters
+	if len(filter.Tags) > 0 {
+		result = filterByTags(result, filter.Tags)
+	}
+	if len(filter.ExcludeTags) > 0 {
+		result = excludeByTags(result, filter.ExcludeTags)
+	}
+
+	// Parent filters
+	if filter.HasParent != nil && *filter.HasParent {
+		result = filterByHasParent(result)
+	}
+	if filter.NoParent != nil && *filter.NoParent {
+		result = filterByNoParent(result)
+	}
+	if filter.ParentID != nil && *filter.ParentID != "" {
+		result = filterByParentID(result, *filter.ParentID)
+	}
+
+	// Blocking filters
+	if filter.HasBlocking != nil && *filter.HasBlocking {
+		result = filterByHasBlocking(result)
+	}
+	if filter.BlockingID != nil && *filter.BlockingID != "" {
+		result = filterByBlockingID(result, *filter.BlockingID)
+	}
+	if filter.NoBlocking != nil && *filter.NoBlocking {
+		result = filterByNoBlocking(result)
+	}
+	if filter.IsBlocked != nil {
+		if *filter.IsBlocked {
+			result = filterByIsBlocked(result, core)
+		} else {
+			result = filterByNotBlocked(result, core)
+		}
+	}
+
+	return result
+}
+
 // filterByField filters beans to include only those where getter returns a value in values (OR logic).
 func filterByField(beans []*bean.Bean, values []string, getter func(*bean.Bean) string) []*bean.Bean {
 	valueSet := make(map[string]bool, len(values))
@@ -119,130 +192,105 @@ outer:
 	return result
 }
 
-// matchesLinkFilter checks if a bean link matches a LinkFilter.
-// If filter.Target is nil, matches any target; otherwise matches specific target.
-func matchesLinkFilter(link bean.Link, filter *model.LinkFilter) bool {
-	if link.Type != filter.Type {
-		return false
-	}
-	if filter.Target == nil {
-		return true // type-only match
-	}
-	return link.Target == *filter.Target
-}
-
-// filterByOutgoingLinks filters beans to include only those with outgoing links matching the filters (OR logic).
-func filterByOutgoingLinks(beans []*bean.Bean, filters []*model.LinkFilter) []*bean.Bean {
-	if len(filters) == 0 {
-		return beans
-	}
-
+// filterByHasParent filters beans to include only those with a parent.
+func filterByHasParent(beans []*bean.Bean) []*bean.Bean {
 	var result []*bean.Bean
 	for _, b := range beans {
-		matched := false
-		for _, link := range b.Links {
-			for _, f := range filters {
-				if matchesLinkFilter(link, f) {
-					matched = true
-					break
-				}
-			}
-			if matched {
-				break
-			}
-		}
-		if matched {
+		if b.Parent != "" {
 			result = append(result, b)
 		}
 	}
 	return result
 }
 
-// excludeByOutgoingLinks filters beans to exclude those with outgoing links matching the filters.
-func excludeByOutgoingLinks(beans []*bean.Bean, filters []*model.LinkFilter) []*bean.Bean {
-	if len(filters) == 0 {
-		return beans
-	}
-
-	var result []*bean.Bean
-outer:
-	for _, b := range beans {
-		for _, link := range b.Links {
-			for _, f := range filters {
-				if matchesLinkFilter(link, f) {
-					continue outer
-				}
-			}
-		}
-		result = append(result, b)
-	}
-	return result
-}
-
-// filterByIncomingLinks filters beans to include only those that are targets of links matching the filters (OR logic).
-func filterByIncomingLinks(beans []*bean.Bean, filters []*model.LinkFilter, core *beancore.Core) []*bean.Bean {
-	if len(filters) == 0 {
-		return beans
-	}
-
+// filterByNoParent filters beans to include only those without a parent.
+func filterByNoParent(beans []*bean.Bean) []*bean.Bean {
 	var result []*bean.Bean
 	for _, b := range beans {
-		matched := false
-		incoming := core.FindIncomingLinks(b.ID)
-		for _, link := range incoming {
-			for _, f := range filters {
-				// For incoming links, we check the link type and optionally the source bean ID
-				if link.LinkType != f.Type {
-					continue
-				}
-				if f.Target == nil {
-					// Type-only: this bean is targeted by a link of this type
-					matched = true
-					break
-				}
-				// Target specified: check if the link is from the specified bean
-				if link.FromBean.ID == *f.Target {
-					matched = true
-					break
-				}
-			}
-			if matched {
-				break
-			}
-		}
-		if matched {
+		if b.Parent == "" {
 			result = append(result, b)
 		}
 	}
 	return result
 }
 
-// excludeByIncomingLinks filters beans to exclude those that are targets of links matching the filters.
-func excludeByIncomingLinks(beans []*bean.Bean, filters []*model.LinkFilter, core *beancore.Core) []*bean.Bean {
-	if len(filters) == 0 {
-		return beans
-	}
-
+// filterByParentID filters beans with specific parent ID.
+func filterByParentID(beans []*bean.Bean, parentID string) []*bean.Bean {
 	var result []*bean.Bean
-outer:
+	for _, b := range beans {
+		if b.Parent == parentID {
+			result = append(result, b)
+		}
+	}
+	return result
+}
+
+// filterByHasBlocking filters beans that are blocking other beans.
+func filterByHasBlocking(beans []*bean.Bean) []*bean.Bean {
+	var result []*bean.Bean
+	for _, b := range beans {
+		if len(b.Blocking) > 0 {
+			result = append(result, b)
+		}
+	}
+	return result
+}
+
+// filterByBlockingID filters beans that are blocking a specific bean ID.
+func filterByBlockingID(beans []*bean.Bean, targetID string) []*bean.Bean {
+	var result []*bean.Bean
+	for _, b := range beans {
+		for _, blocked := range b.Blocking {
+			if blocked == targetID {
+				result = append(result, b)
+				break
+			}
+		}
+	}
+	return result
+}
+
+// filterByNoBlocking filters beans that aren't blocking other beans.
+func filterByNoBlocking(beans []*bean.Bean) []*bean.Bean {
+	var result []*bean.Bean
+	for _, b := range beans {
+		if len(b.Blocking) == 0 {
+			result = append(result, b)
+		}
+	}
+	return result
+}
+
+// filterByIsBlocked filters beans that are blocked by others.
+func filterByIsBlocked(beans []*bean.Bean, core *beancore.Core) []*bean.Bean {
+	var result []*bean.Bean
 	for _, b := range beans {
 		incoming := core.FindIncomingLinks(b.ID)
 		for _, link := range incoming {
-			for _, f := range filters {
-				if link.LinkType != f.Type {
-					continue
-				}
-				if f.Target == nil {
-					// Type-only: exclude if this bean is targeted by a link of this type
-					continue outer
-				}
-				// Target specified: exclude if the link is from the specified bean
-				if link.FromBean.ID == *f.Target {
-					continue outer
-				}
+			if link.LinkType == "blocking" {
+				result = append(result, b)
+				break
 			}
 		}
-		result = append(result, b)
+	}
+	return result
+}
+
+// filterByNotBlocked filters beans that are NOT blocked by others.
+func filterByNotBlocked(beans []*bean.Bean, core *beancore.Core) []*bean.Bean {
+	var result []*bean.Bean
+	for _, b := range beans {
+		isBlocked := false
+		incoming := core.FindIncomingLinks(b.ID)
+		for _, link := range incoming {
+			if link.LinkType == "blocking" {
+				isBlocked = true
+				break
+			}
+		}
+		if !isBlocked {
+			result = append(result, b)
+		}
 	}
 	return result
 }

@@ -5,7 +5,7 @@ import (
 )
 
 func TestSortByStatusPriorityAndType(t *testing.T) {
-	statusNames := []string{"backlog", "todo", "in-progress", "completed"}
+	statusNames := []string{"draft", "todo", "in-progress", "completed"}
 	priorityNames := []string{"critical", "high", "normal", "low", "deferred"}
 	typeNames := []string{"bug", "feature", "task"}
 
@@ -13,13 +13,13 @@ func TestSortByStatusPriorityAndType(t *testing.T) {
 		beans := []*Bean{
 			{ID: "1", Title: "A", Status: "completed", Priority: "critical"},
 			{ID: "2", Title: "B", Status: "todo", Priority: "low"},
-			{ID: "3", Title: "C", Status: "backlog", Priority: "high"},
+			{ID: "3", Title: "C", Status: "draft", Priority: "high"},
 		}
 
 		SortByStatusPriorityAndType(beans, statusNames, priorityNames, typeNames)
 
-		if beans[0].Status != "backlog" {
-			t.Errorf("First bean status = %q, want \"backlog\"", beans[0].Status)
+		if beans[0].Status != "draft" {
+			t.Errorf("First bean status = %q, want \"draft\"", beans[0].Status)
 		}
 		if beans[1].Status != "todo" {
 			t.Errorf("Second bean status = %q, want \"todo\"", beans[1].Status)

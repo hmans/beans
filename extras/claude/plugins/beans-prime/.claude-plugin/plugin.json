@@ -1,0 +1,9 @@
+{
+  "name": "beans-prime",
+  "version": "1.0.0",
+  "description": "Configure Claude Code to track work using Beans.",
+  "author": {
+    "name": "Hendrik Mans",
+    "email": "hendrik@mans.de"
+  }
+}

@@ -199,7 +199,7 @@ priority: high
 			name: "with deferred priority",
 			input: `---
 title: Later Task
-status: backlog
+status: draft
 priority: deferred
 ---`,
 			expectedPriority: "deferred",
@@ -518,59 +518,55 @@ func TestBeanJSONSerialization(t *testing.T) {
 	})
 }
 
-func TestParseWithLinks(t *testing.T) {
+func TestParseWithParentAndBlocking(t *testing.T) {
 	tests := []struct {
-		name          string
-		input         string
-		expectedLinks Links
+		name             string
+		input            string
+		expectedParent   string
+		expectedBlocking []string
 	}{
 		{
-			name: "single link",
+			name: "with parent only",
 			input: `---
 title: Test
 status: todo
-links:
-  - blocks: abc123
+parent: xyz789
 ---`,
-			expectedLinks: Links{
-				{Type: "blocks", Target: "abc123"},
-			},
+			expectedParent:   "xyz789",
+			expectedBlocking: nil,
 		},
 		{
-			name: "multiple links of same type",
+			name: "with blocking only",
 			input: `---
 title: Test
 status: todo
-links:
-  - blocks: abc123
-  - blocks: def456
+blocking:
+  - abc123
+  - def456
 ---`,
-			expectedLinks: Links{
-				{Type: "blocks", Target: "abc123"},
-				{Type: "blocks", Target: "def456"},
-			},
+			expectedParent:   "",
+			expectedBlocking: []string{"abc123", "def456"},
 		},
 		{
-			name: "multiple link types",
+			name: "with parent and blocking",
 			input: `---
 title: Test
 status: todo
-links:
-  - blocks: abc123
-  - parent: xyz789
+parent: xyz789
+blocking:
+  - abc123
 ---`,
-			expectedLinks: Links{
-				{Type: "blocks", Target: "abc123"},
-				{Type: "parent", Target: "xyz789"},
-			},
+			expectedParent:   "xyz789",
+			expectedBlocking: []string{"abc123"},
 		},
 		{
-			name: "no links",
+			name: "no relationships",
 			input: `---
 title: Test
 status: todo
 ---`,
-			expectedLinks: nil,
+			expectedParent:   "",
+			expectedBlocking: nil,
 		},
 	}
 
@@ -581,66 +577,74 @@ status: todo
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			if len(tt.expectedLinks) == 0 && len(bean.Links) == 0 {
+			if bean.Parent != tt.expectedParent {
+				t.Errorf("Parent = %q, want %q", bean.Parent, tt.expectedParent)
+			}
+
+			if len(tt.expectedBlocking) == 0 && len(bean.Blocking) == 0 {
 				return // Both empty, OK
 			}
 
-			if len(bean.Links) != len(tt.expectedLinks) {
-				t.Errorf("Links count = %d, want %d", len(bean.Links), len(tt.expectedLinks))
+			if len(bean.Blocking) != len(tt.expectedBlocking) {
+				t.Errorf("Blocking count = %d, want %d", len(bean.Blocking), len(tt.expectedBlocking))
 				return
 			}
 
-			for i, expected := range tt.expectedLinks {
-				actual := bean.Links[i]
-				if actual.Type != expected.Type || actual.Target != expected.Target {
-					t.Errorf("Links[%d] = {%s, %s}, want {%s, %s}",
-						i, actual.Type, actual.Target, expected.Type, expected.Target)
+			for i, expected := range tt.expectedBlocking {
+				if bean.Blocking[i] != expected {
+					t.Errorf("Blocking[%d] = %q, want %q", i, bean.Blocking[i], expected)
 				}
 			}
 		})
 	}
 }
 
-func TestRenderWithLinks(t *testing.T) {
+func TestRenderWithParentAndBlocking(t *testing.T) {
 	tests := []struct {
 		name     string
 		bean     *Bean
 		contains []string
 	}{
 		{
-			name: "with single link",
+			name: "with parent only",
 			bean: &Bean{
 				Title:  "Test Bean",
 				Status: "todo",
-				Links: Links{
-					{Type: "blocks", Target: "abc123"},
-				},
+				Parent: "xyz789",
 			},
 			contains: []string{
-				"links:",
-				"- blocks: abc123",
+				"parent: xyz789",
 			},
 		},
 		{
-			name: "with multiple links",
+			name: "with blocking only",
 			bean: &Bean{
-				Title:  "Test Bean",
-				Status: "todo",
-				Links: Links{
-					{Type: "blocks", Target: "abc123"},
-					{Type: "blocks", Target: "def456"},
-					{Type: "parent", Target: "xyz789"},
-				},
+				Title:    "Test Bean",
+				Status:   "todo",
+				Blocking: []string{"abc123", "def456"},
 			},
 			contains: []string{
-				"links:",
-				"- blocks: abc123",
-				"- blocks: def456",
-				"- parent: xyz789",
+				"blocking:",
+				"- abc123",
+				"- def456",
 			},
 		},
 		{
-			name: "without links",
+			name: "with parent and blocking",
+			bean: &Bean{
+				Title:    "Test Bean",
+				Status:   "todo",
+				Parent:   "xyz789",
+				Blocking: []string{"abc123"},
+			},
+			contains: []string{
+				"parent: xyz789",
+				"blocking:",
+				"- abc123",
+			},
+		},
+		{
+			name: "without relationships",
 			bean: &Bean{
 				Title:  "Test Bean",
 				Status: "todo",
@@ -665,49 +669,52 @@ func TestRenderWithLinks(t *testing.T) {
 				}
 			}
 
-			// Check that empty links don't appear in output
-			if tt.bean.Links == nil && strings.Contains(result, "links:") {
-				t.Errorf("output should not contain 'links:' when no links\ngot:\n%s", result)
+			// Check that empty parent/blocking don't appear in output
+			if tt.bean.Parent == "" && strings.Contains(result, "parent:") {
+				t.Errorf("output should not contain 'parent:' when no parent\ngot:\n%s", result)
+			}
+			if len(tt.bean.Blocking) == 0 && strings.Contains(result, "blocking:") {
+				t.Errorf("output should not contain 'blocking:' when no blocking\ngot:\n%s", result)
 			}
 		})
 	}
 }
 
-func TestLinksRoundtrip(t *testing.T) {
+func TestParentAndBlockingRoundtrip(t *testing.T) {
 	tests := []struct {
-		name  string
-		links Links
+		name     string
+		parent   string
+		blocking []string
 	}{
 		{
-			name: "single link",
-			links: Links{
-				{Type: "blocks", Target: "abc123"},
-			},
+			name:     "parent only",
+			parent:   "xyz789",
+			blocking: nil,
 		},
 		{
-			name: "multiple links same type",
-			links: Links{
-				{Type: "blocks", Target: "abc123"},
-				{Type: "blocks", Target: "def456"},
-			},
+			name:     "single blocking",
+			parent:   "",
+			blocking: []string{"abc123"},
 		},
 		{
-			name: "multiple link types",
-			links: Links{
-				{Type: "blocks", Target: "abc123"},
-				{Type: "parent", Target: "xyz789"},
-				{Type: "related", Target: "foo"},
-				{Type: "related", Target: "bar"},
-			},
+			name:     "multiple blocking",
+			parent:   "",
+			blocking: []string{"abc123", "def456"},
+		},
+		{
+			name:     "parent and blocking",
+			parent:   "xyz789",
+			blocking: []string{"abc123", "def456"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			original := &Bean{
-				Title:  "Test",
-				Status: "todo",
-				Links:  tt.links,
+				Title:    "Test",
+				Status:   "todo",
+				Parent:   tt.parent,
+				Blocking: tt.blocking,
 			}
 
 			rendered, err := original.Render()
@@ -720,95 +727,86 @@ func TestLinksRoundtrip(t *testing.T) {
 				t.Fatalf("Parse error: %v", err)
 			}
 
-			if len(parsed.Links) != len(tt.links) {
-				t.Errorf("Links count: got %d, want %d", len(parsed.Links), len(tt.links))
+			if parsed.Parent != tt.parent {
+				t.Errorf("Parent: got %q, want %q", parsed.Parent, tt.parent)
+			}
+
+			if len(parsed.Blocking) != len(tt.blocking) {
+				t.Errorf("Blocking count: got %d, want %d", len(parsed.Blocking), len(tt.blocking))
 				return
 			}
 
-			for i, expected := range tt.links {
-				actual := parsed.Links[i]
-				if actual.Type != expected.Type || actual.Target != expected.Target {
-					t.Errorf("Links[%d] = {%s, %s}, want {%s, %s}",
-						i, actual.Type, actual.Target, expected.Type, expected.Target)
+			for i, expected := range tt.blocking {
+				if parsed.Blocking[i] != expected {
+					t.Errorf("Blocking[%d] = %q, want %q", i, parsed.Blocking[i], expected)
 				}
 			}
 		})
 	}
 }
 
-func TestLinksHelperMethods(t *testing.T) {
-	links := Links{
-		{Type: "blocks", Target: "abc"},
-		{Type: "blocks", Target: "def"},
-		{Type: "parent", Target: "xyz"},
-	}
+func TestBeanRelationshipMethods(t *testing.T) {
+	t.Run("HasParent", func(t *testing.T) {
+		withParent := &Bean{Parent: "xyz789"}
+		if !withParent.HasParent() {
+			t.Error("expected HasParent() = true when parent is set")
+		}
 
-	t.Run("HasType", func(t *testing.T) {
-		if !links.HasType("blocks") {
-			t.Error("expected HasType('blocks') = true")
-		}
-		if !links.HasType("parent") {
-			t.Error("expected HasType('parent') = true")
-		}
-		if links.HasType("nonexistent") {
-			t.Error("expected HasType('nonexistent') = false")
+		withoutParent := &Bean{}
+		if withoutParent.HasParent() {
+			t.Error("expected HasParent() = false when parent is empty")
 		}
 	})
 
-	t.Run("HasLink", func(t *testing.T) {
-		if !links.HasLink("blocks", "abc") {
-			t.Error("expected HasLink('blocks', 'abc') = true")
+	t.Run("IsBlocking", func(t *testing.T) {
+		b := &Bean{Blocking: []string{"abc", "def"}}
+		if !b.IsBlocking("abc") {
+			t.Error("expected IsBlocking('abc') = true")
 		}
-		if !links.HasLink("parent", "xyz") {
-			t.Error("expected HasLink('parent', 'xyz') = true")
+		if !b.IsBlocking("def") {
+			t.Error("expected IsBlocking('def') = true")
 		}
-		if links.HasLink("blocks", "xyz") {
-			t.Error("expected HasLink('blocks', 'xyz') = false")
+		if b.IsBlocking("xyz") {
+			t.Error("expected IsBlocking('xyz') = false")
 		}
-		if links.HasLink("parent", "abc") {
-			t.Error("expected HasLink('parent', 'abc') = false")
+
+		empty := &Bean{}
+		if empty.IsBlocking("abc") {
+			t.Error("expected IsBlocking('abc') = false for empty blocks")
 		}
 	})
 
-	t.Run("Targets", func(t *testing.T) {
-		targets := links.Targets("blocks")
-		if len(targets) != 2 || targets[0] != "abc" || targets[1] != "def" {
-			t.Errorf("Targets('blocks') = %v, want [abc def]", targets)
+	t.Run("AddBlocking", func(t *testing.T) {
+		b := &Bean{Blocking: []string{"abc"}}
+		b.AddBlocking("def")
+		if len(b.Blocking) != 2 {
+			t.Errorf("AddBlocking new: got len=%d, want 2", len(b.Blocking))
 		}
-		targets = links.Targets("parent")
-		if len(targets) != 1 || targets[0] != "xyz" {
-			t.Errorf("Targets('parent') = %v, want [xyz]", targets)
+		if !b.IsBlocking("def") {
+			t.Error("AddBlocking didn't add the block")
 		}
-		targets = links.Targets("nonexistent")
-		if len(targets) != 0 {
-			t.Errorf("Targets('nonexistent') = %v, want []", targets)
-		}
-	})
 
-	t.Run("Add", func(t *testing.T) {
-		newLinks := links.Add("blocks", "ghi")
-		if len(newLinks) != 4 {
-			t.Errorf("Add new link: got len=%d, want 4", len(newLinks))
-		}
 		// Adding duplicate should not add
-		sameLinks := links.Add("blocks", "abc")
-		if len(sameLinks) != 3 {
-			t.Errorf("Add duplicate: got len=%d, want 3", len(sameLinks))
+		b.AddBlocking("abc")
+		if len(b.Blocking) != 2 {
+			t.Errorf("AddBlocking duplicate: got len=%d, want 2", len(b.Blocking))
 		}
 	})
 
-	t.Run("Remove", func(t *testing.T) {
-		newLinks := links.Remove("blocks", "abc")
-		if len(newLinks) != 2 {
-			t.Errorf("Remove existing: got len=%d, want 2", len(newLinks))
+	t.Run("RemoveBlocking", func(t *testing.T) {
+		b := &Bean{Blocking: []string{"abc", "def", "ghi"}}
+		b.RemoveBlocking("def")
+		if len(b.Blocking) != 2 {
+			t.Errorf("RemoveBlocking existing: got len=%d, want 2", len(b.Blocking))
 		}
-		if newLinks.HasLink("blocks", "abc") {
-			t.Error("Remove didn't remove the link")
+		if b.IsBlocking("def") {
+			t.Error("RemoveBlocking didn't remove the block")
 		}
+
 		// Removing non-existent should not change anything
-		sameLinks := links.Remove("blocks", "nonexistent")
-		if len(sameLinks) != 3 {
-			t.Errorf("Remove non-existent: got len=%d, want 3", len(sameLinks))
+		b.RemoveBlocking("nonexistent")
+		if len(b.Blocking) != 2 {
+			t.Errorf("RemoveBlocking non-existent: got len=%d, want 2", len(b.Blocking))
 		}
 	})
 }
@@ -1132,5 +1130,89 @@ func TestTagsRoundtrip(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestRenderWithIDComment(t *testing.T) {
+	tests := []struct {
+		name          string
+		bean          *Bean
+		expectComment string
+	}{
+		{
+			name: "with ID",
+			bean: &Bean{
+				ID:     "beans-abc123",
+				Title:  "Test Bean",
+				Status: "todo",
+			},
+			expectComment: "# beans-abc123",
+		},
+		{
+			name: "without ID",
+			bean: &Bean{
+				Title:  "Test Bean",
+				Status: "todo",
+			},
+			expectComment: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := tt.bean.Render()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			result := string(output)
+
+			if tt.expectComment != "" {
+				// Check that comment appears right after opening ---
+				expectedStart := "---\n" + tt.expectComment + "\n"
+				if !strings.HasPrefix(result, expectedStart) {
+					t.Errorf("expected output to start with %q\ngot:\n%s", expectedStart, result)
+				}
+			} else {
+				// When no ID, should not have a comment line
+				lines := strings.Split(result, "\n")
+				if len(lines) > 1 && strings.HasPrefix(lines[1], "#") {
+					t.Errorf("expected no comment line when ID is empty\ngot:\n%s", result)
+				}
+			}
+		})
+	}
+}
+
+func TestRenderWithIDCommentRoundtrip(t *testing.T) {
+	// Verify that the ID comment doesn't interfere with parsing
+	original := &Bean{
+		ID:     "beans-xyz789",
+		Title:  "Test Bean",
+		Status: "in-progress",
+		Body:   "Some body content.",
+	}
+
+	rendered, err := original.Render()
+	if err != nil {
+		t.Fatalf("Render error: %v", err)
+	}
+
+	// Verify the comment is present
+	if !strings.Contains(string(rendered), "# beans-xyz789") {
+		t.Errorf("rendered output should contain ID comment\ngot:\n%s", rendered)
+	}
+
+	// Parse should work correctly (comment is ignored)
+	parsed, err := Parse(strings.NewReader(string(rendered)))
+	if err != nil {
+		t.Fatalf("Parse error: %v", err)
+	}
+
+	if parsed.Title != original.Title {
+		t.Errorf("Title roundtrip: got %q, want %q", parsed.Title, original.Title)
+	}
+	if parsed.Status != original.Status {
+		t.Errorf("Status roundtrip: got %q, want %q", parsed.Status, original.Status)
 	}
 }

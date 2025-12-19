@@ -14,37 +14,27 @@ import (
 )
 
 var (
-	updateStatus   string
-	updateType     string
-	updatePriority string
-	updateTitle    string
-	updateBody     string
-	updateBodyFile string
-	updateLink     []string
-	updateUnlink   []string
-	updateTag    []string
-	updateUntag  []string
-	updateJSON   bool
+	updateStatus         string
+	updateType           string
+	updatePriority       string
+	updateTitle          string
+	updateBody           string
+	updateBodyFile       string
+	updateParent         string
+	updateRemoveParent   bool
+	updateBlocking       []string
+	updateRemoveBlocking []string
+	updateTag            []string
+	updateRemoveTag      []string
+	updateJSON           bool
 )
 
 var updateCmd = &cobra.Command{
-	Use:   "update <id>",
-	Short: "Update a bean's properties",
-	Long: `Updates one or more properties of an existing bean.
-
-Use flags to specify which properties to update:
-  --status       Change the status
-  --type         Change the type
-  --priority     Change the priority
-  --title        Change the title
-  --body         Change the body (use '-' to read from stdin)
-  --link         Add a relationship (format: type:id, can be repeated)
-  --unlink       Remove a relationship (format: type:id, can be repeated)
-  --tag          Add a tag (can be repeated)
-  --untag        Remove a tag (can be repeated)
-
-Relationship types: blocks, duplicates, parent, related`,
-	Args: cobra.ExactArgs(1),
+	Use:     "update <id>",
+	Aliases: []string{"u"},
+	Short:   "Update a bean's properties",
+	Long:    `Updates one or more properties of an existing bean.`,
+	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
 		resolver := &graph.Resolver{Core: core}
@@ -76,36 +66,41 @@ Relationship types: blocks, duplicates, parent, related`,
 			}
 		}
 
-		// Process link additions
-		for _, linkStr := range updateLink {
-			linkType, target, err := parseLink(linkStr)
+		// Handle parent changes
+		if cmd.Flags().Changed("parent") || updateRemoveParent {
+			var parentID *string
+			if !updateRemoveParent && updateParent != "" {
+				parentID = &updateParent
+			}
+			b, err = resolver.Mutation().SetParent(ctx, b.ID, parentID)
 			if err != nil {
 				return cmdError(updateJSON, output.ErrValidation, "%s", err)
 			}
-			b, err = resolver.Mutation().AddLink(ctx, b.ID, model.LinkInput{Type: linkType, Target: target})
-			if err != nil {
-				return cmdError(updateJSON, output.ErrValidation, "%s", err)
-			}
-			changes = append(changes, "links")
+			changes = append(changes, "parent")
 		}
 
-		// Process link removals
-		for _, linkStr := range updateUnlink {
-			linkType, target, err := parseLink(linkStr)
+		// Process blocking additions
+		for _, targetID := range updateBlocking {
+			b, err = resolver.Mutation().AddBlocking(ctx, b.ID, targetID)
 			if err != nil {
 				return cmdError(updateJSON, output.ErrValidation, "%s", err)
 			}
-			b, err = resolver.Mutation().RemoveLink(ctx, b.ID, model.LinkInput{Type: linkType, Target: target})
+			changes = append(changes, "blocking")
+		}
+
+		// Process blocking removals
+		for _, targetID := range updateRemoveBlocking {
+			b, err = resolver.Mutation().RemoveBlocking(ctx, b.ID, targetID)
 			if err != nil {
 				return cmdError(updateJSON, output.ErrValidation, "%s", err)
 			}
-			changes = append(changes, "links")
+			changes = append(changes, "blocking")
 		}
 
 		// Require at least one change
 		if len(changes) == 0 {
 			return cmdError(updateJSON, output.ErrValidation,
-				"no changes specified (use --status, --type, --priority, --title, --body, --link, --unlink, --tag, or --untag)")
+				"no changes specified (use --status, --type, --priority, --title, --body, --parent, --blocking, --tag, or their --remove-* variants)")
 		}
 
 		// Output result
@@ -161,8 +156,8 @@ func buildUpdateInput(cmd *cobra.Command, existingTags []string) (model.UpdateBe
 		changes = append(changes, "body")
 	}
 
-	if len(updateTag) > 0 || len(updateUntag) > 0 {
-		input.Tags = mergeTags(existingTags, updateTag, updateUntag)
+	if len(updateTag) > 0 || len(updateRemoveTag) > 0 {
+		input.Tags = mergeTags(existingTags, updateTag, updateRemoveTag)
 		changes = append(changes, "tags")
 	}
 
@@ -196,10 +191,13 @@ func init() {
 	updateCmd.Flags().StringVar(&updateTitle, "title", "", "New title")
 	updateCmd.Flags().StringVarP(&updateBody, "body", "d", "", "New body (use '-' to read from stdin)")
 	updateCmd.Flags().StringVar(&updateBodyFile, "body-file", "", "Read body from file")
-	updateCmd.Flags().StringArrayVar(&updateLink, "link", nil, "Add relationship (format: type:id, can be repeated)")
-	updateCmd.Flags().StringArrayVar(&updateUnlink, "unlink", nil, "Remove relationship (format: type:id, can be repeated)")
+	updateCmd.Flags().StringVar(&updateParent, "parent", "", "Set parent bean ID")
+	updateCmd.Flags().BoolVar(&updateRemoveParent, "remove-parent", false, "Remove parent")
+	updateCmd.Flags().StringArrayVar(&updateBlocking, "blocking", nil, "ID of bean this blocks (can be repeated)")
+	updateCmd.Flags().StringArrayVar(&updateRemoveBlocking, "remove-blocking", nil, "ID of bean to unblock (can be repeated)")
 	updateCmd.Flags().StringArrayVar(&updateTag, "tag", nil, "Add tag (can be repeated)")
-	updateCmd.Flags().StringArrayVar(&updateUntag, "untag", nil, "Remove tag (can be repeated)")
+	updateCmd.Flags().StringArrayVar(&updateRemoveTag, "remove-tag", nil, "Remove tag (can be repeated)")
+	updateCmd.MarkFlagsMutuallyExclusive("parent", "remove-parent")
 	updateCmd.Flags().BoolVar(&updateJSON, "json", false, "Output as JSON")
 	updateCmd.MarkFlagsMutuallyExclusive("body", "body-file")
 	rootCmd.AddCommand(updateCmd)

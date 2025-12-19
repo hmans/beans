@@ -19,6 +19,10 @@ go build -ldflags "\
   .
 """
 
+[tasks.beans]
+description = "Build and run the beans CLI"
+run = "go run ."
+
 [tasks.install]
 depends = "build"
 run = "cp beans ~/.local/bin/beans"

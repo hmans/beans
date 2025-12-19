@@ -8,14 +8,14 @@ import (
 
 func TestSortBeans(t *testing.T) {
 	// Define the expected order from DefaultStatuses, DefaultPriorities, and DefaultTypes
-	statusNames := []string{"backlog", "todo", "in-progress", "completed", "scrapped"}
+	statusNames := []string{"draft", "todo", "in-progress", "completed", "scrapped"}
 	priorityNames := []string{"critical", "high", "normal", "low", "deferred"}
 	typeNames := []string{"milestone", "epic", "bug", "feature", "task"}
 
 	t.Run("sorts by status order first", func(t *testing.T) {
 		beans := []*bean.Bean{
 			{ID: "1", Status: "completed", Type: "task", Title: "A"},
-			{ID: "2", Status: "backlog", Type: "task", Title: "B"},
+			{ID: "2", Status: "draft", Type: "task", Title: "B"},
 			{ID: "3", Status: "in-progress", Type: "task", Title: "C"},
 			{ID: "4", Status: "todo", Type: "task", Title: "D"},
 			{ID: "5", Status: "scrapped", Type: "task", Title: "E"},
@@ -23,7 +23,7 @@ func TestSortBeans(t *testing.T) {
 
 		bean.SortByStatusPriorityAndType(beans, statusNames, priorityNames, typeNames)
 
-		expected := []string{"backlog", "todo", "in-progress", "completed", "scrapped"}
+		expected := []string{"draft", "todo", "in-progress", "completed", "scrapped"}
 		for i, want := range expected {
 			if beans[i].Status != want {
 				t.Errorf("index %d: got status %q, want %q", i, beans[i].Status, want)
@@ -110,13 +110,13 @@ func TestSortBeans(t *testing.T) {
 			{ID: "2", Status: "todo", Type: "task", Priority: "low", Title: "A"},
 			{ID: "3", Status: "todo", Type: "bug", Priority: "high", Title: "B"},
 			{ID: "4", Status: "todo", Type: "bug", Priority: "high", Title: "A"},
-			{ID: "5", Status: "backlog", Type: "epic", Title: "X"},
+			{ID: "5", Status: "draft", Type: "epic", Title: "X"},
 		}
 
 		bean.SortByStatusPriorityAndType(beans, statusNames, priorityNames, typeNames)
 
 		// Expected order:
-		// 1. backlog/epic/X (ID: 5)
+		// 1. draft/epic/X (ID: 5)
 		// 2. todo/high/bug/A (ID: 4)
 		// 3. todo/high/bug/B (ID: 3)
 		// 4. todo/low/task/A (ID: 2)
@@ -134,7 +134,7 @@ func TestSortBeans(t *testing.T) {
 		beans := []*bean.Bean{
 			{ID: "1", Status: "unknown", Type: "task", Title: "A"},
 			{ID: "2", Status: "todo", Type: "task", Title: "B"},
-			{ID: "3", Status: "backlog", Type: "task", Title: "C"},
+			{ID: "3", Status: "draft", Type: "task", Title: "C"},
 		}
 
 		bean.SortByStatusPriorityAndType(beans, statusNames, priorityNames, typeNames)
@@ -178,20 +178,20 @@ func TestSortBeans(t *testing.T) {
 }
 
 func TestCompareBeansByStatusPriorityAndType(t *testing.T) {
-	statusNames := []string{"backlog", "todo", "in-progress", "completed", "scrapped"}
+	statusNames := []string{"draft", "todo", "in-progress", "completed", "scrapped"}
 	priorityNames := []string{"critical", "high", "normal", "low", "deferred"}
 	typeNames := []string{"milestone", "epic", "bug", "feature", "task"}
 
 	t.Run("compares by status first", func(t *testing.T) {
 		a := &bean.Bean{ID: "1", Status: "todo", Type: "task", Title: "A"}
-		b := &bean.Bean{ID: "2", Status: "backlog", Type: "task", Title: "B"}
+		b := &bean.Bean{ID: "2", Status: "draft", Type: "task", Title: "B"}
 
-		// backlog < todo, so b should come before a
+		// draft < todo, so b should come before a
 		if compareBeansByStatusPriorityAndType(a, b, statusNames, priorityNames, typeNames) {
-			t.Error("backlog bean should come before todo bean")
+			t.Error("draft bean should come before todo bean")
 		}
 		if !compareBeansByStatusPriorityAndType(b, a, statusNames, priorityNames, typeNames) {
-			t.Error("backlog bean should come before todo bean")
+			t.Error("draft bean should come before todo bean")
 		}
 	})
 

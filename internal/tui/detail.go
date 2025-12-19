@@ -28,7 +28,9 @@ var (
 func getGlamourRenderer() *glamour.TermRenderer {
 	glamourRendererOnce.Do(func() {
 		var err error
-		glamourRenderer, err = glamour.NewTermRenderer(glamour.WithAutoStyle())
+		// Use DarkStyle instead of WithAutoStyle() to avoid slow terminal detection
+		// that can cause multi-second delays in some terminals
+		glamourRenderer, err = glamour.NewTermRenderer(glamour.WithStylePath("dark"))
 		if err != nil {
 			glamourRenderer = nil
 		}
@@ -314,6 +316,66 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 					}
 				}
 			}
+
+		case "p":
+			// Open parent picker
+			return m, func() tea.Msg {
+				return openParentPickerMsg{
+					beanIDs:       []string{m.bean.ID},
+					beanTitle:     m.bean.Title,
+					beanTypes:     []string{m.bean.Type},
+					currentParent: m.bean.Parent,
+				}
+			}
+
+		case "s":
+			// Open status picker
+			return m, func() tea.Msg {
+				return openStatusPickerMsg{
+					beanIDs:       []string{m.bean.ID},
+					beanTitle:     m.bean.Title,
+					currentStatus: m.bean.Status,
+				}
+			}
+
+		case "t":
+			// Open type picker
+			return m, func() tea.Msg {
+				return openTypePickerMsg{
+					beanIDs:     []string{m.bean.ID},
+					beanTitle:   m.bean.Title,
+					currentType: m.bean.Type,
+				}
+			}
+
+		case "P":
+			// Open priority picker
+			return m, func() tea.Msg {
+				return openPriorityPickerMsg{
+					beanIDs:         []string{m.bean.ID},
+					beanTitle:       m.bean.Title,
+					currentPriority: m.bean.Priority,
+				}
+			}
+
+		case "b":
+			// Open blocking picker
+			return m, func() tea.Msg {
+				return openBlockingPickerMsg{
+					beanID:          m.bean.ID,
+					beanTitle:       m.bean.Title,
+					currentBlocking: m.bean.Blocking,
+				}
+			}
+
+		case "e":
+			// Open editor for this bean
+			return m, func() tea.Msg {
+				return openEditorMsg{
+					beanID:   m.bean.ID,
+					beanPath: m.bean.Path,
+				}
+			}
 		}
 	}
 
@@ -382,7 +444,14 @@ func (m detailModel) View() string {
 		}
 		footer += helpKeyStyle.Render("enter") + " " + helpStyle.Render("go to") + "  "
 	}
-	footer += helpKeyStyle.Render("j/k") + " " + helpStyle.Render("scroll") + "  " +
+	footer += helpKeyStyle.Render("e") + " " + helpStyle.Render("edit") + "  " +
+		helpKeyStyle.Render("s") + " " + helpStyle.Render("status") + "  " +
+		helpKeyStyle.Render("t") + " " + helpStyle.Render("type") + "  " +
+		helpKeyStyle.Render("P") + " " + helpStyle.Render("priority") + "  " +
+		helpKeyStyle.Render("p") + " " + helpStyle.Render("parent") + "  " +
+		helpKeyStyle.Render("b") + " " + helpStyle.Render("blocking") + "  " +
+		helpKeyStyle.Render("j/k") + " " + helpStyle.Render("scroll") + "  " +
+		helpKeyStyle.Render("?") + " " + helpStyle.Render("help") + "  " +
 		helpKeyStyle.Render("esc") + " " + helpStyle.Render("back") + "  " +
 		helpKeyStyle.Render("q") + " " + helpStyle.Render("quit")
 
@@ -447,14 +516,10 @@ func (m detailModel) renderHeader() string {
 func (m detailModel) formatLinkLabel(linkType string, incoming bool) string {
 	if incoming {
 		switch linkType {
-		case "blocks":
+		case "blocking":
 			return "Blocked by"
 		case "parent":
 			return "Child"
-		case "duplicates":
-			return "Duplicated by"
-		case "related":
-			return "Related"
 		default:
 			return linkType + " (incoming)"
 		}
@@ -462,14 +527,10 @@ func (m detailModel) formatLinkLabel(linkType string, incoming bool) string {
 
 	// Outgoing labels - capitalize first letter
 	switch linkType {
-	case "blocks":
-		return "Blocks"
+	case "blocking":
+		return "Blocking"
 	case "parent":
 		return "Parent"
-	case "duplicates":
-		return "Duplicates"
-	case "related":
-		return "Related"
 	default:
 		return linkType
 	}
@@ -481,37 +542,26 @@ func (m detailModel) resolveAllLinks() []resolvedLink {
 	beanResolver := m.resolver.Bean()
 
 	// Resolve outgoing links via GraphQL resolvers
-	if blocks, _ := beanResolver.Blocks(ctx, m.bean); blocks != nil {
-		for _, b := range blocks {
-			links = append(links, resolvedLink{linkType: "blocks", bean: b, incoming: false})
+	if blocking, _ := beanResolver.Blocking(ctx, m.bean, nil); blocking != nil {
+		for _, b := range blocking {
+			links = append(links, resolvedLink{linkType: "blocking", bean: b, incoming: false})
 		}
 	}
 	if parent, _ := beanResolver.Parent(ctx, m.bean); parent != nil {
 		links = append(links, resolvedLink{linkType: "parent", bean: parent, incoming: false})
 	}
-	if duplicates, _ := beanResolver.Duplicates(ctx, m.bean); duplicates != nil {
-		for _, b := range duplicates {
-			links = append(links, resolvedLink{linkType: "duplicates", bean: b, incoming: false})
-		}
-	}
-	if related, _ := beanResolver.Related(ctx, m.bean); related != nil {
-		for _, b := range related {
-			links = append(links, resolvedLink{linkType: "related", bean: b, incoming: false})
-		}
-	}
 
-	// Resolve incoming links via GraphQL resolvers (directional relationships only)
-	if blockedBy, _ := beanResolver.BlockedBy(ctx, m.bean); blockedBy != nil {
+	// Resolve incoming links via GraphQL resolvers
+	if blockedBy, _ := beanResolver.BlockedBy(ctx, m.bean, nil); blockedBy != nil {
 		for _, b := range blockedBy {
-			links = append(links, resolvedLink{linkType: "blocks", bean: b, incoming: true})
+			links = append(links, resolvedLink{linkType: "blocking", bean: b, incoming: true})
 		}
 	}
-	if children, _ := beanResolver.Children(ctx, m.bean); children != nil {
+	if children, _ := beanResolver.Children(ctx, m.bean, nil); children != nil {
 		for _, b := range children {
 			links = append(links, resolvedLink{linkType: "parent", bean: b, incoming: true})
 		}
 	}
-	// Note: duplicates and related are bidirectional, already handled above
 
 	// Sort all links by link type label first, then by bean status/type/title
 	// This keeps link categories together while ordering beans consistently with the main list

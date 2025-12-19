@@ -48,6 +48,11 @@ func (c *Core) Unwatch() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	return c.unwatchLocked()
+}
+
+// unwatchLocked stops watching (must be called with lock held).
+func (c *Core) unwatchLocked() error {
 	if !c.watching {
 		return nil
 	}
@@ -64,7 +69,6 @@ func (c *Core) watchLoop(watcher *fsnotify.Watcher) {
 	defer watcher.Close()
 
 	var debounceTimer *time.Timer
-	var pendingReload bool
 
 	for {
 		select {
@@ -100,8 +104,7 @@ func (c *Core) watchLoop(watcher *fsnotify.Watcher) {
 				continue
 			}
 
-			// Mark that we have a pending change and start/reset debounce timer
-			pendingReload = true
+			// Start/reset debounce timer
 			if debounceTimer != nil {
 				debounceTimer.Stop()
 			}
@@ -116,9 +119,6 @@ func (c *Core) watchLoop(watcher *fsnotify.Watcher) {
 			// Log errors but continue watching
 			_ = err // In production, you might want to log this
 		}
-
-		// Silence the unused variable warning
-		_ = pendingReload
 	}
 }
 

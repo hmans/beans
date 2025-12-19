@@ -15,6 +15,7 @@ var (
 	ColorWarning   = lipgloss.Color("#F59E0B") // Amber
 	ColorDanger    = lipgloss.Color("#EF4444") // Red
 	ColorMuted     = lipgloss.Color("#9CA3AF") // Light gray
+	ColorSubtle    = lipgloss.Color("#555555") // Dark gray (for tree lines)
 	ColorBlue      = lipgloss.Color("#3B82F6") // Blue
 	ColorCyan      = lipgloss.Color("14")      // Bright Cyan (ANSI)
 )
@@ -153,6 +154,9 @@ var ID = lipgloss.NewStyle().
 	Foreground(ColorPrimary).
 	Bold(true)
 
+// TreeLine style - subtle for tree connectors
+var TreeLine = lipgloss.NewStyle().Foreground(ColorSubtle)
+
 // Title style
 var Title = lipgloss.NewStyle().Bold(true)
 
@@ -168,7 +172,7 @@ var Header = lipgloss.NewStyle().
 // RenderStatus returns a styled status badge based on the status string (legacy, uses hardcoded colors)
 func RenderStatus(status string) string {
 	switch status {
-	case "todo", "backlog":
+	case "todo", "draft":
 		return StatusOpen.Render(status)
 	case "completed", "scrapped":
 		return StatusDone.Render(status)
@@ -182,7 +186,7 @@ func RenderStatus(status string) string {
 // RenderStatusText returns styled status text (for tables, no background) (legacy, uses hardcoded colors)
 func RenderStatusText(status string) string {
 	switch status {
-	case "todo", "backlog":
+	case "todo", "draft":
 		return StatusOpenText.Render(status)
 	case "completed", "scrapped":
 		return StatusDoneText.Render(status)
@@ -233,6 +237,20 @@ func RenderTypeText(typeName, color string) string {
 	return lipgloss.NewStyle().Foreground(c).Render(typeName)
 }
 
+// RenderTypeWithColor returns a styled type badge with colored background.
+func RenderTypeWithColor(typeName, color string) string {
+	if typeName == "" {
+		return ""
+	}
+	c := ResolveColor(color)
+	style := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#fff")).
+		Background(c).
+		Bold(true).
+		Padding(0, 1)
+	return style.Render(typeName)
+}
+
 // RenderPriorityWithColor returns a styled priority badge using the specified color.
 func RenderPriorityWithColor(priority, color string) string {
 	if priority == "" {
@@ -258,20 +276,28 @@ func RenderPriorityText(priority, color string) string {
 	return style.Render(priority)
 }
 
+// GetPrioritySymbol returns the raw symbol for a priority without styling.
+// Returns empty string for normal/empty priority.
+func GetPrioritySymbol(priority string) string {
+	switch priority {
+	case "critical":
+		return "‼"
+	case "high":
+		return "!"
+	case "low":
+		return "↓"
+	case "deferred":
+		return "→"
+	default:
+		return ""
+	}
+}
+
 // RenderPrioritySymbol returns a compact symbol for priority (used in TUI).
 // Returns empty string for normal/empty priority.
 func RenderPrioritySymbol(priority, color string) string {
-	var symbol string
-	switch priority {
-	case "critical":
-		symbol = "‼"
-	case "high":
-		symbol = "!"
-	case "low":
-		symbol = "↓"
-	case "deferred":
-		symbol = "→"
-	default:
+	symbol := GetPrioritySymbol(priority)
+	if symbol == "" {
 		return ""
 	}
 
@@ -293,10 +319,14 @@ type BeanRowConfig struct {
 	MaxTitleWidth int  // 0 means no truncation
 	ShowCursor    bool // Show selection cursor
 	IsSelected    bool
+	IsMarked      bool     // Marked for multi-select batch operations
 	Tags          []string // Tags to display (optional)
 	ShowTags      bool     // Whether to show tags column
 	TagsColWidth  int      // Width of tags column (0 = default)
 	MaxTags       int      // Max tags to show (0 = default of 1)
+	TreePrefix    string   // Tree prefix (e.g., "├─" or "  └─") to prepend to ID
+	Dimmed        bool     // Render row dimmed (for unmatched ancestor beans in tree)
+	IDColWidth    int      // Width of ID column (0 = default of ColWidthID)
 }
 
 // Base column widths for bean lists (minimum sizes)
@@ -318,9 +348,8 @@ type ResponsiveColumns struct {
 }
 
 // CalculateResponsiveColumns determines column widths based on available width.
-// It distributes extra space to tags (more tags) and title (remaining space).
+// Prioritizes title width - tags are only shown when there's plenty of room.
 func CalculateResponsiveColumns(totalWidth int, hasTags bool) ResponsiveColumns {
-	// Fixed columns
 	cols := ResponsiveColumns{
 		ID:       ColWidthID,
 		Status:   ColWidthStatus,
@@ -330,42 +359,47 @@ func CalculateResponsiveColumns(totalWidth int, hasTags bool) ResponsiveColumns 
 		ShowTags: false,
 	}
 
-	// Cursor takes 2 chars
+	// Don't show tags in narrow viewports - prioritize title space
+	// Only consider showing tags if terminal is wide enough (140+ columns)
+	const minWidthForTags = 140
+
+	if !hasTags || totalWidth < minWidthForTags {
+		return cols
+	}
+
+	// At this point we have at least 140 columns
+	// Base usage: cursor (2) + ID (12) + status (14) + type (12) = 40
 	cursorWidth := 2
-
-	// Base width without tags
 	baseWidth := cursorWidth + cols.ID + cols.Status + cols.Type
-
-	// Minimum title width we want to preserve (kept low to favor title space)
-	minTitleWidth := 20
-
-	// Available space for tags + title
 	available := totalWidth - baseWidth
 
-	// Only show tags if we have them and there's enough room
-	// Use higher thresholds to give more space to titles
-	if hasTags && available > minTitleWidth+ColWidthTags+20 {
+	// Reserve generous space for title, then allocate remaining to tags
+	minTitleWidth := 50
+	spaceForTags := available - minTitleWidth
+
+	if spaceForTags >= ColWidthTags {
 		cols.ShowTags = true
 
-		// Calculate how many tags we can show based on available space
-		// Be conservative - favor title width over showing more tags
-		spaceForTags := available - minTitleWidth - 20 // extra 20 for title breathing room
-
-		if spaceForTags >= 70 {
-			// Lots of space: show 3 tags, wider column
-			cols.Tags = 50
+		if spaceForTags >= 80 {
+			// Lots of space: show all tags (up to 5)
+			cols.Tags = 70
+			cols.MaxTags = 5
+		} else if spaceForTags >= 60 {
+			// Good space: show 4 tags
+			cols.Tags = 55
+			cols.MaxTags = 4
+		} else if spaceForTags >= 45 {
+			// Moderate space: show 3 tags
+			cols.Tags = 42
 			cols.MaxTags = 3
-		} else if spaceForTags >= 55 {
-			// Good space: show 2 tags
-			cols.Tags = 38
+		} else if spaceForTags >= 35 {
+			// Limited space: show 2 tags
+			cols.Tags = 32
 			cols.MaxTags = 2
-		} else if spaceForTags >= ColWidthTags {
+		} else {
 			// Minimal: show 1 tag
 			cols.Tags = ColWidthTags
 			cols.MaxTags = 1
-		} else {
-			// Not enough room for tags
-			cols.ShowTags = false
 		}
 	}
 
@@ -375,7 +409,10 @@ func CalculateResponsiveColumns(totalWidth int, hasTags bool) ResponsiveColumns 
 // RenderBeanRow renders a bean as a single row with ID, Type, Status, Tags (optional), Title
 func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string {
 	// Column styles - use responsive widths if provided
-	idStyle := lipgloss.NewStyle().Width(ColWidthID)
+	idColWidth := ColWidthID
+	if cfg.IDColWidth > 0 {
+		idColWidth = cfg.IDColWidth
+	}
 	typeStyle := lipgloss.NewStyle().Width(ColWidthType)
 	statusStyle := lipgloss.NewStyle().Width(ColWidthStatus)
 
@@ -390,37 +427,79 @@ func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string
 		maxTags = cfg.MaxTags
 	}
 
-	// Build columns
-	idCol := idStyle.Render(ID.Render(id))
+	// Highlight style for marked rows
+	highlightStyle := lipgloss.NewStyle().Foreground(ColorWarning)
 
-	typeText := ""
-	if typeName != "" {
-		typeText = RenderTypeText(typeName, cfg.TypeColor)
+	// Build ID column with manual padding
+	// (lipgloss Width() doesn't correctly handle Unicode box-drawing characters)
+	var idCol string
+	// Calculate visual width: tree prefix (in runes) + ID length
+	visualWidth := len([]rune(cfg.TreePrefix)) + len(id)
+	padding := ""
+	if idColWidth > visualWidth {
+		padding = strings.Repeat(" ", idColWidth-visualWidth)
 	}
-	typeCol := typeStyle.Render(typeText)
+	if cfg.Dimmed {
+		idCol = Muted.Render(cfg.TreePrefix) + Muted.Render(id) + padding
+	} else if cfg.IsMarked {
+		// Only highlight the ID when marked
+		idCol = highlightStyle.Render(cfg.TreePrefix) + highlightStyle.Render(id) + padding
+	} else {
+		idCol = TreeLine.Render(cfg.TreePrefix) + ID.Render(id) + padding
+	}
 
-	statusCol := statusStyle.Render(RenderStatusTextWithColor(status, cfg.StatusColor, cfg.IsArchive))
+	var typeCol string
+	if typeName != "" {
+		if cfg.Dimmed {
+			typeCol = typeStyle.Render(Muted.Render(typeName))
+		} else {
+			typeCol = typeStyle.Render(RenderTypeText(typeName, cfg.TypeColor))
+		}
+	} else {
+		typeCol = typeStyle.Render("")
+	}
+
+	var statusCol string
+	if cfg.Dimmed {
+		statusCol = statusStyle.Render(Muted.Render(status))
+	} else {
+		statusCol = statusStyle.Render(RenderStatusTextWithColor(status, cfg.StatusColor, cfg.IsArchive))
+	}
 
 	// Tags column (optional)
 	var tagsCol string
 	if cfg.ShowTags {
-		tagsCol = tagsStyle.Render(RenderTagsCompact(cfg.Tags, maxTags))
+		if cfg.Dimmed {
+			if len(cfg.Tags) > 0 {
+				tagsCol = tagsStyle.Render(Muted.Render(cfg.Tags[0]))
+			} else {
+				tagsCol = tagsStyle.Render("")
+			}
+		} else {
+			tagsCol = tagsStyle.Render(RenderTagsCompact(cfg.Tags, maxTags))
+		}
 	}
 
 	// Priority symbol (prepended to title)
-	prioritySymbol := RenderPrioritySymbol(cfg.Priority, cfg.PriorityColor)
-	if prioritySymbol != "" {
-		prioritySymbol += " "
+	var prioritySymbol string
+	if !cfg.Dimmed {
+		prioritySymbol = RenderPrioritySymbol(cfg.Priority, cfg.PriorityColor)
+		if prioritySymbol != "" {
+			prioritySymbol += " "
+		}
 	}
 
 	// Title (truncate if needed, accounting for priority symbol width)
 	displayTitle := title
+	titleColWidth := cfg.MaxTitleWidth // Save original for padding
 	maxWidth := cfg.MaxTitleWidth
 	if maxWidth > 0 && prioritySymbol != "" {
 		maxWidth -= 2 // Account for symbol + space
 	}
-	if maxWidth > 0 && len(title) > maxWidth {
+	if maxWidth > 3 && len(title) > maxWidth {
 		displayTitle = title[:maxWidth-3] + "..."
+	} else if maxWidth > 0 && maxWidth <= 3 && len(title) > maxWidth {
+		displayTitle = title[:maxWidth]
 	}
 
 	// Cursor and title styling
@@ -428,19 +507,37 @@ func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string
 	var titleStyled string
 	if cfg.ShowCursor {
 		if cfg.IsSelected {
-			cursor = lipgloss.NewStyle().Foreground(ColorPrimary).Bold(true).Render("▌") + " "
+			cursor = lipgloss.NewStyle().Foreground(ColorPrimary).Bold(true).Render("▌")
 			titleStyled = lipgloss.NewStyle().Bold(true).Foreground(ColorPrimary).Render(displayTitle)
 		} else {
-			cursor = "  "
-			titleStyled = displayTitle
+			cursor = " "
+			if cfg.Dimmed {
+				titleStyled = Muted.Render(displayTitle)
+			} else {
+				titleStyled = displayTitle
+			}
 		}
 	} else {
 		cursor = ""
-		titleStyled = displayTitle
+		if cfg.Dimmed {
+			titleStyled = Muted.Render(displayTitle)
+		} else {
+			titleStyled = displayTitle
+		}
 	}
 
 	if cfg.ShowTags {
-		return cursor + idCol + typeCol + statusCol + tagsCol + prioritySymbol + titleStyled
+		// Pad title column to fixed width so tags align in a column
+		// Calculate padding needed: titleColWidth - (priority symbol width + title length)
+		titleLen := len(displayTitle)
+		if prioritySymbol != "" {
+			titleLen += 2 // symbol + space
+		}
+		padding := ""
+		if titleColWidth > titleLen {
+			padding = strings.Repeat(" ", titleColWidth-titleLen)
+		}
+		return cursor + idCol + typeCol + statusCol + prioritySymbol + titleStyled + padding + " " + tagsCol
 	}
 	return cursor + idCol + typeCol + statusCol + prioritySymbol + titleStyled
 }

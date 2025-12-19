@@ -1,12 +1,15 @@
 ---
+# beans-8olg
 title: Add --unblocked filter to find actionable beans
-status: backlog
+status: draft
 type: feature
+priority: normal
 tags:
     - cli
     - filtering
 created_at: 2025-12-07T11:29:37Z
-updated_at: 2025-12-08T17:02:44Z
+updated_at: 2025-12-13T14:44:14Z
+parent: beans-f11p
 ---
 
 

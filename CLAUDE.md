@@ -1,35 +1,35 @@
 # What we're building
 
-This is a small CLI app that interacts with a .beans/ directory that stores "issues" (like in an issue tracker) as markdown files with front matter. It is meant to be used as part of an AI-first coding workflow.
+You already know what beans is. This is the beans repository.
 
-- This is an agentic-first issue tracker. Issues are called beans.
-- Projects configure beans via a `.beans.yml` file at the project root.
-- Bean data is stored in a `.beans/` directory (configurable via `beans.path` in `.beans.yml`).
-- The executable built from this project here is called `beans` and interacts with said directory.
-- The `beans` command is designed to be used by a coding agent (Claude, OpenCode, etc.) to interact with the project's issues.
-- `.beans/` contains markdown files that represent individual beans (flat structure, no subdirectories).
+# Work Parallelization
 
-# Rules
+ABSOLUTELY CRITICAL: We're aiming to parallelize multiple agents. To this end, please follow these rules:
 
-- ONLY make commits when I explicitly tell you to do so.
+1. YOU MUST create a git worktree for each agent working on a bean. This way, each agent has its own isolated working directory. Do this inside the `.worktrees/` directory.
+2. YOU MUST mark the bean as "in-progress" in the main worktree when an agent starts working on it. This prevents multiple agents from working on the same bean simultaneously.
+3. Once the agent completes the bean, YOU MUST mark it as "completed" in the main worktree.
+
+# Commits
+
 - Use conventional commit messages ("feat", "fix", "chore", etc.) when making commits.
 - Mark commits as "breaking" using the `!` notation when applicable (e.g., `feat!: ...`).
 - When making commits, provide a meaningful commit message. The description should be a concise bullet point list of changes made.
+
+# Pull Requests
+
 - When we're working in a PR branch, make separate commits, and update the PR description to reflect the changes made.
+
+# Project Specific
+
 - When making changes to the GraphQL schema, run `mise codegen` to regenerate the code.
-
-# GraphQL
-
 - The `internal/graph/` package provides a GraphQL resolver that can be used to query and mutate beans.
 - All CLI commands that interact with beans should internally use GraphQL queries/mutations.
+- `mise build` to build a `./beans` executable
 
 # Extra rules for our own beans/issues
 
 - Use the `idea` tag for ideas and proposals.
-
-# Building
-
-- `mise build` to build a `./beans` executable
 
 # Testing
 

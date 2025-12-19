@@ -1,6 +1,6 @@
 ---
 title: Show relationship counts in list output
-status: backlog
+status: draft
 type: feature
 tags:
     - cli

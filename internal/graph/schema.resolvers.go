@@ -7,63 +7,65 @@ package graph
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hmans/beans/internal/bean"
 	"github.com/hmans/beans/internal/beancore"
 	"github.com/hmans/beans/internal/graph/model"
 )
 
-// Links is the resolver for the links field.
-func (r *beanResolver) Links(ctx context.Context, obj *bean.Bean) ([]*bean.Link, error) {
-	// Convert []Link to []*Link
-	result := make([]*bean.Link, len(obj.Links))
-	for i := range obj.Links {
-		result[i] = &obj.Links[i]
+// ParentID is the resolver for the parentId field.
+func (r *beanResolver) ParentID(ctx context.Context, obj *bean.Bean) (*string, error) {
+	if obj.Parent == "" {
+		return nil, nil
 	}
-	return result, nil
+	return &obj.Parent, nil
+}
+
+// BlockingIds is the resolver for the blockingIds field.
+func (r *beanResolver) BlockingIds(ctx context.Context, obj *bean.Bean) ([]string, error) {
+	return obj.Blocking, nil
 }
 
 // BlockedBy is the resolver for the blockedBy field.
-func (r *beanResolver) BlockedBy(ctx context.Context, obj *bean.Bean) ([]*bean.Bean, error) {
+func (r *beanResolver) BlockedBy(ctx context.Context, obj *bean.Bean, filter *model.BeanFilter) ([]*bean.Bean, error) {
 	incoming := r.Core.FindIncomingLinks(obj.ID)
 	var result []*bean.Bean
 	for _, link := range incoming {
-		if link.LinkType == "blocks" {
+		if link.LinkType == "blocking" {
 			result = append(result, link.FromBean)
 		}
 	}
-	return result, nil
+	return ApplyFilter(result, filter, r.Core), nil
 }
 
-// Blocks is the resolver for the blocks field.
-func (r *beanResolver) Blocks(ctx context.Context, obj *bean.Bean) ([]*bean.Bean, error) {
+// Blocking is the resolver for the blocking field.
+func (r *beanResolver) Blocking(ctx context.Context, obj *bean.Bean, filter *model.BeanFilter) ([]*bean.Bean, error) {
 	var result []*bean.Bean
-	for _, link := range obj.Links {
-		if link.Type == "blocks" {
-			// Filter out broken links
-			if target, err := r.Core.Get(link.Target); err == nil {
-				result = append(result, target)
-			}
+	for _, targetID := range obj.Blocking {
+		// Filter out broken links
+		if target, err := r.Core.Get(targetID); err == nil {
+			result = append(result, target)
 		}
 	}
-	return result, nil
+	return ApplyFilter(result, filter, r.Core), nil
 }
 
 // Parent is the resolver for the parent field.
 func (r *beanResolver) Parent(ctx context.Context, obj *bean.Bean) (*bean.Bean, error) {
-	for _, link := range obj.Links {
-		if link.Type == "parent" {
-			// Filter out broken links
-			if target, err := r.Core.Get(link.Target); err == nil {
-				return target, nil
-			}
-		}
+	if obj.Parent == "" {
+		return nil, nil
 	}
-	return nil, nil
+	// Filter out broken links
+	parent, err := r.Core.Get(obj.Parent)
+	if err == beancore.ErrNotFound {
+		return nil, nil
+	}
+	return parent, err
 }
 
 // Children is the resolver for the children field.
-func (r *beanResolver) Children(ctx context.Context, obj *bean.Bean) ([]*bean.Bean, error) {
+func (r *beanResolver) Children(ctx context.Context, obj *bean.Bean, filter *model.BeanFilter) ([]*bean.Bean, error) {
 	incoming := r.Core.FindIncomingLinks(obj.ID)
 	var result []*bean.Bean
 	for _, link := range incoming {
@@ -71,79 +73,16 @@ func (r *beanResolver) Children(ctx context.Context, obj *bean.Bean) ([]*bean.Be
 			result = append(result, link.FromBean)
 		}
 	}
-	return result, nil
-}
-
-// Duplicates is the resolver for the duplicates field.
-// Bidirectional: returns both outgoing and incoming 'duplicates' links.
-func (r *beanResolver) Duplicates(ctx context.Context, obj *bean.Bean) ([]*bean.Bean, error) {
-	seen := make(map[string]bool)
-	var result []*bean.Bean
-
-	// Outgoing links
-	for _, link := range obj.Links {
-		if link.Type == "duplicates" {
-			if target, err := r.Core.Get(link.Target); err == nil && !seen[target.ID] {
-				seen[target.ID] = true
-				result = append(result, target)
-			}
-		}
-	}
-
-	// Incoming links
-	for _, link := range r.Core.FindIncomingLinks(obj.ID) {
-		if link.LinkType == "duplicates" && !seen[link.FromBean.ID] {
-			seen[link.FromBean.ID] = true
-			result = append(result, link.FromBean)
-		}
-	}
-
-	return result, nil
-}
-
-// Related is the resolver for the related field.
-// Bidirectional: returns both outgoing and incoming 'related' links.
-func (r *beanResolver) Related(ctx context.Context, obj *bean.Bean) ([]*bean.Bean, error) {
-	seen := make(map[string]bool)
-	var result []*bean.Bean
-
-	// Outgoing links
-	for _, link := range obj.Links {
-		if link.Type == "related" {
-			if target, err := r.Core.Get(link.Target); err == nil && !seen[target.ID] {
-				seen[target.ID] = true
-				result = append(result, target)
-			}
-		}
-	}
-
-	// Incoming links
-	for _, link := range r.Core.FindIncomingLinks(obj.ID) {
-		if link.LinkType == "related" && !seen[link.FromBean.ID] {
-			seen[link.FromBean.ID] = true
-			result = append(result, link.FromBean)
-		}
-	}
-
-	return result, nil
-}
-
-// TargetBean is the resolver for the targetBean field.
-func (r *linkResolver) TargetBean(ctx context.Context, obj *bean.Link) (*bean.Bean, error) {
-	// Filter out broken links by returning nil
-	target, err := r.Core.Get(obj.Target)
-	if err == beancore.ErrNotFound {
-		return nil, nil
-	}
-	return target, err
+	return ApplyFilter(result, filter, r.Core), nil
 }
 
 // CreateBean is the resolver for the createBean field.
 func (r *mutationResolver) CreateBean(ctx context.Context, input model.CreateBeanInput) (*bean.Bean, error) {
 	b := &bean.Bean{
-		Slug:  bean.Slugify(input.Title),
-		Title: input.Title,
-		Type:  "task", // default
+		Slug:     bean.Slugify(input.Title),
+		Title:    input.Title,
+		Type:     "task", // default
+		Blocking: []string{},
 	}
 
 	// Optional fields with defaults documented in schema
@@ -163,12 +102,17 @@ func (r *mutationResolver) CreateBean(ctx context.Context, input model.CreateBea
 		b.Tags = input.Tags
 	}
 
-	// Add links
-	for _, link := range input.Links {
-		b.Links = append(b.Links, bean.Link{
-			Type:   link.Type,
-			Target: link.Target,
-		})
+	// Handle parent (with validation)
+	if input.Parent != nil && *input.Parent != "" {
+		if err := r.Core.ValidateParent(b, *input.Parent); err != nil {
+			return nil, err
+		}
+		b.Parent = *input.Parent
+	}
+
+	// Handle blocking
+	if len(input.Blocking) > 0 {
+		b.Blocking = input.Blocking
 	}
 
 	if err := r.Core.Create(b); err != nil {
@@ -233,35 +177,75 @@ func (r *mutationResolver) DeleteBean(ctx context.Context, id string) (bool, err
 	return true, nil
 }
 
-// AddLink is the resolver for the addLink field.
-func (r *mutationResolver) AddLink(ctx context.Context, id string, link model.LinkInput) (*bean.Bean, error) {
+// SetParent is the resolver for the setParent field.
+func (r *mutationResolver) SetParent(ctx context.Context, id string, parentID *string) (*bean.Bean, error) {
 	b, err := r.Core.Get(id)
 	if err != nil {
 		return nil, err
 	}
 
-	b.Links = b.Links.Add(link.Type, link.Target)
+	newParent := ""
+	if parentID != nil {
+		newParent = *parentID
+	}
 
+	// Validate parent type hierarchy
+	if newParent != "" {
+		if err := r.Core.ValidateParent(b, newParent); err != nil {
+			return nil, err
+		}
+		// Check for cycles
+		if cycle := r.Core.DetectCycle(b.ID, "parent", newParent); cycle != nil {
+			return nil, fmt.Errorf("would create cycle: %v", cycle)
+		}
+	}
+
+	b.Parent = newParent
 	if err := r.Core.Update(b); err != nil {
 		return nil, err
 	}
-
 	return b, nil
 }
 
-// RemoveLink is the resolver for the removeLink field.
-func (r *mutationResolver) RemoveLink(ctx context.Context, id string, link model.LinkInput) (*bean.Bean, error) {
+// AddBlocking is the resolver for the addBlocking field.
+func (r *mutationResolver) AddBlocking(ctx context.Context, id string, targetID string) (*bean.Bean, error) {
 	b, err := r.Core.Get(id)
 	if err != nil {
 		return nil, err
 	}
 
-	b.Links = b.Links.Remove(link.Type, link.Target)
+	if targetID == b.ID {
+		return nil, fmt.Errorf("bean cannot block itself")
+	}
 
+	// Check target exists
+	if _, err := r.Core.Get(targetID); err != nil {
+		return nil, fmt.Errorf("target bean not found: %s", targetID)
+	}
+
+	// Check for cycles
+	if cycle := r.Core.DetectCycle(b.ID, "blocking", targetID); cycle != nil {
+		return nil, fmt.Errorf("would create cycle: %v", cycle)
+	}
+
+	b.AddBlocking(targetID)
 	if err := r.Core.Update(b); err != nil {
 		return nil, err
 	}
+	return b, nil
+}
 
+// RemoveBlocking is the resolver for the removeBlocking field.
+func (r *mutationResolver) RemoveBlocking(ctx context.Context, id string, targetID string) (*bean.Bean, error) {
+	b, err := r.Core.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	b.RemoveBlocking(targetID)
+	if err := r.Core.Update(b); err != nil {
+		return nil, err
+	}
 	return b, nil
 }
 
@@ -276,69 +260,24 @@ func (r *queryResolver) Bean(ctx context.Context, id string) (*bean.Bean, error)
 
 // Beans is the resolver for the beans field.
 func (r *queryResolver) Beans(ctx context.Context, filter *model.BeanFilter) ([]*bean.Bean, error) {
-	beans := r.Core.All()
+	var beans []*bean.Bean
 
-	if filter == nil {
-		return beans, nil
-	}
-
-	// Apply filters
-	result := beans
-
-	// Status filters
-	if len(filter.Status) > 0 {
-		result = filterByField(result, filter.Status, func(b *bean.Bean) string { return b.Status })
-	}
-	if len(filter.ExcludeStatus) > 0 {
-		result = excludeByField(result, filter.ExcludeStatus, func(b *bean.Bean) string { return b.Status })
+	// If search filter is provided, start with search results
+	if filter != nil && filter.Search != nil && *filter.Search != "" {
+		searchResults, err := r.Core.Search(*filter.Search)
+		if err != nil {
+			return nil, err
+		}
+		beans = searchResults
+	} else {
+		beans = r.Core.All()
 	}
 
-	// Type filters
-	if len(filter.Type) > 0 {
-		result = filterByField(result, filter.Type, func(b *bean.Bean) string { return b.Type })
-	}
-	if len(filter.ExcludeType) > 0 {
-		result = excludeByField(result, filter.ExcludeType, func(b *bean.Bean) string { return b.Type })
-	}
-
-	// Priority filters (empty priority treated as "normal")
-	if len(filter.Priority) > 0 {
-		result = filterByPriority(result, filter.Priority)
-	}
-	if len(filter.ExcludePriority) > 0 {
-		result = excludeByPriority(result, filter.ExcludePriority)
-	}
-
-	// Tag filters
-	if len(filter.Tags) > 0 {
-		result = filterByTags(result, filter.Tags)
-	}
-	if len(filter.ExcludeTags) > 0 {
-		result = excludeByTags(result, filter.ExcludeTags)
-	}
-
-	// Link filters
-	if len(filter.HasLinks) > 0 {
-		result = filterByOutgoingLinks(result, filter.HasLinks)
-	}
-	if len(filter.NoLinks) > 0 {
-		result = excludeByOutgoingLinks(result, filter.NoLinks)
-	}
-	if len(filter.LinkedAs) > 0 {
-		result = filterByIncomingLinks(result, filter.LinkedAs, r.Core)
-	}
-	if len(filter.NoLinkedAs) > 0 {
-		result = excludeByIncomingLinks(result, filter.NoLinkedAs, r.Core)
-	}
-
-	return result, nil
+	return ApplyFilter(beans, filter, r.Core), nil
 }
 
 // Bean returns BeanResolver implementation.
 func (r *Resolver) Bean() BeanResolver { return &beanResolver{r} }
-
-// Link returns LinkResolver implementation.
-func (r *Resolver) Link() LinkResolver { return &linkResolver{r} }
 
 // Mutation returns MutationResolver implementation.
 func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
@@ -347,6 +286,5 @@ func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
 type beanResolver struct{ *Resolver }
-type linkResolver struct{ *Resolver }
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }

@@ -3,62 +3,60 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"sort"
-	"strings"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/spf13/cobra"
 	"github.com/hmans/beans/internal/bean"
 	"github.com/hmans/beans/internal/config"
 	"github.com/hmans/beans/internal/graph"
 	"github.com/hmans/beans/internal/graph/model"
 	"github.com/hmans/beans/internal/output"
 	"github.com/hmans/beans/internal/ui"
+	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 var (
 	listJSON       bool
+	listSearch     string
 	listStatus     []string
 	listNoStatus   []string
 	listType       []string
 	listNoType     []string
 	listPriority   []string
 	listNoPriority []string
-	listLinks      []string
-	listLinkedAs   []string
-	listNoLinks    []string
-	listNoLinkedAs []string
 	listTag        []string
 	listNoTag      []string
+	listHasParent   bool
+	listNoParent    bool
+	listParentID    string
+	listHasBlocking bool
+	listNoBlocking  bool
+	listIsBlocked   bool
 	listQuiet      bool
 	listSort       string
 	listFull       bool
 )
 
-// parseLinkFilters parses CLI link filter strings (e.g., "blocks" or "blocks:id")
-// into GraphQL LinkFilter models.
-func parseLinkFilters(filters []string) []*model.LinkFilter {
-	if len(filters) == 0 {
-		return nil
-	}
-	result := make([]*model.LinkFilter, len(filters))
-	for i, f := range filters {
-		parts := strings.SplitN(f, ":", 2)
-		lf := &model.LinkFilter{Type: parts[0]}
-		if len(parts) == 2 {
-			target := parts[1]
-			lf.Target = &target
-		}
-		result[i] = lf
-	}
-	return result
-}
-
 var listCmd = &cobra.Command{
 	Use:     "list",
 	Aliases: []string{"ls"},
 	Short:   "List all beans",
-	Long:    `Lists all beans in the .beans directory.`,
+	Long: `Lists all beans in the .beans directory.
+
+Search Syntax (--search/-S):
+  The search flag supports Bleve query string syntax:
+
+  login          Exact term match
+  login~         Fuzzy match (1 edit distance, finds "loggin", "logins")
+  login~2        Fuzzy match (2 edit distance)
+  log*           Wildcard prefix match
+  "user login"   Exact phrase match
+  user AND login Both terms required
+  user OR login  Either term matches
+  slug:auth      Search only in slug field
+  title:login    Search only in title field
+  body:auth      Search only in body field`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Build GraphQL filter from CLI flags
 		filter := &model.BeanFilter{
@@ -70,10 +68,31 @@ var listCmd = &cobra.Command{
 			ExcludePriority: listNoPriority,
 			Tags:            listTag,
 			ExcludeTags:     listNoTag,
-			HasLinks:        parseLinkFilters(listLinks),
-			LinkedAs:        parseLinkFilters(listLinkedAs),
-			NoLinks:         parseLinkFilters(listNoLinks),
-			NoLinkedAs:      parseLinkFilters(listNoLinkedAs),
+		}
+
+		// Add search filter if provided
+		if listSearch != "" {
+			filter.Search = &listSearch
+		}
+
+		// Add parent/blocks filters
+		if listHasParent {
+			filter.HasParent = &listHasParent
+		}
+		if listNoParent {
+			filter.NoParent = &listNoParent
+		}
+		if listParentID != "" {
+			filter.ParentID = &listParentID
+		}
+		if listHasBlocking {
+			filter.HasBlocking = &listHasBlocking
+		}
+		if listNoBlocking {
+			filter.NoBlocking = &listNoBlocking
+		}
+		if listIsBlocked {
+			filter.IsBlocked = &listIsBlocked
 		}
 
 		// Execute query via GraphQL resolver
@@ -86,7 +105,7 @@ var listCmd = &cobra.Command{
 		// Sort beans
 		sortBeans(beans, listSort, cfg)
 
-		// JSON output
+		// JSON output (flat list)
 		if listJSON {
 			if !listFull {
 				for _, b := range beans {
@@ -96,7 +115,7 @@ var listCmd = &cobra.Command{
 			return output.SuccessMultiple(beans)
 		}
 
-		// Quiet mode: just IDs
+		// Quiet mode: just IDs (flat)
 		if listQuiet {
 			for _, b := range beans {
 				fmt.Println(b.ID)
@@ -104,20 +123,34 @@ var listCmd = &cobra.Command{
 			return nil
 		}
 
-		// Human-friendly output
-		if len(beans) == 0 {
+		// Default: tree view
+		// We need all beans to find ancestors for context
+		allBeans, err := resolver.Query().Beans(context.Background(), nil)
+		if err != nil {
+			return fmt.Errorf("querying all beans for tree: %w", err)
+		}
+
+		// Create sort function for tree building
+		sortFn := func(b []*bean.Bean) {
+			sortBeans(b, listSort, cfg)
+		}
+
+		// Build tree
+		tree := ui.BuildTree(beans, allBeans, sortFn)
+
+		if len(tree) == 0 {
 			fmt.Println(ui.Muted.Render("No beans found. Create one with: beans new <title>"))
 			return nil
 		}
 
-		// Calculate max ID width
-		maxIDWidth := 2 // minimum for "ID" header
-		for _, b := range beans {
+		// Calculate max ID width from all beans in tree
+		maxIDWidth := 2
+		for _, b := range allBeans {
 			if len(b.ID) > maxIDWidth {
 				maxIDWidth = len(b.ID)
 			}
 		}
-		maxIDWidth += 2 // padding
+		maxIDWidth += 2
 
 		// Check if any beans have tags
 		hasTags := false
@@ -128,86 +161,13 @@ var listCmd = &cobra.Command{
 			}
 		}
 
-		// Column styles with widths for alignment (order: ID, Type, Status, Tags, Title - matches TUI)
-		idStyle := lipgloss.NewStyle().Width(maxIDWidth)
-		typeStyle := lipgloss.NewStyle().Width(12)
-		statusStyle := lipgloss.NewStyle().Width(14)
-		tagsStyle := lipgloss.NewStyle().Width(24)
-		titleStyle := lipgloss.NewStyle()
-
-		// Header style
-		headerCol := lipgloss.NewStyle().Foreground(ui.ColorMuted)
-
-		// Header
-		var header string
-		var dividerWidth int
-		if hasTags {
-			header = lipgloss.JoinHorizontal(lipgloss.Top,
-				idStyle.Render(headerCol.Render("ID")),
-				typeStyle.Render(headerCol.Render("TYPE")),
-				statusStyle.Render(headerCol.Render("STATUS")),
-				tagsStyle.Render(headerCol.Render("TAGS")),
-				titleStyle.Render(headerCol.Render("TITLE")),
-			)
-			dividerWidth = maxIDWidth + 12 + 14 + 20 + 30
-		} else {
-			header = lipgloss.JoinHorizontal(lipgloss.Top,
-				idStyle.Render(headerCol.Render("ID")),
-				typeStyle.Render(headerCol.Render("TYPE")),
-				statusStyle.Render(headerCol.Render("STATUS")),
-				titleStyle.Render(headerCol.Render("TITLE")),
-			)
-			dividerWidth = maxIDWidth + 12 + 14 + 30
-		}
-		fmt.Println(header)
-		fmt.Println(ui.Muted.Render(strings.Repeat("─", dividerWidth)))
-
-		for _, b := range beans {
-			// Get status color from config
-			statusCfg := cfg.GetStatus(b.Status)
-			statusColor := "gray"
-			if statusCfg != nil {
-				statusColor = statusCfg.Color
-			}
-			isArchive := cfg.IsArchiveStatus(b.Status)
-
-			// Get type color from config
-			typeColor := ""
-			if typeCfg := cfg.GetType(b.Type); typeCfg != nil {
-				typeColor = typeCfg.Color
-			}
-
-			// Get priority color and render symbol
-			priorityColor := ""
-			if priorityCfg := cfg.GetPriority(b.Priority); priorityCfg != nil {
-				priorityColor = priorityCfg.Color
-			}
-			prioritySymbol := ui.RenderPrioritySymbol(b.Priority, priorityColor)
-			if prioritySymbol != "" {
-				prioritySymbol += " "
-			}
-
-			var row string
-			if hasTags {
-				tagsStr := ui.RenderTagsCompact(b.Tags, 1)
-				row = lipgloss.JoinHorizontal(lipgloss.Top,
-					idStyle.Render(ui.ID.Render(b.ID)),
-					typeStyle.Render(ui.RenderTypeText(b.Type, typeColor)),
-					statusStyle.Render(ui.RenderStatusTextWithColor(b.Status, statusColor, isArchive)),
-					tagsStyle.Render(tagsStr),
-					titleStyle.Render(prioritySymbol+truncate(b.Title, 50)),
-				)
-			} else {
-				row = lipgloss.JoinHorizontal(lipgloss.Top,
-					idStyle.Render(ui.ID.Render(b.ID)),
-					typeStyle.Render(ui.RenderTypeText(b.Type, typeColor)),
-					statusStyle.Render(ui.RenderStatusTextWithColor(b.Status, statusColor, isArchive)),
-					titleStyle.Render(prioritySymbol+truncate(b.Title, 50)),
-				)
-			}
-			fmt.Println(row)
+		// Detect terminal width (default to 80 if not a terminal)
+		termWidth := 80
+		if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w > 0 {
+			termWidth = w
 		}
 
+		fmt.Print(ui.RenderTree(tree, cfg, maxIDWidth, hasTags, termWidth))
 		return nil
 	},
 }
@@ -308,21 +268,23 @@ func truncate(s string, maxLen int) string {
 
 func init() {
 	listCmd.Flags().BoolVar(&listJSON, "json", false, "Output as JSON")
+	listCmd.Flags().StringVarP(&listSearch, "search", "S", "", "Full-text search in title and body")
 	listCmd.Flags().StringArrayVarP(&listStatus, "status", "s", nil, "Filter by status (can be repeated)")
 	listCmd.Flags().StringArrayVar(&listNoStatus, "no-status", nil, "Exclude by status (can be repeated)")
 	listCmd.Flags().StringArrayVarP(&listType, "type", "t", nil, "Filter by type (can be repeated)")
 	listCmd.Flags().StringArrayVar(&listNoType, "no-type", nil, "Exclude by type (can be repeated)")
 	listCmd.Flags().StringArrayVarP(&listPriority, "priority", "p", nil, "Filter by priority (can be repeated)")
 	listCmd.Flags().StringArrayVar(&listNoPriority, "no-priority", nil, "Exclude by priority (can be repeated)")
-	listCmd.Flags().StringArrayVar(&listLinks, "links", nil, "Filter by outgoing relationship (format: type or type:id)")
-	listCmd.Flags().StringArrayVar(&listLinkedAs, "linked-as", nil, "Filter by incoming relationship (format: type or type:id)")
-	listCmd.Flags().StringArrayVar(&listNoLinks, "no-links", nil, "Exclude beans with outgoing relationship (format: type or type:id)")
-	listCmd.Flags().StringArrayVar(&listNoLinkedAs, "no-linked-as", nil, "Exclude beans with incoming relationship (format: type or type:id)")
 	listCmd.Flags().StringArrayVar(&listTag, "tag", nil, "Filter by tag (can be repeated, OR logic)")
 	listCmd.Flags().StringArrayVar(&listNoTag, "no-tag", nil, "Exclude beans with tag (can be repeated)")
+	listCmd.Flags().BoolVar(&listHasParent, "has-parent", false, "Filter beans with a parent")
+	listCmd.Flags().BoolVar(&listNoParent, "no-parent", false, "Filter beans without a parent")
+	listCmd.Flags().StringVar(&listParentID, "parent", "", "Filter by parent ID")
+	listCmd.Flags().BoolVar(&listHasBlocking, "has-blocking", false, "Filter beans that are blocking others")
+	listCmd.Flags().BoolVar(&listNoBlocking, "no-blocking", false, "Filter beans that aren't blocking others")
+	listCmd.Flags().BoolVar(&listIsBlocked, "is-blocked", false, "Filter beans that are blocked by others")
 	listCmd.Flags().BoolVarP(&listQuiet, "quiet", "q", false, "Only output IDs (one per line)")
 	listCmd.Flags().StringVar(&listSort, "sort", "", "Sort by: created, updated, status, priority, id (default: status, priority, type, title)")
 	listCmd.Flags().BoolVar(&listFull, "full", false, "Include bean body in JSON output")
-	listCmd.MarkFlagsMutuallyExclusive("json", "quiet")
 	rootCmd.AddCommand(listCmd)
 }

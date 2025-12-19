@@ -1,23 +1,45 @@
 ![beans](https://github.com/user-attachments/assets/776f094c-f2c4-4724-9a0b-5b87e88bc50d)
 
+[![License](https://img.shields.io/github/license/hmans/beans?style=for-the-badge)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/hmans/beans?style=for-the-badge)](https://github.com/hmans/beans/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/hmans/beans/test.yml?branch=main&label=tests&style=for-the-badge)](https://github.com/hmans/beans/actions/workflows/test.yml)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/hmans/beans?style=for-the-badge)](https://go.dev/)
+[![Go Report Card](https://goreportcard.com/badge/github.com/hmans/beans?style=for-the-badge)](https://goreportcard.com/report/github.com/hmans/beans)
+
 **Beans is an issue tracker for you, your team, and your coding agents.** Instead of tracking tasks in a separate application, Beans stores them right alongside your code. You can use the `beans` CLI to interact with your tasks, but more importantly, so can your favorite coding agent!
 
 This gives your robot friends a juicy upgrade: now they get a complete view of your project, make suggestions for what to work on next, track their progress, create bug issues for problems they find, and more.
 
 You've been programming all your life; now you get to be a product manager. Let's go! 🚀
 
-> **Warning**: As long as this project is still within the `0.1.x` version range, expect frequent small releases often containing breaking changes. I'm dogfooding Beans in my own projects (including Beans itself), so things generally work great, but every now and then I still need to turn things inside out. If you're serious about diving in, I would advise to wait for the upcoming `0.2.0` release.
+## Announcement Trailer ✨
+
+https://github.com/user-attachments/assets/dbe45408-d3ed-4681-a436-a5e3046163da
+
+## Stability Warning ⚠️
+
+Beans is still under heavy development, and its features and APIs may still change significantly. If you decide to use it now, please follow the release notes closely.
+
+Since Beans emits its own prompt instructions for your coding agent, most changes will "just work"; but sometimes, we modify the schema of the underlying data files, which may require some manual migration steps. If you get caught by one of these changes, your agent will often be able to migrate your data for you:
+
+> "The Beans data format has changed. Please migrate this project's beans to the new format."
 
 ## Features
 
-- Track tasks, bugs, features, and more right alongside your code.
-- Plain old Markdown files stored in a `.beans` directory in your project. Easy to version control, readable and editable by humans and machines alike!
-- Use the `beans` CLI to create, list, view, update, and archive beans; but more importantly, let your coding agent do it for you!
-- Supercharge your robot friend with full context about your project and its open tasks. A built-in GraphQL query engine allows your agent to get exactly the information it needs, keeping token use to a minimum.
-- A beautiful built-in TUI for browsing and managing your beans from the terminal.
-- Generates a Markdown roadmap document for your project from your data.
+- **Track tasks, bugs, features**, and more right alongside your code.
+- **Plain old Markdown files** stored in a `.beans` directory in your project. Easy to version control, readable and editable by humans and machines alike!
+- Use the `beans` CLI to create, list, view, update, and archive beans; but more importantly, **let your coding agent do it for you**!
+- **Supercharge your robot friend** with full context about your project and its open tasks. A built-in **GraphQL query engine** allows your agent to get exactly the information it needs, keeping token use to a minimum.
+- A beautiful **built-in** TUI for browsing and managing your beans from the terminal.
+- Generates a **Markdown roadmap document** for your project from your data.
 
 ## Installation
+
+We'll need to do three things:
+
+1. Install the `beans` CLI tool.
+2. Configure your project to use it.
+3. Configure your coding agent to interact with it.
 
 Either download Beans from the [Releases section](https://github.com/hmans/beans/releases), or install it via Homebrew:
 
@@ -31,17 +53,17 @@ Alternatively, install directly via Go:
 go install github.com/hmans/beans@latest
 ```
 
-## Setup
+## Configure Your Project
 
-Now initialize Beans in your project:
+Inside the root directory of your project, run:
 
 ```bash
 beans init
 ```
 
-This will create a `.beans/` directory in your project and a `.beans.yml` configuration file at the project root. Everything is meant to be tracked in your version control system.
+This will create a `.beans/` directory and a `.beans.yml` configuration file at the project root. All of it is meant to be tracked in your version control system.
 
-You can interact with your Beans through the `beans` CLI. To get a list of available commands:
+From this point onward, you can interact with your Beans through the `beans` CLI. To get a list of available commands:
 
 ```bash
 beans help
@@ -55,35 +77,40 @@ We'll need to teach your coding agent that it should use Beans to track tasks, a
 
 ### Claude Code
 
-Beans integrates with [Claude Code](https://claude.ai/code) via hooks. Add this to your `.claude/settings.json`:
+An official Beans plugin for Claude is in the works, but for the time being, please manually add the following hooks to your project's `.claude/settings.json` file:
 
 ```json
 {
-  // ... other settings ...
   "hooks": {
     "SessionStart": [
-      {
-        "matcher": "",
-        "hooks": [{ "type": "command", "command": "beans prompt" }]
-      }
+      { "hooks": [{ "type": "command", "command": "beans prime" }] }
     ],
     "PreCompact": [
-      {
-        "matcher": "",
-        "hooks": [{ "type": "command", "command": "beans prompt" }]
-      }
+      { "hooks": [{ "type": "command", "command": "beans prime" }] }
     ]
   }
 }
 ```
 
-This runs `beans prompt` at session start and before context compaction, injecting instructions that teach Claude to use Beans for task tracking instead of its built-in TodoWrite tool.
-
 ### Other Agents
 
-You can use Beans with other coding agents by configuring them to run `beans prompt` to get the prompt instructions for task management. We'll add specific integrations for popular agents over time.
+You can use Beans with other coding agents by configuring them to run `beans prime` to get the prompt instructions for task management. We'll add specific integrations for popular agents over time.
 
-## Usage
+## Usage Hints
+
+As a human, you can get an overview of the CLI's functionalities by running:
+
+```bash
+beans help
+```
+
+You might specifically be interested in the interactive TUI:
+
+```bash
+beans tui
+```
+
+**But the real power of Beans** comes from letting your coding agent manage your tasks for you.
 
 Assuming you have integrated Beans into your coding agent correctly, it will already know how to create and manage beans for you. You can use the usual assortment of natural language inquiries. If you've just
 added Beans to an existing project, you could try asking your agent to identify potential tasks and create beans for them:
@@ -102,3 +129,11 @@ You can also specifically ask it to start working on a particular bean:
 
 This project currently does not accept contributions -- it's just way too early for that!
 But if you do have suggestions or feedback, please feel free to open an issue.
+
+## License
+
+This project is licensed under the Apache-2.0 License. See the [LICENSE](LICENSE) file for details.
+
+## Getting in Touch
+
+If you have any questions, suggestions, or just want to say hi, feel free to reach out to me [on Bluesky](https://bsky.app/profile/hmans.dev), or [open an issue](https://github.com/hmans/beans/issues) in this repository.

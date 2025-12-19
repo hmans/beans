@@ -216,7 +216,7 @@ func TestExecuteQueryWithRelationships(t *testing.T) {
 		Slug:   "child-bean",
 		Title:  "Child Bean",
 		Status: "todo",
-		Links:  bean.Links{{Type: "parent", Target: "parent-1"}},
+		Parent: "parent-1",
 	}
 	if err := testCore.Create(child); err != nil {
 		t.Fatalf("failed to create child bean: %v", err)
@@ -228,7 +228,7 @@ func TestExecuteQueryWithRelationships(t *testing.T) {
 		Slug:   "blocker-bean",
 		Title:  "Blocker Bean",
 		Status: "todo",
-		Links:  bean.Links{{Type: "blocks", Target: "child-1"}},
+		Blocking: []string{"child-1"},
 	}
 	if err := testCore.Create(blocker); err != nil {
 		t.Fatalf("failed to create blocker bean: %v", err)
@@ -321,8 +321,8 @@ func TestExecuteQueryWithRelationships(t *testing.T) {
 		}
 	})
 
-	t.Run("query blocks relationship", func(t *testing.T) {
-		query := `{ bean(id: "blocker-1") { id blocks { id title } } }`
+	t.Run("query blocking relationship", func(t *testing.T) {
+		query := `{ bean(id: "blocker-1") { id blocking { id title } } }`
 		result, err := executeQuery(query, nil, "")
 		if err != nil {
 			t.Fatalf("executeQuery() error = %v", err)
@@ -330,11 +330,11 @@ func TestExecuteQueryWithRelationships(t *testing.T) {
 
 		var data struct {
 			Bean struct {
-				ID     string `json:"id"`
-				Blocks []struct {
+				ID       string `json:"id"`
+				Blocking []struct {
 					ID    string `json:"id"`
 					Title string `json:"title"`
-				} `json:"blocks"`
+				} `json:"blocking"`
 			} `json:"bean"`
 		}
 
@@ -342,11 +342,11 @@ func TestExecuteQueryWithRelationships(t *testing.T) {
 			t.Fatalf("failed to parse response: %v", err)
 		}
 
-		if len(data.Bean.Blocks) != 1 {
-			t.Errorf("expected 1 blocked bean, got %d", len(data.Bean.Blocks))
+		if len(data.Bean.Blocking) != 1 {
+			t.Errorf("expected 1 blocked bean, got %d", len(data.Bean.Blocking))
 		}
-		if len(data.Bean.Blocks) > 0 && data.Bean.Blocks[0].ID != "child-1" {
-			t.Errorf("expected blocked id 'child-1', got %q", data.Bean.Blocks[0].ID)
+		if len(data.Bean.Blocking) > 0 && data.Bean.Blocking[0].ID != "child-1" {
+			t.Errorf("expected blocked id 'child-1', got %q", data.Bean.Blocking[0].ID)
 		}
 	})
 }
@@ -518,7 +518,6 @@ func TestGetGraphQLSchema(t *testing.T) {
 	expectedTypes := []string{
 		"type Query",
 		"type Bean",
-		"type Link",
 		"input BeanFilter",
 	}
 
@@ -533,7 +532,7 @@ func TestGetGraphQLSchema(t *testing.T) {
 		"bean(id: ID!)",
 		"beans(filter: BeanFilter)",
 		"blockedBy",
-		"blocks",
+		"blocking",
 		"parent",
 		"children",
 	}

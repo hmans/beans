@@ -21,6 +21,7 @@ func setupTestCore(t *testing.T) (*Core, string) {
 
 	cfg := config.Default()
 	core := New(beansDir, cfg)
+	core.SetWarnWriter(nil) // suppress warnings in tests
 	if err := core.Load(); err != nil {
 		t.Fatalf("failed to load core: %v", err)
 	}
@@ -410,7 +411,7 @@ func TestLoadIgnoresNonMdFiles(t *testing.T) {
 	}
 }
 
-func TestLinksPreserved(t *testing.T) {
+func TestBlocksPreserved(t *testing.T) {
 	core, _ := setupTestCore(t)
 
 	// Create bean A that blocks bean B
@@ -419,9 +420,7 @@ func TestLinksPreserved(t *testing.T) {
 		Slug:   "blocker",
 		Title:  "Blocker Bean",
 		Status: "todo",
-		Links: bean.Links{
-			{Type: "blocks", Target: "bbb2"},
-		},
+		Blocking: []string{"bbb2"},
 	}
 	if err := core.Create(beanA); err != nil {
 		t.Fatalf("Create beanA error = %v", err)
@@ -453,14 +452,14 @@ func TestLinksPreserved(t *testing.T) {
 		t.Fatalf("Get bbb2 error = %v", err)
 	}
 
-	// Bean A should have direct link
-	if !loadedA.Links.HasLink("blocks", "bbb2") {
-		t.Errorf("Bean A Links = %v, want blocks:bbb2", loadedA.Links)
+	// Bean A should have direct blocks link
+	if !loadedA.IsBlocking("bbb2") {
+		t.Errorf("Bean A Blocks = %v, want [bbb2]", loadedA.Blocking)
 	}
 
-	// Bean B should have no links
-	if len(loadedB.Links) != 0 {
-		t.Errorf("Bean B Links = %v, want empty", loadedB.Links)
+	// Bean B should have no blocks
+	if len(loadedB.Blocking) != 0 {
+		t.Errorf("Bean B Blocks = %v, want empty", loadedB.Blocking)
 	}
 }
 
