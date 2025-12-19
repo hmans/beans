@@ -25,18 +25,6 @@ var serveCmd = &cobra.Command{
 	Use:     "serve",
 	Aliases: []string{"s"},
 	Short:   "Start the web server",
-	Long: `Start an HTTP server that serves the GraphQL API.
-
-The server exposes:
-  - GraphQL endpoint at /graphql (POST)
-  - GraphQL Playground at /graphql (GET) for interactive queries
-
-Examples:
-  # Start server on default port 22880
-  beans serve
-
-  # Start server on a custom port
-  beans serve --port 3000`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runServer()
 	},
@@ -52,16 +40,11 @@ func runServer() error {
 	// Set up routes
 	mux := http.NewServeMux()
 
-	// GraphQL endpoint - serves both the API and playground
-	mux.Handle("/graphql", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Serve playground on GET requests
-		if r.Method == http.MethodGet {
-			playground.Handler("Beans GraphQL", "/graphql").ServeHTTP(w, r)
-			return
-		}
-		// Handle GraphQL requests
-		srv.ServeHTTP(w, r)
-	}))
+	// GraphQL API endpoint with CORS support
+	mux.Handle("/api/graphql", corsMiddleware(srv))
+
+	// GraphQL Playground
+	mux.Handle("/playground", playground.Handler("Beans GraphQL", "/api/graphql"))
 
 	// Serve the embedded frontend SPA
 	mux.Handle("/", web.Handler())
@@ -86,7 +69,7 @@ func runServer() error {
 	// Start server in goroutine
 	go func() {
 		fmt.Printf("Starting server at http://localhost:%d/\n", servePort)
-		fmt.Printf("GraphQL Playground: http://localhost:%d/graphql\n", servePort)
+		fmt.Printf("GraphQL Playground: http://localhost:%d/playground\n", servePort)
 		serverErr <- server.ListenAndServe()
 	}()
 
@@ -110,6 +93,24 @@ func runServer() error {
 	}
 
 	return nil
+}
+
+// corsMiddleware adds CORS headers for cross-origin requests (e.g., Vite dev server)
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Allow requests from any origin during development
+		// w.Header().Set("Access-Control-Allow-Origin", "*")
+		// w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		// w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		// Handle preflight requests
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 func init() {

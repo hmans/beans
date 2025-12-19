@@ -47,6 +47,12 @@ importers:
       globals:
         specifier: ^16.5.0
         version: 16.5.0
+      graphql:
+        specifier: ^16.12.0
+        version: 16.12.0
+      graphql-ws:
+        specifier: ^6.0.6
+        version: 6.0.6(graphql@16.12.0)(ws@8.18.3)
       playwright:
         specifier: ^1.57.0
         version: 1.57.0
@@ -74,6 +80,9 @@ importers:
       typescript-eslint:
         specifier: ^8.48.1
         version: 8.50.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
+      urql:
+        specifier: ^5.0.1
+        version: 5.0.1(@urql/core@6.0.1(graphql@16.12.0))(react@19.2.3)
       vite:
         specifier: ^7.2.6
         version: 7.3.0(@types/node@22.19.3)(jiti@2.6.1)(lightningcss@1.30.2)
@@ -85,6 +94,14 @@ importers:
         version: 2.0.1(svelte@5.46.0)(vitest@4.0.16)
 
 packages:
+
+  '@0no-co/graphql.web@1.2.0':
+    resolution: {integrity: sha512-/1iHy9TTr63gE1YcR5idjx8UREz1s0kFhydf3bBLCXyqjhkIc6igAzTOx3zPifCwFR87tsh/4Pa9cNts6d2otw==}
+    peerDependencies:
+      graphql: ^14.0.0 || ^15.0.0 || ^16.0.0
+    peerDependenciesMeta:
+      graphql:
+        optional: true
 
   '@esbuild/aix-ppc64@0.27.2':
     resolution: {integrity: sha512-GZMB+a0mOMZs4MpDbj8RJp4cw+w1WV5NYD6xzgvzUJ5Ek2jerwfO2eADyI6ExDSUED+1X8aMbegahsJi+8mgpw==}
@@ -647,6 +664,9 @@ packages:
     resolution: {integrity: sha512-Xzmnb58+Db78gT/CCj/PVCvK+zxbnsw6F+O1oheYszJbBSdEjVhQi3C/Xttzxgi/GLmpvOggRs1RFpiJ8+c34Q==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
+  '@urql/core@6.0.1':
+    resolution: {integrity: sha512-FZDiQk6jxbj5hixf2rEPv0jI+IZz0EqqGW8mJBEug68/zHTtT+f34guZDmyjJZyiWbj0vL165LoMr/TkeDHaug==}
+
   '@vitest/browser-playwright@4.0.16':
     resolution: {integrity: sha512-I2Fy/ANdphi1yI46d15o0M1M4M0UJrUiVKkH5oKeRZZCdPg0fw/cfTKZzv9Ge9eobtJYp4BGblMzXdXH0vcl5g==}
     peerDependencies:
@@ -938,6 +958,29 @@ packages:
 
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
+
+  graphql-ws@6.0.6:
+    resolution: {integrity: sha512-zgfER9s+ftkGKUZgc0xbx8T7/HMO4AV5/YuYiFc+AtgcO5T0v8AxYYNQ+ltzuzDZgNkYJaFspm5MMYLjQzrkmw==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@fastify/websocket': ^10 || ^11
+      crossws: ~0.3
+      graphql: ^15.10.1 || ^16
+      uWebSockets.js: ^20
+      ws: ^8
+    peerDependenciesMeta:
+      '@fastify/websocket':
+        optional: true
+      crossws:
+        optional: true
+      uWebSockets.js:
+        optional: true
+      ws:
+        optional: true
+
+  graphql@16.12.0:
+    resolution: {integrity: sha512-DKKrynuQRne0PNpEbzuEdHlYOMksHSUI8Zc9Unei5gTsMNA2/vMpoMz/yKba50pejK56qj98qM0SjYxAKi13gQ==}
+    engines: {node: ^12.22.0 || ^14.16.0 || ^16.0.0 || >=17.0.0}
 
   has-flag@4.0.0:
     resolution: {integrity: sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ==}
@@ -1282,6 +1325,10 @@ packages:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
 
+  react@19.2.3:
+    resolution: {integrity: sha512-Ku/hhYbVjOQnXDZFv2+RibmLFGwFdeeKHFcOTlrt7xplBnya5OGn/hIRDsqDiSUcfORsDC7MPxwork8jBwsIWA==}
+    engines: {node: '>=0.10.0'}
+
   readdirp@4.1.2:
     resolution: {integrity: sha512-GDhwkLfywWL2s6vEjyhri+eXmfH6j1L7JE27WhqLeYzoh/A3DBaYGEj2H/HFZCn/kMfim73FXxEJTw06WtxQwg==}
     engines: {node: '>= 14.18.0'}
@@ -1415,6 +1462,12 @@ packages:
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
 
+  urql@5.0.1:
+    resolution: {integrity: sha512-r58gYlWvCTC19QvkTaARaCLV9/bp870byH/qbLaw3S7f8i/bC6x2Szub8RVXptiMxWmqq5dyVBjUL9G+xPEuqg==}
+    peerDependencies:
+      '@urql/core': ^6.0.0
+      react: '>= 16.8.0'
+
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
 
@@ -1516,6 +1569,9 @@ packages:
     engines: {node: '>=8'}
     hasBin: true
 
+  wonka@6.3.5:
+    resolution: {integrity: sha512-SSil+ecw6B4/Dm7Pf2sAshKQ5hWFvfyGlfPbEd6A14dOH6VDjrmbY86u6nZvy9omGwwIPFR8V41+of1EezgoUw==}
+
   word-wrap@1.2.5:
     resolution: {integrity: sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==}
     engines: {node: '>=0.10.0'}
@@ -1544,6 +1600,10 @@ packages:
     resolution: {integrity: sha512-B58NGBEoc8Y9MWWCQGl/gq9xBCe4IiKM0a2x7GZdQKOW5Exr8S1W24J6OgM1njK8xCRGvAJIL/MxXHf6SkmQKQ==}
 
 snapshots:
+
+  '@0no-co/graphql.web@1.2.0(graphql@16.12.0)':
+    optionalDependencies:
+      graphql: 16.12.0
 
   '@esbuild/aix-ppc64@0.27.2':
     optional: true
@@ -2004,6 +2064,13 @@ snapshots:
       '@typescript-eslint/types': 8.50.0
       eslint-visitor-keys: 4.2.1
 
+  '@urql/core@6.0.1(graphql@16.12.0)':
+    dependencies:
+      '@0no-co/graphql.web': 1.2.0(graphql@16.12.0)
+      wonka: 6.3.5
+    transitivePeerDependencies:
+      - graphql
+
   '@vitest/browser-playwright@4.0.16(playwright@1.57.0)(vite@7.3.0(@types/node@22.19.3)(jiti@2.6.1)(lightningcss@1.30.2))(vitest@4.0.16)':
     dependencies:
       '@vitest/browser': 4.0.16(vite@7.3.0(@types/node@22.19.3)(jiti@2.6.1)(lightningcss@1.30.2))(vitest@4.0.16)
@@ -2336,6 +2403,14 @@ snapshots:
 
   graceful-fs@4.2.11: {}
 
+  graphql-ws@6.0.6(graphql@16.12.0)(ws@8.18.3):
+    dependencies:
+      graphql: 16.12.0
+    optionalDependencies:
+      ws: 8.18.3
+
+  graphql@16.12.0: {}
+
   has-flag@4.0.0: {}
 
   ignore@5.3.2: {}
@@ -2562,6 +2637,8 @@ snapshots:
 
   punycode@2.3.1: {}
 
+  react@19.2.3: {}
+
   readdirp@4.1.2: {}
 
   resolve-from@4.0.0: {}
@@ -2713,6 +2790,12 @@ snapshots:
     dependencies:
       punycode: 2.3.1
 
+  urql@5.0.1(@urql/core@6.0.1(graphql@16.12.0))(react@19.2.3):
+    dependencies:
+      '@urql/core': 6.0.1(graphql@16.12.0)
+      react: 19.2.3
+      wonka: 6.3.5
+
   util-deprecate@1.0.2: {}
 
   vite@7.3.0(@types/node@22.19.3)(jiti@2.6.1)(lightningcss@1.30.2):
@@ -2784,6 +2867,8 @@ snapshots:
     dependencies:
       siginfo: 2.0.0
       stackback: 0.0.2
+
+  wonka@6.3.5: {}
 
   word-wrap@1.2.5: {}
 
