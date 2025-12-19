@@ -11,6 +11,7 @@ import (
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
 
 	"github.com/hmans/beans/internal/graph"
@@ -31,29 +32,36 @@ var serveCmd = &cobra.Command{
 }
 
 func runServer() error {
+	// Set Gin to release mode for cleaner output
+	gin.SetMode(gin.ReleaseMode)
+
+	// Create Gin router
+	router := gin.New()
+
+	// Add middleware
+	router.Use(gin.Recovery())
+
 	// Create GraphQL server
 	es := graph.NewExecutableSchema(graph.Config{
 		Resolvers: &graph.Resolver{Core: core},
 	})
-	srv := handler.NewDefaultServer(es)
+	gqlHandler := handler.NewDefaultServer(es)
 
-	// Set up routes
-	mux := http.NewServeMux()
-
-	// GraphQL API endpoint with CORS support
-	mux.Handle("/api/graphql", srv)
+	// GraphQL API endpoint
+	router.POST("/api/graphql", gin.WrapH(gqlHandler))
+	router.GET("/api/graphql", gin.WrapH(gqlHandler))
 
 	// GraphQL Playground
-	mux.Handle("/playground", playground.Handler("Beans GraphQL", "/api/graphql"))
+	router.GET("/playground", gin.WrapH(playground.Handler("Beans GraphQL", "/api/graphql")))
 
 	// Serve the embedded frontend SPA
-	mux.Handle("/", web.Handler())
+	router.NoRoute(gin.WrapH(web.Handler()))
 
 	// Create HTTP server
 	addr := fmt.Sprintf(":%d", servePort)
 	server := &http.Server{
 		Addr:         addr,
-		Handler:      mux,
+		Handler:      router,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
