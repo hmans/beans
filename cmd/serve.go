@@ -39,6 +39,7 @@ func runServer() error {
 	router := gin.New()
 
 	// Add middleware
+	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
 
 	// Create GraphQL server
