@@ -41,7 +41,10 @@ func (r *beanResolver) BlockedBy(ctx context.Context, obj *bean.Bean, filter *mo
 			result = append(result, link.FromBean)
 		}
 	}
-	return ApplyFilter(result, filter, r.Core), nil
+	filtered := ApplyFilter(result, filter, r.Core)
+	cfg := r.Core.Config()
+	bean.SortByStatusPriorityAndType(filtered, cfg.StatusNames(), cfg.PriorityNames(), cfg.TypeNames())
+	return filtered, nil
 }
 
 // Blocking is the resolver for the blocking field.
@@ -53,7 +56,10 @@ func (r *beanResolver) Blocking(ctx context.Context, obj *bean.Bean, filter *mod
 			result = append(result, target)
 		}
 	}
-	return ApplyFilter(result, filter, r.Core), nil
+	filtered := ApplyFilter(result, filter, r.Core)
+	cfg := r.Core.Config()
+	bean.SortByStatusPriorityAndType(filtered, cfg.StatusNames(), cfg.PriorityNames(), cfg.TypeNames())
+	return filtered, nil
 }
 
 // Parent is the resolver for the parent field.
@@ -78,7 +84,10 @@ func (r *beanResolver) Children(ctx context.Context, obj *bean.Bean, filter *mod
 			result = append(result, link.FromBean)
 		}
 	}
-	return ApplyFilter(result, filter, r.Core), nil
+	filtered := ApplyFilter(result, filter, r.Core)
+	cfg := r.Core.Config()
+	bean.SortByStatusPriorityAndType(filtered, cfg.StatusNames(), cfg.PriorityNames(), cfg.TypeNames())
+	return filtered, nil
 }
 
 // CreateBean is the resolver for the createBean field.
@@ -478,7 +487,13 @@ func (r *queryResolver) Beans(ctx context.Context, filter *model.BeanFilter) ([]
 		beans = r.Core.All()
 	}
 
-	return ApplyFilter(beans, filter, r.Core), nil
+	result := ApplyFilter(beans, filter, r.Core)
+
+	// Sort using the same logic as CLI and TUI
+	cfg := r.Core.Config()
+	bean.SortByStatusPriorityAndType(result, cfg.StatusNames(), cfg.PriorityNames(), cfg.TypeNames())
+
+	return result, nil
 }
 
 // Bean returns BeanResolver implementation.
