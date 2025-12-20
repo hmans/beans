@@ -1,10 +1,11 @@
 ---
 # beans-amlk
 title: 'Build web UI: Bean detail view'
-status: todo
+status: completed
 type: task
+priority: normal
 created_at: 2025-12-18T16:45:35Z
-updated_at: 2025-12-18T16:45:35Z
+updated_at: 2025-12-20T12:49:08Z
 parent: beans-lbjp
 ---
 

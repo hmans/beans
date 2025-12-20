@@ -6,105 +6,74 @@
 	interface Props {
 		bean: Bean;
 		depth?: number;
+		selectedId?: string | null;
+		onSelect?: (bean: Bean) => void;
 	}
 
-	let { bean, depth = 0 }: Props = $props();
-
-	let copied = $state(false);
-
-	function copyId() {
-		navigator.clipboard.writeText(bean.id);
-		copied = true;
-		setTimeout(() => (copied = false), 1500);
-	}
+	let { bean, depth = 0, selectedId = null, onSelect }: Props = $props();
 
 	// Get children of this bean
 	const children = $derived(beansStore.children(bean.id));
 
-	// Status colors
+	const isSelected = $derived(selectedId === bean.id);
+
+	// Status colors - more compact
 	const statusColors: Record<string, string> = {
-		todo: 'bg-gray-200 text-gray-800',
-		'in-progress': 'bg-blue-200 text-blue-800',
-		completed: 'bg-green-200 text-green-800',
-		scrapped: 'bg-red-200 text-red-800',
-		draft: 'bg-yellow-200 text-yellow-800'
+		todo: 'bg-gray-200 text-gray-700',
+		'in-progress': 'bg-blue-200 text-blue-700',
+		completed: 'bg-green-200 text-green-700',
+		scrapped: 'bg-red-200 text-red-700',
+		draft: 'bg-yellow-200 text-yellow-700'
 	};
 
-	// Type colors
-	const typeColors: Record<string, string> = {
-		milestone: 'bg-purple-100 text-purple-700',
-		epic: 'bg-indigo-100 text-indigo-700',
-		feature: 'bg-cyan-100 text-cyan-700',
-		bug: 'bg-red-100 text-red-700',
-		task: 'bg-gray-100 text-gray-700'
+	// Type border colors
+	const typeBorders: Record<string, string> = {
+		milestone: 'border-l-purple-400',
+		epic: 'border-l-indigo-400',
+		feature: 'border-l-cyan-400',
+		bug: 'border-l-red-400',
+		task: 'border-l-gray-300'
 	};
+
+	function handleClick(e: MouseEvent) {
+		e.stopPropagation();
+		onSelect?.(bean);
+	}
+
+	function handleKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			onSelect?.(bean);
+		}
+	}
 </script>
 
-<div class="bean-item" style="--depth: {depth}">
-	<div
-		class="rounded-lg bg-white p-3 shadow-sm hover:shadow-md transition-shadow border-l-4"
-		class:border-purple-400={bean.type === 'milestone'}
-		class:border-indigo-400={bean.type === 'epic'}
-		class:border-cyan-400={bean.type === 'feature'}
-		class:border-red-400={bean.type === 'bug'}
-		class:border-gray-300={bean.type === 'task'}
+<div class="bean-item">
+	<button
+		onclick={handleClick}
+		onkeydown={handleKeydown}
+		class="w-full text-left rounded-md p-2 border-l-3 transition-all cursor-pointer
+			{typeBorders[bean.type] ?? 'border-l-gray-300'}
+			{isSelected ? 'bg-blue-50 ring-1 ring-blue-300' : 'bg-white hover:bg-gray-50'}"
 	>
-		<div class="flex items-start justify-between gap-4">
-			<div class="flex-1 min-w-0">
-				<div class="flex items-center gap-2 mb-1 flex-wrap">
-					<button
-						onclick={copyId}
-						class="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
-						title="Copy ID to clipboard"
-					>
-						<code>{bean.id}</code>
-						{#if copied}
-							<span class="text-green-500">✓</span>
-						{:else}
-							<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-							</svg>
-						{/if}
-					</button>
-					<span
-						class="text-xs px-2 py-0.5 rounded-full {typeColors[bean.type] ??
-							'bg-gray-100 text-gray-700'}"
-					>
-						{bean.type}
-					</span>
-					<span
-						class="text-xs px-2 py-0.5 rounded-full {statusColors[bean.status] ??
-							'bg-gray-200 text-gray-800'}"
-					>
-						{bean.status}
-					</span>
-					{#if children.length > 0}
-						<span class="text-xs text-gray-400">
-							({children.length} child{children.length === 1 ? '' : 'ren'})
-						</span>
-					{/if}
-				</div>
-				<h2 class="text-base font-medium text-gray-900 truncate">{bean.title}</h2>
-				{#if bean.tags.length > 0}
-					<div class="flex gap-1 mt-1 flex-wrap">
-						{#each bean.tags as tag}
-							<span class="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">
-								{tag}
-							</span>
-						{/each}
-					</div>
-				{/if}
-			</div>
-			<div class="text-right text-xs text-gray-400 shrink-0">
-				{new Date(bean.updatedAt).toLocaleDateString()}
-			</div>
+		<div class="flex items-center gap-2 min-w-0">
+			<code class="text-[10px] text-gray-400 shrink-0">{bean.id.slice(-4)}</code>
+			<span class="text-sm text-gray-900 truncate flex-1">{bean.title}</span>
+			<span
+				class="text-[10px] px-1.5 py-0.5 rounded-full shrink-0 {statusColors[bean.status] ?? 'bg-gray-200 text-gray-700'}"
+			>
+				{bean.status}
+			</span>
+			{#if children.length > 0}
+				<span class="text-[10px] text-gray-400 shrink-0">+{children.length}</span>
+			{/if}
 		</div>
-	</div>
+	</button>
 
 	{#if children.length > 0}
-		<div class="children ml-6 mt-2 space-y-2 border-l-2 border-gray-200 pl-4">
+		<div class="ml-4 mt-1 space-y-1 border-l border-gray-200 pl-2">
 			{#each children as child (child.id)}
-				<BeanItem bean={child} depth={depth + 1} />
+				<BeanItem bean={child} depth={depth + 1} {selectedId} {onSelect} />
 			{/each}
 		</div>
 	{/if}
