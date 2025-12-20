@@ -496,6 +496,61 @@ func (r *queryResolver) Beans(ctx context.Context, filter *model.BeanFilter) ([]
 	return result, nil
 }
 
+// BeanChanged is the resolver for the beanChanged field.
+func (r *subscriptionResolver) BeanChanged(ctx context.Context) (<-chan *model.BeanChangeEvent, error) {
+	// Subscribe to bean events from beancore
+	eventCh, unsubscribe := r.Core.Subscribe()
+
+	// Create output channel for GraphQL
+	out := make(chan *model.BeanChangeEvent)
+
+	// Start goroutine to forward events
+	go func() {
+		defer unsubscribe()
+		defer close(out)
+
+		for {
+			select {
+			case <-ctx.Done():
+				// Client disconnected
+				return
+			case events, ok := <-eventCh:
+				if !ok {
+					// Channel closed (watcher stopped)
+					return
+				}
+
+				// Forward each event to the GraphQL subscription
+				for _, event := range events {
+					gqlEvent := &model.BeanChangeEvent{
+						BeanID: event.BeanID,
+						Bean:   event.Bean,
+					}
+
+					// Convert event type
+					switch event.Type {
+					case beancore.EventCreated:
+						gqlEvent.Type = model.ChangeTypeCreated
+					case beancore.EventUpdated:
+						gqlEvent.Type = model.ChangeTypeUpdated
+					case beancore.EventDeleted:
+						gqlEvent.Type = model.ChangeTypeDeleted
+					}
+
+					select {
+					case out <- gqlEvent:
+						// Sent successfully
+					case <-ctx.Done():
+						return
+					}
+				}
+			}
+		}
+	}()
+
+	return out, nil
+}
+
 // Bean returns BeanResolver implementation.
 func (r *Resolver) Bean() BeanResolver { return &beanResolver{r} }
 
@@ -505,6 +560,10 @@ func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
+// Subscription returns SubscriptionResolver implementation.
+func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
+
 type beanResolver struct{ *Resolver }
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }

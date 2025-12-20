@@ -10,8 +10,10 @@ import (
 	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"github.com/spf13/cobra"
 
 	"github.com/hmans/beans/internal/graph"
@@ -32,6 +34,12 @@ var serveCmd = &cobra.Command{
 }
 
 func runServer() error {
+	// Start file watcher for subscriptions
+	if err := core.StartWatching(); err != nil {
+		return fmt.Errorf("failed to start file watcher: %w", err)
+	}
+	defer core.Unwatch()
+
 	// Set Gin to release mode for cleaner output
 	gin.SetMode(gin.ReleaseMode)
 
@@ -48,9 +56,18 @@ func runServer() error {
 	})
 	gqlHandler := handler.NewDefaultServer(es)
 
-	// GraphQL API endpoint
-	router.POST("/api/graphql", gin.WrapH(gqlHandler))
-	router.GET("/api/graphql", gin.WrapH(gqlHandler))
+	// Add WebSocket transport for subscriptions
+	gqlHandler.AddTransport(transport.Websocket{
+		KeepAlivePingInterval: 10 * time.Second,
+		Upgrader: websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool {
+				return true // Allow all origins for development
+			},
+		},
+	})
+
+	// GraphQL API endpoint (handle all methods for WebSocket upgrade)
+	router.Any("/api/graphql", gin.WrapH(gqlHandler))
 
 	// GraphQL Playground
 	router.GET("/playground", gin.WrapH(playground.Handler("Beans GraphQL", "/api/graphql")))
