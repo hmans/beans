@@ -21,14 +21,14 @@ import type { Plugin } from "@opencode-ai/plugin";
  */
 
 export const BeansPrimePlugin: Plugin = async ({ $ }) => {
-  const primeOuput = await $`beans prime`.text();
+  const prime = await $`beans prime`.text();
 
   return {
     "experimental.chat.system.transform": async (_, output) => {
-      output.system.push(primeOuput);
+      output.system.push(prime);
     },
     "experimental.session.compacting": async (_, output) => {
-      output.context.push(primeOuput);
+      output.context.push(prime);
     },
   };
 };
