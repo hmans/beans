@@ -8,7 +8,7 @@ postinstall = 'npx corepack enable'
 
 [tasks.deps]
 description = "Install all dependencies"
-run = ["deps:backend", "deps:frontend"]
+run = { tasks = ["deps:backend", "deps:frontend"] }
 
 [tasks."deps:backend"]
 description = "Install backend dependencies"
