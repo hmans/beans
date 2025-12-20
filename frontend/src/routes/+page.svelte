@@ -2,8 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { beansStore } from '$lib/beans.svelte';
 
-	onMount(async () => {
-		await beansStore.load();
+	onMount(() => {
 		beansStore.subscribe();
 	});
 

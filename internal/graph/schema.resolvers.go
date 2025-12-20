@@ -497,7 +497,7 @@ func (r *queryResolver) Beans(ctx context.Context, filter *model.BeanFilter) ([]
 }
 
 // BeanChanged is the resolver for the beanChanged field.
-func (r *subscriptionResolver) BeanChanged(ctx context.Context) (<-chan *model.BeanChangeEvent, error) {
+func (r *subscriptionResolver) BeanChanged(ctx context.Context, includeInitial *bool) (<-chan *model.BeanChangeEvent, error) {
 	// Subscribe to bean events from beancore
 	eventCh, unsubscribe := r.Core.Subscribe()
 
@@ -508,6 +508,26 @@ func (r *subscriptionResolver) BeanChanged(ctx context.Context) (<-chan *model.B
 	go func() {
 		defer unsubscribe()
 		defer close(out)
+
+		// If includeInitial is true, emit all current beans first (sorted consistently with CLI)
+		if includeInitial != nil && *includeInitial {
+			beans := r.Core.All()
+			cfg := r.Core.Config()
+			bean.SortByStatusPriorityAndType(beans, cfg.StatusNames(), cfg.PriorityNames(), cfg.TypeNames())
+
+			for _, b := range beans {
+				select {
+				case out <- &model.BeanChangeEvent{
+					Type:   model.ChangeTypeInitial,
+					BeanID: b.ID,
+					Bean:   b,
+				}:
+					// Sent successfully
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
 
 		for {
 			select {

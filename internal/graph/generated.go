@@ -96,7 +96,7 @@ type ComplexityRoot struct {
 	}
 
 	Subscription struct {
-		BeanChanged func(childComplexity int) int
+		BeanChanged func(childComplexity int, includeInitial *bool) int
 	}
 }
 
@@ -124,7 +124,7 @@ type QueryResolver interface {
 	Beans(ctx context.Context, filter *model.BeanFilter) ([]*bean.Bean, error)
 }
 type SubscriptionResolver interface {
-	BeanChanged(ctx context.Context) (<-chan *model.BeanChangeEvent, error)
+	BeanChanged(ctx context.Context, includeInitial *bool) (<-chan *model.BeanChangeEvent, error)
 }
 
 type executableSchema struct {
@@ -412,7 +412,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			break
 		}
 
-		return e.complexity.Subscription.BeanChanged(childComplexity), true
+		args, err := ec.field_Subscription_beanChanged_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.BeanChanged(childComplexity, args["includeInitial"].(*bool)), true
 
 	}
 	return 0, false
@@ -766,6 +771,17 @@ func (ec *executionContext) field_Query_beans_args(ctx context.Context, rawArgs 
 		return nil, err
 	}
 	args["filter"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_beanChanged_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "includeInitial", ec.unmarshalOBoolean2ᚖbool)
+	if err != nil {
+		return nil, err
+	}
+	args["includeInitial"] = arg0
 	return args, nil
 }
 
@@ -2580,7 +2596,8 @@ func (ec *executionContext) _Subscription_beanChanged(ctx context.Context, field
 		field,
 		ec.fieldContext_Subscription_beanChanged,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Subscription().BeanChanged(ctx)
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Subscription().BeanChanged(ctx, fc.Args["includeInitial"].(*bool))
 		},
 		nil,
 		ec.marshalNBeanChangeEvent2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐBeanChangeEvent,
@@ -2589,7 +2606,7 @@ func (ec *executionContext) _Subscription_beanChanged(ctx context.Context, field
 	)
 }
 
-func (ec *executionContext) fieldContext_Subscription_beanChanged(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Subscription_beanChanged(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Subscription",
 		Field:      field,
@@ -2606,6 +2623,17 @@ func (ec *executionContext) fieldContext_Subscription_beanChanged(_ context.Cont
 			}
 			return nil, fmt.Errorf("no field named %q was found under type BeanChangeEvent", field.Name)
 		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_beanChanged_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }

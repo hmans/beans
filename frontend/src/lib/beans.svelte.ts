@@ -25,7 +25,7 @@ export interface Bean {
 /**
  * Change type from GraphQL subscription
  */
-type ChangeType = 'CREATED' | 'UPDATED' | 'DELETED';
+type ChangeType = 'INITIAL' | 'CREATED' | 'UPDATED' | 'DELETED';
 
 /**
  * Bean change event from GraphQL subscription
@@ -37,34 +37,11 @@ interface BeanChangeEvent {
 }
 
 /**
- * GraphQL query to fetch all beans
- */
-const BEANS_QUERY = gql`
-	query GetBeans {
-		beans {
-			id
-			slug
-			path
-			title
-			status
-			type
-			priority
-			tags
-			createdAt
-			updatedAt
-			body
-			parentId
-			blockingIds
-		}
-	}
-`;
-
-/**
- * GraphQL subscription for bean changes
+ * GraphQL subscription for bean changes with initial state support
  */
 const BEAN_CHANGED_SUBSCRIPTION = gql`
-	subscription BeanChanged {
-		beanChanged {
+	subscription BeanChanged($includeInitial: Boolean!) {
+		beanChanged(includeInitial: $includeInitial) {
 			type
 			beanId
 			bean {
@@ -94,14 +71,17 @@ export class BeansStore {
 	/** All beans indexed by ID */
 	beans = $state(new SvelteMap<string, Bean>());
 
-	/** Loading state */
-	loading = $state(false);
+	/** Loading state (true until first non-initial event or subscription fully synced) */
+	loading = $state(true);
 
 	/** Error state */
 	error = $state<string | null>(null);
 
 	/** Whether subscription is connected */
 	connected = $state(false);
+
+	/** Whether initial sync is complete */
+	#initialSyncDone = false;
 
 	/** Subscription teardown function */
 	#unsubscribe: (() => void) | null = null;
@@ -117,49 +97,27 @@ export class BeansStore {
 	}
 
 	/**
-	 * Load all beans from the GraphQL API
-	 */
-	async load(): Promise<void> {
-		this.loading = true;
-		this.error = null;
-
-		try {
-			const result = await client.query(BEANS_QUERY, {}).toPromise();
-
-			if (result.error) {
-				this.error = result.error.message;
-				return;
-			}
-
-			if (result.data?.beans) {
-				// Clear and repopulate the map
-				this.beans.clear();
-				for (const bean of result.data.beans as Bean[]) {
-					this.beans.set(bean.id, bean);
-				}
-			}
-		} catch (err) {
-			this.error = err instanceof Error ? err.message : 'Unknown error';
-		} finally {
-			this.loading = false;
-		}
-	}
-
-	/**
-	 * Start subscription to bean changes.
-	 * Call this after load() to receive real-time updates.
+	 * Start subscription to bean changes with initial state.
+	 * This is the primary method to initialize the store - it subscribes to changes
+	 * and receives all current beans as initial events, eliminating race conditions.
 	 */
 	subscribe(): void {
 		if (this.#unsubscribe) {
 			return; // Already subscribed
 		}
 
+		this.loading = true;
+		this.error = null;
+		this.#initialSyncDone = false;
+
 		const { unsubscribe } = pipe(
-			client.subscription(BEAN_CHANGED_SUBSCRIPTION, {}),
+			client.subscription(BEAN_CHANGED_SUBSCRIPTION, { includeInitial: true }),
 			subscribe((result: { data?: { beanChanged?: BeanChangeEvent }; error?: Error }) => {
 				if (result.error) {
 					console.error('Subscription error:', result.error);
 					this.connected = false;
+					this.error = result.error.message;
+					this.loading = false;
 					return;
 				}
 
@@ -168,7 +126,14 @@ export class BeansStore {
 				const event = result.data?.beanChanged as BeanChangeEvent | undefined;
 				if (!event) return;
 
+				// First non-INITIAL event marks the end of initial sync
+				if (event.type !== 'INITIAL' && !this.#initialSyncDone) {
+					this.#initialSyncDone = true;
+					this.loading = false;
+				}
+
 				switch (event.type) {
+					case 'INITIAL':
 					case 'CREATED':
 					case 'UPDATED':
 						if (event.bean) {
@@ -183,6 +148,15 @@ export class BeansStore {
 		);
 
 		this.#unsubscribe = unsubscribe;
+
+		// If no events come within a short time, assume initial sync is done
+		// (handles case of empty bean store)
+		setTimeout(() => {
+			if (!this.#initialSyncDone && this.connected) {
+				this.#initialSyncDone = true;
+				this.loading = false;
+			}
+		}, 500);
 	}
 
 	/**

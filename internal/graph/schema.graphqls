@@ -16,9 +16,13 @@ type Query {
 
 type Subscription {
   """
-  Subscribe to bean change events (created, updated, deleted)
+  Subscribe to bean change events (created, updated, deleted).
+
+  When includeInitial is true, all existing beans are emitted first as CREATED
+  events with isInitial=true, followed by real-time changes with isInitial=false.
+  This eliminates race conditions between loading and subscribing.
   """
-  beanChanged: BeanChangeEvent!
+  beanChanged(includeInitial: Boolean = false): BeanChangeEvent!
 }
 
 """
@@ -37,6 +41,8 @@ type BeanChangeEvent {
 Type of change that occurred to a bean
 """
 enum ChangeType {
+  "Bean existed when subscription started (emitted when includeInitial=true)"
+  INITIAL
   CREATED
   UPDATED
   DELETED
