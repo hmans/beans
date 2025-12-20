@@ -5,6 +5,7 @@ globs: ["frontend/**"]
 # Frontend
 
 - Use `pnpm` for package management and running scripts. NEVER `npm`.
+- We're using SvelteKit with the `adapter-static` for a fully static frontend.
 
 ## Bundle Size
 
@@ -23,16 +24,17 @@ Shiki bundles ~300 language grammars (~9MB). To keep the bundle small:
 4. **Use `createHighlighterCore`** instead of `createHighlighter`
 
 Example:
+
 ```typescript
-import { createHighlighterCore } from 'shiki/core';
-import { createOnigurumaEngine } from 'shiki/engine/oniguruma';
-import githubDark from 'shiki/themes/github-dark.mjs';
-import langGo from 'shiki/langs/go.mjs';
+import { createHighlighterCore } from "shiki/core";
+import { createOnigurumaEngine } from "shiki/engine/oniguruma";
+import githubDark from "shiki/themes/github-dark.mjs";
+import langGo from "shiki/langs/go.mjs";
 
 const highlighter = await createHighlighterCore({
-  engine: createOnigurumaEngine(import('shiki/wasm')),
+  engine: createOnigurumaEngine(import("shiki/wasm")),
   themes: [githubDark],
-  langs: [langGo]
+  langs: [langGo],
 });
 ```
 
