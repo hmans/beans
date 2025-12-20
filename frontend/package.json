@@ -47,6 +47,7 @@
 	},
 	"dependencies": {
 		"marked": "^17.0.1",
+		"shiki": "^3.20.0",
 		"wonka": "^6.3.5"
 	}
 }

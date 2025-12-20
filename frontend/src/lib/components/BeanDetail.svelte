@@ -1,10 +1,7 @@
 <script lang="ts">
 	import type { Bean } from '$lib/beans.svelte';
 	import { beansStore } from '$lib/beans.svelte';
-	import { marked } from 'marked';
-
-	// Configure marked for GFM
-	marked.use({ gfm: true, breaks: true });
+	import { renderMarkdown } from '$lib/markdown';
 
 	interface Props {
 		bean: Bean;
@@ -45,8 +42,19 @@
 		deferred: 'text-gray-300'
 	};
 
-	// Render markdown body
-	const renderedBody = $derived(bean.body ? marked.parse(bean.body) : '');
+	// Render markdown body (async with shiki)
+	let renderedBody = $state('');
+
+	$effect(() => {
+		const body = bean.body;
+		if (body) {
+			renderMarkdown(body).then((html) => {
+				renderedBody = html;
+			});
+		} else {
+			renderedBody = '';
+		}
+	});
 
 	let copied = $state(false);
 
@@ -230,5 +238,30 @@
 	.bean-body :global(input[type='checkbox']) {
 		margin-top: 0.25rem;
 		accent-color: #22c55e; /* green-500 */
+	}
+
+	/* Code block styling */
+	.bean-body :global(pre.shiki) {
+		padding: 1rem;
+		border-radius: 0.5rem;
+		overflow-x: auto;
+		font-size: 0.875rem;
+		line-height: 1.5;
+		margin: 1rem 0;
+	}
+
+	.bean-body :global(pre.shiki code) {
+		font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, 'Cascadia Code', Consolas,
+			'Liberation Mono', 'Courier New', monospace;
+	}
+
+	/* Inline code */
+	.bean-body :global(code:not(pre code)) {
+		background-color: #f1f5f9;
+		padding: 0.125rem 0.375rem;
+		border-radius: 0.25rem;
+		font-size: 0.875em;
+		font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, 'Cascadia Code', Consolas,
+			'Liberation Mono', 'Courier New', monospace;
 	}
 </style>
