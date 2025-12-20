@@ -3,8 +3,13 @@ import { createClient as createWSClient } from 'graphql-ws';
 
 const url = '/api/graphql';
 
+// For WebSocket, connect directly to backend in dev (Vite proxy doesn't handle WS well with SvelteKit)
+// In production, the backend serves everything so relative URL works
+const isDev = typeof window !== 'undefined' && window.location.port === '5173';
+const wsUrl = isDev ? 'ws://localhost:22880/api/graphql' : `ws://${typeof window !== 'undefined' ? window.location.host : 'localhost'}/api/graphql`;
+
 const wsClient = createWSClient({
-	url,
+	url: wsUrl,
 	retryAttempts: Infinity,
 	shouldRetry: () => true,
 	retryWait: async (retries) => {

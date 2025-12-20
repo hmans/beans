@@ -50,21 +50,35 @@ func runServer() error {
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
 
-	// Create GraphQL server
+	// CORS middleware for development
+	router.Use(func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+		c.Next()
+	})
+
+	// Create GraphQL server with explicit transports
 	es := graph.NewExecutableSchema(graph.Config{
 		Resolvers: &graph.Resolver{Core: core},
 	})
-	gqlHandler := handler.NewDefaultServer(es)
+	gqlHandler := handler.New(es)
 
-	// Add WebSocket transport for subscriptions
+	// Add transports in order (WebSocket first for upgrade handling)
 	gqlHandler.AddTransport(transport.Websocket{
 		KeepAlivePingInterval: 10 * time.Second,
 		Upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool {
-				return true // Allow all origins for development
-			},
+			CheckOrigin:  func(r *http.Request) bool { return true },
+			Subprotocols: []string{"graphql-transport-ws"},
 		},
 	})
+	gqlHandler.AddTransport(transport.Options{})
+	gqlHandler.AddTransport(transport.GET{})
+	gqlHandler.AddTransport(transport.POST{})
 
 	// GraphQL API endpoint (handle all methods for WebSocket upgrade)
 	router.Any("/api/graphql", gin.WrapH(gqlHandler))
@@ -113,7 +127,9 @@ func runServer() error {
 		defer cancel()
 
 		if err := server.Shutdown(shutdownCtx); err != nil {
-			return fmt.Errorf("graceful shutdown failed: %w", err)
+			fmt.Printf("Graceful shutdown timed out: %v\n", err)
+			fmt.Println("Forcing exit...")
+			server.Close() // Force close all connections
 		}
 		fmt.Println("Server stopped")
 	}
