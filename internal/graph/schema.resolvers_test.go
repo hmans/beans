@@ -1082,6 +1082,76 @@ func TestMutationDeleteBean(t *testing.T) {
 	})
 }
 
+func TestSubscriptionBeanChanged(t *testing.T) {
+	resolver, core := setupTestResolver(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start the file watcher
+	if err := core.StartWatching(); err != nil {
+		t.Fatalf("StartWatching() error = %v", err)
+	}
+	defer core.Unwatch()
+
+	// Create some test beans before subscribing
+	createTestBean(t, core, "existing-1", "Existing Bean 1", "todo")
+	createTestBean(t, core, "existing-2", "Existing Bean 2", "in-progress")
+
+	t.Run("includeInitial=true sends existing beans then INITIAL_SYNC_COMPLETE", func(t *testing.T) {
+		sr := resolver.Subscription()
+		includeInitial := true
+		ch, err := sr.BeanChanged(ctx, &includeInitial)
+		if err != nil {
+			t.Fatalf("BeanChanged() error = %v", err)
+		}
+
+		// Should receive both existing beans as INITIAL events
+		received := make(map[string]bool)
+		for i := 0; i < 2; i++ {
+			select {
+			case event := <-ch:
+				if event.Type != model.ChangeTypeInitial {
+					t.Errorf("Expected INITIAL event, got %v", event.Type)
+				}
+				received[event.BeanID] = true
+			case <-ctx.Done():
+				t.Fatal("Context cancelled before receiving all initial beans")
+			}
+		}
+
+		if !received["existing-1"] || !received["existing-2"] {
+			t.Errorf("Did not receive all expected beans: %v", received)
+		}
+
+		// Should receive INITIAL_SYNC_COMPLETE
+		select {
+		case event := <-ch:
+			if event.Type != model.ChangeTypeInitialSyncComplete {
+				t.Errorf("Expected INITIAL_SYNC_COMPLETE event, got %v", event.Type)
+			}
+		case <-ctx.Done():
+			t.Fatal("Context cancelled before receiving INITIAL_SYNC_COMPLETE")
+		}
+	})
+
+	t.Run("includeInitial=false skips initial beans", func(t *testing.T) {
+		sr := resolver.Subscription()
+		includeInitial := false
+		ch, err := sr.BeanChanged(ctx, &includeInitial)
+		if err != nil {
+			t.Fatalf("BeanChanged() error = %v", err)
+		}
+
+		// Channel should be waiting for real events, not sending anything immediately
+		select {
+		case event := <-ch:
+			t.Errorf("Should not receive any events, got %v", event)
+		default:
+			// Expected: no events ready
+		}
+	})
+}
+
 func TestRelationshipFieldsWithFilter(t *testing.T) {
 	resolver, core := setupTestResolver(t)
 	ctx := context.Background()

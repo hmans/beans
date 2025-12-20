@@ -12,7 +12,9 @@
 	// Get parent and children
 	const parent = $derived(bean.parentId ? beansStore.get(bean.parentId) : null);
 	const children = $derived(beansStore.children(bean.id));
-	const blocking = $derived(bean.blockingIds.map((id) => beansStore.get(id)).filter(Boolean));
+	const blocking = $derived(
+		bean.blockingIds.map((id) => beansStore.get(id)).filter((b): b is Bean => b !== undefined)
+	);
 	const blockedBy = $derived(beansStore.blockedBy(bean.id));
 
 	// Status colors
@@ -141,11 +143,9 @@
 					<h2 class="text-xs font-semibold text-gray-500 uppercase mb-1">Blocking ({blocking.length})</h2>
 					<ul class="text-sm text-gray-700 space-y-0.5">
 						{#each blocking as b}
-							{#if b}
-								<li>
-									<span class="font-mono text-gray-400">{b.id}</span> {b.title}
-								</li>
-							{/if}
+							<li>
+								<span class="font-mono text-gray-400">{b.id}</span> {b.title}
+							</li>
 						{/each}
 					</ul>
 				</div>
