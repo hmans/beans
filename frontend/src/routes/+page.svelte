@@ -1,9 +1,14 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { beansStore } from '$lib/beans.svelte';
 
-	onMount(() => {
-		beansStore.load();
+	onMount(async () => {
+		await beansStore.load();
+		beansStore.subscribe();
+	});
+
+	onDestroy(() => {
+		beansStore.unsubscribe();
 	});
 
 	// Status colors
@@ -32,6 +37,9 @@
 			{beansStore.count} beans
 			{#if beansStore.loading}
 				<span class="text-blue-600">· Loading...</span>
+			{/if}
+			{#if beansStore.connected}
+				<span class="text-green-600">· Live</span>
 			{/if}
 		</p>
 	</header>

@@ -1,4 +1,5 @@
-import { gql } from 'urql';
+import { gql, type SubscriptionHandler } from 'urql';
+import { pipe, subscribe } from 'wonka';
 import { SvelteMap } from 'svelte/reactivity';
 import { client } from './graphqlClient';
 
@@ -19,6 +20,20 @@ export interface Bean {
 	body: string;
 	parentId: string | null;
 	blockingIds: string[];
+}
+
+/**
+ * Change type from GraphQL subscription
+ */
+type ChangeType = 'CREATED' | 'UPDATED' | 'DELETED';
+
+/**
+ * Bean change event from GraphQL subscription
+ */
+interface BeanChangeEvent {
+	type: ChangeType;
+	beanId: string;
+	bean: Bean | null;
 }
 
 /**
@@ -45,6 +60,33 @@ const BEANS_QUERY = gql`
 `;
 
 /**
+ * GraphQL subscription for bean changes
+ */
+const BEAN_CHANGED_SUBSCRIPTION = gql`
+	subscription BeanChanged {
+		beanChanged {
+			type
+			beanId
+			bean {
+				id
+				slug
+				path
+				title
+				status
+				type
+				priority
+				tags
+				createdAt
+				updatedAt
+				body
+				parentId
+				blockingIds
+			}
+		}
+	}
+`;
+
+/**
  * Svelte 5 runes-style stateful store for beans.
  * Frontend equivalent of beancore on the backend.
  */
@@ -57,6 +99,12 @@ export class BeansStore {
 
 	/** Error state */
 	error = $state<string | null>(null);
+
+	/** Whether subscription is connected */
+	connected = $state(false);
+
+	/** Subscription teardown function */
+	#unsubscribe: (() => void) | null = null;
 
 	/** All beans as an array (derived) */
 	get all(): Bean[] {
@@ -94,6 +142,57 @@ export class BeansStore {
 			this.error = err instanceof Error ? err.message : 'Unknown error';
 		} finally {
 			this.loading = false;
+		}
+	}
+
+	/**
+	 * Start subscription to bean changes.
+	 * Call this after load() to receive real-time updates.
+	 */
+	subscribe(): void {
+		if (this.#unsubscribe) {
+			return; // Already subscribed
+		}
+
+		const { unsubscribe } = pipe(
+			client.subscription(BEAN_CHANGED_SUBSCRIPTION, {}),
+			subscribe((result: { data?: { beanChanged?: BeanChangeEvent }; error?: Error }) => {
+				if (result.error) {
+					console.error('Subscription error:', result.error);
+					this.connected = false;
+					return;
+				}
+
+				this.connected = true;
+
+				const event = result.data?.beanChanged as BeanChangeEvent | undefined;
+				if (!event) return;
+
+				switch (event.type) {
+					case 'CREATED':
+					case 'UPDATED':
+						if (event.bean) {
+							this.beans.set(event.bean.id, event.bean);
+						}
+						break;
+					case 'DELETED':
+						this.beans.delete(event.beanId);
+						break;
+				}
+			})
+		);
+
+		this.#unsubscribe = unsubscribe;
+	}
+
+	/**
+	 * Stop subscription to bean changes.
+	 */
+	unsubscribe(): void {
+		if (this.#unsubscribe) {
+			this.#unsubscribe();
+			this.#unsubscribe = null;
+			this.connected = false;
 		}
 	}
 

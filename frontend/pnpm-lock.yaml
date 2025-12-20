@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      wonka:
+        specifier: ^6.3.5
+        version: 6.3.5
     devDependencies:
       '@eslint/compat':
         specifier: ^1.4.0
