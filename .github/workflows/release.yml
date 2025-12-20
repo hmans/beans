@@ -41,6 +41,10 @@ jobs:
           node-version: "24"
           cache: "pnpm"
           cache-dependency-path: "frontend/pnpm-lock.yaml"
+      - name: Install dependencies
+        run: mise deps
+      - name: Build frontend
+        run: mise build:frontend
       # More assembly might be required: Docker logins, GPG, etc.
       # It all depends on your needs.
       - name: Run GoReleaser
