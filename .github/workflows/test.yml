@@ -37,6 +37,8 @@ jobs:
           node-version: "24"
           cache: "pnpm"
           cache-dependency-path: "frontend/pnpm-lock.yaml"
+      - name: Install dependencies
+        run: mise deps
       - name: Build
         run: mise build
       - name: Test

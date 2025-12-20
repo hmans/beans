@@ -6,6 +6,19 @@ svu = "latest"
 [hooks]
 postinstall = 'npx corepack enable'
 
+[tasks.deps]
+description = "Install all dependencies"
+run = ["deps:backend", "deps:frontend"]
+
+[tasks."deps:backend"]
+description = "Install backend dependencies"
+run = "go mod download"
+
+[tasks."deps:frontend"]
+description = "Install frontend dependencies"
+dir = "frontend"
+run = "pnpm install"
+
 [tasks.codegen]
 run = "go generate ./..."
 
