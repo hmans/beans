@@ -3,6 +3,9 @@
 	import { beansStore } from '$lib/beans.svelte';
 	import { marked } from 'marked';
 
+	// Configure marked for GFM
+	marked.use({ gfm: true, breaks: true });
+
 	interface Props {
 		bean: Bean;
 	}
@@ -159,7 +162,7 @@
 	{#if bean.body}
 		<div class="mb-6">
 			<h2 class="text-xs font-semibold text-gray-500 uppercase mb-2">Description</h2>
-			<div class="prose prose-sm max-w-none text-gray-700">
+			<div class="bean-body prose prose-sm max-w-none text-gray-700">
 				{@html renderedBody}
 			</div>
 		</div>
@@ -172,3 +175,60 @@
 		<div>Path: {bean.path}</div>
 	</div>
 </div>
+
+<style>
+	/* Subtle, colorful headings */
+	.bean-body :global(h1) {
+		font-size: 1.25rem;
+		font-weight: 600;
+		color: #1e3a5f; /* slate blue */
+		border-bottom: 1px solid #e2e8f0;
+		padding-bottom: 0.25rem;
+		margin-top: 1.5rem;
+	}
+
+	.bean-body :global(h2) {
+		font-size: 1.1rem;
+		font-weight: 600;
+		color: #2d5a7b; /* muted teal-blue */
+		margin-top: 1.25rem;
+	}
+
+	.bean-body :global(h3) {
+		font-size: 1rem;
+		font-weight: 600;
+		color: #4a7c6f; /* sage green */
+		margin-top: 1rem;
+	}
+
+	.bean-body :global(h4),
+	.bean-body :global(h5),
+	.bean-body :global(h6) {
+		font-size: 0.9rem;
+		font-weight: 600;
+		color: #64748b; /* slate-500 */
+		margin-top: 0.75rem;
+	}
+
+	/* Task list styling - remove bullets */
+	.bean-body :global(ul:has(input[type='checkbox'])) {
+		list-style: none;
+		padding-left: 0;
+	}
+
+	.bean-body :global(li:has(> input[type='checkbox'])) {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.5rem;
+		padding-left: 0;
+	}
+
+	.bean-body :global(li:has(> input[type='checkbox'])::before) {
+		content: none;
+	}
+
+	.bean-body :global(input[type='checkbox']) {
+		margin-top: 0.25rem;
+		accent-color: #22c55e; /* green-500 */
+	}
+</style>
