@@ -78,7 +78,7 @@ echo "To release, run: git push && git push --tags"
 
 
 [tasks."dev:serve"]
-run = "wgo run . serve"
+run = "wgo run -exit . serve"
 
 [tasks."dev:frontend"]
 dir = "frontend"
@@ -87,3 +87,10 @@ run = "pnpm dev"
 [tasks.dev]
 description = "Run the development server"
 run = { tasks = ["dev:serve", "dev:frontend"] }
+
+[tasks."dev:kill"]
+description = "Kill any lingering dev processes"
+run = """
+pkill -9 -f "beans serve" 2>/dev/null && echo "Killed beans serve processes" || echo "No beans serve processes"
+pkill -9 -f "wgo.*beans" 2>/dev/null && echo "Killed wgo processes" || echo "No wgo processes"
+"""
