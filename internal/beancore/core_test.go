@@ -180,7 +180,6 @@ func TestGet(t *testing.T) {
 
 	createTestBean(t, core, "abc1", "First", "todo")
 	createTestBean(t, core, "def2", "Second", "todo")
-	createTestBean(t, core, "ghi3", "Third", "todo")
 
 	t.Run("exact match", func(t *testing.T) {
 		b, err := core.Get("abc1")
@@ -192,23 +191,10 @@ func TestGet(t *testing.T) {
 		}
 	})
 
-	t.Run("prefix match", func(t *testing.T) {
-		b, err := core.Get("de")
-		if err != nil {
-			t.Fatalf("Get() error = %v", err)
-		}
-		if b.ID != "def2" {
-			t.Errorf("ID = %q, want %q", b.ID, "def2")
-		}
-	})
-
-	t.Run("single char prefix", func(t *testing.T) {
-		b, err := core.Get("g")
-		if err != nil {
-			t.Fatalf("Get() error = %v", err)
-		}
-		if b.ID != "ghi3" {
-			t.Errorf("ID = %q, want %q", b.ID, "ghi3")
+	t.Run("partial ID not found", func(t *testing.T) {
+		_, err := core.Get("abc")
+		if err != ErrNotFound {
+			t.Errorf("Get() error = %v, want ErrNotFound", err)
 		}
 	})
 }
@@ -224,16 +210,66 @@ func TestGetNotFound(t *testing.T) {
 	}
 }
 
-func TestGetAmbiguous(t *testing.T) {
-	core, _ := setupTestCore(t)
 
-	createTestBean(t, core, "abc1", "First", "todo")
-	createTestBean(t, core, "abc2", "Second", "todo")
-
-	_, err := core.Get("abc")
-	if err != ErrAmbiguousID {
-		t.Errorf("Get() error = %v, want ErrAmbiguousID", err)
+func TestGetShortID(t *testing.T) {
+	// Create a core with a configured prefix
+	tmpDir := t.TempDir()
+	beansDir := filepath.Join(tmpDir, BeansDir)
+	if err := os.MkdirAll(beansDir, 0755); err != nil {
+		t.Fatalf("failed to create test .beans dir: %v", err)
 	}
+
+	cfg := config.DefaultWithPrefix("beans-")
+	core := New(beansDir, cfg)
+	core.SetWarnWriter(nil)
+	if err := core.Load(); err != nil {
+		t.Fatalf("failed to load core: %v", err)
+	}
+
+	// Create beans with the prefix
+	createTestBean(t, core, "beans-abc1", "First", "todo")
+	createTestBean(t, core, "beans-def2", "Second", "todo")
+
+	t.Run("short ID exact match", func(t *testing.T) {
+		b, err := core.Get("abc1")
+		if err != nil {
+			t.Fatalf("Get() error = %v", err)
+		}
+		if b.ID != "beans-abc1" {
+			t.Errorf("ID = %q, want %q", b.ID, "beans-abc1")
+		}
+	})
+
+	t.Run("full ID exact match", func(t *testing.T) {
+		b, err := core.Get("beans-abc1")
+		if err != nil {
+			t.Fatalf("Get() error = %v", err)
+		}
+		if b.ID != "beans-abc1" {
+			t.Errorf("ID = %q, want %q", b.ID, "beans-abc1")
+		}
+	})
+
+	t.Run("partial short ID not found", func(t *testing.T) {
+		_, err := core.Get("abc")
+		if err != ErrNotFound {
+			t.Errorf("Get() error = %v, want ErrNotFound", err)
+		}
+	})
+
+	t.Run("partial full ID not found", func(t *testing.T) {
+		_, err := core.Get("beans-ab")
+		if err != ErrNotFound {
+			t.Errorf("Get() error = %v, want ErrNotFound", err)
+		}
+	})
+
+	t.Run("nonexistent ID not found", func(t *testing.T) {
+		_, err := core.Get("xyz")
+		if err != ErrNotFound {
+			t.Errorf("Get() error = %v, want ErrNotFound", err)
+		}
+	})
 }
 
 func TestUpdate(t *testing.T) {
@@ -327,21 +363,51 @@ func TestDeleteNotFound(t *testing.T) {
 	}
 }
 
-func TestDeleteByPrefix(t *testing.T) {
-	core, _ := setupTestCore(t)
+func TestDeleteShortID(t *testing.T) {
+	// Create a core with a configured prefix
+	tmpDir := t.TempDir()
+	beansDir := filepath.Join(tmpDir, BeansDir)
+	if err := os.MkdirAll(beansDir, 0755); err != nil {
+		t.Fatalf("failed to create test .beans dir: %v", err)
+	}
 
-	createTestBean(t, core, "unique123", "Test", "todo")
+	cfg := config.DefaultWithPrefix("beans-")
+	core := New(beansDir, cfg)
+	core.SetWarnWriter(nil)
+	if err := core.Load(); err != nil {
+		t.Fatalf("failed to load core: %v", err)
+	}
 
-	// Delete by prefix
-	err := core.Delete("unique")
+	createTestBean(t, core, "beans-xyz1", "Test", "todo")
+
+	// Delete by short ID (without prefix)
+	err := core.Delete("xyz1")
 	if err != nil {
 		t.Fatalf("Delete() error = %v", err)
 	}
 
 	// Verify it's gone
-	_, err = core.Get("unique123")
+	_, err = core.Get("beans-xyz1")
 	if err != ErrNotFound {
 		t.Error("bean should be deleted")
+	}
+}
+
+func TestDeletePartialIDNotFound(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	createTestBean(t, core, "unique123", "Test", "todo")
+
+	// Partial ID should not match
+	err := core.Delete("unique")
+	if err != ErrNotFound {
+		t.Errorf("Delete() error = %v, want ErrNotFound", err)
+	}
+
+	// Verify bean still exists
+	_, err = core.Get("unique123")
+	if err != nil {
+		t.Errorf("bean should still exist, got error: %v", err)
 	}
 }
 

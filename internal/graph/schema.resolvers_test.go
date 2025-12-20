@@ -65,18 +65,15 @@ func TestQueryBean(t *testing.T) {
 		}
 	})
 
-	// Test prefix match
-	t.Run("prefix match", func(t *testing.T) {
+	// Test partial ID not found (no prefix matching)
+	t.Run("partial ID not found", func(t *testing.T) {
 		qr := resolver.Query()
 		got, err := qr.Bean(ctx, "test")
 		if err != nil {
 			t.Fatalf("Bean() error = %v", err)
 		}
-		if got == nil {
-			t.Fatal("Bean() returned nil")
-		}
-		if got.ID != "test-1" {
-			t.Errorf("Bean().ID = %q, want %q", got.ID, "test-1")
+		if got != nil {
+			t.Errorf("Bean() = %v, want nil (partial IDs should not match)", got)
 		}
 	})
 

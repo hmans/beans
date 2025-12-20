@@ -4,7 +4,7 @@ scalar Time
 
 type Query {
   """
-  Get a single bean by ID (supports prefix matching)
+  Get a single bean by ID. Accepts either the full ID (e.g., "beans-abc1") or the short ID without prefix (e.g., "abc1").
   """
   bean(id: ID!): Bean
 

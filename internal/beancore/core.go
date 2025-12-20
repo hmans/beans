@@ -19,10 +19,7 @@ import (
 
 const BeansDir = ".beans"
 
-var (
-	ErrNotFound    = errors.New("bean not found")
-	ErrAmbiguousID = errors.New("ambiguous ID prefix matches multiple beans")
-)
+var ErrNotFound = errors.New("bean not found")
 
 // Core provides thread-safe in-memory storage for beans with filesystem persistence.
 type Core struct {
@@ -257,32 +254,27 @@ func (c *Core) All() []*bean.Bean {
 	return result
 }
 
-// Get finds a bean by ID or ID prefix.
-func (c *Core) Get(idPrefix string) (*bean.Bean, error) {
+// Get finds a bean by exact ID match.
+// If a prefix is configured and the query doesn't include it, the prefix is automatically prepended.
+// For example, with prefix "beans-", Get("abc") will match "beans-abc" but Get("ab") will not.
+func (c *Core) Get(id string) (*bean.Bean, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	// First try exact match
-	if b, ok := c.beans[idPrefix]; ok {
+	// Try exact match
+	if b, ok := c.beans[id]; ok {
 		return b, nil
 	}
 
-	// Then try prefix match
-	var matches []*bean.Bean
-	for id, b := range c.beans {
-		if strings.HasPrefix(id, idPrefix) {
-			matches = append(matches, b)
+	// If not found and we have a configured prefix that isn't already in the query,
+	// try with the prefix prepended (allows short IDs like "abc" to match "beans-abc")
+	if c.config != nil && c.config.Beans.Prefix != "" && !strings.HasPrefix(id, c.config.Beans.Prefix) {
+		if b, ok := c.beans[c.config.Beans.Prefix+id]; ok {
+			return b, nil
 		}
 	}
 
-	switch len(matches) {
-	case 0:
-		return nil, ErrNotFound
-	case 1:
-		return matches[0], nil
-	default:
-		return nil, ErrAmbiguousID
-	}
+	return nil, ErrNotFound
 }
 
 // Create adds a new bean, generating an ID if needed, and writes it to disk.
@@ -389,37 +381,28 @@ func (c *Core) saveToDisk(b *bean.Bean) error {
 	return nil
 }
 
-// Delete removes a bean by ID or ID prefix.
-func (c *Core) Delete(idPrefix string) error {
+// Delete removes a bean by exact ID match.
+// Supports short IDs (without prefix) if a prefix is configured.
+func (c *Core) Delete(id string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Find the bean (need to handle prefix matching)
-	var targetID string
-	var targetBean *bean.Bean
+	// Find the bean by exact match
+	targetID := id
+	targetBean, ok := c.beans[id]
 
-	// First try exact match
-	if b, ok := c.beans[idPrefix]; ok {
-		targetID = idPrefix
-		targetBean = b
-	} else {
-		// Try prefix match
-		var matches []string
-		for id, b := range c.beans {
-			if strings.HasPrefix(id, idPrefix) {
-				matches = append(matches, id)
-				targetBean = b
-			}
+	// If not found and we have a configured prefix, try with prefix prepended
+	if !ok && c.config != nil && c.config.Beans.Prefix != "" && !strings.HasPrefix(id, c.config.Beans.Prefix) {
+		fullID := c.config.Beans.Prefix + id
+		if b, found := c.beans[fullID]; found {
+			targetID = fullID
+			targetBean = b
+			ok = true
 		}
+	}
 
-		switch len(matches) {
-		case 0:
-			return ErrNotFound
-		case 1:
-			targetID = matches[0]
-		default:
-			return ErrAmbiguousID
-		}
+	if !ok {
+		return ErrNotFound
 	}
 
 	// Remove from disk
