@@ -108,8 +108,8 @@ func runServer() error {
 
 	// Start server in goroutine
 	go func() {
-		fmt.Printf("Starting server at http://localhost:%d/\n", servePort)
-		fmt.Printf("GraphQL Playground: http://localhost:%d/playground\n", servePort)
+		fmt.Printf("[beans] Starting server at http://localhost:%d/\n", servePort)
+		fmt.Printf("[beans] GraphQL Playground: http://localhost:%d/playground\n", servePort)
 		serverErr <- server.ListenAndServe()
 	}()
 
