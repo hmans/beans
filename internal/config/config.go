@@ -15,6 +15,8 @@ const (
 	DefaultBeansPath = ".beans"
 	// LegacyConfigFile is the old config file location (deprecated)
 	LegacyConfigFile = "config.yaml"
+	// DefaultServerPort is the default port for the web server
+	DefaultServerPort = 8080
 )
 
 // DefaultStatuses defines the hardcoded status configuration.
@@ -69,10 +71,17 @@ type PriorityConfig struct {
 	Description string `yaml:"description,omitempty"`
 }
 
+// ServerConfig defines settings for the web server.
+type ServerConfig struct {
+	// Port is the port to listen on (default: 8080)
+	Port int `yaml:"port,omitempty"`
+}
+
 // Config holds the beans configuration.
 // Note: Statuses are no longer stored in config - they are hardcoded like types.
 type Config struct {
-	Beans BeansConfig `yaml:"beans"`
+	Beans  BeansConfig  `yaml:"beans"`
+	Server ServerConfig `yaml:"server,omitempty"`
 
 	// configDir is the directory containing the config file (not serialized)
 	// Used to resolve relative paths
@@ -402,4 +411,12 @@ func (c *Config) PriorityList() string {
 		names[i] = p.Name
 	}
 	return strings.Join(names, ", ")
+}
+
+// GetServerPort returns the configured server port, or the default if not set.
+func (c *Config) GetServerPort() int {
+	if c.Server.Port == 0 {
+		return DefaultServerPort
+	}
+	return c.Server.Port
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/spf13/cobra"
 
+	"github.com/hmans/beans/internal/config"
 	"github.com/hmans/beans/internal/graph"
 	"github.com/hmans/beans/internal/web"
 )
@@ -29,11 +30,17 @@ var serveCmd = &cobra.Command{
 	Aliases: []string{"server", "s"},
 	Short:   "Start the web server",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runServer()
+		// Determine the port: CLI flag > config > default
+		port := servePort
+		if !cmd.Flags().Changed("port") {
+			// Flag not explicitly set, use config value
+			port = cfg.GetServerPort()
+		}
+		return runServer(port)
 	},
 }
 
-func runServer() error {
+func runServer(port int) error {
 	// Start file watcher for subscriptions
 	if err := core.StartWatching(); err != nil {
 		return fmt.Errorf("failed to start file watcher: %w", err)
@@ -90,7 +97,7 @@ func runServer() error {
 	router.NoRoute(gin.WrapH(web.Handler()))
 
 	// Create HTTP server
-	addr := fmt.Sprintf(":%d", servePort)
+	addr := fmt.Sprintf(":%d", port)
 	server := &http.Server{
 		Addr:         addr,
 		Handler:      router,
@@ -108,8 +115,8 @@ func runServer() error {
 
 	// Start server in goroutine
 	go func() {
-		fmt.Printf("[beans] Starting server at http://localhost:%d/\n", servePort)
-		fmt.Printf("[beans] GraphQL Playground: http://localhost:%d/playground\n", servePort)
+		fmt.Printf("[beans] Starting server at http://localhost:%d/\n", port)
+		fmt.Printf("[beans] GraphQL Playground: http://localhost:%d/playground\n", port)
 		serverErr <- server.ListenAndServe()
 	}()
 
@@ -138,6 +145,6 @@ func runServer() error {
 }
 
 func init() {
-	serveCmd.Flags().IntVarP(&servePort, "port", "p", 22880, "Port to listen on")
+	serveCmd.Flags().IntVarP(&servePort, "port", "p", config.DefaultServerPort, "Port to listen on")
 	rootCmd.AddCommand(serveCmd)
 }

@@ -800,3 +800,43 @@ func TestDefaultPrioritiesCount(t *testing.T) {
 		t.Errorf("len(DefaultPriorities) = %d, want 5", len(DefaultPriorities))
 	}
 }
+
+func TestGetServerPort(t *testing.T) {
+	t.Run("returns default when not configured", func(t *testing.T) {
+		cfg := Default()
+		if cfg.GetServerPort() != DefaultServerPort {
+			t.Errorf("GetServerPort() = %d, want %d", cfg.GetServerPort(), DefaultServerPort)
+		}
+	})
+
+	t.Run("returns configured port", func(t *testing.T) {
+		cfg := Default()
+		cfg.Server.Port = 9000
+		if cfg.GetServerPort() != 9000 {
+			t.Errorf("GetServerPort() = %d, want 9000", cfg.GetServerPort())
+		}
+	})
+
+	t.Run("loads from config file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		configPath := filepath.Join(tmpDir, ConfigFileName)
+
+		configContent := `beans:
+  prefix: test-
+server:
+  port: 3000
+`
+		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+			t.Fatalf("WriteFile error = %v", err)
+		}
+
+		cfg, err := Load(configPath)
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		if cfg.GetServerPort() != 3000 {
+			t.Errorf("GetServerPort() = %d, want 3000", cfg.GetServerPort())
+		}
+	})
+}
