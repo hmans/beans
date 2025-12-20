@@ -75,7 +75,7 @@ But more importantly, you'll want to get your coding agent set up to use it. Let
 
 We'll need to teach your coding agent that it should use Beans to track tasks, and how to do so. The exact steps will depend on which agent you're using.
 
-### Claude Code
+### [Claude Code](https://www.claude.com/product/claude-code)
 
 An official Beans plugin for Claude is in the works, but for the time being, please manually add the following hooks to your project's `.claude/settings.json` file:
 
@@ -91,6 +91,10 @@ An official Beans plugin for Claude is in the works, but for the time being, ple
   }
 }
 ```
+
+### [OpenCode](https://opencode.ai/)
+
+Beans integrates with OpenCode via a plugin that injects task context into your sessions. To set it up, **copy the plugin** from [`.opencode/plugin/beans-prime.ts`](.opencode/plugin/beans-prime.ts) to your project's `.opencode/plugin/` directory (or `~/.opencode/plugin/` for global availability across all projects).
 
 ### Other Agents
 

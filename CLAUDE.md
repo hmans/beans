@@ -2,14 +2,6 @@
 
 You already know what beans is. This is the beans repository.
 
-# Work Parallelization
-
-ABSOLUTELY CRITICAL: We're aiming to parallelize multiple agents. To this end, please follow these rules:
-
-1. YOU MUST create a git worktree for each agent working on a bean. This way, each agent has its own isolated working directory. Do this inside the `.worktrees/` directory.
-2. YOU MUST mark the bean as "in-progress" in the main worktree when an agent starts working on it. This prevents multiple agents from working on the same bean simultaneously.
-3. Once the agent completes the bean, YOU MUST mark it as "completed" in the main worktree.
-
 # Commits
 
 - Use conventional commit messages ("feat", "fix", "chore", etc.) when making commits.
@@ -36,12 +28,11 @@ ABSOLUTELY CRITICAL: We're aiming to parallelize multiple agents. To this end, p
 ## Unit Tests
 
 - Always write or update tests for the changes you make.
-- Run all tests: `go test ./...`
+- Run all tests: `mise test`
 - Run specific package: `go test ./internal/bean/`
-- Verbose output: `go test -v ./...`
 - Use table-driven tests following Go conventions
 
 ## Manual CLI Testing
 
-- Use `go run .` instead of building the executable first.
+- `mise beans` will compile and run the beans CLI. Use it instead of building and running `./beans` manually.
 - When testing read-only functionality, feel free to use this project's own `.beans/` directory. But for anything that modifies data, create a separate test project directory. All commands support the `--beans-path` flag to specify a custom path.
