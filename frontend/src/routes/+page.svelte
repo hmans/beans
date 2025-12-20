@@ -56,22 +56,6 @@
 <svelte:window onmousemove={onDrag} onmouseup={stopDrag} />
 
 <div class="h-screen flex flex-col bg-gray-100">
-	<!-- Header -->
-	<header class="bg-white border-b px-4 py-3 flex items-center justify-between shrink-0">
-		<div>
-			<h1 class="text-xl font-bold text-gray-900">Beans</h1>
-			<p class="text-xs text-gray-500">
-				{beansStore.count} beans
-				{#if beansStore.loading}
-					<span class="text-blue-600">· Loading...</span>
-				{/if}
-				{#if beansStore.connected}
-					<span class="text-green-600">· Live</span>
-				{/if}
-			</p>
-		</div>
-	</header>
-
 	{#if beansStore.error}
 		<div class="m-4 rounded-lg bg-red-100 p-4 text-red-700">
 			Error: {beansStore.error}
@@ -81,7 +65,7 @@
 		<div class="flex-1 flex min-h-0">
 			<!-- Left pane: Bean list -->
 			<div
-				class="shrink-0 bg-gray-50 border-r overflow-auto"
+				class="shrink-0 bg-gray-50  overflow-auto"
 				style="width: {paneWidth}px"
 			>
 				<div class="p-3 space-y-1">
@@ -95,10 +79,10 @@
 				</div>
 			</div>
 
-			{@html '<!-- Drag handle -->'}
+			<!-- Drag handle -->
 			<div
-				class="w-1 bg-gray-200 hover:bg-blue-400 cursor-col-resize transition-colors shrink-0
-					{isDragging ? 'bg-blue-500' : ''}"
+				class="w-1 cursor-col-resize transition-colors shrink-0
+					{isDragging ? 'bg-gray-400' : 'bg-gray-200 hover:bg-gray-300'}"
 				role="slider"
 				aria-orientation="horizontal"
 				aria-valuenow={paneWidth}
