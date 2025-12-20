@@ -1,10 +1,11 @@
 ---
 # beans-xf78
 title: Implement GraphQL subscriptions for live updates
-status: todo
+status: completed
 type: task
+priority: normal
 created_at: 2025-12-18T16:45:17Z
-updated_at: 2025-12-18T16:45:17Z
+updated_at: 2025-12-20T12:40:08Z
 parent: beans-lbjp
 ---
 
