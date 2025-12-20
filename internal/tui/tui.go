@@ -600,15 +600,24 @@ func Run(core *beancore.Core, cfg *config.Config) error {
 	app.program = p
 
 	// Start file watching
-	if err := core.Watch(func() {
-		// Send message to TUI when beans change
-		if app.program != nil {
-			app.program.Send(beansChangedMsg{})
-		}
-	}); err != nil {
+	if err := core.StartWatching(); err != nil {
 		return err
 	}
 	defer core.Unwatch()
+
+	// Subscribe to bean events
+	eventCh, unsubscribe := core.Subscribe()
+	defer unsubscribe()
+
+	// Forward events to TUI in a goroutine
+	go func() {
+		for range eventCh {
+			// Send message to TUI when beans change
+			if app.program != nil {
+				app.program.Send(beansChangedMsg{})
+			}
+		}
+	}()
 
 	_, err := p.Run()
 	return err

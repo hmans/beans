@@ -39,7 +39,12 @@ type Core struct {
 	// File watching (optional)
 	watching bool
 	done     chan struct{}
-	onChange func() // callback when beans change
+	onChange func() // callback when beans change (legacy API)
+
+	// Event subscribers (for channel-based API)
+	subscribers map[uint64]*subscription
+	subMu       sync.RWMutex
+	nextSubID   uint64
 
 	// Warning logger for non-fatal errors (defaults to stderr)
 	warnWriter io.Writer
@@ -48,10 +53,11 @@ type Core struct {
 // New creates a new Core with the given root path and configuration.
 func New(root string, cfg *config.Config) *Core {
 	return &Core{
-		root:       root,
-		config:     cfg,
-		beans:      make(map[string]*bean.Bean),
-		warnWriter: os.Stderr,
+		root:        root,
+		config:      cfg,
+		beans:       make(map[string]*bean.Bean),
+		subscribers: make(map[uint64]*subscription),
+		warnWriter:  os.Stderr,
 	}
 }
 

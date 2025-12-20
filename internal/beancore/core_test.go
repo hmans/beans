@@ -644,3 +644,210 @@ func TestClose(t *testing.T) {
 		t.Errorf("Close() error = %v", err)
 	}
 }
+
+func TestSubscribe(t *testing.T) {
+	core, beansDir := setupTestCore(t)
+
+	// Start watching
+	if err := core.StartWatching(); err != nil {
+		t.Fatalf("StartWatching() error = %v", err)
+	}
+	defer core.Unwatch()
+
+	// Subscribe to events
+	ch, unsub := core.Subscribe()
+	defer unsub()
+
+	// Give watcher time to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Create a bean file (should trigger EventCreated)
+	content := `---
+title: New Bean
+status: todo
+---
+`
+	if err := os.WriteFile(filepath.Join(beansDir, "new1--new.md"), []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	// Wait for events
+	select {
+	case events := <-ch:
+		if len(events) == 0 {
+			t.Error("expected at least one event")
+		}
+		found := false
+		for _, e := range events {
+			if e.Type == EventCreated && e.BeanID == "new1" {
+				found = true
+				if e.Bean == nil {
+					t.Error("EventCreated should include Bean")
+				}
+			}
+		}
+		if !found {
+			t.Errorf("expected EventCreated for new1, got: %+v", events)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Error("timeout waiting for events")
+	}
+}
+
+func TestSubscribeMultiple(t *testing.T) {
+	core, beansDir := setupTestCore(t)
+
+	if err := core.StartWatching(); err != nil {
+		t.Fatalf("StartWatching() error = %v", err)
+	}
+	defer core.Unwatch()
+
+	// Create two subscribers
+	ch1, unsub1 := core.Subscribe()
+	defer unsub1()
+	ch2, unsub2 := core.Subscribe()
+	defer unsub2()
+
+	// Give watcher time to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Create a bean file
+	content := `---
+title: Multi Test
+status: todo
+---
+`
+	if err := os.WriteFile(filepath.Join(beansDir, "mult--multi.md"), []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	// Both subscribers should receive events
+	received1, received2 := false, false
+	timeout := time.After(500 * time.Millisecond)
+
+	for !received1 || !received2 {
+		select {
+		case <-ch1:
+			received1 = true
+		case <-ch2:
+			received2 = true
+		case <-timeout:
+			t.Fatalf("timeout: received1=%v, received2=%v", received1, received2)
+		}
+	}
+}
+
+func TestUnsubscribe(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	if err := core.StartWatching(); err != nil {
+		t.Fatalf("StartWatching() error = %v", err)
+	}
+	defer core.Unwatch()
+
+	ch, unsub := core.Subscribe()
+	unsub()
+
+	// Channel should be closed
+	_, ok := <-ch
+	if ok {
+		t.Error("expected channel to be closed after unsubscribe")
+	}
+}
+
+func TestEventTypes(t *testing.T) {
+	core, beansDir := setupTestCore(t)
+
+	// Create an initial bean
+	createTestBean(t, core, "evt1", "Event Test", "todo")
+
+	if err := core.StartWatching(); err != nil {
+		t.Fatalf("StartWatching() error = %v", err)
+	}
+	defer core.Unwatch()
+
+	ch, unsub := core.Subscribe()
+	defer unsub()
+
+	// Give watcher time to start
+	time.Sleep(50 * time.Millisecond)
+
+	t.Run("update event", func(t *testing.T) {
+		// Modify the existing bean file
+		content := `---
+title: Updated Title
+status: in-progress
+---
+`
+		if err := os.WriteFile(filepath.Join(beansDir, "evt1--event-test.md"), []byte(content), 0644); err != nil {
+			t.Fatalf("failed to write test file: %v", err)
+		}
+
+		select {
+		case events := <-ch:
+			found := false
+			for _, e := range events {
+				if e.Type == EventUpdated && e.BeanID == "evt1" {
+					found = true
+					if e.Bean == nil {
+						t.Error("EventUpdated should include Bean")
+					}
+					if e.Bean.Title != "Updated Title" {
+						t.Errorf("expected updated title, got %q", e.Bean.Title)
+					}
+				}
+			}
+			if !found {
+				t.Errorf("expected EventUpdated for evt1, got: %+v", events)
+			}
+		case <-time.After(500 * time.Millisecond):
+			t.Error("timeout waiting for update event")
+		}
+	})
+
+	t.Run("delete event", func(t *testing.T) {
+		// Delete the bean file
+		if err := os.Remove(filepath.Join(beansDir, "evt1--event-test.md")); err != nil {
+			t.Fatalf("failed to delete file: %v", err)
+		}
+
+		select {
+		case events := <-ch:
+			found := false
+			for _, e := range events {
+				if e.Type == EventDeleted && e.BeanID == "evt1" {
+					found = true
+					if e.Bean != nil {
+						t.Error("EventDeleted should have nil Bean")
+					}
+				}
+			}
+			if !found {
+				t.Errorf("expected EventDeleted for evt1, got: %+v", events)
+			}
+		case <-time.After(500 * time.Millisecond):
+			t.Error("timeout waiting for delete event")
+		}
+	})
+}
+
+func TestSubscribersClosedOnUnwatch(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	if err := core.StartWatching(); err != nil {
+		t.Fatalf("StartWatching() error = %v", err)
+	}
+
+	ch, _ := core.Subscribe() // Note: not calling unsub
+
+	// Unwatch should close subscriber channels
+	if err := core.Unwatch(); err != nil {
+		t.Fatalf("Unwatch() error = %v", err)
+	}
+
+	// Channel should be closed
+	_, ok := <-ch
+	if ok {
+		t.Error("expected channel to be closed after Unwatch")
+	}
+}
