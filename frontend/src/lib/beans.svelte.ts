@@ -25,7 +25,7 @@ export interface Bean {
 /**
  * Change type from GraphQL subscription
  */
-type ChangeType = 'INITIAL' | 'CREATED' | 'UPDATED' | 'DELETED';
+type ChangeType = 'INITIAL' | 'INITIAL_SYNC_COMPLETE' | 'CREATED' | 'UPDATED' | 'DELETED';
 
 /**
  * Bean change event from GraphQL subscription
@@ -126,14 +126,17 @@ export class BeansStore {
 				const event = result.data?.beanChanged as BeanChangeEvent | undefined;
 				if (!event) return;
 
-				// First non-INITIAL event marks the end of initial sync
-				if (event.type !== 'INITIAL' && !this.#initialSyncDone) {
-					this.#initialSyncDone = true;
-					this.loading = false;
-				}
-
 				switch (event.type) {
 					case 'INITIAL':
+						if (event.bean) {
+							this.beans.set(event.bean.id, event.bean);
+						}
+						break;
+					case 'INITIAL_SYNC_COMPLETE':
+						// Server explicitly signals initial sync is done
+						this.#initialSyncDone = true;
+						this.loading = false;
+						break;
 					case 'CREATED':
 					case 'UPDATED':
 						if (event.bean) {
@@ -148,15 +151,6 @@ export class BeansStore {
 		);
 
 		this.#unsubscribe = unsubscribe;
-
-		// If no events come within a short time, assume initial sync is done
-		// (handles case of empty bean store)
-		setTimeout(() => {
-			if (!this.#initialSyncDone && this.connected) {
-				this.#initialSyncDone = true;
-				this.loading = false;
-			}
-		}, 500);
 	}
 
 	/**

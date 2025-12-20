@@ -43,6 +43,8 @@ Type of change that occurred to a bean
 enum ChangeType {
   "Bean existed when subscription started (emitted when includeInitial=true)"
   INITIAL
+  "Signals that all initial beans have been sent (emitted after INITIAL events when includeInitial=true)"
+  INITIAL_SYNC_COMPLETE
   CREATED
   UPDATED
   DELETED

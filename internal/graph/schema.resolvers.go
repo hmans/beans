@@ -322,6 +322,17 @@ func (r *subscriptionResolver) BeanChanged(ctx context.Context, includeInitial *
 					return
 				}
 			}
+
+			// Signal that initial sync is complete
+			select {
+			case out <- &model.BeanChangeEvent{
+				Type:   model.ChangeTypeInitialSyncComplete,
+				BeanID: "",
+			}:
+				// Sent successfully
+			case <-ctx.Done():
+				return
+			}
 		}
 
 		for {
