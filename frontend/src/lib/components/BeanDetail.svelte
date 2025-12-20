@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Bean } from '$lib/beans.svelte';
 	import { beansStore } from '$lib/beans.svelte';
+	import { marked } from 'marked';
 
 	interface Props {
 		bean: Bean;
@@ -40,6 +41,9 @@
 		low: 'text-gray-400',
 		deferred: 'text-gray-300'
 	};
+
+	// Render markdown body
+	const renderedBody = $derived(bean.body ? marked.parse(bean.body) : '');
 
 	let copied = $state(false);
 
@@ -155,7 +159,9 @@
 	{#if bean.body}
 		<div class="mb-6">
 			<h2 class="text-xs font-semibold text-gray-500 uppercase mb-2">Description</h2>
-			<div class="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">{bean.body}</div>
+			<div class="prose prose-sm max-w-none text-gray-700">
+				{@html renderedBody}
+			</div>
 		</div>
 	{/if}
 

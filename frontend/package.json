@@ -46,6 +46,7 @@
 		"vitest-browser-svelte": "^2.0.1"
 	},
 	"dependencies": {
+		"marked": "^17.0.1",
 		"wonka": "^6.3.5"
 	}
 }
