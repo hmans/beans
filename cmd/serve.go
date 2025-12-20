@@ -26,7 +26,7 @@ var (
 
 var serveCmd = &cobra.Command{
 	Use:     "serve",
-	Aliases: []string{"s"},
+	Aliases: []string{"server", "s"},
 	Short:   "Start the web server",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runServer()
