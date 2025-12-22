@@ -2,11 +2,13 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
 
+	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/hmans/beans/internal/beancore"
 	"github.com/hmans/beans/internal/config"
@@ -43,6 +45,11 @@ type tagSelectedMsg struct {
 
 // clearFilterMsg is sent to clear any active filter
 type clearFilterMsg struct{}
+
+// copyBeanIDMsg requests copying a bean ID to the clipboard
+type copyBeanIDMsg struct {
+	id string
+}
 
 // openEditorMsg requests opening the editor for a bean
 type openEditorMsg struct {
@@ -122,6 +129,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.height = msg.Height
 
 	case tea.KeyMsg:
+		// Clear status messages on any keypress
+		a.list.statusMessage = ""
+		a.detail.statusMessage = ""
+
 		// Handle key chord sequences
 		if a.state == viewList && a.list.list.FilterState() != 1 {
 			if a.pendingKey == "g" {
@@ -466,6 +477,23 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case clearFilterMsg:
 		a.list.clearFilter()
 		return a, a.list.loadBeans
+
+	case copyBeanIDMsg:
+		var statusMsg string
+		if err := clipboard.WriteAll(msg.id); err != nil {
+			statusMsg = fmt.Sprintf("Failed to copy: %v", err)
+		} else {
+			statusMsg = fmt.Sprintf("Copied %s to clipboard", msg.id)
+		}
+
+		// Set status on current view
+		if a.state == viewList {
+			a.list.statusMessage = statusMsg
+		} else if a.state == viewDetail {
+			a.detail.statusMessage = statusMsg
+		}
+
+		return a, nil
 
 	case selectBeanMsg:
 		// Push current detail view to history if we're already viewing a bean

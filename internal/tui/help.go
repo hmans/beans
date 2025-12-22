@@ -79,13 +79,14 @@ func (m helpOverlayModel) View() string {
 	var content strings.Builder
 	content.WriteString(title + "\n\n")
 
+	content.WriteString(shortcut("b", "Manage blocking") + "\n")
 	content.WriteString(shortcut("c", "Create new bean") + "\n")
 	content.WriteString(shortcut("e", "Edit in $EDITOR") + "\n")
+	content.WriteString(shortcut("p", "Set parent") + "\n")
+	content.WriteString(shortcut("P", "Change priority") + "\n")
 	content.WriteString(shortcut("s", "Change status") + "\n")
 	content.WriteString(shortcut("t", "Change type") + "\n")
-	content.WriteString(shortcut("P", "Change priority") + "\n")
-	content.WriteString(shortcut("p", "Set parent") + "\n")
-	content.WriteString(shortcut("b", "Manage blocking") + "\n")
+	content.WriteString(shortcut("y", "Copy bean ID") + "\n")
 	content.WriteString(shortcut("/", "Filter") + "\n")
 	content.WriteString(shortcut("g t", "Filter by tag") + "\n")
 	content.WriteString(shortcut("q", "Quit") + "\n")

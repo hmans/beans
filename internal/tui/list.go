@@ -118,6 +118,9 @@ type listModel struct {
 
 	// Multi-select state
 	selectedBeans map[string]bool // IDs of beans marked for multi-edit
+
+	// Status message to display in footer
+	statusMessage string
 }
 
 func newListModel(resolver *graph.Resolver, cfg *config.Config) listModel {
@@ -408,6 +411,13 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 						}
 					}
 				}
+			case "y":
+				// Copy bean ID to clipboard
+				if item, ok := m.list.SelectedItem().(beanItem); ok {
+					return m, func() tea.Msg {
+						return copyBeanIDMsg{id: item.bean.ID}
+					}
+				}
 			case "esc", "backspace":
 				// First clear selection if any beans are selected
 				if len(m.selectedBeans) > 0 {
@@ -480,40 +490,52 @@ func (m listModel) View() string {
 	if len(m.selectedBeans) > 0 {
 		// When beans are selected, show esc to clear selection
 		help = helpKeyStyle.Render("space") + " " + helpStyle.Render("toggle") + "  " +
+			helpKeyStyle.Render("P") + " " + helpStyle.Render("priority") + "  " +
 			helpKeyStyle.Render("s") + " " + helpStyle.Render("status") + "  " +
 			helpKeyStyle.Render("t") + " " + helpStyle.Render("type") + "  " +
-			helpKeyStyle.Render("P") + " " + helpStyle.Render("priority") + "  " +
+			helpKeyStyle.Render("y") + " " + helpStyle.Render("copy id") + "  " +
 			helpKeyStyle.Render("esc") + " " + helpStyle.Render("clear selection") + "  " +
 			helpKeyStyle.Render("?") + " " + helpStyle.Render("help") + "  " +
 			helpKeyStyle.Render("q") + " " + helpStyle.Render("quit")
 	} else if m.hasActiveFilter() {
 		help = helpKeyStyle.Render("space") + " " + helpStyle.Render("select") + "  " +
 			helpKeyStyle.Render("enter") + " " + helpStyle.Render("view") + "  " +
+			helpKeyStyle.Render("b") + " " + helpStyle.Render("blocking") + "  " +
 			helpKeyStyle.Render("c") + " " + helpStyle.Render("create") + "  " +
 			helpKeyStyle.Render("e") + " " + helpStyle.Render("edit") + "  " +
+			helpKeyStyle.Render("p") + " " + helpStyle.Render("parent") + "  " +
+			helpKeyStyle.Render("P") + " " + helpStyle.Render("priority") + "  " +
 			helpKeyStyle.Render("s") + " " + helpStyle.Render("status") + "  " +
 			helpKeyStyle.Render("t") + " " + helpStyle.Render("type") + "  " +
-			helpKeyStyle.Render("P") + " " + helpStyle.Render("priority") + "  " +
-			helpKeyStyle.Render("p") + " " + helpStyle.Render("parent") + "  " +
-			helpKeyStyle.Render("b") + " " + helpStyle.Render("blocking") + "  " +
+			helpKeyStyle.Render("y") + " " + helpStyle.Render("copy id") + "  " +
 			helpKeyStyle.Render("esc") + " " + helpStyle.Render("clear filter") + "  " +
 			helpKeyStyle.Render("?") + " " + helpStyle.Render("help") + "  " +
 			helpKeyStyle.Render("q") + " " + helpStyle.Render("quit")
 	} else {
 		help = helpKeyStyle.Render("space") + " " + helpStyle.Render("select") + "  " +
 			helpKeyStyle.Render("enter") + " " + helpStyle.Render("view") + "  " +
+			helpKeyStyle.Render("b") + " " + helpStyle.Render("blocking") + "  " +
 			helpKeyStyle.Render("c") + " " + helpStyle.Render("create") + "  " +
 			helpKeyStyle.Render("e") + " " + helpStyle.Render("edit") + "  " +
+			helpKeyStyle.Render("p") + " " + helpStyle.Render("parent") + "  " +
+			helpKeyStyle.Render("P") + " " + helpStyle.Render("priority") + "  " +
 			helpKeyStyle.Render("s") + " " + helpStyle.Render("status") + "  " +
 			helpKeyStyle.Render("t") + " " + helpStyle.Render("type") + "  " +
-			helpKeyStyle.Render("P") + " " + helpStyle.Render("priority") + "  " +
-			helpKeyStyle.Render("p") + " " + helpStyle.Render("parent") + "  " +
-			helpKeyStyle.Render("b") + " " + helpStyle.Render("blocking") + "  " +
+			helpKeyStyle.Render("y") + " " + helpStyle.Render("copy id") + "  " +
 			helpKeyStyle.Render("/") + " " + helpStyle.Render("filter") + "  " +
 			helpKeyStyle.Render("?") + " " + helpStyle.Render("help") + "  " +
 			helpKeyStyle.Render("q") + " " + helpStyle.Render("quit")
 	}
 
-	return content + "\n" + selectionPrefix + help
+	// Show status message if present, otherwise show help
+	footer := selectionPrefix
+	if m.statusMessage != "" {
+		statusStyle := lipgloss.NewStyle().Foreground(ui.ColorSuccess).Bold(true)
+		footer += statusStyle.Render(m.statusMessage)
+	} else {
+		footer += help
+	}
+
+	return content + "\n" + footer
 }
 

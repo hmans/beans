@@ -126,17 +126,18 @@ func (d linkDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 
 // detailModel displays a single bean's details
 type detailModel struct {
-	viewport    viewport.Model
-	bean        *bean.Bean
-	resolver    *graph.Resolver
-	config      *config.Config
-	width       int
-	height      int
-	ready       bool
-	links       []resolvedLink       // combined outgoing + incoming links
-	linkList    list.Model           // list component for links (supports filtering)
-	linksActive bool                 // true = links section focused
-	cols        ui.ResponsiveColumns // responsive column widths for links
+	viewport      viewport.Model
+	bean          *bean.Bean
+	resolver      *graph.Resolver
+	config        *config.Config
+	width         int
+	height        int
+	ready         bool
+	links         []resolvedLink       // combined outgoing + incoming links
+	linkList      list.Model           // list component for links (supports filtering)
+	linksActive   bool                 // true = links section focused
+	cols          ui.ResponsiveColumns // responsive column widths for links
+	statusMessage string               // Status message to display in footer
 }
 
 func newDetailModel(b *bean.Bean, resolver *graph.Resolver, cfg *config.Config, width, height int) detailModel {
@@ -376,6 +377,12 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 					beanPath: m.bean.Path,
 				}
 			}
+
+		case "y":
+			// Copy bean ID to clipboard
+			return m, func() tea.Msg {
+				return copyBeanIDMsg{id: m.bean.ID}
+			}
 		}
 	}
 
@@ -444,16 +451,23 @@ func (m detailModel) View() string {
 		}
 		footer += helpKeyStyle.Render("enter") + " " + helpStyle.Render("go to") + "  "
 	}
-	footer += helpKeyStyle.Render("e") + " " + helpStyle.Render("edit") + "  " +
+	footer += helpKeyStyle.Render("b") + " " + helpStyle.Render("blocking") + "  " +
+		helpKeyStyle.Render("e") + " " + helpStyle.Render("edit") + "  " +
+		helpKeyStyle.Render("p") + " " + helpStyle.Render("parent") + "  " +
+		helpKeyStyle.Render("P") + " " + helpStyle.Render("priority") + "  " +
 		helpKeyStyle.Render("s") + " " + helpStyle.Render("status") + "  " +
 		helpKeyStyle.Render("t") + " " + helpStyle.Render("type") + "  " +
-		helpKeyStyle.Render("P") + " " + helpStyle.Render("priority") + "  " +
-		helpKeyStyle.Render("p") + " " + helpStyle.Render("parent") + "  " +
-		helpKeyStyle.Render("b") + " " + helpStyle.Render("blocking") + "  " +
+		helpKeyStyle.Render("y") + " " + helpStyle.Render("copy id") + "  " +
 		helpKeyStyle.Render("j/k") + " " + helpStyle.Render("scroll") + "  " +
 		helpKeyStyle.Render("?") + " " + helpStyle.Render("help") + "  " +
 		helpKeyStyle.Render("esc") + " " + helpStyle.Render("back") + "  " +
 		helpKeyStyle.Render("q") + " " + helpStyle.Render("quit")
+
+	// Prepend status message if present
+	if m.statusMessage != "" {
+		statusStyle := lipgloss.NewStyle().Foreground(ui.ColorSuccess).Bold(true)
+		footer = statusStyle.Render(m.statusMessage) + "  " + footer
+	}
 
 	return header + "\n" + linksSection + body + "\n" + footer
 }
