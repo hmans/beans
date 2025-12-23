@@ -129,6 +129,210 @@ You can also specifically ask it to start working on a particular bean:
 
 > "It's time to tackle myproj-123."
 
+## Launchers
+
+You can configure external tools to launch from the TUI. Press `!` when viewing or selecting a bean to open the launcher picker.
+
+**First-time setup:** If no launchers are configured, you'll be prompted to select from default options (opencode, claude, crush). Only installed tools will be pre-selected. This provides a quick start with sensible defaults.
+
+Configure launchers in `.beans.yml`:
+
+```yaml
+launchers:
+  # Simple single-line launcher
+  - name: opencode
+    exec: opencode -p "Work on task $BEANS_ID"
+    description: "Open task in OpenCode"
+  
+  # Git worktree + tmux launcher
+  - name: worktree-tmux
+    description: "Create git worktree and open in new tmux pane"
+    exec: |
+      #!/bin/bash
+      set -euo pipefail
+      
+      WORKTREE_DIR=".worktrees/$BEANS_ID"
+      
+      # Create worktree if it doesn't exist
+      if [ ! -d "$WORKTREE_DIR" ]; then
+        git worktree add "$WORKTREE_DIR" -b "task/$BEANS_ID"
+      fi
+      
+      # Open in new tmux pane
+      tmux split-window -h -c "$BEANS_ROOT/$WORKTREE_DIR"
+      tmux send-keys "opencode -p 'Work on task $BEANS_ID'" Enter
+  
+  # Kitty terminal window launcher
+  - name: worktree-kitty
+    description: "Create git worktree and open in new kitty window"
+    exec: |
+      #!/bin/bash
+      set -euo pipefail
+      
+      WORKTREE_DIR=".worktrees/$BEANS_ID"
+      
+      # Create worktree if it doesn't exist
+      if [ ! -d "$WORKTREE_DIR" ]; then
+        git worktree add "$WORKTREE_DIR" -b "task/$BEANS_ID"
+      fi
+      
+      # Open in new kitty window
+      kitty @ launch --type=window --cwd="$BEANS_ROOT/$WORKTREE_DIR" \
+        opencode -p "Work on task $BEANS_ID"
+```
+
+### Multi-Bean Launchers
+
+Some launchers can handle multiple beans in parallel, while others can only work with one bean at a time. Mark launchers that support parallel execution with `multiple: true`:
+
+```yaml
+launchers:
+  # Single-bean only (default)
+  - name: opencode
+    exec: opencode -p "Work on task $BEANS_ID"
+    description: "Open task in OpenCode"
+    # multiple: false (default)
+  
+  # Can handle multiple beans in parallel
+  - name: worktree-tmux
+    multiple: true  # ← Supports multi-bean launching
+    description: "Create git worktree and open in new tmux pane"
+    exec: |
+      #!/bin/bash
+      set -euo pipefail
+      
+      WORKTREE_DIR=".worktrees/$BEANS_ID"
+      
+      if [ ! -d "$WORKTREE_DIR" ]; then
+        git worktree add "$WORKTREE_DIR" -b "task/$BEANS_ID"
+      fi
+      
+      tmux split-window -h -c "$BEANS_ROOT/$WORKTREE_DIR"
+      tmux send-keys "opencode -p 'Work on task $BEANS_ID'" Enter
+```
+
+**When to use `multiple: true`:**
+- Launchers that create separate workspaces (worktrees, tmux panes, kitty windows)
+- Scripts that can safely run in parallel without conflicts
+- Tools that operate on isolated resources per bean
+
+**When to keep default `multiple: false`:**
+- Interactive tools that can only open one file/project at a time (editors, IDEs)
+- Tools that modify shared state
+- Single-instance applications
+
+**Behavior:**
+- **Single bean selected** → All launchers shown
+- **Multiple beans selected** → Only `multiple: true` launchers shown
+- **No `multiple: true` launchers available** → Error message displayed
+
+### How It Works
+
+- **Single-line exec**: Runs via `sh -c`, just like a shell command. Use for simple commands.
+- **Multi-line exec**: Passed to the interpreter via stdin. **Must start with a shebang** (`#!/bin/bash`, `#!/usr/bin/env python3`, etc.). The shebang determines which interpreter executes your script.
+- **Environment variables**: All launchers receive `$BEANS_ROOT`, `$BEANS_DIR`, `$BEANS_ID`, `$BEANS_TASK`
+- **Working directory**: Set to project root (`$BEANS_ROOT`)
+- **Unix/Linux/macOS only**: Shebang mechanism is Unix-specific
+
+### Multi-Select Launching
+
+In the TUI, you can launch for multiple beans simultaneously using launchers marked with `multiple: true`:
+
+1. **Select multiple beans** using `x` (mark/unmark) or `X` (mark all visible)
+2. **Press `!`** to open the launcher picker (only shows `multiple: true` launchers)
+3. **Choose a launcher** - it will run in parallel for all selected beans
+
+**Features:**
+- **Parallel execution**: All launchers start simultaneously (perfect for creating multiple tmux panes or worktrees)
+- **Real-time progress**: See status for each bean as it runs
+- **Stop on failure**: If any bean fails, all others are immediately stopped
+- **Confirmation prompt**: For 5+ beans, you'll be asked to confirm (can be disabled in config)
+- **Selection management**: Selection is cleared on success, kept on failure (so you can retry)
+
+**Use cases:**
+- Create git worktrees for multiple tasks at once
+- Open multiple beans in separate tmux panes/kitty windows
+- Batch process related beans
+
+### TUI Configuration
+
+You can customize TUI behavior in `.beans.yml`:
+
+```yaml
+tui:
+  # Disable confirmation prompt when launching for 5+ beans
+  disable_launcher_warning: false
+```
+
+### Examples
+
+```yaml
+# Simple tool invocation
+- name: cursor
+  exec: cursor "$BEANS_TASK"
+
+# Shell command with pipes
+- name: show-bean
+  exec: cat "$BEANS_TASK" | less
+
+# Multi-step bash script
+- name: test-and-open
+  exec: |
+    #!/bin/bash
+    set -e
+    cd "$BEANS_ROOT"
+    npm test -- "$BEANS_ID" || true
+    code "$BEANS_TASK"
+
+# Ruby script
+- name: ruby-tool
+  exec: |
+    #!/usr/bin/env ruby
+    bean_id = ENV['BEANS_ID']
+    puts "Processing #{bean_id}"
+```
+
+### Environment Variables
+
+Launchers receive these environment variables:
+
+- `BEANS_ROOT`: Project root directory (parent of `.beans/`, your working directory)
+- `BEANS_DIR`: Beans directory (e.g., `/path/to/project/.beans`)
+- `BEANS_ID`: Bean ID (e.g., `beans-abc123`)
+- `BEANS_TASK`: Full path to bean file (e.g., `/path/to/project/.beans/beans-abc123.md`)
+
+### CLI Usage
+
+Launch beans from the command line:
+
+```bash
+# List all configured launchers with availability status
+beans launch -l
+
+# Example output:
+# NAME            AVAILABLE  DESCRIPTION
+# opencode        ✓          Open task in OpenCode
+# worktree-tmux   ✓          Create git worktree and open in new tmux pane
+# test-echo       ✓          Simple test launcher
+
+# Launch a specific launcher for a bean
+beans launch opencode beans-abc123    # Full ID
+beans launch opencode beans-abc       # Partial ID (if unique)
+
+# Launch worktree launchers
+beans launch worktree-tmux beans-def456
+beans launch worktree-kitty beans-ghi789
+
+# JSON output for scripting
+beans launch -l --json
+```
+
+**CLI launcher features:**
+- Supports partial bean ID matching (like other commands)
+- Executes launchers interactively (you see output in your terminal)
+- Shows availability status with `-l` (✓ if command/interpreter found, ✗ if not)
+- Returns non-zero exit code on failure
+
 ## Contributing
 
 This project currently does not accept contributions -- it's just way too early for that!

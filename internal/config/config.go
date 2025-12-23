@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,10 +70,26 @@ type PriorityConfig struct {
 	Description string `yaml:"description,omitempty"`
 }
 
+// Launcher defines a configured launcher command.
+type Launcher struct {
+	Name        string `yaml:"name"`
+	Exec        string `yaml:"exec"`
+	Description string `yaml:"description,omitempty"`
+	Multiple    bool   `yaml:"multiple,omitempty"` // Supports launching for multiple beans in parallel
+}
+
+// TUIConfig holds TUI-specific configuration.
+type TUIConfig struct {
+	// DisableLauncherWarning disables the confirmation prompt when launching for 5+ beans
+	DisableLauncherWarning bool `yaml:"disable_launcher_warning,omitempty"`
+}
+
 // Config holds the beans configuration.
 // Note: Statuses are no longer stored in config - they are hardcoded like types.
 type Config struct {
-	Beans BeansConfig `yaml:"beans"`
+	Beans     BeansConfig `yaml:"beans"`
+	TUI       TUIConfig   `yaml:"tui,omitempty"`
+	Launchers []Launcher  `yaml:"launchers,omitempty"`
 
 	// configDir is the directory containing the config file (not serialized)
 	// Used to resolve relative paths
@@ -163,6 +180,14 @@ func Load(configPath string) (*Config, error) {
 	}
 	if cfg.Beans.DefaultType == "" {
 		cfg.Beans.DefaultType = DefaultTypes[0].Name
+	}
+
+	// Validate launchers
+	for _, launcher := range cfg.Launchers {
+		// Multi-line exec must have shebang
+		if strings.Contains(launcher.Exec, "\n") && !strings.HasPrefix(launcher.Exec, "#!") {
+			return nil, fmt.Errorf("launcher '%s' has multi-line exec but no shebang (#!). Multi-line scripts must start with a shebang (e.g., #!/bin/bash)", launcher.Name)
+		}
 	}
 
 	return &cfg, nil

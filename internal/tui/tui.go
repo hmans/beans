@@ -8,10 +8,12 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/hmans/beans/internal/bean"
 	"github.com/hmans/beans/internal/beancore"
 	"github.com/hmans/beans/internal/config"
 	"github.com/hmans/beans/internal/graph"
 	"github.com/hmans/beans/internal/graph/model"
+	launcherexec "github.com/hmans/beans/internal/launcher"
 )
 
 // viewState represents which view is currently active
@@ -28,6 +30,14 @@ const (
 	viewPriorityPicker
 	viewCreateModal
 	viewHelpOverlay
+	viewLauncherPicker
+	viewLauncherError
+	viewNoLaunchers
+	viewNoLaunchersMulti
+	viewConfigureLaunchers
+	viewConfigWriteError
+	viewLaunchConfirm
+	viewLaunchProgress
 )
 
 // beansChangedMsg is sent when beans change on disk (via file watcher)
@@ -65,24 +75,32 @@ type openParentPickerMsg struct {
 
 // App is the main TUI application model
 type App struct {
-	state          viewState
-	list           listModel
-	detail         detailModel
-	tagPicker      tagPickerModel
-	parentPicker   parentPickerModel
-	statusPicker   statusPickerModel
-	typePicker     typePickerModel
-	blockingPicker blockingPickerModel
-	priorityPicker priorityPickerModel
-	createModal    createModalModel
-	helpOverlay    helpOverlayModel
-	history        []detailModel // stack of previous detail views for back navigation
-	core           *beancore.Core
-	resolver       *graph.Resolver
-	config         *config.Config
-	width          int
-	height         int
-	program        *tea.Program // reference to program for sending messages from watcher
+	state              viewState
+	list               listModel
+	detail             detailModel
+	tagPicker          tagPickerModel
+	parentPicker       parentPickerModel
+	statusPicker       statusPickerModel
+	typePicker         typePickerModel
+	blockingPicker     blockingPickerModel
+	priorityPicker     priorityPickerModel
+	createModal        createModalModel
+	helpOverlay        helpOverlayModel
+	launcherPicker     launcherPickerModel
+	launcherError      launcherErrorModel
+	noLaunchers        noLaunchersModel
+	noLaunchersMulti   noLaunchersMultiModel
+	configureLaunchers configureLaunchersModel
+	configWriteError   configWriteErrorModel
+	launchConfirm      launchConfirm
+	launchProgress     launchProgress
+	history            []detailModel // stack of previous detail views for back navigation
+	core               *beancore.Core
+	resolver           *graph.Resolver
+	config             *config.Config
+	width              int
+	height             int
+	program            *tea.Program // reference to program for sending messages from watcher
 
 	// Key chord state - tracks partial key sequences like "g" waiting for "t"
 	pendingKey string
@@ -463,6 +481,191 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, a.list.loadBeans
 
+	case openLauncherPickerMsg:
+		// Discover available launchers based on bean count
+		var launchers []launcher
+
+		if len(msg.beanIDs) > 1 {
+			// Multiple beans - only show launchers with multiple: true
+			launchers = discoverLaunchersForMultiple(a.config, a.core.Root())
+		} else {
+			// Single bean - show all launchers
+			launchers = discoverLaunchers(a.config, a.core.Root())
+		}
+
+		if len(launchers) == 0 {
+			// Check if this is multi-bean with no multiple-capable launchers
+			if len(msg.beanIDs) > 1 {
+				// Show specific error for multi-bean
+				a.previousState = a.state
+				a.noLaunchersMulti = newNoLaunchersMultiModel(a.width, a.height)
+				a.state = viewNoLaunchersMulti
+				return a, nil
+			}
+
+			// Check if any launchers are configured at all
+			if !hasLaunchersConfigured(a.config) {
+				// First time - offer to configure defaults
+				// For configure dialog, just show the first bean ID
+				firstBeanID := ""
+				if len(msg.beanIDs) > 0 {
+					firstBeanID = msg.beanIDs[0]
+				}
+				a.previousState = a.state
+				a.configureLaunchers = newConfigureLaunchersModel(firstBeanID, msg.beanTitle, a.width, a.height)
+				a.state = viewConfigureLaunchers
+				return a, a.configureLaunchers.Init()
+			}
+
+			// Launchers configured but none available
+			a.previousState = a.state
+			a.noLaunchers = newNoLaunchersModel(a.width, a.height)
+			a.state = viewNoLaunchers
+			return a, nil
+		}
+
+		// Open launcher picker
+		a.previousState = a.state
+		a.launcherPicker = newLauncherPickerModel(launchers, msg.beanIDs, msg.beanTitle, a.width, a.height)
+		a.state = viewLauncherPicker
+		return a, a.launcherPicker.Init()
+
+	case launcherSelectedMsg:
+		// Check if we need confirmation (5+ beans)
+		needsConfirm := len(msg.beanIDs) >= 5 && !a.config.TUI.DisableLauncherWarning
+
+		if needsConfirm {
+			// Show confirmation dialog
+			a.previousState = a.state
+
+			// Convert launcher to config.Launcher
+			configLauncher := &config.Launcher{
+				Name:        msg.launcher.name,
+				Exec:        msg.launcher.exec,
+				Description: msg.launcher.description,
+			}
+
+			a.launchConfirm = newLaunchConfirm(configLauncher, msg.beanIDs)
+			a.state = viewLaunchConfirm
+			return a, a.launchConfirm.Init()
+		}
+
+		// No confirmation needed - launch directly
+		return a, func() tea.Msg {
+			// Convert launcher to config.Launcher
+			configLauncher := &config.Launcher{
+				Name:        msg.launcher.name,
+				Exec:        msg.launcher.exec,
+				Description: msg.launcher.description,
+			}
+
+			return launchConfirmedMsg{
+				launcher: configLauncher,
+				beanIDs:  msg.beanIDs,
+			}
+		}
+
+	case closeLauncherPickerMsg:
+		a.state = a.previousState
+		return a, nil
+
+	case launchConfirmedMsg:
+		// User confirmed launch or skipped confirmation - fetch all beans
+		var beans []*bean.Bean
+		for _, beanID := range msg.beanIDs {
+			b, err := a.core.Get(beanID)
+			if err != nil {
+				// Skip beans that can't be loaded
+				continue
+			}
+			beans = append(beans, b)
+		}
+
+		if len(beans) == 0 {
+			// All beans failed to load - return to previous state
+			a.state = a.previousState
+			return a, nil
+		}
+
+		// Create launch manager
+		manager := launcherexec.NewLaunchManager(msg.launcher, beans)
+
+		// Start all launches
+		if err := manager.Start(a.core.Root()); err != nil {
+			// Failed to start - show error and return
+			a.previousState = viewDetail
+			a.launcherError = newLauncherErrorModel(msg.launcher.Name, err, a.width, a.height)
+			a.state = viewLauncherError
+			return a, nil
+		}
+
+		// Show progress view
+		a.previousState = a.state
+		a.launchProgress = newLaunchProgress(manager, msg.launcher.Name)
+		a.state = viewLaunchProgress
+		return a, a.launchProgress.Init()
+
+	case launchCancelledMsg:
+		// User cancelled confirmation
+		a.state = a.previousState
+		return a, nil
+
+	case launchCompleteMsg:
+		// All launches completed successfully
+		a.state = a.previousState
+
+		// Clear selection if we're in list view
+		if a.state == viewList {
+			clear(a.list.selectedBeans)
+		}
+
+		// Cleanup the progress view
+		a.launchProgress.Cleanup()
+
+		return a, nil
+
+	case launchFailedMsg:
+		// A launch failed - cleanup and show error
+		a.launchProgress.Cleanup()
+
+		// Show error modal
+		a.previousState = viewDetail
+		a.launcherError = newLauncherErrorModel("launcher", msg.err, a.width, a.height)
+		a.state = viewLauncherError
+
+		// Note: We don't clear selection so user can retry
+		return a, nil
+
+	case launchersConfiguredMsg:
+		// Append selected launchers to .beans.yml
+		projectRoot := a.config.ConfigDir()
+		if projectRoot == "" {
+			// Fallback: try to get parent of beans directory
+			projectRoot = filepath.Dir(a.core.Root())
+		}
+
+		if err := appendLaunchersToConfig(projectRoot, msg.launchers); err != nil {
+			// Show error modal
+			a.previousState = viewDetail
+			a.configWriteError = newConfigWriteErrorModel(err, a.width, a.height)
+			a.state = viewConfigWriteError
+			return a, nil
+		}
+
+		// Reload config to pick up the new launchers
+		if newCfg, err := config.LoadFromDirectory(projectRoot); err == nil {
+			a.config = newCfg
+		}
+
+		// Return to previous state (detail view)
+		a.state = a.previousState
+		return a, nil
+
+	case closeConfigureLaunchersMsg:
+		// User cancelled - return to previous state
+		a.state = a.previousState
+		return a, nil
+
 	case clearFilterMsg:
 		a.list.clearFilter()
 		return a, a.list.loadBeans
@@ -513,6 +716,51 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.createModal, cmd = a.createModal.Update(msg)
 	case viewHelpOverlay:
 		a.helpOverlay, cmd = a.helpOverlay.Update(msg)
+	case viewLauncherPicker:
+		a.launcherPicker, cmd = a.launcherPicker.Update(msg)
+	case viewLauncherError:
+		// Any key dismisses error modal
+		if _, ok := msg.(tea.KeyMsg); ok {
+			a.state = a.previousState
+			return a, nil
+		}
+	case viewNoLaunchers:
+		// Any key dismisses no-launchers modal
+		if _, ok := msg.(tea.KeyMsg); ok {
+			a.state = a.previousState
+			return a, nil
+		}
+	case viewNoLaunchersMulti:
+		// Any key dismisses no multi-bean launchers modal
+		if _, ok := msg.(tea.KeyMsg); ok {
+			a.state = a.previousState
+			return a, nil
+		}
+	case viewConfigureLaunchers:
+		a.configureLaunchers, cmd = a.configureLaunchers.Update(msg)
+	case viewConfigWriteError:
+		// Any key dismisses error modal
+		if _, ok := msg.(tea.KeyMsg); ok {
+			a.state = a.previousState
+			return a, nil
+		}
+	case viewLaunchConfirm:
+		a.launchConfirm, cmd = a.launchConfirm.Update(msg)
+	case viewLaunchProgress:
+		// Handle q/esc to cancel and stop all processes
+		if keyMsg, ok := msg.(tea.KeyMsg); ok {
+			switch keyMsg.String() {
+			case "q", "esc":
+				// Stop all processes
+				if a.launchProgress.manager != nil {
+					a.launchProgress.manager.Stop()
+				}
+				a.launchProgress.Cleanup()
+				a.state = a.previousState
+				return a, nil
+			}
+		}
+		a.launchProgress, cmd = a.launchProgress.Update(msg)
 	}
 
 	return a, cmd
@@ -559,6 +807,22 @@ func (a *App) View() string {
 		return a.createModal.ModalView(a.getBackgroundView(), a.width, a.height)
 	case viewHelpOverlay:
 		return a.helpOverlay.ModalView(a.getBackgroundView(), a.width, a.height)
+	case viewLauncherPicker:
+		return a.launcherPicker.ModalView(a.getBackgroundView(), a.width, a.height)
+	case viewLauncherError:
+		return a.launcherError.ModalView(a.getBackgroundView(), a.width, a.height)
+	case viewNoLaunchers:
+		return a.noLaunchers.ModalView(a.getBackgroundView(), a.width, a.height)
+	case viewNoLaunchersMulti:
+		return a.noLaunchersMulti.ModalView(a.getBackgroundView(), a.width, a.height)
+	case viewConfigureLaunchers:
+		return a.configureLaunchers.ModalView(a.getBackgroundView(), a.width, a.height)
+	case viewConfigWriteError:
+		return a.configWriteError.ModalView(a.getBackgroundView(), a.width, a.height)
+	case viewLaunchConfirm:
+		return a.launchConfirm.View()
+	case viewLaunchProgress:
+		return a.launchProgress.View()
 	}
 	return ""
 }
