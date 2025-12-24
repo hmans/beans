@@ -15,6 +15,7 @@ import (
 	"github.com/tidwall/pretty"
 	"github.com/vektah/gqlparser/v2/formatter"
 	"github.com/vektah/gqlparser/v2/gqlerror"
+	"github.com/hmans/beans/internal/beancore"
 	"github.com/hmans/beans/internal/graph"
 )
 
@@ -95,7 +96,7 @@ Examples:
 		}
 
 		// Execute the query
-		result, err := executeQuery(query, variables, queryOperation)
+		result, err := ExecuteQuery(query, variables, queryOperation)
 		if err != nil {
 			return err
 		}
@@ -133,14 +134,25 @@ func readFromStdin() (string, error) {
 	return strings.TrimSpace(string(data)), nil
 }
 
-// executeQuery runs a GraphQL query against the beans core.
+// ExecuteQuery runs a GraphQL query against the beans core.
 // On success, it returns just the data portion of the response.
 // On error, it returns an error so the CLI can handle it appropriately.
-func executeQuery(query string, variables map[string]any, operationName string) ([]byte, error) {
-	es := graph.NewExecutableSchema(graph.Config{
-		Resolvers: &graph.Resolver{Core: core},
-	})
+// This is exported so it can be used by the MCP server.
+func ExecuteQuery(query string, variables map[string]any, operationName string) ([]byte, error) {
+	es := newExecutableSchemaForCore(core)
+	return executeQueryWithSchema(es, query, variables, operationName)
+}
 
+// newExecutableSchemaForCore creates a GraphQL executable schema for a given core.
+// This allows different commands to use different core instances.
+func newExecutableSchemaForCore(c *beancore.Core) graphql.ExecutableSchema {
+	return graph.NewExecutableSchema(graph.Config{
+		Resolvers: &graph.Resolver{Core: c},
+	})
+}
+
+// executeQueryWithSchema runs a GraphQL query using the provided schema.
+func executeQueryWithSchema(es graphql.ExecutableSchema, query string, variables map[string]any, operationName string) ([]byte, error) {
 	exec := executor.New(es)
 
 	ctx := graphql.StartOperationTrace(context.Background())
