@@ -2,39 +2,60 @@
 name: release
 
 on:
-    push:
-        tags:
-            - "*"
+  push:
+    tags:
+      - "*"
 
 permissions:
-    contents: write
-    # packages: write
-    # issues: write
-    # id-token: write
+  contents: write
+  # packages: write
+  # issues: write
+  # id-token: write
 
 jobs:
-    goreleaser:
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v4
-              with:
-                  fetch-depth: 0
-            - name: Set up Go
-              uses: actions/setup-go@v5
-              with:
-                  go-version: stable
-            # More assembly might be required: Docker logins, GPG, etc.
-            # It all depends on your needs.
-            - name: Run GoReleaser
-              uses: goreleaser/goreleaser-action@v6
-              with:
-                  # either 'goreleaser' (default) or 'goreleaser-pro'
-                  distribution: goreleaser
-                  # 'latest', 'nightly', or a semver
-                  version: "~> v2"
-                  args: release --clean
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
-                  # Your GoReleaser Pro key, if you are using the 'goreleaser-pro' distribution
-                  # GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install mise
+        shell: bash
+        run: |
+          if [ ! -f "$HOME/.local/bin/mise" ]; then
+            curl https://mise.run | sh
+          fi
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: "frontend/pnpm-lock.yaml"
+      - name: Install dependencies
+        run: mise deps
+      - name: Build frontend
+        run: mise build:frontend
+      # More assembly might be required: Docker logins, GPG, etc.
+      # It all depends on your needs.
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          # either 'goreleaser' (default) or 'goreleaser-pro'
+          distribution: goreleaser
+          # 'latest', 'nightly', or a semver
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
+          # Your GoReleaser Pro key, if you are using the 'goreleaser-pro' distribution
+          # GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}

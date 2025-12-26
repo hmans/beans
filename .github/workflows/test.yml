@@ -16,14 +16,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
+      - name: Install mise
+        shell: bash
+        run: |
+          if [ ! -f "$HOME/.local/bin/mise" ]; then
+            curl https://mise.run | sh
+          fi
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
-          go-version: "1.24.6"
-
+          go-version: stable
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: "frontend/pnpm-lock.yaml"
+      - name: Install dependencies
+        run: mise deps
       - name: Build
-        run: go build -v ./...
-
+        run: mise build
       - name: Test
-        run: go test -v ./...
+        run: mise test
