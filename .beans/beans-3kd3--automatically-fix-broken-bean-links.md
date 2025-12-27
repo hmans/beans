@@ -1,10 +1,11 @@
 ---
 # beans-3kd3
 title: Automatically fix broken bean links
-status: todo
+status: scrapped
 type: task
+priority: normal
 created_at: 2025-12-27T19:32:26Z
-updated_at: 2025-12-27T19:32:26Z
+updated_at: 2025-12-27T19:39:08Z
 ---
 
 When beans are deleted or their IDs change, other beans may be left with broken references (parent or blocking fields pointing to non-existent beans).
@@ -32,3 +33,10 @@ Add a `beans doctor` or `beans fix` command that:
 - Should run on startup as a warning? Or only on-demand?
 - Should be included in `beans archive` as a cleanup step?
 - Consider adding `--dry-run` to show what would be fixed
+
+## Reason for Scrapping
+
+This functionality already exists in `beans check --fix`:
+- `beans check` detects broken links, self-references, and cycles
+- `beans check --fix` automatically removes broken links and self-references
+- The command now always includes archived beans to ensure complete validation
