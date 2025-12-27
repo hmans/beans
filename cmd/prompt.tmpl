@@ -5,6 +5,7 @@ This project uses **beans**, an agentic-first issue tracker. Issues are called "
 
 - **Always use beans instead of TodoWrite to manage your work and tasks.**
 - **Always use beans instead of writing todo lists.**
+- **Use `--with-archived` to access project memory** (this will make beans include archived beans).
 
 All commands support `--json` for machine-readable output. Use this flag to parse responses easily.
 
@@ -80,6 +81,12 @@ beans query '{ beans(filter: { search: "authentication" }) { id title } }'
    - Change `- [ ]` to `- [x]` for the completed item
 3. When committing code changes, include the updated bean file with checked-off items
 4. Re-read the bean periodically to stay aware of remaining work
+
+## Completing or Scrapping Beans
+
+- When **completing** a bean, make sure the bean description contains an accurate summary of what was done.
+- When **scrapping** a bean, ALWAYS add a note under a `## Reason for Scrapping` header explaining *why* it was scrapped.
+- Occasionally offer the user to run `beans archive` to archive completed/scrapped beans.
 
 ## Relationships
 
