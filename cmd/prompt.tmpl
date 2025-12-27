@@ -7,9 +7,10 @@ This project uses **beans**, an agentic-first issue tracker. Issues are called "
 
 ## Workflow
 
-1. **Before starting work**: Check for existing beans, or create one: `beans create "Fix login bug" -t bug -d "Users cannot log in when..." -s in-progress`
+1. **Before starting work**: Search for an existing bean first—only create one if no existing bean matches the work: `beans create "Fix login bug" -t bug -d "Users cannot log in when..." -s in-progress`
 2. **While working**: Keep the bean updated. If it has a checklist, update items as you complete them (`- [ ]` → `- [x]`)
-3. **When done**: Mark complete with `beans update <id> -s completed`. **When scrapping**, add a `## Reason for Scrapping` note explaining why.
+3. **When done**: Mark complete with `beans update <id> -s completed`.
+   - **When scrapping**: Always add a `## Reason for Scrapping` section to the bean body explaining why. This preserves project memory and helps future searches understand past decisions.
 4. **When committing**: Include bean file changes with your code commits.
 
 If you identify follow-up work, create a new bean instead of doing it immediately.
@@ -38,7 +39,8 @@ The `beans query` command allows advanced querying using GraphQL.
 - Directly read all fields (including `body`) and relationships
 - Traverse relationships in a single query
 - `beans query --help` for syntax and usage details
-- `beans query --schema` to view the full GraphQL schema (includes mutations for creating/updating beans)
+- `beans query --schema` to view the full GraphQL schema
+- **Mutations**: GraphQL mutations are available for creating and updating beans. Run `beans query --schema` to see the mutation API before using it.
 
 ```bash
 # Get all actionable beans with their details
