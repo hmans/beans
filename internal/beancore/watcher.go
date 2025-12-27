@@ -129,13 +129,10 @@ func (c *Core) Watch(onChange func()) error {
 		return err
 	}
 
-	// Also watch the archive directory if withArchived is set
-	if c.withArchived {
-		archivePath := filepath.Join(c.root, ArchiveDir)
-		if info, statErr := os.Stat(archivePath); statErr == nil && info.IsDir() {
-			// Best effort - don't fail if archive dir can't be watched
-			_ = watcher.Add(archivePath)
-		}
+	// Also watch the archive directory (best effort - don't fail if it doesn't exist)
+	archivePath := filepath.Join(c.root, ArchiveDir)
+	if info, statErr := os.Stat(archivePath); statErr == nil && info.IsDir() {
+		_ = watcher.Add(archivePath)
 	}
 
 	c.watching = true
@@ -204,11 +201,10 @@ func (c *Core) watchLoop(watcher *fsnotify.Watcher) {
 				continue
 			}
 
-			// Only care about files directly in .beans or in .beans/archive (if withArchived)
+			// Only care about files directly in .beans or in .beans/archive
 			dir := filepath.Dir(event.Name)
 			archivePath := filepath.Join(c.root, ArchiveDir)
-			validDir := dir == c.root || (c.withArchived && dir == archivePath)
-			if !validDir {
+			if dir != c.root && dir != archivePath {
 				continue
 			}
 

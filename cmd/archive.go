@@ -14,8 +14,8 @@ var archiveCmd = &cobra.Command{
 	Use:   "archive",
 	Short: "Move completed/scrapped beans to the archive",
 	Long: `Moves all beans with status "completed" or "scrapped" to the archive directory (.beans/archive/).
-Archived beans are preserved for project memory but excluded from normal queries.
-Use --with-archived flag on other commands to include archived beans.
+Archived beans are preserved for project memory and remain visible in all queries.
+The archive keeps the main .beans directory tidy while preserving project history.
 
 Relationships (parent, blocking) are preserved in archived beans.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
