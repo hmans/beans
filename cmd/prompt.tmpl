@@ -23,11 +23,8 @@ When the user asks what to work on next:
 # Check for in-progress beans first (finish what's started)
 beans query --json '{ beans(filter: { status: ["in-progress"] }) { id title type priority body } }'
 
-# Find actionable beans sorted by priority
+# Find actionable beans (not blocked, not completed/scrapped/draft)
 beans query --json '{ beans(filter: { excludeStatus: ["completed", "scrapped", "draft"], isBlocked: false }) { id title type priority status } }'
-
-# Check milestone priorities for context
-beans query --json '{ beans(filter: { type: ["milestone"], status: ["in-progress", "todo"] }) { id title body children(filter: { excludeStatus: ["completed"] }) { id title status } } }'
 ```
 </EXTREMELY_IMPORTANT>
 
