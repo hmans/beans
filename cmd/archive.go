@@ -17,8 +17,7 @@ var archiveCmd = &cobra.Command{
 Archived beans are preserved for project memory but excluded from normal queries.
 Use --with-archived flag on other commands to include archived beans.
 
-If other beans reference beans being archived (as parent or via blocking), those
-references will be automatically removed.`,
+Relationships (parent, blocking) are preserved in archived beans.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		allBeans := core.All()
 
@@ -43,19 +42,6 @@ references will be automatically removed.`,
 		// Sort beans for consistent display
 		bean.SortByStatusPriorityAndType(archiveBeans, cfg.StatusNames(), cfg.PriorityNames(), cfg.TypeNames())
 
-		// Remove external links before archiving
-		removedRefs := 0
-		for _, b := range archiveBeans {
-			removed, err := core.RemoveLinksTo(b.ID)
-			if err != nil {
-				if archiveJSON {
-					return output.Error(output.ErrFileError, fmt.Sprintf("failed to remove references to %s: %s", b.ID, err))
-				}
-				return fmt.Errorf("failed to remove references to %s: %w", b.ID, err)
-			}
-			removedRefs += removed
-		}
-
 		// Archive all beans with archive status
 		var archived []string
 		for _, b := range archiveBeans {
@@ -72,9 +58,6 @@ references will be automatically removed.`,
 			return output.SuccessMessage(fmt.Sprintf("Archived %d bean(s) to .beans/archive/", len(archived)))
 		}
 
-		if removedRefs > 0 {
-			fmt.Printf("Removed %d reference(s)\n", removedRefs)
-		}
 		fmt.Printf("Archived %d bean(s) to .beans/archive/\n", len(archived))
 		return nil
 	},
