@@ -556,6 +556,15 @@ func (c *Core) isArchivedPath(path string) bool {
 		strings.HasPrefix(path, ArchiveDir+"/")
 }
 
+// normalizeID returns the full ID with prefix if a prefix is configured
+// and the ID doesn't already have it.
+func (c *Core) normalizeID(id string) string {
+	if c.config != nil && c.config.Beans.Prefix != "" && !strings.HasPrefix(id, c.config.Beans.Prefix) {
+		return c.config.Beans.Prefix + id
+	}
+	return id
+}
+
 // findBeanLocked finds a bean by ID, supporting short IDs.
 // Must be called with lock held.
 func (c *Core) findBeanLocked(id string) (*bean.Bean, string, error) {
@@ -564,9 +573,9 @@ func (c *Core) findBeanLocked(id string) (*bean.Bean, string, error) {
 		return b, id, nil
 	}
 
-	// If not found and we have a configured prefix, try with prefix prepended
-	if c.config != nil && c.config.Beans.Prefix != "" && !strings.HasPrefix(id, c.config.Beans.Prefix) {
-		fullID := c.config.Beans.Prefix + id
+	// Try with prefix prepended
+	fullID := c.normalizeID(id)
+	if fullID != id {
 		if b, ok := c.beans[fullID]; ok {
 			return b, fullID, nil
 		}
@@ -579,11 +588,7 @@ func (c *Core) findBeanLocked(id string) (*bean.Bean, string, error) {
 // This is used when a bean isn't in the main loaded set but might be archived.
 // Returns nil, nil if the archive directory doesn't exist or bean not found.
 func (c *Core) GetFromArchive(id string) (*bean.Bean, error) {
-	// Normalize the ID with prefix if needed
-	fullID := id
-	if c.config != nil && c.config.Beans.Prefix != "" && !strings.HasPrefix(id, c.config.Beans.Prefix) {
-		fullID = c.config.Beans.Prefix + id
-	}
+	fullID := c.normalizeID(id)
 
 	archiveDir := filepath.Join(c.root, ArchiveDir)
 	if _, err := os.Stat(archiveDir); os.IsNotExist(err) {
@@ -614,16 +619,47 @@ func (c *Core) GetFromArchive(id string) (*bean.Bean, error) {
 // LoadAndUnarchive finds a bean in the archive, loads it, unarchives it,
 // and adds it to the in-memory store. Returns the bean or ErrNotFound.
 func (c *Core) LoadAndUnarchive(id string) (*bean.Bean, error) {
-	b, err := c.GetFromArchive(id)
-	if err != nil {
-		return nil, err
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Check if bean is already loaded (maybe it was unarchived by another goroutine)
+	if b, _, err := c.findBeanLocked(id); err == nil {
+		return b, nil
 	}
-	if b == nil {
+
+	// Look for bean in archive
+	fullID := c.normalizeID(id)
+	archiveDir := filepath.Join(c.root, ArchiveDir)
+
+	if _, err := os.Stat(archiveDir); os.IsNotExist(err) {
 		return nil, ErrNotFound
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	entries, err := os.ReadDir(archiveDir)
+	if err != nil {
+		return nil, err
+	}
+
+	var b *bean.Bean
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+
+		fileID, _ := bean.ParseFilename(entry.Name())
+		if fileID == fullID {
+			path := filepath.Join(archiveDir, entry.Name())
+			b, err = c.loadBean(path)
+			if err != nil {
+				return nil, err
+			}
+			break
+		}
+	}
+
+	if b == nil {
+		return nil, ErrNotFound
+	}
 
 	// Move file from archive to main directory
 	oldPath := filepath.Join(c.root, b.Path)
