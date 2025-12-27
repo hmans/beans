@@ -44,8 +44,20 @@ var updateCmd = &cobra.Command{
 		if err != nil {
 			return cmdError(updateJSON, output.ErrNotFound, "failed to find bean: %v", err)
 		}
+
+		// If not found, check the archive and unarchive if present
+		wasArchived := false
 		if b == nil {
-			return cmdError(updateJSON, output.ErrNotFound, "bean not found: %s", args[0])
+			unarchived, unarchiveErr := core.LoadAndUnarchive(args[0])
+			if unarchiveErr != nil {
+				return cmdError(updateJSON, output.ErrNotFound, "bean not found: %s", args[0])
+			}
+			// Re-query to get the model.Bean
+			b, err = resolver.Query().Bean(ctx, unarchived.ID)
+			if err != nil || b == nil {
+				return cmdError(updateJSON, output.ErrNotFound, "bean not found: %s", args[0])
+			}
+			wasArchived = true
 		}
 
 		// Track changes for output
@@ -105,10 +117,18 @@ var updateCmd = &cobra.Command{
 
 		// Output result
 		if updateJSON {
-			return output.Success(b, "Bean updated")
+			msg := "Bean updated"
+			if wasArchived {
+				msg = "Bean unarchived and updated"
+			}
+			return output.Success(b, msg)
 		}
 
-		fmt.Println(ui.Success.Render("Updated ") + ui.ID.Render(b.ID) + " " + ui.Muted.Render(b.Path))
+		if wasArchived {
+			fmt.Println(ui.Success.Render("Unarchived and updated ") + ui.ID.Render(b.ID) + " " + ui.Muted.Render(b.Path))
+		} else {
+			fmt.Println(ui.Success.Render("Updated ") + ui.ID.Render(b.ID) + " " + ui.Muted.Render(b.Path))
+		}
 		return nil
 	},
 }
