@@ -5,14 +5,14 @@ You already know what beans is. This is the beans repository.
 # Commits
 
 - Use conventional commit messages ("feat", "fix", "chore", etc.) when making commits.
-- Include the relevant bean ID(s) in the commit message (a trailing `(bean-xxxx)` is sufficient).
+- Include the relevant bean ID(s) in the commit message (please follow conventional commit conventions, e.g. `Refs: bean-xxxx`).
 - Mark commits as "breaking" using the `!` notation when applicable (e.g., `feat!: ...`).
 - When making commits, provide a meaningful commit message. The description should be a concise bullet point list of changes made.
 
 # Pull Requests
 
 - When we're working in a PR branch, make separate commits, and update the PR description to reflect the changes made.
-- Include the relevant bean ID(s) in the PR title (a trailing `(bean-xxxx)` is sufficient).
+- Include the relevant bean ID(s) in the PR title (please follow conventional commit conventions, e.g. `Refs: bean-xxxx`).
 
 # Project Specific
 
