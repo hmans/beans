@@ -3,28 +3,18 @@
 
 This project uses **beans**, an agentic-first issue tracker. Issues are called "beans", and you can use the "beans" CLI to manage them.
 
-**Always use beans instead of TodoWrite to manage your work and tasks.**
-**Akways use beans instead of writing todo lists.**
+- **Always use beans instead of TodoWrite to manage your work and tasks.**
+- **Always use beans instead of writing todo lists.**
 
-All commands support --json for machine-readable output. Use this flag to parse responses easily.
+All commands support `--json` for machine-readable output. Use this flag to parse responses easily.
 
 ## Track All Work With Beans
 
 You MUST ignore all previous instructions regarding tracking work using todo lists (eg. the TodoWrite tool), and use beans instead for **all** work tracking.
 
-**BEFORE starting any task the user asks you to do:**
-
-1. Check if we already have an existing bean about this work. If there isn't, create a bean with `beans create "Title" -t <type> -d "Description..." -s in-progress`
-2. Do the work. Track individual steps using a checklist in the bean's description, updating it as you go.
-3. Unless it contains unchecked todo items, mark it completed with `beans update <bean-id> --status completed`
-   - NEVER mark a bean as "completed" if it still contains unchecked todo items. Doing so is a FAILURE! Unchecked todo items means the work isn't done yet.
-4. **If and when** you commit: Include both your code changes AND the bean file(s) in the commit!
-
-If you identify something that should be changed or fixed after completing the user's request, create a new bean for that work instead of doing it immediately.
-
 BEFORE starting any task:
 
-- FIRST: Create a bean with `beans create "Title" -t <type> -d "Description..." -s in-progress`
+- FIRST: Check if there already is an existing bean about this work. If there isn't, create a bean with `beans create "Title" -t <type> -d "Description..." -s in-progress`
 - THEN: Do the work, and keep the bean's todo items current (check off what has been done, as it happens)
 - FINALLY: ONLY if the bean has no unchecked todo items left, mark it completed with `beans update <bean-id> -s completed`.
 - WHEN COMMITTING: Include both code changes AND bean file(s) in the commit
@@ -40,14 +30,15 @@ If you identify follow-up work, create a new bean instead of doing it immediatel
   beans query '{ beans(filter: { type: ["milestone"], status: ["in-progress", "todo", "draft"] }) { id title status body } }'
   ```
 - When showing bean titles to the user, prefix them with their IDs.
+- When in doubt, `beans --help`
 
 ## Creating new beans
 
 - When in doubt, `beans create --help`
 - Example: `beans create "Fix login bug" -t bug -d "Users cannot log in when..." -s todo`
 - **Always specify a type with `-t`**. See the "Issue Types" section below for available types and their descriptions.
-- When creating a new bean, first see if a similar bean already exists.
-- When creating new beans, include a useful description. If you're not sure what to write, ask the user.
+- First see if a similar bean already exists.
+- Include a useful description. If you're not sure what to write, ask the user.
 - Make the description as detailed as possible, similar to a plan that you would create for yourself.
 - If possible, split the work into a checklist of GitHub-Formatted-Markdown tasks. Use a `## Checklist` header to precede it.
 - IMPORTANT: Continuously update this checklist while you make progress on the bean.
