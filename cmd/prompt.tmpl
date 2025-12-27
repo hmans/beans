@@ -116,9 +116,30 @@ beans query '{ beans(filter: { isBlocked: true }) { id title blockedBy { title }
 beans query '{ beans(filter: { noParent: true }) { id title type } }'
 ```
 
-## Cleaning up beans
+## Archiving beans
 
-- `beans archive` will archive (delete) beans marked as completed or scrapped. ONLY run this when the user explicitly tells you to do so.
+- `beans archive` moves beans marked as completed or scrapped to `.beans/archive/`. ONLY run this when the user explicitly tells you to do so.
+- Archived beans are preserved as **project memory** but excluded from normal queries.
+- **IMPORTANT**: When scrapping a bean, always add a note explaining *why* it was scrapped. This helps future agents understand past decisions.
+
+## Using archived beans for context
+
+Archived beans serve as project memory. Before starting new work, consider checking if similar work was done before:
+
+```bash
+# Search archived beans for relevant context
+beans query --with-archived '{ beans(filter: { search: "authentication" }) { id title status body } }'
+
+# Find all archived beans
+beans query --with-archived '{ beans(filter: { status: ["completed", "scrapped"] }) { id title status } }'
+```
+
+Use this to:
+- Understand past decisions and why certain approaches were chosen
+- See why previous attempts were scrapped (to avoid repeating mistakes)
+- Find implementation patterns used in completed work
+
+If you update an archived bean (e.g., to change its status), it will automatically be unarchived.
 
 ## GraphQL Reference
 

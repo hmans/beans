@@ -18,8 +18,10 @@ var (
 
 var archiveCmd = &cobra.Command{
 	Use:   "archive",
-	Short: "Delete all beans with an archive status",
-	Long: `Deletes all beans with status "completed" or "scrapped". Asks for confirmation unless --force is provided.
+	Short: "Move completed/scrapped beans to the archive",
+	Long: `Moves all beans with status "completed" or "scrapped" to the archive directory (.beans/archive/).
+Archived beans are preserved for project memory but excluded from normal queries.
+Use --with-archived flag on other commands to include archived beans.
 
 If other beans reference beans being archived (as parent or via blocking), you will be
 warned and those references will be removed. Use -f to skip all warnings.`,
@@ -114,26 +116,26 @@ warned and those references will be removed. Use -f to skip all warnings.`,
 			removedRefs += removed
 		}
 
-		// Delete all beans with archive status
-		var deleted []string
+		// Archive all beans with archive status
+		var archived []string
 		for _, b := range archiveBeans {
-			if err := core.Delete(b.ID); err != nil {
+			if err := core.Archive(b.ID); err != nil {
 				if archiveJSON {
-					return output.Error(output.ErrFileError, fmt.Sprintf("failed to delete bean %s: %s", b.ID, err.Error()))
+					return output.Error(output.ErrFileError, fmt.Sprintf("failed to archive bean %s: %s", b.ID, err.Error()))
 				}
-				return fmt.Errorf("failed to delete bean %s: %w", b.ID, err)
+				return fmt.Errorf("failed to archive bean %s: %w", b.ID, err)
 			}
-			deleted = append(deleted, b.ID)
+			archived = append(archived, b.ID)
 		}
 
 		if archiveJSON {
-			return output.SuccessMessage(fmt.Sprintf("Archived %d bean(s)", len(deleted)))
+			return output.SuccessMessage(fmt.Sprintf("Archived %d bean(s) to .beans/archive/", len(archived)))
 		}
 
 		if removedRefs > 0 {
 			fmt.Printf("Removed %d reference(s)\n", removedRefs)
 		}
-		fmt.Printf("Archived %d bean(s)\n", len(deleted))
+		fmt.Printf("Archived %d bean(s) to .beans/archive/\n", len(archived))
 		return nil
 	},
 }
