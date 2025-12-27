@@ -8,7 +8,7 @@ This project uses **beans**, an agentic-first issue tracker. Issues are called "
 ## Workflow
 
 1. **Before starting work**: Check for existing beans, or create one: `beans create "Fix login bug" -t bug -d "Users cannot log in when..." -s in-progress`
-2. **While working**: Keep the bean updated. If it has a checklist, check off items as you complete them.
+2. **While working**: Keep the bean updated. If it has a checklist, update items as you complete them (`- [ ]` → `- [x]`)
 3. **When done**: Mark complete with `beans update <id> -s completed`
 4. **When committing**: Include bean file changes with your code commits.
 
@@ -17,7 +17,7 @@ If you identify follow-up work, create a new bean instead of doing it immediatel
 
 ## GraphQL Queries
 
-The `beans query` command allows advanced querying using GraphQL. Unlike the other CLI commands listed below, GraphQL allows you to:
+The `beans query` command allows advanced querying using GraphQL.
 
 - Fetch exactly the fields you need, across a potentially large set of beans
 - Directly read all fields (including `body`) and relationships
