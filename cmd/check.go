@@ -33,8 +33,18 @@ var checkCmd = &cobra.Command{
 - Circular dependencies (cycles in blocks/parent relationships)
 
 Use --fix to automatically remove broken links and self-references.
-Note: Cycles cannot be auto-fixed and require manual intervention.`,
+Note: Cycles cannot be auto-fixed and require manual intervention.
+
+This command always includes archived beans to ensure link validation is complete.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Always include archived beans for complete link validation
+		if !core.WithArchived() {
+			core.SetWithArchived(true)
+			if err := core.Load(); err != nil {
+				return fmt.Errorf("loading archived beans: %w", err)
+			}
+		}
+
 		var configErrors []string
 		var fixed int
 

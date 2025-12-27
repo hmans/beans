@@ -1115,3 +1115,333 @@ status: todo
 		t.Error("timeout waiting for events")
 	}
 }
+
+// Archive functionality tests
+
+func TestArchive(t *testing.T) {
+	core, beansDir := setupTestCore(t)
+
+	b := createTestBean(t, core, "arc1", "To Archive", "completed")
+	originalFilename := filepath.Base(b.Path)
+
+	// Archive the bean
+	err := core.Archive("arc1")
+	if err != nil {
+		t.Fatalf("Archive() error = %v", err)
+	}
+
+	// Verify file moved to archive directory
+	archivePath := filepath.Join(beansDir, ArchiveDir, originalFilename)
+	if _, err := os.Stat(archivePath); os.IsNotExist(err) {
+		t.Error("bean file should exist in archive directory")
+	}
+
+	// Verify file no longer in main directory
+	mainPath := filepath.Join(beansDir, "arc1--to-archive.md")
+	if _, err := os.Stat(mainPath); !os.IsNotExist(err) {
+		t.Error("bean file should not exist in main directory")
+	}
+
+	// Verify bean is still accessible in memory
+	archived, err := core.Get("arc1")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+
+	// Verify path is updated
+	if archived.Path != filepath.Join(ArchiveDir, "arc1--to-archive.md") {
+		t.Errorf("Path = %q, want %q", archived.Path, filepath.Join(ArchiveDir, "arc1--to-archive.md"))
+	}
+}
+
+func TestArchiveIdempotent(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	createTestBean(t, core, "arc1", "To Archive", "completed")
+
+	// Archive twice should not error
+	if err := core.Archive("arc1"); err != nil {
+		t.Fatalf("first Archive() error = %v", err)
+	}
+	if err := core.Archive("arc1"); err != nil {
+		t.Fatalf("second Archive() error = %v", err)
+	}
+}
+
+func TestArchiveNotFound(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	err := core.Archive("nonexistent")
+	if err != ErrNotFound {
+		t.Errorf("Archive() error = %v, want ErrNotFound", err)
+	}
+}
+
+func TestUnarchive(t *testing.T) {
+	core, beansDir := setupTestCore(t)
+
+	b := createTestBean(t, core, "una1", "To Unarchive", "completed")
+	originalFilename := filepath.Base(b.Path)
+
+	// Archive first
+	if err := core.Archive("una1"); err != nil {
+		t.Fatalf("Archive() error = %v", err)
+	}
+
+	// Unarchive
+	err := core.Unarchive("una1")
+	if err != nil {
+		t.Fatalf("Unarchive() error = %v", err)
+	}
+
+	// Verify file moved back to main directory
+	mainPath := filepath.Join(beansDir, originalFilename)
+	if _, err := os.Stat(mainPath); os.IsNotExist(err) {
+		t.Error("bean file should exist in main directory")
+	}
+
+	// Verify file no longer in archive
+	archivePath := filepath.Join(beansDir, ArchiveDir, originalFilename)
+	if _, err := os.Stat(archivePath); !os.IsNotExist(err) {
+		t.Error("bean file should not exist in archive directory")
+	}
+
+	// Verify path is updated
+	unarchived, err := core.Get("una1")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if unarchived.Path != "una1--to-unarchive.md" {
+		t.Errorf("Path = %q, want %q", unarchived.Path, "una1--to-unarchive.md")
+	}
+}
+
+func TestUnarchiveIdempotent(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	createTestBean(t, core, "una1", "To Unarchive", "completed")
+
+	// Unarchive non-archived bean should not error
+	if err := core.Unarchive("una1"); err != nil {
+		t.Fatalf("Unarchive() on non-archived bean error = %v", err)
+	}
+}
+
+func TestIsArchived(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	createTestBean(t, core, "isa1", "Test Archived", "completed")
+
+	t.Run("not archived", func(t *testing.T) {
+		if core.IsArchived("isa1") {
+			t.Error("IsArchived() should return false for non-archived bean")
+		}
+	})
+
+	// Archive the bean
+	if err := core.Archive("isa1"); err != nil {
+		t.Fatalf("Archive() error = %v", err)
+	}
+
+	t.Run("archived", func(t *testing.T) {
+		if !core.IsArchived("isa1") {
+			t.Error("IsArchived() should return true for archived bean")
+		}
+	})
+
+	t.Run("nonexistent", func(t *testing.T) {
+		if core.IsArchived("nonexistent") {
+			t.Error("IsArchived() should return false for nonexistent bean")
+		}
+	})
+}
+
+func TestLoadWithArchived(t *testing.T) {
+	core, beansDir := setupTestCore(t)
+
+	// Create beans and archive one
+	createTestBean(t, core, "act1", "Active Bean", "todo")
+	createTestBean(t, core, "arc1", "Archived Bean", "completed")
+	if err := core.Archive("arc1"); err != nil {
+		t.Fatalf("Archive() error = %v", err)
+	}
+
+	// Create a new core without WithArchived
+	core2 := New(beansDir, config.Default())
+	core2.SetWarnWriter(nil)
+	if err := core2.Load(); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	t.Run("without withArchived", func(t *testing.T) {
+		beans := core2.All()
+		if len(beans) != 1 {
+			t.Errorf("All() returned %d beans, want 1 (only active)", len(beans))
+		}
+		if _, err := core2.Get("arc1"); err != ErrNotFound {
+			t.Error("archived bean should not be found without withArchived")
+		}
+	})
+
+	// Create a new core with WithArchived
+	core3 := New(beansDir, config.Default())
+	core3.SetWarnWriter(nil)
+	core3.SetWithArchived(true)
+	if err := core3.Load(); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	t.Run("with withArchived", func(t *testing.T) {
+		beans := core3.All()
+		if len(beans) != 2 {
+			t.Errorf("All() returned %d beans, want 2 (active + archived)", len(beans))
+		}
+		if _, err := core3.Get("arc1"); err != nil {
+			t.Errorf("archived bean should be found with withArchived: %v", err)
+		}
+	})
+}
+
+func TestGetFromArchive(t *testing.T) {
+	core, beansDir := setupTestCore(t)
+
+	createTestBean(t, core, "gfa1", "Get From Archive", "completed")
+	if err := core.Archive("gfa1"); err != nil {
+		t.Fatalf("Archive() error = %v", err)
+	}
+
+	// Create a new core that doesn't load archived beans
+	core2 := New(beansDir, config.Default())
+	core2.SetWarnWriter(nil)
+	if err := core2.Load(); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	t.Run("bean in archive", func(t *testing.T) {
+		b, err := core2.GetFromArchive("gfa1")
+		if err != nil {
+			t.Fatalf("GetFromArchive() error = %v", err)
+		}
+		if b == nil {
+			t.Fatal("GetFromArchive() returned nil")
+		}
+		if b.ID != "gfa1" {
+			t.Errorf("ID = %q, want %q", b.ID, "gfa1")
+		}
+	})
+
+	t.Run("bean not in archive", func(t *testing.T) {
+		b, err := core2.GetFromArchive("nonexistent")
+		if err != nil {
+			t.Fatalf("GetFromArchive() error = %v", err)
+		}
+		if b != nil {
+			t.Error("GetFromArchive() should return nil for nonexistent bean")
+		}
+	})
+
+	t.Run("no archive directory", func(t *testing.T) {
+		// Create a fresh core with no archive
+		tmpDir := t.TempDir()
+		freshBeansDir := filepath.Join(tmpDir, BeansDir)
+		if err := os.MkdirAll(freshBeansDir, 0755); err != nil {
+			t.Fatalf("failed to create .beans dir: %v", err)
+		}
+		core3 := New(freshBeansDir, config.Default())
+		core3.SetWarnWriter(nil)
+		if err := core3.Load(); err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		b, err := core3.GetFromArchive("anything")
+		if err != nil {
+			t.Fatalf("GetFromArchive() error = %v", err)
+		}
+		if b != nil {
+			t.Error("GetFromArchive() should return nil when archive doesn't exist")
+		}
+	})
+}
+
+func TestLoadAndUnarchive(t *testing.T) {
+	core, beansDir := setupTestCore(t)
+
+	createTestBean(t, core, "lau1", "Load And Unarchive", "completed")
+	if err := core.Archive("lau1"); err != nil {
+		t.Fatalf("Archive() error = %v", err)
+	}
+
+	// Create a new core that doesn't load archived beans
+	core2 := New(beansDir, config.Default())
+	core2.SetWarnWriter(nil)
+	if err := core2.Load(); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Bean should not be found normally
+	if _, err := core2.Get("lau1"); err != ErrNotFound {
+		t.Error("bean should not be found before LoadAndUnarchive")
+	}
+
+	// Load and unarchive
+	b, err := core2.LoadAndUnarchive("lau1")
+	if err != nil {
+		t.Fatalf("LoadAndUnarchive() error = %v", err)
+	}
+	if b == nil {
+		t.Fatal("LoadAndUnarchive() returned nil")
+	}
+
+	// Bean should now be accessible
+	loaded, err := core2.Get("lau1")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if loaded.ID != "lau1" {
+		t.Errorf("ID = %q, want %q", loaded.ID, "lau1")
+	}
+
+	// File should be in main directory, not archive
+	mainPath := filepath.Join(beansDir, "lau1--load-and-unarchive.md")
+	if _, err := os.Stat(mainPath); os.IsNotExist(err) {
+		t.Error("bean file should exist in main directory after LoadAndUnarchive")
+	}
+}
+
+func TestLoadAndUnarchiveNotFound(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	_, err := core.LoadAndUnarchive("nonexistent")
+	if err != ErrNotFound {
+		t.Errorf("LoadAndUnarchive() error = %v, want ErrNotFound", err)
+	}
+}
+
+func TestArchiveShortID(t *testing.T) {
+	// Create a core with a configured prefix
+	tmpDir := t.TempDir()
+	beansDir := filepath.Join(tmpDir, BeansDir)
+	if err := os.MkdirAll(beansDir, 0755); err != nil {
+		t.Fatalf("failed to create test .beans dir: %v", err)
+	}
+
+	cfg := config.DefaultWithPrefix("beans-")
+	core := New(beansDir, cfg)
+	core.SetWarnWriter(nil)
+	if err := core.Load(); err != nil {
+		t.Fatalf("failed to load core: %v", err)
+	}
+
+	createTestBean(t, core, "beans-xyz1", "Test", "completed")
+
+	// Archive by short ID (without prefix)
+	err := core.Archive("xyz1")
+	if err != nil {
+		t.Fatalf("Archive() error = %v", err)
+	}
+
+	// Verify it's archived
+	if !core.IsArchived("beans-xyz1") {
+		t.Error("bean should be archived")
+	}
+}

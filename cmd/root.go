@@ -13,6 +13,7 @@ var core *beancore.Core
 var cfg *config.Config
 var beansPath string
 var configPath string
+var withArchived bool
 
 var rootCmd = &cobra.Command{
 	Use:   "beans",
@@ -66,6 +67,7 @@ a full view of your project.`,
 		}
 
 		core = beancore.New(root, cfg)
+		core.SetWithArchived(withArchived)
 		if err := core.Load(); err != nil {
 			return fmt.Errorf("loading beans: %w", err)
 		}
@@ -77,6 +79,7 @@ a full view of your project.`,
 func init() {
 	rootCmd.PersistentFlags().StringVar(&beansPath, "beans-path", "", "Path to data directory (overrides config)")
 	rootCmd.PersistentFlags().StringVar(&configPath, "config", "", "Path to config file (default: searches upward for .beans.yml)")
+	rootCmd.PersistentFlags().BoolVar(&withArchived, "with-archived", false, "Include archived beans (from .beans/archive/)")
 }
 
 func Execute() {
