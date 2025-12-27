@@ -3,18 +3,12 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/charmbracelet/huh"
 	"github.com/hmans/beans/internal/bean"
-	"github.com/hmans/beans/internal/beancore"
 	"github.com/hmans/beans/internal/output"
-	"github.com/hmans/beans/internal/ui"
 	"github.com/spf13/cobra"
 )
 
-var (
-	archiveForce bool
-	archiveJSON  bool
-)
+var archiveJSON bool
 
 var archiveCmd = &cobra.Command{
 	Use:   "archive",
@@ -23,8 +17,8 @@ var archiveCmd = &cobra.Command{
 Archived beans are preserved for project memory but excluded from normal queries.
 Use --with-archived flag on other commands to include archived beans.
 
-If other beans reference beans being archived (as parent or via blocking), you will be
-warned and those references will be removed. Use -f to skip all warnings.`,
+If other beans reference beans being archived (as parent or via blocking), those
+references will be automatically removed.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		allBeans := core.All()
 
@@ -49,61 +43,7 @@ warned and those references will be removed. Use -f to skip all warnings.`,
 		// Sort beans for consistent display
 		bean.SortByStatusPriorityAndType(archiveBeans, cfg.StatusNames(), cfg.PriorityNames(), cfg.TypeNames())
 
-		// Find incoming links from non-archived beans to beans being archived
-		var externalLinks []beancore.IncomingLink
-		for _, b := range archiveBeans {
-			links := core.FindIncomingLinks(b.ID)
-			for _, link := range links {
-				// Only count links from beans NOT being archived
-				if !archiveSet[link.FromBean.ID] {
-					externalLinks = append(externalLinks, link)
-				}
-			}
-		}
-		hasExternalLinks := len(externalLinks) > 0
-
-		// JSON implies force (no prompts for machines)
-		if !archiveForce && !archiveJSON {
-			// Show list of beans to be archived
-			fmt.Printf("Beans to archive (%d):\n\n", len(archiveBeans))
-			printBeanList(archiveBeans)
-			fmt.Println()
-
-			// Show warning if there are external links
-			if hasExternalLinks {
-				fmt.Printf("Warning: %d bean(s) link to beans being archived:\n", len(externalLinks))
-				for _, link := range externalLinks {
-					fmt.Printf("  - %s (%s) links to %s via %s\n",
-						link.FromBean.ID, link.FromBean.Title,
-						link.LinkType, link.LinkType)
-				}
-				fmt.Println()
-			}
-
-			var confirm bool
-			title := fmt.Sprintf("Archive %d bean(s)?", len(archiveBeans))
-			if hasExternalLinks {
-				title = fmt.Sprintf("Archive %d bean(s) and remove %d reference(s)?", len(archiveBeans), len(externalLinks))
-			}
-
-			err := huh.NewConfirm().
-				Title(title).
-				Affirmative("Yes").
-				Negative("No").
-				Value(&confirm).
-				Run()
-
-			if err != nil {
-				return err
-			}
-
-			if !confirm {
-				fmt.Println("Cancelled")
-				return nil
-			}
-		}
-
-		// Remove external links before deletion
+		// Remove external links before archiving
 		removedRefs := 0
 		for _, b := range archiveBeans {
 			removed, err := core.RemoveLinksTo(b.ID)
@@ -140,48 +80,7 @@ warned and those references will be removed. Use -f to skip all warnings.`,
 	},
 }
 
-// printBeanList prints a formatted list of beans
-func printBeanList(beans []*bean.Bean) {
-	// Calculate max ID width
-	maxIDWidth := 0
-	for _, b := range beans {
-		if len(b.ID) > maxIDWidth {
-			maxIDWidth = len(b.ID)
-		}
-	}
-	maxIDWidth += 2 // padding
-
-	// Check if any beans have tags
-	hasTags := false
-	for _, b := range beans {
-		if len(b.Tags) > 0 {
-			hasTags = true
-			break
-		}
-	}
-
-	// Print each bean
-	for _, b := range beans {
-		colors := cfg.GetBeanColors(b.Status, b.Type, b.Priority)
-		row := ui.RenderBeanRow(b.ID, b.Status, b.Type, b.Title, ui.BeanRowConfig{
-			StatusColor:   colors.StatusColor,
-			TypeColor:     colors.TypeColor,
-			PriorityColor: colors.PriorityColor,
-			Priority:      b.Priority,
-			IsArchive:     colors.IsArchive,
-			MaxTitleWidth: 60,
-			ShowCursor:    false,
-			IsSelected:    false,
-			Tags:          b.Tags,
-			ShowTags:      hasTags,
-			IDColWidth:    maxIDWidth,
-		})
-		fmt.Println(row)
-	}
-}
-
 func init() {
-	archiveCmd.Flags().BoolVarP(&archiveForce, "force", "f", false, "Skip confirmation and warnings")
-	archiveCmd.Flags().BoolVar(&archiveJSON, "json", false, "Output as JSON (implies --force)")
+	archiveCmd.Flags().BoolVar(&archiveJSON, "json", false, "Output as JSON")
 	rootCmd.AddCommand(archiveCmd)
 }
