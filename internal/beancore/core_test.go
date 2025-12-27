@@ -1303,6 +1303,86 @@ func TestArchivedBeansAlwaysLoaded(t *testing.T) {
 	})
 }
 
+func TestLoadFromSubdirectories(t *testing.T) {
+	// Create a core with beans in various subdirectories
+	tmpDir := t.TempDir()
+	beansDir := filepath.Join(tmpDir, BeansDir)
+	if err := os.MkdirAll(beansDir, 0755); err != nil {
+		t.Fatalf("failed to create test .beans dir: %v", err)
+	}
+
+	// Create subdirectories
+	milestone1Dir := filepath.Join(beansDir, "milestone-1")
+	milestone2Dir := filepath.Join(beansDir, "milestone-2")
+	nestedDir := filepath.Join(beansDir, "epics", "auth")
+	if err := os.MkdirAll(milestone1Dir, 0755); err != nil {
+		t.Fatalf("failed to create milestone-1 dir: %v", err)
+	}
+	if err := os.MkdirAll(milestone2Dir, 0755); err != nil {
+		t.Fatalf("failed to create milestone-2 dir: %v", err)
+	}
+	if err := os.MkdirAll(nestedDir, 0755); err != nil {
+		t.Fatalf("failed to create nested dir: %v", err)
+	}
+
+	// Create beans in different locations
+	writeTestBeanFile(t, filepath.Join(beansDir, "root1--root-bean.md"), "root1", "Root Bean", "todo")
+	writeTestBeanFile(t, filepath.Join(milestone1Dir, "m1b1--milestone-one-bean.md"), "m1b1", "Milestone One Bean", "todo")
+	writeTestBeanFile(t, filepath.Join(milestone2Dir, "m2b1--milestone-two-bean.md"), "m2b1", "Milestone Two Bean", "in-progress")
+	writeTestBeanFile(t, filepath.Join(nestedDir, "auth1--auth-bean.md"), "auth1", "Auth Bean", "todo")
+
+	// Load and verify all beans are found
+	core := New(beansDir, config.Default())
+	core.SetWarnWriter(nil)
+	if err := core.Load(); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	beans := core.All()
+	if len(beans) != 4 {
+		t.Errorf("All() returned %d beans, want 4", len(beans))
+	}
+
+	// Verify each bean is accessible and has correct path
+	testCases := []struct {
+		id           string
+		expectedPath string
+	}{
+		{"root1", "root1--root-bean.md"},
+		{"m1b1", "milestone-1/m1b1--milestone-one-bean.md"},
+		{"m2b1", "milestone-2/m2b1--milestone-two-bean.md"},
+		{"auth1", "epics/auth/auth1--auth-bean.md"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.id, func(t *testing.T) {
+			b, err := core.Get(tc.id)
+			if err != nil {
+				t.Fatalf("Get(%q) error = %v", tc.id, err)
+			}
+			if b.Path != tc.expectedPath {
+				t.Errorf("Path = %q, want %q", b.Path, tc.expectedPath)
+			}
+		})
+	}
+}
+
+// writeTestBeanFile creates a bean file directly on disk (for testing load scenarios)
+func writeTestBeanFile(t *testing.T, path, id, title, status string) {
+	t.Helper()
+	content := fmt.Sprintf(`---
+title: %s
+status: %s
+type: task
+---
+
+Test bean content.
+`, title, status)
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write test bean file: %v", err)
+	}
+}
+
 func TestGetFromArchive(t *testing.T) {
 	core, beansDir := setupTestCore(t)
 

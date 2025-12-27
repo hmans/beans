@@ -5,7 +5,6 @@ This project uses **beans**, an agentic-first issue tracker. Issues are called "
 
 - **Always use beans instead of TodoWrite to manage your work and tasks.**
 - **Always use beans instead of writing todo lists.**
-- **Use `--with-archived` to access project memory** (this will make beans include archived beans).
 
 All commands support `--json` for machine-readable output. Use this flag to parse responses easily.
 
@@ -127,7 +126,8 @@ beans query '{ beans(filter: { noParent: true }) { id title type } }'
 ## Archiving beans
 
 - `beans archive` moves beans marked as completed or scrapped to `.beans/archive/`. ONLY run this when the user explicitly tells you to do so.
-- Archived beans are preserved as **project memory** but excluded from normal queries.
+- Archived beans are preserved as **project memory** and remain visible in all queries.
+- The archive keeps the main `.beans/` directory tidy while preserving project history.
 - **IMPORTANT**: When scrapping a bean, always add a note explaining *why* it was scrapped. This helps future agents understand past decisions.
 
 ## Using archived beans for context
@@ -135,11 +135,11 @@ beans query '{ beans(filter: { noParent: true }) { id title type } }'
 Archived beans serve as project memory. Before starting new work, consider checking if similar work was done before:
 
 ```bash
-# Search archived beans for relevant context
-beans query --with-archived '{ beans(filter: { search: "authentication" }) { id title status body } }'
+# Search for relevant context (includes archived beans automatically)
+beans query '{ beans(filter: { search: "authentication" }) { id title status body } }'
 
-# Find all archived beans
-beans query --with-archived '{ beans(filter: { status: ["completed", "scrapped"] }) { id title status } }'
+# Find all completed/scrapped beans
+beans query '{ beans(filter: { status: ["completed", "scrapped"] }) { id title status } }'
 ```
 
 Use this to:

@@ -91,21 +91,32 @@ func (c *Core) Load() error {
 }
 
 // loadFromDisk reads all beans from disk (must be called with lock held).
+// Loads all .md files from the root directory and any subdirectories.
 func (c *Core) loadFromDisk() error {
 	// Clear existing beans
 	c.beans = make(map[string]*bean.Bean)
 
-	// Load beans from main directory
-	if err := c.loadBeansFromDir(""); err != nil {
-		return err
-	}
-
-	// Load archived beans (always included for complete visibility)
-	archivePath := filepath.Join(c.root, ArchiveDir)
-	if info, err := os.Stat(archivePath); err == nil && info.IsDir() {
-		if err := c.loadBeansFromDir(ArchiveDir); err != nil {
+	// Walk the entire .beans directory tree, loading all .md files
+	err := filepath.WalkDir(c.root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
 			return err
 		}
+
+		// Skip non-.md files
+		if d.IsDir() || !strings.HasSuffix(d.Name(), ".md") {
+			return nil
+		}
+
+		b, loadErr := c.loadBean(path)
+		if loadErr != nil {
+			return fmt.Errorf("loading %s: %w", path, loadErr)
+		}
+
+		c.beans[b.ID] = b
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	// Reinitialize search index if it was active: close and re-create (best-effort, don't fail load)
@@ -116,37 +127,6 @@ func (c *Core) loadFromDisk() error {
 		if err := c.ensureSearchIndexLocked(); err != nil {
 			c.logWarn("failed to reinitialize search index after reload: %v", err)
 		}
-	}
-
-	return nil
-}
-
-// loadBeansFromDir loads all .md files from a subdirectory of the root.
-// Pass "" for the main .beans directory.
-func (c *Core) loadBeansFromDir(subdir string) error {
-	dir := c.root
-	if subdir != "" {
-		dir = filepath.Join(c.root, subdir)
-	}
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return err
-	}
-
-	for _, entry := range entries {
-		// Skip directories and non-.md files
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
-			continue
-		}
-
-		path := filepath.Join(dir, entry.Name())
-		b, err := c.loadBean(path)
-		if err != nil {
-			return fmt.Errorf("loading %s: %w", path, err)
-		}
-
-		c.beans[b.ID] = b
 	}
 
 	return nil
