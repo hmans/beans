@@ -276,6 +276,42 @@ func RenderPriorityText(priority, color string) string {
 	return style.Render(priority)
 }
 
+// ShortType returns a single-character code for the bean type.
+func ShortType(t string) string {
+	switch t {
+	case "milestone":
+		return "M"
+	case "epic":
+		return "E"
+	case "bug":
+		return "B"
+	case "feature":
+		return "F"
+	case "task":
+		return "T"
+	default:
+		return "?"
+	}
+}
+
+// ShortStatus returns a single-character code for the bean status.
+func ShortStatus(s string) string {
+	switch s {
+	case "draft":
+		return "D"
+	case "todo":
+		return "T"
+	case "in-progress":
+		return "I"
+	case "completed":
+		return "C"
+	case "scrapped":
+		return "S"
+	default:
+		return "?"
+	}
+}
+
 // GetPrioritySymbol returns the raw symbol for a priority without styling.
 // Returns empty string for normal/empty priority.
 func GetPrioritySymbol(priority string) string {
