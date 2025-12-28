@@ -550,3 +550,18 @@ func (m listModel) View() string {
 	return content + "\n" + footer
 }
 
+// ViewConstrained renders the list constrained to the given width and height.
+// Used for the left pane in two-column mode.
+func (m listModel) ViewConstrained(width, height int) string {
+	// Temporarily set constrained dimensions
+	m.width = width
+	m.height = height
+	m.list.SetSize(width-2, height-4) // Account for border and footer
+
+	// Recalculate columns for constrained width
+	m.cols = ui.CalculateResponsiveColumns(width, m.hasTags)
+	m.updateDelegate()
+
+	return m.View()
+}
+

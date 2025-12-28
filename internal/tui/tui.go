@@ -11,6 +11,7 @@ import (
 
 	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/hmans/beans/internal/beancore"
 	"github.com/hmans/beans/internal/config"
 	"github.com/hmans/beans/internal/graph"
@@ -581,10 +582,30 @@ func (a *App) collectTagsWithCounts() []tagWithCount {
 	return tags
 }
 
+// renderTwoColumnView renders the list and preview side by side
+func (a *App) renderTwoColumnView() string {
+	leftWidth := LeftPaneWidth
+	rightWidth := a.width - leftWidth - 1 // 1 for separator
+	height := a.height
+
+	// Render left pane (list) with constrained width
+	leftPane := a.list.ViewConstrained(leftWidth, height)
+
+	// Update preview dimensions and render
+	a.preview.width = rightWidth
+	a.preview.height = height - 2 // Account for potential footer
+	rightPane := a.preview.View()
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
+}
+
 // View renders the current view
 func (a *App) View() string {
 	switch a.state {
 	case viewList:
+		if a.isTwoColumnMode() {
+			return a.renderTwoColumnView()
+		}
 		return a.list.View()
 	case viewDetail:
 		return a.detail.View()
