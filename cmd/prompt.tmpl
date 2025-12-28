@@ -30,7 +30,7 @@ When the user asks what to work on next:
 beans query --json '{ beans(filter: { status: ["in-progress"] }) { id title type priority body } }'
 
 # Find actionable beans (not blocked, not completed/scrapped/draft)
-beans query --json '{ beans(filter: { excludeStatus: ["completed", "scrapped", "draft"], isBlocked: false }) { id title type priority status } }'
+beans list --json --ready
 ```
 </EXTREMELY_IMPORTANT>
 
@@ -64,6 +64,8 @@ beans query --json '{ beans(filter: { search: "authentication" }) { id title bod
 ```bash
 # List beans (default excludes completed/scrapped)
 beans list --json
+beans list --json --ready              # Actionable beans (not blocked, excludes completed/scrapped/draft)
+beans list --json --blocked            # Beans that are blocked by others
 beans list --json -t bug -s todo       # Filter by type and status
 beans list --json -S "authentication"  # Full-text search
 
