@@ -268,13 +268,14 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 		if m.list.FilterState() != list.Filtering {
 			switch msg.String() {
 			case " ":
-				// Toggle selection for multi-select
+				// Toggle selection for multi-select, then move to next item
 				if item, ok := m.list.SelectedItem().(beanItem); ok {
 					if m.selectedBeans[item.bean.ID] {
 						delete(m.selectedBeans, item.bean.ID)
 					} else {
 						m.selectedBeans[item.bean.ID] = true
 					}
+					m.list.CursorDown()
 				}
 				return m, nil
 			case "enter":
