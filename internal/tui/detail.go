@@ -381,7 +381,7 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 		case "y":
 			// Copy bean ID to clipboard
 			return m, func() tea.Msg {
-				return copyBeanIDMsg{id: m.bean.ID}
+				return copyBeanIDMsg{ids: []string{m.bean.ID}}
 			}
 		}
 	}

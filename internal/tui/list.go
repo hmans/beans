@@ -412,10 +412,20 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 					}
 				}
 			case "y":
-				// Copy bean ID to clipboard
-				if item, ok := m.list.SelectedItem().(beanItem); ok {
+				// Copy bean ID(s) to clipboard
+				if len(m.selectedBeans) > 0 {
+					// Multi-select mode: copy all selected IDs
+					ids := make([]string, 0, len(m.selectedBeans))
+					for id := range m.selectedBeans {
+						ids = append(ids, id)
+					}
 					return m, func() tea.Msg {
-						return copyBeanIDMsg{id: item.bean.ID}
+						return copyBeanIDMsg{ids: ids}
+					}
+				} else if item, ok := m.list.SelectedItem().(beanItem); ok {
+					// Single bean mode
+					return m, func() tea.Msg {
+						return copyBeanIDMsg{ids: []string{item.bean.ID}}
 					}
 				}
 			case "esc", "backspace":
