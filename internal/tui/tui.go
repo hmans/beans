@@ -37,8 +37,19 @@ const (
 // Two-column layout constants
 const (
 	TwoColumnMinWidth = 120 // minimum terminal width for two-column layout
-	LeftPaneWidth     = 55  // fixed width of list pane in two-column mode
+	RightPaneMaxWidth = 80  // max width of preview pane (text files follow 80 char convention)
 )
+
+// calculatePaneWidths returns (leftWidth, rightWidth) for two-column layout.
+// Right pane is capped at RightPaneMaxWidth, left pane gets remaining space.
+func calculatePaneWidths(totalWidth int) (int, int) {
+	rightWidth := RightPaneMaxWidth
+	if totalWidth-rightWidth < 40 { // ensure left pane has reasonable minimum
+		rightWidth = totalWidth - 40
+	}
+	leftWidth := totalWidth - rightWidth - 1 // 1 for separator
+	return leftWidth, rightWidth
+}
 
 // beansChangedMsg is sent when beans change on disk (via file watcher)
 type beansChangedMsg struct{}
@@ -150,7 +161,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Update preview dimensions if in two-column mode
 		if a.isTwoColumnMode() {
-			a.preview.width = a.width - LeftPaneWidth - 3
+			_, rightWidth := calculatePaneWidths(a.width)
+			a.preview.width = rightWidth
 			a.preview.height = a.height - 2
 		}
 
@@ -207,13 +219,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case cursorChangedMsg:
 		// Update preview with the newly highlighted bean
+		_, rightWidth := calculatePaneWidths(a.width)
 		if msg.beanID != "" {
 			bean, err := a.resolver.Query().Bean(context.Background(), msg.beanID)
 			if err == nil && bean != nil {
-				a.preview = newPreviewModel(bean, a.width-LeftPaneWidth-3, a.height-2)
+				a.preview = newPreviewModel(bean, rightWidth, a.height-2)
 			}
 		} else {
-			a.preview = newPreviewModel(nil, a.width-LeftPaneWidth-3, a.height-2)
+			a.preview = newPreviewModel(nil, rightWidth, a.height-2)
 		}
 		return a, nil
 
@@ -221,10 +234,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Forward to list view
 		a.list, cmd = a.list.Update(msg)
 		// Update preview with current cursor position
+		_, rightWidth := calculatePaneWidths(a.width)
 		if len(msg.items) == 0 {
-			a.preview = newPreviewModel(nil, a.width-LeftPaneWidth-3, a.height-2)
+			a.preview = newPreviewModel(nil, rightWidth, a.height-2)
 		} else if item, ok := a.list.list.SelectedItem().(beanItem); ok {
-			a.preview = newPreviewModel(item.bean, a.width-LeftPaneWidth-3, a.height-2)
+			a.preview = newPreviewModel(item.bean, rightWidth, a.height-2)
 		}
 		return a, cmd
 
@@ -616,21 +630,26 @@ func (a *App) collectTagsWithCounts() []tagWithCount {
 	return tags
 }
 
-// renderTwoColumnView renders the list and preview side by side
+// renderTwoColumnView renders the list and preview side by side with app-global footer
 func (a *App) renderTwoColumnView() string {
-	leftWidth := LeftPaneWidth
-	rightWidth := a.width - leftWidth - 1 // 1 for separator
-	height := a.height
+	leftWidth, rightWidth := calculatePaneWidths(a.width)
+	contentHeight := a.height - 1 // Reserve 1 line for footer
 
-	// Render left pane (list) with constrained width
-	leftPane := a.list.ViewConstrained(leftWidth, height)
+	// Render left pane (list) with constrained width, no footer
+	leftPane := a.list.ViewConstrained(leftWidth, contentHeight)
 
 	// Update preview dimensions and render
 	a.preview.width = rightWidth
-	a.preview.height = height - 2 // Account for potential footer
+	a.preview.height = contentHeight
 	rightPane := a.preview.View()
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
+	// Compose columns
+	columns := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
+
+	// App-global footer spans full width
+	footer := a.list.Footer()
+
+	return columns + "\n" + footer
 }
 
 // View renders the current view

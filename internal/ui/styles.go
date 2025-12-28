@@ -363,6 +363,7 @@ type BeanRowConfig struct {
 	TreePrefix    string   // Tree prefix (e.g., "├─" or "  └─") to prepend to ID
 	Dimmed        bool     // Render row dimmed (for unmatched ancestor beans in tree)
 	IDColWidth    int      // Width of ID column (0 = default of ColWidthID)
+	UseFullNames  bool     // Use full type/status names instead of single-char abbreviations
 }
 
 // Base column widths for bean lists (minimum sizes)
@@ -484,8 +485,14 @@ func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string
 		idCol = TreeLine.Render(cfg.TreePrefix) + ID.Render(id) + padding
 	}
 
-	// Type column - single character
-	typeStr := ShortType(typeName)
+	// Type column - single character or full name
+	var typeStr string
+	if cfg.UseFullNames {
+		typeStr = typeName
+		typeStyle = typeStyle.Width(12) // wider for full names
+	} else {
+		typeStr = ShortType(typeName)
+	}
 	var typeCol string
 	if cfg.Dimmed {
 		typeCol = typeStyle.Render(Muted.Render(typeStr))
@@ -493,8 +500,14 @@ func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string
 		typeCol = typeStyle.Render(RenderTypeText(typeStr, cfg.TypeColor))
 	}
 
-	// Status column - single character
-	statusStr := ShortStatus(status)
+	// Status column - single character or full name
+	var statusStr string
+	if cfg.UseFullNames {
+		statusStr = status
+		statusStyle = statusStyle.Width(12) // wider for full names
+	} else {
+		statusStr = ShortStatus(status)
+	}
 	var statusCol string
 	if cfg.Dimmed {
 		statusCol = statusStyle.Render(Muted.Render(statusStr))

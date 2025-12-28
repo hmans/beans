@@ -77,13 +77,22 @@ func (m previewModel) renderBean() string {
 
 	content := lipgloss.JoinVertical(lipgloss.Left, parts...)
 
+	// Truncate content to fit within available height (account for border)
+	availableHeight := m.height - 2
+	contentLines := strings.Split(content, "\n")
+	if len(contentLines) > availableHeight {
+		contentLines = contentLines[:availableHeight]
+	}
+	content = strings.Join(contentLines, "\n")
+
 	// Border
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(ui.ColorMuted).
 		Padding(0, 1).
 		Width(m.width - 2).
-		Height(m.height - 2)
+		Height(m.height - 2).
+		MaxHeight(m.height)
 
 	return borderStyle.Render(content)
 }

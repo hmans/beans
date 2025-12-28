@@ -496,16 +496,22 @@ func (m listModel) View() string {
 		m.list.Title = "Beans"
 	}
 
-	// Simple bordered container
+	return m.viewContent() + "\n" + m.Footer()
+}
+
+// viewContent renders just the bordered list without footer.
+func (m listModel) viewContent() string {
 	border := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(ui.ColorMuted).
 		Width(m.width - 2).
 		Height(m.height - 4)
 
-	content := border.Render(m.list.View())
+	return border.Render(m.list.View())
+}
 
-	// Footer - show different help based on filter/selection state
+// Footer renders the help/status footer for the list view.
+func (m listModel) Footer() string {
 	var help string
 
 	// Show selection count if any beans are selected
@@ -564,21 +570,28 @@ func (m listModel) View() string {
 		footer += help
 	}
 
-	return content + "\n" + footer
+	return footer
 }
 
 // ViewConstrained renders the list constrained to the given width and height.
-// Used for the left pane in two-column mode.
+// Used for the left pane in two-column mode. Returns only the content without footer.
 func (m listModel) ViewConstrained(width, height int) string {
 	// Temporarily set constrained dimensions
 	m.width = width
 	m.height = height
-	m.list.SetSize(width-2, height-4) // Account for border and footer
+	m.list.SetSize(width-2, height-2) // Account for border only (no footer)
 
 	// Recalculate columns for constrained width
 	m.cols = ui.CalculateResponsiveColumns(width, m.hasTags)
 	m.updateDelegate()
 
-	return m.View()
+	// Update title based on active filter
+	if m.tagFilter != "" {
+		m.list.Title = fmt.Sprintf("Beans [tag: %s]", m.tagFilter)
+	} else {
+		m.list.Title = "Beans"
+	}
+
+	return m.viewContent()
 }
 
