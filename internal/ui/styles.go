@@ -368,8 +368,8 @@ type BeanRowConfig struct {
 // Base column widths for bean lists (minimum sizes)
 const (
 	ColWidthID     = 12
-	ColWidthStatus = 14
-	ColWidthType   = 12
+	ColWidthStatus = 3
+	ColWidthType   = 3
 	ColWidthTags   = 24
 )
 
@@ -404,7 +404,7 @@ func CalculateResponsiveColumns(totalWidth int, hasTags bool) ResponsiveColumns 
 	}
 
 	// At this point we have at least 140 columns
-	// Base usage: cursor (2) + ID (12) + status (14) + type (12) = 40
+	// Base usage: cursor (2) + ID (12) + status (3) + type (3) = 20
 	cursorWidth := 2
 	baseWidth := cursorWidth + cols.ID + cols.Status + cols.Type
 	available := totalWidth - baseWidth
@@ -484,22 +484,22 @@ func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string
 		idCol = TreeLine.Render(cfg.TreePrefix) + ID.Render(id) + padding
 	}
 
+	// Type column - single character
+	typeStr := ShortType(typeName)
 	var typeCol string
-	if typeName != "" {
-		if cfg.Dimmed {
-			typeCol = typeStyle.Render(Muted.Render(typeName))
-		} else {
-			typeCol = typeStyle.Render(RenderTypeText(typeName, cfg.TypeColor))
-		}
+	if cfg.Dimmed {
+		typeCol = typeStyle.Render(Muted.Render(typeStr))
 	} else {
-		typeCol = typeStyle.Render("")
+		typeCol = typeStyle.Render(RenderTypeText(typeStr, cfg.TypeColor))
 	}
 
+	// Status column - single character
+	statusStr := ShortStatus(status)
 	var statusCol string
 	if cfg.Dimmed {
-		statusCol = statusStyle.Render(Muted.Render(status))
+		statusCol = statusStyle.Render(Muted.Render(statusStr))
 	} else {
-		statusCol = statusStyle.Render(RenderStatusTextWithColor(status, cfg.StatusColor, cfg.IsArchive))
+		statusCol = statusStyle.Render(RenderStatusTextWithColor(statusStr, cfg.StatusColor, cfg.IsArchive))
 	}
 
 	// Tags column (optional)

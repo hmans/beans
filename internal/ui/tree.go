@@ -203,8 +203,8 @@ func RenderTree(nodes []*TreeNode, cfg *config.Config, maxIDWidth int, hasTags b
 	// Header with manual padding (lipgloss Width doesn't handle styled strings well)
 	headerCol := lipgloss.NewStyle().Foreground(ColorMuted)
 	idHeader := headerCol.Render("ID") + strings.Repeat(" ", treeColWidth-2)
-	typeHeader := headerCol.Render("TYPE") + strings.Repeat(" ", ColWidthType-4)
-	statusHeader := headerCol.Render("STATUS") + strings.Repeat(" ", ColWidthStatus-6)
+	typeHeader := headerCol.Render("T") + strings.Repeat(" ", ColWidthType-1)
+	statusHeader := headerCol.Render("S") + strings.Repeat(" ", ColWidthStatus-1)
 
 	header := idHeader + typeHeader + statusHeader + headerCol.Render("TITLE")
 	if cols.ShowTags && titleWidth > 5 {
