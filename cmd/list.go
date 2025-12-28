@@ -92,6 +92,11 @@ Search Syntax (--search/-S):
 		if listNoBlocking {
 			filter.NoBlocking = &listNoBlocking
 		}
+		// --ready and --is-blocked are mutually exclusive
+		if listReady && listIsBlocked {
+			return fmt.Errorf("--ready and --is-blocked are mutually exclusive")
+		}
+
 		if listIsBlocked {
 			filter.IsBlocked = &listIsBlocked
 		}
