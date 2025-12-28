@@ -33,6 +33,12 @@ const (
 	viewHelpOverlay
 )
 
+// Two-column layout constants
+const (
+	TwoColumnMinWidth = 120 // minimum terminal width for two-column layout
+	LeftPaneWidth     = 55  // fixed width of list pane in two-column mode
+)
+
 // beansChangedMsg is sent when beans change on disk (via file watcher)
 type beansChangedMsg struct{}
 
@@ -118,6 +124,11 @@ func New(core *beancore.Core, cfg *config.Config) *App {
 // Init initializes the application
 func (a *App) Init() tea.Cmd {
 	return a.list.Init()
+}
+
+// isTwoColumnMode returns true if the terminal width supports two-column layout
+func (a *App) isTwoColumnMode() bool {
+	return a.width >= TwoColumnMinWidth
 }
 
 // Update handles messages
