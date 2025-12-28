@@ -65,7 +65,6 @@ beans query --json '{ beans(filter: { search: "authentication" }) { id title bod
 # List beans (default excludes completed/scrapped)
 beans list --json
 beans list --json --ready              # Actionable beans (not blocked, excludes completed/scrapped/draft)
-beans list --json --blocked            # Beans that are blocked by others
 beans list --json -t bug -s todo       # Filter by type and status
 beans list --json -S "authentication"  # Full-text search
 
