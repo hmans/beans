@@ -148,6 +148,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.width = msg.Width
 		a.height = msg.Height
 
+		// Update preview dimensions if in two-column mode
+		if a.isTwoColumnMode() {
+			a.preview.width = a.width - LeftPaneWidth - 3
+			a.preview.height = a.height - 2
+		}
+
 	case tea.KeyMsg:
 		// Clear status messages on any keypress
 		a.list.statusMessage = ""
@@ -215,7 +221,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Forward to list view
 		a.list, cmd = a.list.Update(msg)
 		// Update preview with current cursor position
-		if item, ok := a.list.list.SelectedItem().(beanItem); ok {
+		if len(msg.items) == 0 {
+			a.preview = newPreviewModel(nil, a.width-LeftPaneWidth-3, a.height-2)
+		} else if item, ok := a.list.list.SelectedItem().(beanItem); ok {
 			a.preview = newPreviewModel(item.bean, a.width-LeftPaneWidth-3, a.height-2)
 		}
 		return a, cmd
