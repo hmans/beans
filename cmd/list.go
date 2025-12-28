@@ -103,8 +103,8 @@ Search Syntax (--search/-S):
 
 		// --ready: actionable beans (not blocked, excludes completed/scrapped/draft)
 		if listReady {
-			notBlocked := false
-			filter.IsBlocked = &notBlocked
+			isBlocked := false
+			filter.IsBlocked = &isBlocked
 			filter.ExcludeStatus = append(filter.ExcludeStatus, "completed", "scrapped", "draft")
 		}
 

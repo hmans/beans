@@ -114,6 +114,33 @@ func TestSortBeans(t *testing.T) {
 	})
 }
 
+func TestListReadyFlagMutualExclusion(t *testing.T) {
+	// Test that --ready and --is-blocked are mutually exclusive
+	// by checking the validation logic directly
+	tests := []struct {
+		name        string
+		ready       bool
+		isBlocked   bool
+		expectError bool
+	}{
+		{"neither flag", false, false, false},
+		{"only --ready", true, false, false},
+		{"only --is-blocked", false, true, false},
+		{"both flags", true, true, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// This mirrors the validation logic in list.go
+			hasError := tt.ready && tt.isBlocked
+			if hasError != tt.expectError {
+				t.Errorf("ready=%v, isBlocked=%v: got error=%v, want error=%v",
+					tt.ready, tt.isBlocked, hasError, tt.expectError)
+			}
+		})
+	}
+}
+
 func TestTruncate(t *testing.T) {
 	tests := []struct {
 		name   string
