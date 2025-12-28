@@ -62,11 +62,12 @@ beans query --json '{ beans(filter: { search: "authentication" }) { id title bod
 ## CLI Commands
 
 ```bash
-# List beans (default excludes completed/scrapped)
-beans list --json
+# List beans
+beans list --json                      # All beans
 beans list --json --ready              # Actionable beans (not blocked, excludes completed/scrapped/draft)
 beans list --json -t bug -s todo       # Filter by type and status
 beans list --json -S "authentication"  # Full-text search
+beans list --help                      # Full options
 
 # View a bean
 beans show --json <id>
