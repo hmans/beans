@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/atotto/clipboard"
@@ -46,9 +47,9 @@ type tagSelectedMsg struct {
 // clearFilterMsg is sent to clear any active filter
 type clearFilterMsg struct{}
 
-// copyBeanIDMsg requests copying a bean ID to the clipboard
+// copyBeanIDMsg requests copying bean ID(s) to the clipboard
 type copyBeanIDMsg struct {
-	id string
+	ids []string
 }
 
 // openEditorMsg requests opening the editor for a bean
@@ -480,10 +481,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case copyBeanIDMsg:
 		var statusMsg string
-		if err := clipboard.WriteAll(msg.id); err != nil {
+		text := strings.Join(msg.ids, ", ")
+		if err := clipboard.WriteAll(text); err != nil {
 			statusMsg = fmt.Sprintf("Failed to copy: %v", err)
+		} else if len(msg.ids) == 1 {
+			statusMsg = fmt.Sprintf("Copied %s to clipboard", msg.ids[0])
 		} else {
-			statusMsg = fmt.Sprintf("Copied %s to clipboard", msg.id)
+			statusMsg = fmt.Sprintf("Copied %d bean IDs to clipboard", len(msg.ids))
 		}
 
 		// Set status on current view
