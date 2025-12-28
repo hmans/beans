@@ -43,6 +43,11 @@ const (
 // beansChangedMsg is sent when beans change on disk (via file watcher)
 type beansChangedMsg struct{}
 
+// cursorChangedMsg is sent when the list cursor moves to a different bean
+type cursorChangedMsg struct {
+	beanID string
+}
+
 // openTagPickerMsg requests opening the tag picker
 type openTagPickerMsg struct{}
 
@@ -193,6 +198,27 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return a, tea.Quit
 			}
 		}
+
+	case cursorChangedMsg:
+		// Update preview with the newly highlighted bean
+		if msg.beanID != "" {
+			bean, err := a.resolver.Query().Bean(context.Background(), msg.beanID)
+			if err == nil && bean != nil {
+				a.preview = newPreviewModel(bean, a.width-LeftPaneWidth-3, a.height-2)
+			}
+		} else {
+			a.preview = newPreviewModel(nil, a.width-LeftPaneWidth-3, a.height-2)
+		}
+		return a, nil
+
+	case beansLoadedMsg:
+		// Forward to list view
+		a.list, cmd = a.list.Update(msg)
+		// Update preview with current cursor position
+		if item, ok := a.list.list.SelectedItem().(beanItem); ok {
+			a.preview = newPreviewModel(item.bean, a.width-LeftPaneWidth-3, a.height-2)
+		}
+		return a, cmd
 
 	case beansChangedMsg:
 		// Beans changed on disk - refresh

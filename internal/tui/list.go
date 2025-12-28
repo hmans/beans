@@ -227,6 +227,10 @@ func (m *listModel) hasActiveFilter() bool {
 
 func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 	var cmd tea.Cmd
+	var cmds []tea.Cmd
+
+	// Track cursor position before update
+	prevIndex := m.list.Index()
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -447,7 +451,20 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 
 	// Always forward to the list component
 	m.list, cmd = m.list.Update(msg)
-	return m, cmd
+	if cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	// Check if cursor moved and emit message
+	if m.list.Index() != prevIndex {
+		if item, ok := m.list.SelectedItem().(beanItem); ok {
+			cmds = append(cmds, func() tea.Msg {
+				return cursorChangedMsg{beanID: item.bean.ID}
+			})
+		}
+	}
+
+	return m, tea.Batch(cmds...)
 }
 
 // updateDelegate updates the list delegate with current responsive columns
