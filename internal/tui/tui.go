@@ -82,6 +82,7 @@ type App struct {
 	state          viewState
 	list           listModel
 	detail         detailModel
+	preview        previewModel
 	tagPicker      tagPickerModel
 	parentPicker   parentPickerModel
 	statusPicker   statusPickerModel
@@ -118,6 +119,7 @@ func New(core *beancore.Core, cfg *config.Config) *App {
 		resolver: resolver,
 		config:   cfg,
 		list:     newListModel(resolver, cfg),
+		preview:  newPreviewModel(nil, 0, 0),
 	}
 }
 
