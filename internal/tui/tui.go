@@ -638,7 +638,7 @@ func (a *App) renderTwoColumnView() string {
 	// Render left pane (list) with constrained width, no footer
 	leftPane := a.list.ViewConstrained(leftWidth, contentHeight)
 
-	// Update preview dimensions and render
+	// Render right pane (preview) with same height
 	a.preview.width = rightWidth
 	a.preview.height = contentHeight
 	rightPane := a.preview.View()
