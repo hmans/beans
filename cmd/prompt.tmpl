@@ -27,10 +27,10 @@ When the user asks what to work on next:
 
 ```bash
 # Check for in-progress beans first (finish what's started)
-beans query --json '{ beans(filter: { status: ["in-progress"] }) { id title type priority body } }'
+beans list --json --full -s in-progress
 
 # Find actionable beans (not blocked, not completed/scrapped/draft)
-beans list --json --ready
+beans list --json --full --ready
 ```
 </EXTREMELY_IMPORTANT>
 
