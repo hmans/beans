@@ -1,10 +1,11 @@
 ---
 # beans-7kb7
 title: beans blocked command
-status: todo
+status: scrapped
 type: task
+priority: normal
 created_at: 2025-12-27T21:44:05Z
-updated_at: 2025-12-27T21:44:05Z
+updated_at: 2025-12-28T11:47:36Z
 parent: beans-mmyp
 ---
 

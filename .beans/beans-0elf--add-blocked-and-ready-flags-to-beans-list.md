@@ -1,10 +1,11 @@
 ---
 # beans-0elf
 title: Add --blocked and --ready flags to beans list
-status: in-progress
+status: completed
 type: feature
+priority: normal
 created_at: 2025-12-28T11:44:10Z
-updated_at: 2025-12-28T11:44:10Z
+updated_at: 2025-12-28T11:46:51Z
 ---
 
 Add convenience flags to beans list command:
