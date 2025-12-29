@@ -85,3 +85,49 @@ func TestRenderBeanRow_NarrowWidthWithPriority(t *testing.T) {
 		})
 	}
 }
+
+func TestShortType(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"milestone", "M"},
+		{"epic", "E"},
+		{"bug", "B"},
+		{"feature", "F"},
+		{"task", "T"},
+		{"unknown", "?"},
+		{"", "?"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := ShortType(tt.input)
+			if result != tt.expected {
+				t.Errorf("ShortType(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestShortStatus(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"draft", "D"},
+		{"todo", "T"},
+		{"in-progress", "I"},
+		{"completed", "C"},
+		{"scrapped", "S"},
+		{"unknown", "?"},
+		{"", "?"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := ShortStatus(tt.input)
+			if result != tt.expected {
+				t.Errorf("ShortStatus(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
