@@ -376,12 +376,13 @@ const (
 
 // ResponsiveColumns holds calculated column widths based on available space
 type ResponsiveColumns struct {
-	ID       int
-	Status   int
-	Type     int
-	Tags     int
-	MaxTags  int // How many tags to show
-	ShowTags bool
+	ID                int
+	Status            int
+	Type              int
+	Tags              int
+	MaxTags           int  // How many tags to show
+	ShowTags          bool
+	UseFullTypeStatus bool // Use full names instead of single-char abbreviations
 }
 
 // CalculateResponsiveColumns determines column widths based on available width.
@@ -396,6 +397,14 @@ func CalculateResponsiveColumns(totalWidth int, hasTags bool) ResponsiveColumns 
 		ShowTags: false,
 	}
 
+	// Use full type/status names when terminal is wide enough
+	const minWidthForFullNames = 120
+	if totalWidth >= minWidthForFullNames {
+		cols.UseFullTypeStatus = true
+		cols.Status = 12 // "in-progress" needs 11 chars
+		cols.Type = 10   // "milestone" needs 9 chars
+	}
+
 	// Don't show tags in narrow viewports - prioritize title space
 	// Only consider showing tags if terminal is wide enough (140+ columns)
 	const minWidthForTags = 140
@@ -405,7 +414,7 @@ func CalculateResponsiveColumns(totalWidth int, hasTags bool) ResponsiveColumns 
 	}
 
 	// At this point we have at least 140 columns
-	// Base usage: cursor (2) + ID (12) + status (3) + type (3) = 20
+	// Base usage: cursor (2) + ID + status + type (use responsive widths)
 	cursorWidth := 2
 	baseWidth := cursorWidth + cols.ID + cols.Status + cols.Type
 	available := totalWidth - baseWidth
