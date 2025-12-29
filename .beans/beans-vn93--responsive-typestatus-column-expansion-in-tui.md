@@ -1,11 +1,11 @@
 ---
 # beans-vn93
 title: Responsive type/status column expansion in TUI
-status: in-progress
+status: completed
 type: task
 priority: normal
 created_at: 2025-12-29T18:30:52Z
-updated_at: 2025-12-29T18:35:12Z
+updated_at: 2025-12-29T18:39:15Z
 parent: beans-t0tv
 ---
 
