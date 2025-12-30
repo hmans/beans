@@ -252,7 +252,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.history = nil
 			} else {
 				// Recreate detail view with fresh bean data
-				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height)
+				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height, false, false)
 			}
 		}
 		// Trigger list refresh
@@ -321,7 +321,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if (a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused) && len(msg.beanIDs) == 1 {
 			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanIDs[0])
 			if updatedBean != nil {
-				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height)
+				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height, false, false)
 			}
 		}
 		return a, a.list.loadBeans
@@ -355,7 +355,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if (a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused) && len(msg.beanIDs) == 1 {
 			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanIDs[0])
 			if updatedBean != nil {
-				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height)
+				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height, false, false)
 			}
 		}
 		return a, a.list.loadBeans
@@ -389,7 +389,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if (a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused) && len(msg.beanIDs) == 1 {
 			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanIDs[0])
 			if updatedBean != nil {
-				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height)
+				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height, false, false)
 			}
 		}
 		return a, a.list.loadBeans
@@ -436,7 +436,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused {
 			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanID)
 			if updatedBean != nil {
-				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height)
+				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height, false, false)
 			}
 		}
 		return a, a.list.loadBeans
@@ -531,7 +531,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Refresh the bean to show updated parent
 			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanIDs[0])
 			if updatedBean != nil {
-				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height)
+				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height, false, false)
 			}
 		}
 		return a, a.list.loadBeans
@@ -566,7 +566,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.history = append(a.history, a.detail)
 		}
 		a.state = viewDetailLinksFocused
-		a.detail = newDetailModel(msg.bean, a.resolver, a.config, a.width, a.height)
+		a.detail = newDetailModel(msg.bean, a.resolver, a.config, a.width, a.height, false, false)
 		return a, a.detail.Init()
 
 	case backToListMsg:

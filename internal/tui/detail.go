@@ -136,20 +136,22 @@ type detailModel struct {
 	ready         bool
 	links         []resolvedLink       // combined outgoing + incoming links
 	linkList      list.Model           // list component for links (supports filtering)
-	linksActive   bool                 // true = links section focused
+	linksFocused  bool                 // true = links section has primary border
+	bodyFocused   bool                 // true = body section has primary border
 	cols          ui.ResponsiveColumns // responsive column widths for links
 	statusMessage string               // Status message to display in footer
 }
 
-func newDetailModel(b *bean.Bean, resolver *graph.Resolver, cfg *config.Config, width, height int) detailModel {
+func newDetailModel(b *bean.Bean, resolver *graph.Resolver, cfg *config.Config, width, height int, linksFocused, bodyFocused bool) detailModel {
 	m := detailModel{
-		bean:        b,
-		resolver:    resolver,
-		config:      cfg,
-		width:       width,
-		height:      height,
-		ready:       true,
-		linksActive: false,
+		bean:         b,
+		resolver:     resolver,
+		config:       cfg,
+		width:        width,
+		height:       height,
+		ready:        true,
+		linksFocused: linksFocused,
+		bodyFocused:  bodyFocused,
 	}
 
 	// Resolve all links
@@ -171,11 +173,6 @@ func newDetailModel(b *bean.Bean, resolver *graph.Resolver, cfg *config.Config, 
 
 	// Initialize link list with items
 	m.linkList = m.createLinkList()
-
-	// If there are links, select first one and focus links by default
-	if len(m.links) > 0 {
-		m.linksActive = true
-	}
 
 	// Calculate header height dynamically
 	headerHeight := m.calculateHeaderHeight()
@@ -290,7 +287,7 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 
 	case tea.KeyMsg:
 		// If links list is filtering, let it handle all keys except quit
-		if m.linksActive && m.linkList.FilterState() == list.Filtering {
+		if m.linksFocused && m.linkList.FilterState() == list.Filtering {
 			m.linkList, cmd = m.linkList.Update(msg)
 			return m, cmd
 		}
@@ -301,16 +298,9 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 				return backToListMsg{}
 			}
 
-		case "tab":
-			// Toggle focus between links and body
-			if len(m.links) > 0 {
-				m.linksActive = !m.linksActive
-			}
-			return m, nil
-
 		case "enter":
 			// Navigate to selected link
-			if m.linksActive {
+			if m.linksFocused {
 				if item, ok := m.linkList.SelectedItem().(linkItem); ok {
 					targetBean := item.link.bean
 					return m, func() tea.Msg {
@@ -388,7 +378,7 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 	}
 
 	// Forward updates to the appropriate component
-	if m.linksActive && len(m.links) > 0 {
+	if m.linksFocused && len(m.links) > 0 {
 		m.linkList, cmd = m.linkList.Update(msg)
 		cmds = append(cmds, cmd)
 	} else {
@@ -421,7 +411,7 @@ func (m detailModel) View() string {
 	var linksSection string
 	if len(m.links) > 0 {
 		linksBorderColor := ui.ColorMuted
-		if m.linksActive {
+		if m.linksFocused {
 			linksBorderColor = ui.ColorPrimary
 		}
 		linksBorder := lipgloss.NewStyle().
@@ -433,7 +423,7 @@ func (m detailModel) View() string {
 
 	// Body
 	bodyBorderColor := ui.ColorMuted
-	if !m.linksActive {
+	if m.bodyFocused {
 		bodyBorderColor = ui.ColorPrimary
 	}
 	bodyBorder := lipgloss.NewStyle().
@@ -446,8 +436,7 @@ func (m detailModel) View() string {
 	scrollPct := int(m.viewport.ScrollPercent() * 100)
 	footer := helpStyle.Render(fmt.Sprintf("%d%%", scrollPct)) + "  "
 	if len(m.links) > 0 {
-		footer += helpKeyStyle.Render("tab") + " " + helpStyle.Render("switch") + "  "
-		if m.linksActive {
+		if m.linksFocused {
 			footer += helpKeyStyle.Render("/") + " " + helpStyle.Render("filter") + "  "
 		}
 		footer += helpKeyStyle.Render("enter") + " " + helpStyle.Render("go to") + "  "
