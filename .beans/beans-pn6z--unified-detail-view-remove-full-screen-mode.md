@@ -172,12 +172,13 @@ Simplest option that works. Both panes already have borders. Alternatives (title
 2. **beans-238n**: Delete preview.go and update App struct
 3. **beans-2v6j**: Add focus parameter to list border rendering
 4. **beans-ozhq**: Update detail.go to accept focus parameters
-5. **beans-lmk4**: Update keyboard routing for granular focus states
-6. **beans-unjz**: Update View() for two-column rendering with focus
-7. **beans-7vrp**: Update history navigation for unified view
-8. **beans-p63f**: Remove Esc as quit, clean up keyboard handling
-9. **beans-oms6**: Integrate detail model with App keyboard routing
-10. **beans-csnk**: Testing and polish
+5. **beans-s65d**: Update message handlers for detailModel (beansLoadedMsg, beansChangedMsg, WindowSizeMsg, empty list)
+6. **beans-lmk4**: Update keyboard routing for granular focus states
+7. **beans-unjz**: Update View() for two-column rendering with focus
+8. **beans-7vrp**: Update history navigation for unified view
+9. **beans-p63f**: Remove Esc as quit, clean up keyboard handling
+10. **beans-oms6**: Integrate detail model with App keyboard routing
+11. **beans-csnk**: Testing and polish
 
 ## Out of Scope
 
