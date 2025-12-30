@@ -181,9 +181,8 @@ func newDetailModel(b *bean.Bean, resolver *graph.Resolver, cfg *config.Config, 
 
 	// Calculate header height dynamically
 	headerHeight := m.calculateHeaderHeight()
-	footerHeight := 2
 	vpWidth := width - 4
-	vpHeight := height - headerHeight - footerHeight
+	vpHeight := height - headerHeight
 
 	m.viewport = viewport.New(vpWidth, vpHeight)
 	m.viewport.SetContent(m.renderBody(vpWidth))
@@ -271,9 +270,8 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 		m.linkList.SetSize(msg.Width-8, listHeight)
 
 		headerHeight := m.calculateHeaderHeight()
-		footerHeight := 2
 		vpWidth := msg.Width - 4
-		vpHeight := msg.Height - headerHeight - footerHeight
+		vpHeight := msg.Height - headerHeight
 
 		// Ensure vpHeight doesn't go negative
 		if vpHeight < 1 {
@@ -436,34 +434,8 @@ func (m detailModel) View() string {
 		Width(m.width - 4)
 	body := bodyBorder.Render(m.viewport.View())
 
-	// Footer
-	scrollPct := int(m.viewport.ScrollPercent() * 100)
-	footer := helpStyle.Render(fmt.Sprintf("%d%%", scrollPct)) + "  "
-	if len(m.links) > 0 {
-		if m.linksFocused {
-			footer += helpKeyStyle.Render("/") + " " + helpStyle.Render("filter") + "  "
-		}
-		footer += helpKeyStyle.Render("enter") + " " + helpStyle.Render("go to") + "  "
-	}
-	footer += helpKeyStyle.Render("b") + " " + helpStyle.Render("blocking") + "  " +
-		helpKeyStyle.Render("e") + " " + helpStyle.Render("edit") + "  " +
-		helpKeyStyle.Render("p") + " " + helpStyle.Render("parent") + "  " +
-		helpKeyStyle.Render("P") + " " + helpStyle.Render("priority") + "  " +
-		helpKeyStyle.Render("s") + " " + helpStyle.Render("status") + "  " +
-		helpKeyStyle.Render("t") + " " + helpStyle.Render("type") + "  " +
-		helpKeyStyle.Render("y") + " " + helpStyle.Render("copy id") + "  " +
-		helpKeyStyle.Render("j/k") + " " + helpStyle.Render("scroll") + "  " +
-		helpKeyStyle.Render("?") + " " + helpStyle.Render("help") + "  " +
-		helpKeyStyle.Render("esc") + " " + helpStyle.Render("back") + "  " +
-		helpKeyStyle.Render("q") + " " + helpStyle.Render("quit")
-
-	// Prepend status message if present
-	if m.statusMessage != "" {
-		statusStyle := lipgloss.NewStyle().Foreground(ui.ColorSuccess).Bold(true)
-		footer = statusStyle.Render(m.statusMessage) + "  " + footer
-	}
-
-	return header + "\n" + linksSection + body + "\n" + footer
+	// No footer - App renders footer separately
+	return header + "\n" + linksSection + body
 }
 
 func (m detailModel) calculateHeaderHeight() int {
