@@ -159,11 +159,6 @@ type errMsg struct {
 	err error
 }
 
-// selectBeanMsg is sent when a bean is selected
-type selectBeanMsg struct {
-	bean *bean.Bean
-}
-
 func (m listModel) Init() tea.Cmd {
 	return m.loadBeans
 }

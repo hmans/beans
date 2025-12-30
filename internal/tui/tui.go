@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/hmans/beans/internal/bean"
 	"github.com/hmans/beans/internal/beancore"
 	"github.com/hmans/beans/internal/config"
 	"github.com/hmans/beans/internal/graph"
@@ -60,6 +61,11 @@ type beansChangedMsg struct{}
 // cursorChangedMsg is sent when the list cursor moves to a different bean
 type cursorChangedMsg struct {
 	beanID string
+}
+
+// selectBeanMsg is sent when a bean should be selected (e.g., following a link)
+type selectBeanMsg struct {
+	bean *bean.Bean
 }
 
 // openTagPickerMsg requests opening the tag picker
