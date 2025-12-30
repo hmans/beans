@@ -19,6 +19,9 @@ import (
 	"github.com/hmans/beans/internal/ui"
 )
 
+// borderSize is the total width/height added by a lipgloss border (1 left + 1 right, or 1 top + 1 bottom)
+const borderSize = 2
+
 // Cached glamour renderer - initialized once per width
 var (
 	glamourRenderer     *glamour.TermRenderer
@@ -178,9 +181,8 @@ func newDetailModel(b *bean.Bean, resolver *graph.Resolver, cfg *config.Config, 
 
 	// Calculate header height dynamically
 	headerHeight := m.calculateHeaderHeight()
-	vpWidth := width - 2 // account for body border only
-	// Subtract 2 for body border (top + bottom)
-	vpHeight := height - headerHeight - 2
+	vpWidth := width - borderSize
+	vpHeight := height - headerHeight - borderSize
 
 	m.viewport = viewport.New(vpWidth, vpHeight)
 	m.viewport.SetContent(m.renderBody(vpWidth))
@@ -258,12 +260,11 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 		m.updateLinkListDelegate()
 
 		// Update link list size
-		m.linkList.SetSize(msg.Width-2, m.linksListHeight())
+		m.linkList.SetSize(msg.Width-borderSize, m.linksListHeight())
 
 		headerHeight := m.calculateHeaderHeight()
-		vpWidth := msg.Width - 2
-		// Subtract 2 for body border (top + bottom)
-		vpHeight := msg.Height - headerHeight - 2
+		vpWidth := msg.Width - borderSize
+		vpHeight := msg.Height - headerHeight - borderSize
 
 		// Ensure vpHeight doesn't go negative
 		if vpHeight < 1 {
@@ -408,11 +409,10 @@ func (m detailModel) View() string {
 		if m.linksFocused {
 			linksBorderColor = ui.ColorPrimary
 		}
-		// Width sets content width, border adds 2
 		linksBorder := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(linksBorderColor).
-			Width(m.width - 2)
+			Width(m.width - borderSize)
 
 		listView := m.linkList.View()
 		linksSection = linksBorder.Render(listView) + "\n"
@@ -425,17 +425,14 @@ func (m detailModel) View() string {
 	}
 
 	// Calculate body box height to fill remaining height
-	// Height() sets content area (excluding borders), so subtract 2 for top/bottom border
-	// headerHeight already includes the newline separator, so total body+border = m.height - headerHeight
 	headerHeight := m.calculateHeaderHeight()
 	bodyBoxHeight := m.height - headerHeight
-	bodyContentHeight := bodyBoxHeight - 2 // subtract borders
+	bodyContentHeight := bodyBoxHeight - borderSize
 
-	// Width sets content width, border adds 2
 	bodyBorder := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(bodyBorderColor).
-		Width(m.width - 2).
+		Width(m.width - borderSize).
 		Height(bodyContentHeight)
 	body := bodyBorder.Render(m.viewport.View())
 
@@ -444,8 +441,9 @@ func (m detailModel) View() string {
 	return result
 }
 
-// linksListHeight returns TOTAL height for the bubbles list component
-// This includes title (1) + pagination (1 when needed) + items
+// linksListHeight returns the height to request for the bubbles list component.
+// Note: bubbles list ignores this when there are few items, so calculateHeaderHeight()
+// counts actual rendered lines instead.
 func (m detailModel) linksListHeight() int {
 	if len(m.links) == 0 {
 		return 0
@@ -460,17 +458,14 @@ func (m detailModel) linksListHeight() int {
 }
 
 func (m detailModel) calculateHeaderHeight() int {
-	// Header box: 2 lines content + 2 lines border = 4 lines
-	// Note: the "\n" separator between sections doesn't add visual lines
-	height := 4
+	// Header box: 2 lines content + border = 4 lines
+	height := 2 + borderSize
 
 	if len(m.links) > 0 {
-		// Links box: we need to count ACTUAL rendered lines, not linksListHeight()
-		// The bubbles list component ignores height when there are few items
+		// Links box: count actual rendered lines (bubbles list ignores height with few items)
 		listView := m.linkList.View()
 		actualLines := strings.Count(listView, "\n") + 1
-		// Add 2 for border (the "\n" after links doesn't add a visual line)
-		height += actualLines + 2
+		height += actualLines + borderSize
 	}
 
 	return height
@@ -504,13 +499,11 @@ func (m detailModel) renderHeader() string {
 		headerContent.WriteString(ui.RenderTags(m.bean.Tags))
 	}
 
-	// Header box style - always muted border (not focused, links section is separate)
-	// Width sets content width, border adds 2, so use m.width-2 for total width of m.width
 	headerBox := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(ui.ColorMuted).
 		Padding(0, 1).
-		Width(m.width - 2)
+		Width(m.width - borderSize)
 
 	return headerBox.Render(headerContent.String())
 }
