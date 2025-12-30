@@ -143,6 +143,29 @@ This works naturally with granular view states - if you opened from `viewDetailL
 - `internal/tui/list.go` - accept focus prop for border color
 - `internal/tui/preview.go` - delete
 
+## Design Rationale
+
+**Why granular view states instead of a `detailFocused` bool?**
+We considered using `viewList` + `detailFocused bool`, but this creates a problem with picker return. When opening a picker, we save `previousState`. With a bool, we'd need to save/restore both viewState AND the bool separately. Granular states (`viewDetailLinksFocused`) capture everything in one place - picker return just restores the single viewState.
+
+**Why Backspace for navigation, Esc for cancel/clear?**
+Gives each key a consistent meaning: Backspace = "go back" (navigation), Esc = "cancel/clear" (selection, filter, modal). Mixing them would be confusing - e.g., sometimes Esc navigates, sometimes it clears.
+
+**Why keep the history stack?**
+Following a blocking relationship can jump to a bean far away in the list. Without history, you'd lose your place and have to manually scroll back. History lets you retrace your steps through linked beans.
+
+**Why keep all linked beans (parent, children, blocking, blocked-by)?**
+Parent/children are visible in the list tree, so showing them in detail is redundant in wide mode. But in narrow mode, you can only see one pane - linked beans is the only way to see/navigate the hierarchy. Keeping it consistent across modes is simpler than conditional display.
+
+**Why only `q` quits?**
+Esc already does multiple things (clear selection, clear filter, close modals). Adding "quit" to that list makes it unclear when Esc will quit vs do something else. Single quit key (`q`) is predictable.
+
+**Why keep edit shortcuts in detail view?**
+You often want to change status/type/priority while looking at the full details. Forcing users to Backspace to list first adds friction. Same shortcuts in both views = less to remember.
+
+**Why border color for focus indication?**
+Simplest option that works. Both panes already have borders. Alternatives (title highlighting, background tint) add complexity for marginal benefit.
+
 ## Out of Scope
 
 - Shift+Tab for reverse cycling
