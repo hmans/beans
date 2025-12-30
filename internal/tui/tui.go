@@ -723,15 +723,6 @@ func (a *App) renderTwoColumnView() string {
 	leftWidth, rightWidth := calculatePaneWidths(a.width)
 	contentHeight := a.height - 1 // Reserve 1 line for footer
 
-	// Debug: log dimensions
-	if os.Getenv("DEBUG_TUI") != "" {
-		f, _ := os.OpenFile("/tmp/tui-debug.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		fmt.Fprintf(f, "=== LAYOUT DEBUG ===\nTerminal: %dx%d\nLeft: %d, Right: %d, Content: %d\nDetail.width=%d, Detail.height=%d\nHeader height=%d\n\n",
-			a.width, a.height, leftWidth, rightWidth, contentHeight,
-			a.detail.width, a.detail.height, a.detail.calculateHeaderHeight())
-		f.Close()
-	}
-
 	// Determine focus states
 	listFocused := a.state == viewListFocused
 	linksFocused := a.state == viewDetailLinksFocused
@@ -754,14 +745,6 @@ func (a *App) renderTwoColumnView() string {
 	footer := a.renderFooter()
 
 	view := columns + "\n" + footer
-
-	// Debug: dump view to file
-	if os.Getenv("DEBUG_TUI") != "" {
-		f, _ := os.OpenFile("/tmp/tui-view.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		f.WriteString("\n\n=== VIEW RENDER ===\n")
-		f.WriteString(view)
-		f.Close()
-	}
 
 	return view
 }

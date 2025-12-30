@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -399,16 +398,6 @@ func (m detailModel) View() string {
 		return m.renderEmpty()
 	}
 
-	// Debug logging
-	if os.Getenv("DEBUG_TUI") != "" {
-		f, _ := os.OpenFile("/tmp/tui-debug.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		headerHeight := m.calculateHeaderHeight()
-		vpHeight := m.viewport.Height
-		fmt.Fprintf(f, "Detail.View(): width=%d height=%d headerHeight=%d vpHeight=%d numLinks=%d\n",
-			m.width, m.height, headerHeight, vpHeight, len(m.links))
-		f.Close()
-	}
-
 	// Header (bean info only, no links)
 	header := m.renderHeader()
 
@@ -427,16 +416,6 @@ func (m detailModel) View() string {
 
 		listView := m.linkList.View()
 		linksSection = linksBorder.Render(listView) + "\n"
-
-		// Debug: count actual lines
-		if os.Getenv("DEBUG_TUI") != "" {
-			listLines := strings.Count(listView, "\n") + 1
-			renderedLines := strings.Count(linksSection, "\n")
-			f, _ := os.OpenFile("/tmp/tui-debug.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-			fmt.Fprintf(f, "Links: linksListHeight()=%d, listView lines=%d, rendered lines=%d\n",
-				m.linksListHeight(), listLines, renderedLines)
-			f.Close()
-		}
 	}
 
 	// Body - calculate exact height to fill remaining space
@@ -461,28 +440,7 @@ func (m detailModel) View() string {
 	body := bodyBorder.Render(m.viewport.View())
 
 	result := header + "\n" + linksSection + body
-	// Note: Don't wrap in container with Height() - lipgloss Height() only pads shorter
-	// content, it doesn't truncate taller content. The body Height() above handles padding.
 
-	// Debug: count component lines
-	if os.Getenv("DEBUG_TUI") != "" {
-		headerLines := strings.Count(header, "\n") + 1
-		linksLines := 0
-		if linksSection != "" {
-			linksLines = strings.Count(linksSection, "\n")  // includes the trailing \n
-		}
-		bodyLines := strings.Count(body, "\n") + 1
-		totalNewlines := strings.Count(result, "\n")
-
-		f, _ := os.OpenFile("/tmp/tui-debug.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		fmt.Fprintf(f, "Rendered: header=%d lines, links=%d lines, body=%d lines\n",
-			headerLines, linksLines, bodyLines)
-		fmt.Fprintf(f, "Total: %d newlines = %d lines (expected %d lines = %d newlines)\n\n",
-			totalNewlines, totalNewlines+1, m.height, m.height-1)
-		f.Close()
-	}
-
-	// No footer - App renders footer separately
 	return result
 }
 
