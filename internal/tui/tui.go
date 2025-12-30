@@ -158,12 +158,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.width = msg.Width
 		a.height = msg.Height
 
-		// TODO(beans-pn6z): Update detail dimensions if in two-column mode
-		// if a.isTwoColumnMode() {
-		//     _, rightWidth := calculatePaneWidths(a.width)
-		//     a.detail.width = rightWidth
-		//     a.detail.height = a.height - 2
-		// }
+		// Update detail dimensions
+		_, rightWidth := calculatePaneWidths(a.width)
+		// Preserve focus state when resizing
+		linksFocused := a.state == viewDetailLinksFocused
+		bodyFocused := a.state == viewDetailBodyFocused
+		a.detail = newDetailModel(a.detail.bean, a.resolver, a.config, rightWidth, a.height-2, linksFocused, bodyFocused)
 
 	case tea.KeyMsg:
 		// Clear status messages on any keypress
@@ -232,27 +232,35 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case beansLoadedMsg:
 		// Forward to list view
 		a.list, cmd = a.list.Update(msg)
-		// TODO(beans-pn6z): Update detail view with current cursor position
-		// _, rightWidth := calculatePaneWidths(a.width)
-		// if len(msg.items) == 0 {
-		// 	a.detail = detailModel{} // empty detail
-		// } else if item, ok := a.list.list.SelectedItem().(beanItem); ok {
-		// 	a.detail = newDetailModel(item.bean, a.resolver, a.config, rightWidth, a.height-2)
-		// }
+
+		// Create initial detailModel for selected bean
+		_, rightWidth := calculatePaneWidths(a.width)
+		if len(msg.items) == 0 {
+			// Empty list - create detail with nil bean
+			a.detail = newDetailModel(nil, a.resolver, a.config, rightWidth, a.height-2, false, false)
+		} else if item, ok := a.list.list.SelectedItem().(beanItem); ok {
+			// Both linksFocused and bodyFocused are false initially (focus set when Enter is pressed)
+			a.detail = newDetailModel(item.bean, a.resolver, a.config, rightWidth, a.height-2, false, false)
+		}
 		return a, cmd
 
 	case beansChangedMsg:
 		// Beans changed on disk - refresh
 		if a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused {
 			// Try to reload the current bean via GraphQL
-			updatedBean, err := a.resolver.Query().Bean(context.Background(), a.detail.bean.ID)
-			if err != nil || updatedBean == nil {
-				// Bean was deleted - return to list
-				a.state = viewListFocused
-				a.history = nil
-			} else {
-				// Recreate detail view with fresh bean data
-				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height, false, false)
+			if a.detail.bean != nil {
+				updatedBean, err := a.resolver.Query().Bean(context.Background(), a.detail.bean.ID)
+				if err != nil || updatedBean == nil {
+					// Bean was deleted - return to list
+					a.state = viewListFocused
+					a.history = nil
+				} else {
+					// Recreate detail view with fresh bean data
+					linksFocused := a.state == viewDetailLinksFocused
+					bodyFocused := a.state == viewDetailBodyFocused
+					_, rightWidth := calculatePaneWidths(a.width)
+					a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-2, linksFocused, bodyFocused)
+				}
 			}
 		}
 		// Trigger list refresh

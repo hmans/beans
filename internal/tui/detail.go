@@ -154,6 +154,11 @@ func newDetailModel(b *bean.Bean, resolver *graph.Resolver, cfg *config.Config, 
 		bodyFocused:  bodyFocused,
 	}
 
+	if b == nil {
+		// Empty state - no links, empty viewport
+		return m
+	}
+
 	// Resolve all links
 	m.links = m.resolveAllLinks()
 
@@ -402,6 +407,10 @@ func (m *detailModel) updateLinkListDelegate() {
 func (m detailModel) View() string {
 	if !m.ready {
 		return "Loading..."
+	}
+
+	if m.bean == nil {
+		return m.renderEmpty()
 	}
 
 	// Header (bean info only, no links)
@@ -653,6 +662,15 @@ func compareBeansByStatusPriorityAndType(a, b *bean.Bean, statusNames, priorityN
 	return strings.ToLower(a.Title) < strings.ToLower(b.Title)
 }
 
+
+func (m detailModel) renderEmpty() string {
+	style := lipgloss.NewStyle().
+		Width(m.width).
+		Height(m.height).
+		Align(lipgloss.Center, lipgloss.Center).
+		Foreground(ui.ColorMuted)
+	return style.Render("No bean selected")
+}
 
 func (m detailModel) renderBody(_ int) string {
 	if m.bean.Body == "" {
