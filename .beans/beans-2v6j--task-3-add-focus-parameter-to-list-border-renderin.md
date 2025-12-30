@@ -1,10 +1,11 @@
 ---
 # beans-2v6j
 title: 'Task 3: Add focus parameter to list border rendering'
-status: todo
+status: completed
 type: task
+priority: normal
 created_at: 2025-12-30T16:36:00Z
-updated_at: 2025-12-30T16:36:00Z
+updated_at: 2025-12-30T17:18:32Z
 parent: beans-pn6z
 ---
 

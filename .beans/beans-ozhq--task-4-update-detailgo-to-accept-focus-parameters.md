@@ -1,10 +1,11 @@
 ---
 # beans-ozhq
 title: 'Task 4: Update detail.go to accept focus parameters'
-status: todo
+status: completed
 type: task
+priority: normal
 created_at: 2025-12-30T16:36:18Z
-updated_at: 2025-12-30T16:36:18Z
+updated_at: 2025-12-30T17:24:53Z
 parent: beans-pn6z
 ---
 

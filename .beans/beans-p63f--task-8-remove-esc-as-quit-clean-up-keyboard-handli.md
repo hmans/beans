@@ -1,10 +1,11 @@
 ---
 # beans-p63f
 title: 'Task 8: Simplify detail.go and clean up keyboard handling'
-status: todo
+status: completed
 type: task
+priority: normal
 created_at: 2025-12-30T16:38:04Z
-updated_at: 2025-12-30T16:38:04Z
+updated_at: 2025-12-30T18:03:53Z
 parent: beans-pn6z
 ---
 

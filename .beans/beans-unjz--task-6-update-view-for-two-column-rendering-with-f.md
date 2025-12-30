@@ -1,10 +1,11 @@
 ---
 # beans-unjz
 title: 'Task 6: Update View() for two-column rendering with focus'
-status: todo
+status: completed
 type: task
+priority: normal
 created_at: 2025-12-30T16:37:12Z
-updated_at: 2025-12-30T16:37:12Z
+updated_at: 2025-12-30T18:18:57Z
 parent: beans-pn6z
 ---
 

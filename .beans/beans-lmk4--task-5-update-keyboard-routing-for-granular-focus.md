@@ -1,10 +1,11 @@
 ---
 # beans-lmk4
 title: 'Task 5: Update keyboard routing for granular focus states'
-status: todo
+status: completed
 type: task
+priority: normal
 created_at: 2025-12-30T16:36:43Z
-updated_at: 2025-12-30T16:36:43Z
+updated_at: 2025-12-30T17:43:01Z
 parent: beans-pn6z
 ---
 
