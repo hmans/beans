@@ -1,10 +1,11 @@
 ---
 # beans-mvme
 title: 'Task 1: Update view states to granular focus states'
-status: todo
+status: completed
 type: task
+priority: normal
 created_at: 2025-12-30T16:35:29Z
-updated_at: 2025-12-30T16:35:29Z
+updated_at: 2025-12-30T16:59:55Z
 parent: beans-pn6z
 ---
 

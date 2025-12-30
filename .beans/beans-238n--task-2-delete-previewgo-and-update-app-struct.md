@@ -1,10 +1,11 @@
 ---
 # beans-238n
 title: 'Task 2: Delete preview.go and update App struct'
-status: todo
+status: in-progress
 type: task
+priority: normal
 created_at: 2025-12-30T16:35:44Z
-updated_at: 2025-12-30T16:35:44Z
+updated_at: 2025-12-30T16:59:56Z
 parent: beans-pn6z
 ---
 

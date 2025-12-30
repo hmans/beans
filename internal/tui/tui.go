@@ -100,7 +100,6 @@ type App struct {
 	state          viewState
 	list           listModel
 	detail         detailModel
-	preview        previewModel
 	tagPicker      tagPickerModel
 	parentPicker   parentPickerModel
 	statusPicker   statusPickerModel
@@ -137,7 +136,6 @@ func New(core *beancore.Core, cfg *config.Config) *App {
 		resolver: resolver,
 		config:   cfg,
 		list:     newListModel(resolver, cfg),
-		preview:  newPreviewModel(nil, 0, 0),
 	}
 }
 
@@ -160,12 +158,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.width = msg.Width
 		a.height = msg.Height
 
-		// Update preview dimensions if in two-column mode
-		if a.isTwoColumnMode() {
-			_, rightWidth := calculatePaneWidths(a.width)
-			a.preview.width = rightWidth
-			a.preview.height = a.height - 2
-		}
+		// TODO(beans-pn6z): Update detail dimensions if in two-column mode
+		// if a.isTwoColumnMode() {
+		//     _, rightWidth := calculatePaneWidths(a.width)
+		//     a.detail.width = rightWidth
+		//     a.detail.height = a.height - 2
+		// }
 
 	case tea.KeyMsg:
 		// Clear status messages on any keypress
@@ -173,7 +171,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.detail.statusMessage = ""
 
 		// Handle key chord sequences
-		if a.state == viewList && a.list.list.FilterState() != 1 {
+		if a.state == viewListFocused && a.list.list.FilterState() != 1 {
 			if a.pendingKey == "g" {
 				a.pendingKey = ""
 				switch msg.String() {
@@ -202,55 +200,55 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, tea.Quit
 		case "?":
 			// Open help overlay if not already showing it (and not in a picker/modal)
-			if a.state == viewList || a.state == viewDetail {
+			if a.state == viewListFocused || a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused {
 				a.previousState = a.state
 				a.helpOverlay = newHelpOverlayModel(a.width, a.height)
 				a.state = viewHelpOverlay
 				return a, a.helpOverlay.Init()
 			}
 		case "q":
-			if a.state == viewDetail || a.state == viewTagPicker || a.state == viewParentPicker || a.state == viewStatusPicker || a.state == viewTypePicker || a.state == viewBlockingPicker || a.state == viewPriorityPicker || a.state == viewHelpOverlay {
+			if a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused || a.state == viewTagPicker || a.state == viewParentPicker || a.state == viewStatusPicker || a.state == viewTypePicker || a.state == viewBlockingPicker || a.state == viewPriorityPicker || a.state == viewHelpOverlay {
 				return a, tea.Quit
 			}
 			// For list, only quit if not filtering
-			if a.state == viewList && a.list.list.FilterState() != 1 {
+			if a.state == viewListFocused && a.list.list.FilterState() != 1 {
 				return a, tea.Quit
 			}
 		}
 
-	case cursorChangedMsg:
-		// Update preview with the newly highlighted bean
-		_, rightWidth := calculatePaneWidths(a.width)
-		if msg.beanID != "" {
-			bean, err := a.resolver.Query().Bean(context.Background(), msg.beanID)
-			if err == nil && bean != nil {
-				a.preview = newPreviewModel(bean, rightWidth, a.height-2)
-			}
-		} else {
-			a.preview = newPreviewModel(nil, rightWidth, a.height-2)
-		}
-		return a, nil
+	// TODO(beans-pn6z): Update detail view with the newly highlighted bean
+	// case cursorChangedMsg:
+	// 	_, rightWidth := calculatePaneWidths(a.width)
+	// 	if msg.beanID != "" {
+	// 		bean, err := a.resolver.Query().Bean(context.Background(), msg.beanID)
+	// 		if err == nil && bean != nil {
+	// 			a.detail = newDetailModel(bean, a.resolver, a.config, rightWidth, a.height-2)
+	// 		}
+	// 	} else {
+	// 		a.detail = detailModel{} // empty detail
+	// 	}
+	// 	return a, nil
 
 	case beansLoadedMsg:
 		// Forward to list view
 		a.list, cmd = a.list.Update(msg)
-		// Update preview with current cursor position
-		_, rightWidth := calculatePaneWidths(a.width)
-		if len(msg.items) == 0 {
-			a.preview = newPreviewModel(nil, rightWidth, a.height-2)
-		} else if item, ok := a.list.list.SelectedItem().(beanItem); ok {
-			a.preview = newPreviewModel(item.bean, rightWidth, a.height-2)
-		}
+		// TODO(beans-pn6z): Update detail view with current cursor position
+		// _, rightWidth := calculatePaneWidths(a.width)
+		// if len(msg.items) == 0 {
+		// 	a.detail = detailModel{} // empty detail
+		// } else if item, ok := a.list.list.SelectedItem().(beanItem); ok {
+		// 	a.detail = newDetailModel(item.bean, a.resolver, a.config, rightWidth, a.height-2)
+		// }
 		return a, cmd
 
 	case beansChangedMsg:
 		// Beans changed on disk - refresh
-		if a.state == viewDetail {
+		if a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused {
 			// Try to reload the current bean via GraphQL
 			updatedBean, err := a.resolver.Query().Bean(context.Background(), a.detail.bean.ID)
 			if err != nil || updatedBean == nil {
 				// Bean was deleted - return to list
-				a.state = viewList
+				a.state = viewListFocused
 				a.history = nil
 			} else {
 				// Recreate detail view with fresh bean data
@@ -272,7 +270,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.tagPicker.Init()
 
 	case tagSelectedMsg:
-		a.state = viewList
+		a.state = viewListFocused
 		a.list.setTagFilter(msg.tag)
 		return a, a.list.loadBeans
 
@@ -320,7 +318,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.state = a.previousState
 		// Clear selection after batch edit
 		clear(a.list.selectedBeans)
-		if a.state == viewDetail && len(msg.beanIDs) == 1 {
+		if (a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused) && len(msg.beanIDs) == 1 {
 			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanIDs[0])
 			if updatedBean != nil {
 				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height)
@@ -354,7 +352,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.state = a.previousState
 		// Clear selection after batch edit
 		clear(a.list.selectedBeans)
-		if a.state == viewDetail && len(msg.beanIDs) == 1 {
+		if (a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused) && len(msg.beanIDs) == 1 {
 			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanIDs[0])
 			if updatedBean != nil {
 				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height)
@@ -388,7 +386,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.state = a.previousState
 		// Clear selection after batch edit
 		clear(a.list.selectedBeans)
-		if a.state == viewDetail && len(msg.beanIDs) == 1 {
+		if (a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused) && len(msg.beanIDs) == 1 {
 			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanIDs[0])
 			if updatedBean != nil {
 				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height)
@@ -435,7 +433,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// Return to previous view and refresh
 		a.state = a.previousState
-		if a.state == viewDetail {
+		if a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused {
 			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanID)
 			if updatedBean != nil {
 				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height)
@@ -466,7 +464,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		// Return to list and open the new bean in editor
-		a.state = viewList
+		a.state = viewListFocused
 		return a, tea.Batch(
 			a.list.loadBeans,
 			func() tea.Msg {
@@ -529,7 +527,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.state = a.previousState
 		// Clear selection after batch edit
 		clear(a.list.selectedBeans)
-		if a.state == viewDetail && len(msg.beanIDs) == 1 {
+		if (a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused) && len(msg.beanIDs) == 1 {
 			// Refresh the bean to show updated parent
 			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanIDs[0])
 			if updatedBean != nil {
@@ -554,9 +552,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// Set status on current view
-		if a.state == viewList {
+		if a.state == viewListFocused {
 			a.list.statusMessage = statusMsg
-		} else if a.state == viewDetail {
+		} else if a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused {
 			a.detail.statusMessage = statusMsg
 		}
 
@@ -564,10 +562,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case selectBeanMsg:
 		// Push current detail view to history if we're already viewing a bean
-		if a.state == viewDetail {
+		if a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused {
 			a.history = append(a.history, a.detail)
 		}
-		a.state = viewDetail
+		a.state = viewDetailLinksFocused
 		a.detail = newDetailModel(msg.bean, a.resolver, a.config, a.width, a.height)
 		return a, a.detail.Init()
 
@@ -576,9 +574,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if len(a.history) > 0 {
 			a.detail = a.history[len(a.history)-1]
 			a.history = a.history[:len(a.history)-1]
-			// Stay in viewDetail state
+			// Stay in viewDetailLinksFocused state
+			a.state = viewDetailLinksFocused
 		} else {
-			a.state = viewList
+			a.state = viewListFocused
 			// Force list to pick up any size changes that happened while in detail view
 			a.list, cmd = a.list.Update(tea.WindowSizeMsg{Width: a.width, Height: a.height})
 			return a, cmd
@@ -588,9 +587,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Forward all messages to the current view
 	switch a.state {
-	case viewList:
+	case viewListFocused:
 		a.list, cmd = a.list.Update(msg)
-	case viewDetail:
+	case viewDetailLinksFocused, viewDetailBodyFocused:
 		a.detail, cmd = a.detail.Update(msg)
 	case viewTagPicker:
 		a.tagPicker, cmd = a.tagPicker.Update(msg)
@@ -631,18 +630,19 @@ func (a *App) collectTagsWithCounts() []tagWithCount {
 	return tags
 }
 
-// renderTwoColumnView renders the list and preview side by side with app-global footer
+// renderTwoColumnView renders the list and detail side by side with app-global footer
 func (a *App) renderTwoColumnView() string {
-	leftWidth, rightWidth := calculatePaneWidths(a.width)
+	leftWidth, _ := calculatePaneWidths(a.width)
 	contentHeight := a.height - 1 // Reserve 1 line for footer
 
 	// Render left pane (list) with constrained width, no footer
 	leftPane := a.list.ViewConstrained(leftWidth, contentHeight)
 
-	// Render right pane (preview) with same height
-	a.preview.width = rightWidth
-	a.preview.height = contentHeight
-	rightPane := a.preview.View()
+	// TODO(beans-pn6z): Render right pane (detail) with same height
+	// a.detail.width = rightWidth
+	// a.detail.height = contentHeight
+	// rightPane := a.detail.View()
+	rightPane := "Detail placeholder"
 
 	// Compose columns
 	columns := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
@@ -656,12 +656,12 @@ func (a *App) renderTwoColumnView() string {
 // View renders the current view
 func (a *App) View() string {
 	switch a.state {
-	case viewList:
+	case viewListFocused:
 		if a.isTwoColumnMode() {
 			return a.renderTwoColumnView()
 		}
 		return a.list.View()
-	case viewDetail:
+	case viewDetailLinksFocused, viewDetailBodyFocused:
 		return a.detail.View()
 	case viewTagPicker:
 		return a.tagPicker.View()
@@ -686,9 +686,9 @@ func (a *App) View() string {
 // getBackgroundView returns the view to show behind modal pickers
 func (a *App) getBackgroundView() string {
 	switch a.previousState {
-	case viewList:
+	case viewListFocused:
 		return a.list.View()
-	case viewDetail:
+	case viewDetailLinksFocused, viewDetailBodyFocused:
 		return a.detail.View()
 	default:
 		return a.list.View()
