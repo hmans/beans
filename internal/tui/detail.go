@@ -298,11 +298,6 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 		}
 
 		switch msg.String() {
-		case "esc", "backspace":
-			return m, func() tea.Msg {
-				return backToListMsg{}
-			}
-
 		case "enter":
 			// Navigate to selected link
 			if m.linksFocused {

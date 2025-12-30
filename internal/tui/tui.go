@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/atotto/clipboard"
+	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/hmans/beans/internal/beancore"
@@ -108,7 +109,7 @@ type App struct {
 	priorityPicker priorityPickerModel
 	createModal    createModalModel
 	helpOverlay    helpOverlayModel
-	history        []detailModel // stack of previous detail views for back navigation
+	history        []string // stack of previous bean IDs for back navigation
 	core           *beancore.Core
 	resolver       *graph.Resolver
 	config         *config.Config
@@ -171,7 +172,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.detail.statusMessage = ""
 
 		// Handle key chord sequences
-		if a.state == viewListFocused && a.list.list.FilterState() != 1 {
+		if a.state == viewListFocused && a.list.list.FilterState() != list.Filtering {
 			if a.pendingKey == "g" {
 				a.pendingKey = ""
 				switch msg.String() {
@@ -199,7 +200,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			return a, tea.Quit
 		case "?":
-			// Open help overlay if not already showing it (and not in a picker/modal)
+			// Open help overlay from list or detail states
 			if a.state == viewListFocused || a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused {
 				a.previousState = a.state
 				a.helpOverlay = newHelpOverlayModel(a.width, a.height)
@@ -207,12 +208,77 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return a, a.helpOverlay.Init()
 			}
 		case "q":
-			if a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused || a.state == viewTagPicker || a.state == viewParentPicker || a.state == viewStatusPicker || a.state == viewTypePicker || a.state == viewBlockingPicker || a.state == viewPriorityPicker || a.state == viewHelpOverlay {
-				return a, tea.Quit
+			// q always quits (except when filtering)
+			if a.state == viewListFocused && a.list.list.FilterState() == list.Filtering {
+				break // let list handle it
 			}
-			// For list, only quit if not filtering
-			if a.state == viewListFocused && a.list.list.FilterState() != 1 {
-				return a, tea.Quit
+			if a.state == viewDetailLinksFocused && a.detail.linkList.FilterState() == list.Filtering {
+				break // let detail handle it
+			}
+			return a, tea.Quit
+		}
+
+		// Handle Enter from list - focus detail
+		if a.state == viewListFocused && msg.String() == "enter" {
+			if a.list.list.FilterState() != list.Filtering {
+				if _, ok := a.list.list.SelectedItem().(beanItem); ok {
+					// Focus links if bean has links, else focus body
+					if len(a.detail.links) > 0 {
+						a.detail.linksFocused = true
+						a.detail.bodyFocused = false
+						a.state = viewDetailLinksFocused
+					} else {
+						a.detail.linksFocused = false
+						a.detail.bodyFocused = true
+						a.state = viewDetailBodyFocused
+					}
+					return a, nil
+				}
+			}
+		}
+
+		// Handle Tab in detail - toggle between links and body
+		if msg.String() == "tab" {
+			if a.state == viewDetailLinksFocused {
+				a.detail.linksFocused = false
+				a.detail.bodyFocused = true
+				a.state = viewDetailBodyFocused
+				return a, nil
+			} else if a.state == viewDetailBodyFocused && len(a.detail.links) > 0 {
+				a.detail.linksFocused = true
+				a.detail.bodyFocused = false
+				a.state = viewDetailLinksFocused
+				return a, nil
+			}
+		}
+
+		// Handle Backspace in detail - navigate history or return to list
+		if msg.String() == "backspace" {
+			if a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused {
+				// Check history first
+				if len(a.history) > 0 {
+					// Pop from history, move cursor to that bean
+					prevBeanID := a.history[len(a.history)-1]
+					a.history = a.history[:len(a.history)-1]
+					// Move list cursor to that bean
+					a.moveCursorToBean(prevBeanID)
+					// Reload the detail view for that bean
+					if item, ok := a.list.list.SelectedItem().(beanItem); ok {
+						_, rightWidth := calculatePaneWidths(a.width)
+						linksFocused := a.state == viewDetailLinksFocused
+						bodyFocused := a.state == viewDetailBodyFocused
+						a.detail = newDetailModel(item.bean, a.resolver, a.config, rightWidth, a.height-2, linksFocused, bodyFocused)
+						a.detail.linksFocused = linksFocused
+						a.detail.bodyFocused = bodyFocused
+					}
+					// Stay in detail focus
+					return a, nil
+				}
+				// No history - return to list
+				a.detail.linksFocused = false
+				a.detail.bodyFocused = false
+				a.state = viewListFocused
+				return a, nil
 			}
 		}
 
@@ -569,28 +635,23 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case selectBeanMsg:
-		// Push current detail view to history if we're already viewing a bean
-		if a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused {
-			a.history = append(a.history, a.detail)
+		// Push current bean ID to history if we're already viewing a bean
+		if (a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused) && a.detail.bean != nil {
+			a.history = append(a.history, a.detail.bean.ID)
 		}
-		a.state = viewDetailLinksFocused
-		a.detail = newDetailModel(msg.bean, a.resolver, a.config, a.width, a.height, false, false)
-		return a, a.detail.Init()
-
-	case backToListMsg:
-		// Pop from history if available, otherwise go to list
-		if len(a.history) > 0 {
-			a.detail = a.history[len(a.history)-1]
-			a.history = a.history[:len(a.history)-1]
-			// Stay in viewDetailLinksFocused state
+		// Create detail model first to calculate links
+		_, rightWidth := calculatePaneWidths(a.width)
+		a.detail = newDetailModel(msg.bean, a.resolver, a.config, rightWidth, a.height-2, false, false)
+		// Focus links if bean has links, else focus body
+		if len(a.detail.links) > 0 {
+			a.detail.linksFocused = true
 			a.state = viewDetailLinksFocused
 		} else {
-			a.state = viewListFocused
-			// Force list to pick up any size changes that happened while in detail view
-			a.list, cmd = a.list.Update(tea.WindowSizeMsg{Width: a.width, Height: a.height})
-			return a, cmd
+			a.detail.bodyFocused = true
+			a.state = viewDetailBodyFocused
 		}
-		return a, nil
+		return a, a.detail.Init()
+
 	}
 
 	// Forward all messages to the current view
@@ -618,6 +679,18 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return a, cmd
+}
+
+// moveCursorToBean moves the list cursor to the bean with the given ID.
+// This triggers cursorChangedMsg which updates the detail pane.
+func (a *App) moveCursorToBean(beanID string) {
+	items := a.list.list.Items()
+	for i, item := range items {
+		if bi, ok := item.(beanItem); ok && bi.bean.ID == beanID {
+			a.list.list.Select(i)
+			return
+		}
+	}
 }
 
 // collectTagsWithCounts returns all tags with their usage counts
