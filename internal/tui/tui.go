@@ -17,6 +17,7 @@ import (
 	"github.com/hmans/beans/internal/config"
 	"github.com/hmans/beans/internal/graph"
 	"github.com/hmans/beans/internal/graph/model"
+	"github.com/hmans/beans/internal/ui"
 )
 
 // viewState represents which view is currently active
@@ -713,25 +714,97 @@ func (a *App) collectTagsWithCounts() []tagWithCount {
 
 // renderTwoColumnView renders the list and detail side by side with app-global footer
 func (a *App) renderTwoColumnView() string {
-	leftWidth, _ := calculatePaneWidths(a.width)
+	leftWidth, rightWidth := calculatePaneWidths(a.width)
 	contentHeight := a.height - 1 // Reserve 1 line for footer
 
-	// Render left pane (list) with constrained width, no footer
-	leftPane := a.list.ViewConstrained(leftWidth, contentHeight, true) // TODO: pass actual focus state
+	// Determine focus states
+	listFocused := a.state == viewListFocused
+	linksFocused := a.state == viewDetailLinksFocused
+	bodyFocused := a.state == viewDetailBodyFocused
 
-	// TODO(beans-pn6z): Render right pane (detail) with same height
-	// a.detail.width = rightWidth
-	// a.detail.height = contentHeight
-	// rightPane := a.detail.View()
-	rightPane := "Detail placeholder"
+	// Render left pane (list) with focus-dependent border
+	leftPane := a.list.ViewConstrained(leftWidth, contentHeight, listFocused)
+
+	// Render right pane (detail) with focus-dependent borders
+	a.detail.linksFocused = linksFocused
+	a.detail.bodyFocused = bodyFocused
+	a.detail.width = rightWidth
+	a.detail.height = contentHeight
+	rightPane := a.detail.View()
 
 	// Compose columns
 	columns := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
 
-	// App-global footer spans full width
-	footer := a.list.Footer()
+	// App-global footer based on focused area
+	footer := a.renderFooter()
 
 	return columns + "\n" + footer
+}
+
+// renderFooter returns the footer help text based on current focus state
+func (a *App) renderFooter() string {
+	var footer string
+	switch a.state {
+	case viewListFocused:
+		return a.list.Footer() // list handles its own status messages
+	case viewDetailLinksFocused:
+		footer = a.renderDetailLinksFooter()
+	case viewDetailBodyFocused:
+		footer = a.renderDetailBodyFooter()
+	default:
+		return ""
+	}
+	// Prepend status message for detail states
+	return a.prependStatusMessage(footer)
+}
+
+func (a *App) renderDetailLinksFooter() string {
+	return helpKeyStyle.Render("tab") + " " + helpStyle.Render("switch") + "  " +
+		helpKeyStyle.Render("/") + " " + helpStyle.Render("filter") + "  " +
+		helpKeyStyle.Render("enter") + " " + helpStyle.Render("go to") + "  " +
+		helpKeyStyle.Render("j/k") + " " + helpStyle.Render("navigate") + "  " +
+		helpKeyStyle.Render("backspace") + " " + helpStyle.Render("back") + "  " +
+		helpKeyStyle.Render("b") + " " + helpStyle.Render("blocking") + "  " +
+		helpKeyStyle.Render("e") + " " + helpStyle.Render("edit") + "  " +
+		helpKeyStyle.Render("p") + " " + helpStyle.Render("parent") + "  " +
+		helpKeyStyle.Render("P") + " " + helpStyle.Render("priority") + "  " +
+		helpKeyStyle.Render("s") + " " + helpStyle.Render("status") + "  " +
+		helpKeyStyle.Render("t") + " " + helpStyle.Render("type") + "  " +
+		helpKeyStyle.Render("y") + " " + helpStyle.Render("copy id") + "  " +
+		helpKeyStyle.Render("?") + " " + helpStyle.Render("help") + "  " +
+		helpKeyStyle.Render("q") + " " + helpStyle.Render("quit")
+}
+
+func (a *App) renderDetailBodyFooter() string {
+	var footer string
+
+	// Only show tab switch if there are links to switch to
+	if len(a.detail.links) > 0 {
+		footer = helpKeyStyle.Render("tab") + " " + helpStyle.Render("switch") + "  "
+	}
+
+	footer += helpKeyStyle.Render("j/k") + " " + helpStyle.Render("scroll") + "  " +
+		helpKeyStyle.Render("backspace") + " " + helpStyle.Render("back") + "  " +
+		helpKeyStyle.Render("b") + " " + helpStyle.Render("blocking") + "  " +
+		helpKeyStyle.Render("e") + " " + helpStyle.Render("edit") + "  " +
+		helpKeyStyle.Render("p") + " " + helpStyle.Render("parent") + "  " +
+		helpKeyStyle.Render("P") + " " + helpStyle.Render("priority") + "  " +
+		helpKeyStyle.Render("s") + " " + helpStyle.Render("status") + "  " +
+		helpKeyStyle.Render("t") + " " + helpStyle.Render("type") + "  " +
+		helpKeyStyle.Render("y") + " " + helpStyle.Render("copy id") + "  " +
+		helpKeyStyle.Render("?") + " " + helpStyle.Render("help") + "  " +
+		helpKeyStyle.Render("q") + " " + helpStyle.Render("quit")
+
+	return footer
+}
+
+// prependStatusMessage adds status message prefix if present
+func (a *App) prependStatusMessage(footer string) string {
+	if a.detail.statusMessage != "" {
+		statusStyle := lipgloss.NewStyle().Foreground(ui.ColorSuccess).Bold(true)
+		return statusStyle.Render(a.detail.statusMessage) + "  " + footer
+	}
+	return footer
 }
 
 // View renders the current view
@@ -742,8 +815,18 @@ func (a *App) View() string {
 			return a.renderTwoColumnView()
 		}
 		return a.list.View()
+
 	case viewDetailLinksFocused, viewDetailBodyFocused:
-		return a.detail.View()
+		if a.isTwoColumnMode() {
+			return a.renderTwoColumnView()
+		}
+		// Narrow mode: show only detail at full width
+		a.detail.linksFocused = a.state == viewDetailLinksFocused
+		a.detail.bodyFocused = a.state == viewDetailBodyFocused
+		a.detail.width = a.width
+		a.detail.height = a.height - 1
+		return a.detail.View() + "\n" + a.renderFooter()
+
 	case viewTagPicker:
 		return a.tagPicker.View()
 	case viewParentPicker:
@@ -768,8 +851,14 @@ func (a *App) View() string {
 func (a *App) getBackgroundView() string {
 	switch a.previousState {
 	case viewListFocused:
+		if a.isTwoColumnMode() {
+			return a.renderTwoColumnView()
+		}
 		return a.list.View()
 	case viewDetailLinksFocused, viewDetailBodyFocused:
+		if a.isTwoColumnMode() {
+			return a.renderTwoColumnView()
+		}
 		return a.detail.View()
 	default:
 		return a.list.View()
