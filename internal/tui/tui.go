@@ -253,10 +253,20 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		// Handle Backspace in detail - navigate history or return to list
+		// Handle Backspace in detail - always return to list
 		if msg.String() == "backspace" {
 			if a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused {
-				// Check history first
+				a.detail.linksFocused = false
+				a.detail.bodyFocused = false
+				a.state = viewListFocused
+				a.history = nil // Clear history when explicitly returning to list
+				return a, nil
+			}
+		}
+
+		// Handle Escape in detail - navigate history or return to list
+		if msg.String() == "esc" {
+			if a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused {
 				if len(a.history) > 0 {
 					// Pop from history, move cursor to that bean
 					prevBeanID := a.history[len(a.history)-1]
@@ -771,7 +781,7 @@ func (a *App) renderDetailLinksFooter() string {
 		helpKeyStyle.Render("/") + " " + helpStyle.Render("filter") + "  " +
 		helpKeyStyle.Render("enter") + " " + helpStyle.Render("go to") + "  " +
 		helpKeyStyle.Render("j/k") + " " + helpStyle.Render("navigate") + "  " +
-		helpKeyStyle.Render("backspace") + " " + helpStyle.Render("back") + "  " +
+		helpKeyStyle.Render("esc") + " " + helpStyle.Render("back") + "  " +
 		helpKeyStyle.Render("b") + " " + helpStyle.Render("blocking") + "  " +
 		helpKeyStyle.Render("e") + " " + helpStyle.Render("edit") + "  " +
 		helpKeyStyle.Render("p") + " " + helpStyle.Render("parent") + "  " +
@@ -792,7 +802,7 @@ func (a *App) renderDetailBodyFooter() string {
 	}
 
 	footer += helpKeyStyle.Render("j/k") + " " + helpStyle.Render("scroll") + "  " +
-		helpKeyStyle.Render("backspace") + " " + helpStyle.Render("back") + "  " +
+		helpKeyStyle.Render("esc") + " " + helpStyle.Render("back") + "  " +
 		helpKeyStyle.Render("b") + " " + helpStyle.Render("blocking") + "  " +
 		helpKeyStyle.Render("e") + " " + helpStyle.Render("edit") + "  " +
 		helpKeyStyle.Render("p") + " " + helpStyle.Render("parent") + "  " +

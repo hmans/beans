@@ -77,7 +77,7 @@ func listReadyCondition(s string) bool {
 
 // detailReadyCondition returns true when the detail footer is visible
 func detailReadyCondition(s string) bool {
-	return strings.Contains(s, "backspace")
+	return strings.Contains(s, "esc back")
 }
 
 // bodyFocusCondition returns true when body is focused (scroll in footer)
