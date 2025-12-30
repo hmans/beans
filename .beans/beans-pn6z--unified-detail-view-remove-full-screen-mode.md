@@ -166,6 +166,19 @@ You often want to change status/type/priority while looking at the full details.
 **Why border color for focus indication?**
 Simplest option that works. Both panes already have borders. Alternatives (title highlighting, background tint) add complexity for marginal benefit.
 
+## Implementation Tasks
+
+1. **beans-mvme**: Update view states to granular focus states
+2. **beans-238n**: Delete preview.go and update App struct
+3. **beans-2v6j**: Add focus parameter to list border rendering
+4. **beans-ozhq**: Update detail.go to accept focus parameters
+5. **beans-lmk4**: Update keyboard routing for granular focus states
+6. **beans-unjz**: Update View() for two-column rendering with focus
+7. **beans-7vrp**: Update history navigation for unified view
+8. **beans-p63f**: Remove Esc as quit, clean up keyboard handling
+9. **beans-oms6**: Integrate detail model with App keyboard routing
+10. **beans-csnk**: Testing and polish
+
 ## Out of Scope
 
 - Shift+Tab for reverse cycling
