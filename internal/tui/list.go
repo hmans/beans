@@ -129,6 +129,8 @@ func newListModel(resolver *graph.Resolver, cfg *config.Config) listModel {
 	delegate := itemDelegate{cfg: cfg, selectedBeans: &selectedBeans}
 
 	l := list.New([]list.Item{}, delegate, 0, 0)
+	l.KeyMap.Quit.SetEnabled(false)      // Only q quits, not escape
+	l.KeyMap.ForceQuit.SetEnabled(false) // Disable force quit too
 	l.Title = "Beans"
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(true)
@@ -446,6 +448,8 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 						return clearFilterMsg{}
 					}
 				}
+				// Don't forward to bubbles list (would quit)
+				return m, nil
 			}
 		}
 	}
