@@ -165,7 +165,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Preserve focus state when resizing
 		linksFocused := a.state == viewDetailLinksFocused
 		bodyFocused := a.state == viewDetailBodyFocused
-		a.detail = newDetailModel(a.detail.bean, a.resolver, a.config, rightWidth, a.height-2, linksFocused, bodyFocused)
+		a.detail = newDetailModel(a.detail.bean, a.resolver, a.config, rightWidth, a.height-1, linksFocused, bodyFocused)
 
 	case tea.KeyMsg:
 		// Clear status messages on any keypress
@@ -282,7 +282,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Recreate detail with current focus state
 				linksFocused := a.state == viewDetailLinksFocused
 				bodyFocused := a.state == viewDetailBodyFocused
-				a.detail = newDetailModel(bean, a.resolver, a.config, rightWidth, a.height-2, linksFocused, bodyFocused)
+				a.detail = newDetailModel(bean, a.resolver, a.config, rightWidth, a.height-1, linksFocused, bodyFocused)
 				// If we're in linksFocused but the new bean has no links, switch to bodyFocused
 				if a.state == viewDetailLinksFocused && len(a.detail.links) == 0 {
 					a.detail.linksFocused = false
@@ -303,10 +303,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		_, rightWidth := calculatePaneWidths(a.width)
 		if len(msg.items) == 0 {
 			// Empty list - create detail with nil bean
-			a.detail = newDetailModel(nil, a.resolver, a.config, rightWidth, a.height-2, false, false)
+			a.detail = newDetailModel(nil, a.resolver, a.config, rightWidth, a.height-1, false, false)
 		} else if item, ok := a.list.list.SelectedItem().(beanItem); ok {
 			// Both linksFocused and bodyFocused are false initially (focus set when Enter is pressed)
-			a.detail = newDetailModel(item.bean, a.resolver, a.config, rightWidth, a.height-2, false, false)
+			a.detail = newDetailModel(item.bean, a.resolver, a.config, rightWidth, a.height-1, false, false)
 		}
 		return a, cmd
 
@@ -325,7 +325,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					linksFocused := a.state == viewDetailLinksFocused
 					bodyFocused := a.state == viewDetailBodyFocused
 					_, rightWidth := calculatePaneWidths(a.width)
-					a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-2, linksFocused, bodyFocused)
+					a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-1, linksFocused, bodyFocused)
 				}
 			}
 		}
@@ -398,7 +398,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				linksFocused := a.state == viewDetailLinksFocused
 				bodyFocused := a.state == viewDetailBodyFocused
 				_, rightWidth := calculatePaneWidths(a.width)
-				a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-2, linksFocused, bodyFocused)
+				a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-1, linksFocused, bodyFocused)
 			}
 		}
 		return a, a.list.loadBeans
@@ -435,7 +435,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				linksFocused := a.state == viewDetailLinksFocused
 				bodyFocused := a.state == viewDetailBodyFocused
 				_, rightWidth := calculatePaneWidths(a.width)
-				a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-2, linksFocused, bodyFocused)
+				a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-1, linksFocused, bodyFocused)
 			}
 		}
 		return a, a.list.loadBeans
@@ -472,7 +472,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				linksFocused := a.state == viewDetailLinksFocused
 				bodyFocused := a.state == viewDetailBodyFocused
 				_, rightWidth := calculatePaneWidths(a.width)
-				a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-2, linksFocused, bodyFocused)
+				a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-1, linksFocused, bodyFocused)
 			}
 		}
 		return a, a.list.loadBeans
@@ -522,7 +522,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				linksFocused := a.state == viewDetailLinksFocused
 				bodyFocused := a.state == viewDetailBodyFocused
 				_, rightWidth := calculatePaneWidths(a.width)
-				a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-2, linksFocused, bodyFocused)
+				a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-1, linksFocused, bodyFocused)
 			}
 		}
 		return a, a.list.loadBeans
@@ -620,7 +620,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				linksFocused := a.state == viewDetailLinksFocused
 				bodyFocused := a.state == viewDetailBodyFocused
 				_, rightWidth := calculatePaneWidths(a.width)
-				a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-2, linksFocused, bodyFocused)
+				a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-1, linksFocused, bodyFocused)
 			}
 		}
 		return a, a.list.loadBeans
@@ -723,6 +723,15 @@ func (a *App) renderTwoColumnView() string {
 	leftWidth, rightWidth := calculatePaneWidths(a.width)
 	contentHeight := a.height - 1 // Reserve 1 line for footer
 
+	// Debug: log dimensions
+	if os.Getenv("DEBUG_TUI") != "" {
+		f, _ := os.OpenFile("/tmp/tui-debug.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		fmt.Fprintf(f, "=== LAYOUT DEBUG ===\nTerminal: %dx%d\nLeft: %d, Right: %d, Content: %d\nDetail.width=%d, Detail.height=%d\nHeader height=%d\n\n",
+			a.width, a.height, leftWidth, rightWidth, contentHeight,
+			a.detail.width, a.detail.height, a.detail.calculateHeaderHeight())
+		f.Close()
+	}
+
 	// Determine focus states
 	listFocused := a.state == viewListFocused
 	linksFocused := a.state == viewDetailLinksFocused
@@ -744,7 +753,17 @@ func (a *App) renderTwoColumnView() string {
 	// App-global footer based on focused area
 	footer := a.renderFooter()
 
-	return columns + "\n" + footer
+	view := columns + "\n" + footer
+
+	// Debug: dump view to file
+	if os.Getenv("DEBUG_TUI") != "" {
+		f, _ := os.OpenFile("/tmp/tui-view.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		f.WriteString("\n\n=== VIEW RENDER ===\n")
+		f.WriteString(view)
+		f.Close()
+	}
+
+	return view
 }
 
 // renderFooter returns the footer help text based on current focus state

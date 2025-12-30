@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -92,12 +93,9 @@ func (d linkDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 	// Get colors from config
 	colors := d.cfg.GetBeanColors(link.bean.Status, link.bean.Type, link.bean.Priority)
 
-	// Calculate max title width using responsive columns
-	baseWidth := d.cols.ID + d.cols.Status + d.cols.Type + 12 + 4 // label + cursor + padding
-	if d.cols.ShowTags {
-		baseWidth += d.cols.Tags
-	}
-	maxTitleWidth := max(10, d.width-baseWidth-8) // 8 for border padding
+	// Calculate max title width - use fixed short column widths (3 chars each for type/status)
+	baseWidth := ui.ColWidthID + ui.ColWidthStatus + ui.ColWidthType + 12 + 4 // label + cursor + padding
+	maxTitleWidth := max(10, d.width-baseWidth-8)                              // 8 for border padding
 
 	// Use shared bean row rendering (without cursor, we handle it separately)
 	row := ui.RenderBeanRow(
@@ -114,11 +112,11 @@ func (d linkDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 			MaxTitleWidth: maxTitleWidth,
 			ShowCursor:    false,
 			IsSelected:    false,
-			Tags:          link.bean.Tags,
-			ShowTags:      d.cols.ShowTags,
-			TagsColWidth:  d.cols.Tags,
-			MaxTags:       d.cols.MaxTags,
-			UseFullNames:  true, // Full type/status names in detail view
+			Tags:          nil,   // Don't show tags in linked beans for compact display
+			ShowTags:      false,
+			TagsColWidth:  0,
+			MaxTags:       0,
+			UseFullNames:  false, // Short type/status for compact display
 		},
 	)
 
@@ -181,8 +179,9 @@ func newDetailModel(b *bean.Bean, resolver *graph.Resolver, cfg *config.Config, 
 
 	// Calculate header height dynamically
 	headerHeight := m.calculateHeaderHeight()
-	vpWidth := width - 4
-	vpHeight := height - headerHeight
+	vpWidth := width - 2 // account for body border only
+	// Subtract 2 for body border (top + bottom)
+	vpHeight := height - headerHeight - 2
 
 	m.viewport = viewport.New(vpWidth, vpHeight)
 	m.viewport.SetContent(m.renderBody(vpWidth))
@@ -210,16 +209,12 @@ func (m detailModel) createLinkList() list.Model {
 		}
 	}
 
-	// Calculate list height: show all links up to 1/3 of screen height
-	// Add 2 for the title row and padding
-	maxHeight := max(3, m.height/3)
-	listHeight := min(len(m.links), maxHeight) + 2
+	listHeight := m.linksListHeight()
 
-	l := list.New(items, delegate, m.width-8, listHeight)
+	l := list.New(items, delegate, m.width-2, listHeight)
 	l.Title = "Linked Beans"
 	l.SetShowStatusBar(false)
 	l.SetShowHelp(false)
-	l.SetShowPagination(false)
 	l.SetFilteringEnabled(true)
 
 	// Style the title bar similar to the detail header title (badge style) but with different color
@@ -263,15 +258,13 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 		// Update link list delegate with new dimensions
 		m.updateLinkListDelegate()
 
-		// Update link list size: show all links up to 1/3 of screen height
-		// Add 2 for the title row and padding
-		maxHeight := max(3, msg.Height/3)
-		listHeight := min(len(m.links), maxHeight) + 2
-		m.linkList.SetSize(msg.Width-8, listHeight)
+		// Update link list size
+		m.linkList.SetSize(msg.Width-2, m.linksListHeight())
 
 		headerHeight := m.calculateHeaderHeight()
-		vpWidth := msg.Width - 4
-		vpHeight := msg.Height - headerHeight
+		vpWidth := msg.Width - 2
+		// Subtract 2 for body border (top + bottom)
+		vpHeight := msg.Height - headerHeight - 2
 
 		// Ensure vpHeight doesn't go negative
 		if vpHeight < 1 {
@@ -406,6 +399,16 @@ func (m detailModel) View() string {
 		return m.renderEmpty()
 	}
 
+	// Debug logging
+	if os.Getenv("DEBUG_TUI") != "" {
+		f, _ := os.OpenFile("/tmp/tui-debug.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		headerHeight := m.calculateHeaderHeight()
+		vpHeight := m.viewport.Height
+		fmt.Fprintf(f, "Detail.View(): width=%d height=%d headerHeight=%d vpHeight=%d numLinks=%d\n",
+			m.width, m.height, headerHeight, vpHeight, len(m.links))
+		f.Close()
+	}
+
 	// Header (bean info only, no links)
 	header := m.renderHeader()
 
@@ -416,42 +419,103 @@ func (m detailModel) View() string {
 		if m.linksFocused {
 			linksBorderColor = ui.ColorPrimary
 		}
+		// Width sets content width, border adds 2
 		linksBorder := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(linksBorderColor).
-			Width(m.width - 4)
-		linksSection = linksBorder.Render(m.linkList.View()) + "\n"
+			Width(m.width - 2)
+
+		listView := m.linkList.View()
+		linksSection = linksBorder.Render(listView) + "\n"
+
+		// Debug: count actual lines
+		if os.Getenv("DEBUG_TUI") != "" {
+			listLines := strings.Count(listView, "\n") + 1
+			renderedLines := strings.Count(linksSection, "\n")
+			f, _ := os.OpenFile("/tmp/tui-debug.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			fmt.Fprintf(f, "Links: linksListHeight()=%d, listView lines=%d, rendered lines=%d\n",
+				m.linksListHeight(), listLines, renderedLines)
+			f.Close()
+		}
 	}
 
-	// Body
+	// Body - calculate exact height to fill remaining space
 	bodyBorderColor := ui.ColorMuted
 	if m.bodyFocused {
 		bodyBorderColor = ui.ColorPrimary
 	}
+
+	// Calculate body box height to fill remaining height
+	// Height() sets content area (excluding borders), so subtract 2 for top/bottom border
+	// headerHeight already includes the newline separator, so total body+border = m.height - headerHeight
+	headerHeight := m.calculateHeaderHeight()
+	bodyBoxHeight := m.height - headerHeight
+	bodyContentHeight := bodyBoxHeight - 2 // subtract borders
+
+	// Width sets content width, border adds 2
 	bodyBorder := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(bodyBorderColor).
-		Width(m.width - 4)
+		Width(m.width - 2).
+		Height(bodyContentHeight)
 	body := bodyBorder.Render(m.viewport.View())
 
+	result := header + "\n" + linksSection + body
+	// Note: Don't wrap in container with Height() - lipgloss Height() only pads shorter
+	// content, it doesn't truncate taller content. The body Height() above handles padding.
+
+	// Debug: count component lines
+	if os.Getenv("DEBUG_TUI") != "" {
+		headerLines := strings.Count(header, "\n") + 1
+		linksLines := 0
+		if linksSection != "" {
+			linksLines = strings.Count(linksSection, "\n")  // includes the trailing \n
+		}
+		bodyLines := strings.Count(body, "\n") + 1
+		totalNewlines := strings.Count(result, "\n")
+
+		f, _ := os.OpenFile("/tmp/tui-debug.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		fmt.Fprintf(f, "Rendered: header=%d lines, links=%d lines, body=%d lines\n",
+			headerLines, linksLines, bodyLines)
+		fmt.Fprintf(f, "Total: %d newlines = %d lines (expected %d lines = %d newlines)\n\n",
+			totalNewlines, totalNewlines+1, m.height, m.height-1)
+		f.Close()
+	}
+
 	// No footer - App renders footer separately
-	return header + "\n" + linksSection + body
+	return result
+}
+
+// linksListHeight returns TOTAL height for the bubbles list component
+// This includes title (1) + pagination (1 when needed) + items
+func (m detailModel) linksListHeight() int {
+	if len(m.links) == 0 {
+		return 0
+	}
+	maxItems := 5
+	numVisible := min(len(m.links), maxItems)
+	height := 1 + numVisible // title + items
+	if len(m.links) > maxItems {
+		height++ // pagination dots when there are more items
+	}
+	return height
 }
 
 func (m detailModel) calculateHeaderHeight() int {
-	// Base: title line + ID/status line + borders/padding = ~6
-	baseHeight := 6
+	// Header box: 2 lines content + 2 lines border = 4 lines
+	// Note: the "\n" separator between sections doesn't add visual lines
+	height := 4
 
-	// Add height for links section (separate bordered box)
 	if len(m.links) > 0 {
-		// Links list height + borders (matches createLinkList calculation)
-		// +2 for title row and padding, +3 for borders and spacing
-		maxHeight := max(3, m.height/3)
-		listHeight := min(len(m.links), maxHeight) + 2
-		baseHeight += listHeight + 3
+		// Links box: we need to count ACTUAL rendered lines, not linksListHeight()
+		// The bubbles list component ignores height when there are few items
+		listView := m.linkList.View()
+		actualLines := strings.Count(listView, "\n") + 1
+		// Add 2 for border (the "\n" after links doesn't add a visual line)
+		height += actualLines + 2
 	}
 
-	return baseHeight
+	return height
 }
 
 func (m detailModel) renderHeader() string {
@@ -483,11 +547,12 @@ func (m detailModel) renderHeader() string {
 	}
 
 	// Header box style - always muted border (not focused, links section is separate)
+	// Width sets content width, border adds 2, so use m.width-2 for total width of m.width
 	headerBox := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(ui.ColorMuted).
 		Padding(0, 1).
-		Width(m.width - 4)
+		Width(m.width - 2)
 
 	return headerBox.Render(headerContent.String())
 }
