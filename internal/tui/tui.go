@@ -271,10 +271,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					// Pop from history, move cursor to that bean
 					prevBeanID := a.history[len(a.history)-1]
 					a.history = a.history[:len(a.history)-1]
-					// Move list cursor to that bean (will trigger cursorChangedMsg)
-					a.moveCursorToBean(prevBeanID)
+					// Move list cursor to that bean and trigger detail update
+					cmd := a.moveCursorToBean(prevBeanID)
 					// Stay in current detail focus state
-					return a, nil
+					return a, cmd
 				}
 				// No history - return to list
 				a.detail.linksFocused = false
@@ -664,10 +664,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.detail.bean != nil {
 			a.history = append(a.history, a.detail.bean.ID)
 		}
-		// Move cursor to new bean (will trigger cursorChangedMsg)
-		a.moveCursorToBean(msg.bean.ID)
-		// Stay in detail focus (cursorChangedMsg will recreate detail with current focus state)
-		return a, nil
+		// Move cursor to new bean and trigger detail update
+		cmd := a.moveCursorToBean(msg.bean.ID)
+		// Switch to list focus so user can navigate the list
+		a.state = viewListFocused
+		a.detail.linksFocused = false
+		a.detail.bodyFocused = false
+		return a, cmd
 
 	}
 
@@ -699,15 +702,18 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // moveCursorToBean moves the list cursor to the bean with the given ID.
-// This triggers cursorChangedMsg which updates the detail pane.
-func (a *App) moveCursorToBean(beanID string) {
+// Returns a command that emits cursorChangedMsg to update the detail pane.
+func (a *App) moveCursorToBean(beanID string) tea.Cmd {
 	items := a.list.list.Items()
 	for i, item := range items {
 		if bi, ok := item.(beanItem); ok && bi.bean.ID == beanID {
 			a.list.list.Select(i)
-			return
+			return func() tea.Msg {
+				return cursorChangedMsg{beanID: beanID}
+			}
 		}
 	}
+	return nil
 }
 
 // collectTagsWithCounts returns all tags with their usage counts
