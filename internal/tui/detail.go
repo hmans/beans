@@ -96,8 +96,9 @@ func (d linkDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 	colors := d.cfg.GetBeanColors(link.bean.Status, link.bean.Type, link.bean.Priority)
 
 	// Calculate max title width - use fixed short column widths (3 chars each for type/status)
-	baseWidth := ui.ColWidthID + ui.ColWidthStatus + ui.ColWidthType + 12 + 4 // label + cursor + padding
-	maxTitleWidth := max(10, d.width-baseWidth-8)                              // 8 for border padding
+	// d.width is already the inner width (minus border)
+	baseWidth := ui.ColWidthID + ui.ColWidthStatus + ui.ColWidthType + 12 + 4 // ID + status + type + label + cursor/padding
+	maxTitleWidth := max(10, d.width-baseWidth)
 
 	// Use shared bean row rendering (without cursor, we handle it separately)
 	row := ui.RenderBeanRow(
@@ -192,9 +193,10 @@ func newDetailModel(b *bean.Bean, resolver *graph.Resolver, cfg *config.Config, 
 
 // createLinkList creates a new list.Model for the links
 func (m detailModel) createLinkList() list.Model {
+	innerWidth := m.width - borderSize
 	delegate := linkDelegate{
 		cfg:   m.config,
-		width: m.width,
+		width: innerWidth,
 		cols:  m.cols,
 	}
 
@@ -384,7 +386,7 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 func (m *detailModel) updateLinkListDelegate() {
 	delegate := linkDelegate{
 		cfg:   m.config,
-		width: m.width,
+		width: m.width - borderSize,
 		cols:  m.cols,
 	}
 	m.linkList.SetDelegate(delegate)

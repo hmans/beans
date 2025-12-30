@@ -37,7 +37,7 @@ func renderPickerModal(cfg pickerModalConfig) string {
 	titleWidth := modalWidth - 4
 	beanTitle := cfg.BeanTitle
 	if len(beanTitle) > titleWidth {
-		beanTitle = beanTitle[:titleWidth-3] + "..."
+		beanTitle = beanTitle[:titleWidth-1] + "…"
 	}
 	header := lipgloss.NewStyle().Bold(true).Render(beanTitle)
 
