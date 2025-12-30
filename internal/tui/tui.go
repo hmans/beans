@@ -22,8 +22,9 @@ import (
 type viewState int
 
 const (
-	viewList viewState = iota
-	viewDetail
+	viewListFocused viewState = iota
+	viewDetailLinksFocused
+	viewDetailBodyFocused
 	viewTagPicker
 	viewParentPicker
 	viewStatusPicker
@@ -131,7 +132,7 @@ type App struct {
 func New(core *beancore.Core, cfg *config.Config) *App {
 	resolver := &graph.Resolver{Core: core}
 	return &App{
-		state:    viewList,
+		state:    viewListFocused,
 		core:     core,
 		resolver: resolver,
 		config:   cfg,
