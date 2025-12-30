@@ -261,18 +261,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					// Pop from history, move cursor to that bean
 					prevBeanID := a.history[len(a.history)-1]
 					a.history = a.history[:len(a.history)-1]
-					// Move list cursor to that bean
+					// Move list cursor to that bean (will trigger cursorChangedMsg)
 					a.moveCursorToBean(prevBeanID)
-					// Reload the detail view for that bean
-					if item, ok := a.list.list.SelectedItem().(beanItem); ok {
-						_, rightWidth := calculatePaneWidths(a.width)
-						linksFocused := a.state == viewDetailLinksFocused
-						bodyFocused := a.state == viewDetailBodyFocused
-						a.detail = newDetailModel(item.bean, a.resolver, a.config, rightWidth, a.height-2, linksFocused, bodyFocused)
-						a.detail.linksFocused = linksFocused
-						a.detail.bodyFocused = bodyFocused
-					}
-					// Stay in detail focus
+					// Stay in current detail focus state
 					return a, nil
 				}
 				// No history - return to list
@@ -283,18 +274,26 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	// TODO(beans-pn6z): Update detail view with the newly highlighted bean
-	// case cursorChangedMsg:
-	// 	_, rightWidth := calculatePaneWidths(a.width)
-	// 	if msg.beanID != "" {
-	// 		bean, err := a.resolver.Query().Bean(context.Background(), msg.beanID)
-	// 		if err == nil && bean != nil {
-	// 			a.detail = newDetailModel(bean, a.resolver, a.config, rightWidth, a.height-2)
-	// 		}
-	// 	} else {
-	// 		a.detail = detailModel{} // empty detail
-	// 	}
-	// 	return a, nil
+	case cursorChangedMsg:
+		_, rightWidth := calculatePaneWidths(a.width)
+		if msg.beanID != "" {
+			bean, err := a.resolver.Query().Bean(context.Background(), msg.beanID)
+			if err == nil && bean != nil {
+				// Recreate detail with current focus state
+				linksFocused := a.state == viewDetailLinksFocused
+				bodyFocused := a.state == viewDetailBodyFocused
+				a.detail = newDetailModel(bean, a.resolver, a.config, rightWidth, a.height-2, linksFocused, bodyFocused)
+				// If we're in linksFocused but the new bean has no links, switch to bodyFocused
+				if a.state == viewDetailLinksFocused && len(a.detail.links) == 0 {
+					a.detail.linksFocused = false
+					a.detail.bodyFocused = true
+					a.state = viewDetailBodyFocused
+				}
+			}
+		} else {
+			a.detail = detailModel{} // empty detail
+		}
+		return a, nil
 
 	case beansLoadedMsg:
 		// Forward to list view
@@ -636,22 +635,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case selectBeanMsg:
-		// Push current bean ID to history if we're already viewing a bean
-		if (a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused) && a.detail.bean != nil {
+		// Push current bean ID to history before navigating
+		if a.detail.bean != nil {
 			a.history = append(a.history, a.detail.bean.ID)
 		}
-		// Create detail model first to calculate links
-		_, rightWidth := calculatePaneWidths(a.width)
-		a.detail = newDetailModel(msg.bean, a.resolver, a.config, rightWidth, a.height-2, false, false)
-		// Focus links if bean has links, else focus body
-		if len(a.detail.links) > 0 {
-			a.detail.linksFocused = true
-			a.state = viewDetailLinksFocused
-		} else {
-			a.detail.bodyFocused = true
-			a.state = viewDetailBodyFocused
-		}
-		return a, a.detail.Init()
+		// Move cursor to new bean (will trigger cursorChangedMsg)
+		a.moveCursorToBean(msg.bean.ID)
+		// Stay in detail focus (cursorChangedMsg will recreate detail with current focus state)
+		return a, nil
 
 	}
 
