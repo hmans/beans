@@ -56,16 +56,19 @@ func (a *App) renderTwoColumnView() string {
 ```go
 // renderFooter returns the footer help text based on current focus state
 func (a *App) renderFooter() string {
+	var footer string
 	switch a.state {
 	case viewListFocused:
-		return a.list.Footer()
+		return a.list.Footer() // list handles its own status messages
 	case viewDetailLinksFocused:
-		return a.renderDetailLinksFooter()
+		footer = a.renderDetailLinksFooter()
 	case viewDetailBodyFocused:
-		return a.renderDetailBodyFooter()
+		footer = a.renderDetailBodyFooter()
 	default:
 		return ""
 	}
+	// Prepend status message for detail states
+	return a.prependStatusMessage(footer)
 }
 
 func (a *App) renderDetailLinksFooter() string {
@@ -86,8 +89,14 @@ func (a *App) renderDetailLinksFooter() string {
 }
 
 func (a *App) renderDetailBodyFooter() string {
-	footer := helpKeyStyle.Render("tab") + " " + helpStyle.Render("switch") + "  " +
-		helpKeyStyle.Render("j/k") + " " + helpStyle.Render("scroll") + "  " +
+	var footer string
+
+	// Only show tab switch if there are links to switch to
+	if len(a.detail.links) > 0 {
+		footer = helpKeyStyle.Render("tab") + " " + helpStyle.Render("switch") + "  "
+	}
+
+	footer += helpKeyStyle.Render("j/k") + " " + helpStyle.Render("scroll") + "  " +
 		helpKeyStyle.Render("backspace") + " " + helpStyle.Render("back") + "  " +
 		helpKeyStyle.Render("b") + " " + helpStyle.Render("blocking") + "  " +
 		helpKeyStyle.Render("e") + " " + helpStyle.Render("edit") + "  " +
@@ -98,11 +107,15 @@ func (a *App) renderDetailBodyFooter() string {
 		helpKeyStyle.Render("y") + " " + helpStyle.Render("copy id") + "  " +
 		helpKeyStyle.Render("?") + " " + helpStyle.Render("help") + "  " +
 		helpKeyStyle.Render("q") + " " + helpStyle.Render("quit")
-	// Only show tab switch if there are links
-	if len(a.detail.links) == 0 {
-		footer = helpKeyStyle.Render("j/k") + " " + helpStyle.Render("scroll") + "  " +
-			helpKeyStyle.Render("backspace") + " " + helpStyle.Render("back") + "  " +
-			// ... rest of shortcuts without tab
+
+	return footer
+}
+
+// prependStatusMessage adds status message prefix if present
+func (a *App) prependStatusMessage(footer string) string {
+	if a.detail.statusMessage != "" {
+		statusStyle := lipgloss.NewStyle().Foreground(ui.ColorSuccess).Bold(true)
+		return statusStyle.Render(a.detail.statusMessage) + "  " + footer
 	}
 	return footer
 }

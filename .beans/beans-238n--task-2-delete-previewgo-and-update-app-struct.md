@@ -42,11 +42,55 @@ preview:  newPreviewModel(nil, 0, 0),
 
 ### Step 4: Comment out preview-related code temporarily
 
-In `Update()` and `View()`, comment out any code referencing `a.preview` - we will fix these in later tasks. Look for:
-- `cursorChangedMsg` handler updating preview
-- `beansLoadedMsg` handler updating preview  
-- `tea.WindowSizeMsg` handler updating preview dimensions
-- `renderTwoColumnView()` using preview
+Comment out these specific blocks (will be replaced in Task 5 - beans-s65d):
+
+**In `tea.WindowSizeMsg` handler (~line 162-167):**
+```go
+// Comment out:
+// if a.isTwoColumnMode() {
+//     _, rightWidth := calculatePaneWidths(a.width)
+//     a.preview.width = rightWidth
+//     a.preview.height = a.height - 2
+// }
+```
+
+**In `cursorChangedMsg` handler (~line 220-231):**
+```go
+// Comment out entire case:
+// case cursorChangedMsg:
+//     _, rightWidth := calculatePaneWidths(a.width)
+//     if msg.beanID != "" {
+//         bean, err := a.resolver.Query().Bean(context.Background(), msg.beanID)
+//         if err == nil && bean != nil {
+//             a.preview = newPreviewModel(bean, rightWidth, a.height-2)
+//         }
+//     } else {
+//         a.preview = newPreviewModel(nil, rightWidth, a.height-2)
+//     }
+//     return a, nil
+```
+
+**In `beansLoadedMsg` handler (~line 237-242):**
+```go
+// Comment out preview update (keep the list update):
+// _, rightWidth := calculatePaneWidths(a.width)
+// if len(msg.items) == 0 {
+//     a.preview = newPreviewModel(nil, rightWidth, a.height-2)
+// } else if item, ok := a.list.list.SelectedItem().(beanItem); ok {
+//     a.preview = newPreviewModel(item.bean, rightWidth, a.height-2)
+// }
+```
+
+**In `renderTwoColumnView()` (~line 641-644):**
+```go
+// Comment out preview rendering:
+// a.preview.width = rightWidth
+// a.preview.height = contentHeight
+// rightPane := a.preview.View()
+
+// Temporarily replace with placeholder:
+rightPane := "Detail placeholder"
+```
 
 ### Step 5: Build and verify
 

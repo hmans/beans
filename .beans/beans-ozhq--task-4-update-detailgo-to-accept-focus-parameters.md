@@ -81,7 +81,42 @@ The App will recreate the detailModel with appropriate focus parameters when the
 
 ### Step 5: Update all newDetailModel call sites
 
-Search for `newDetailModel(` and update each call to pass the new parameters. For now, pass `false, false` - we will set correct values when integrating.
+Update each call in `tui.go` to pass the new focus parameters. For now, pass `false, false` - correct values will be set when integrating:
+
+**Line ~256 (beansChangedMsg handler):**
+```go
+a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height, false, false)
+```
+
+**Line ~325 (statusSelectedMsg handler):**
+```go
+a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height, false, false)
+```
+
+**Line ~359 (typeSelectedMsg handler):**
+```go
+a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height, false, false)
+```
+
+**Line ~393 (prioritySelectedMsg handler):**
+```go
+a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height, false, false)
+```
+
+**Line ~440 (blockingConfirmedMsg handler):**
+```go
+a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height, false, false)
+```
+
+**Line ~535 (parentSelectedMsg handler):**
+```go
+a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height, false, false)
+```
+
+**Line ~570 (selectBeanMsg handler):**
+```go
+a.detail = newDetailModel(msg.bean, a.resolver, a.config, a.width, a.height, false, false)
+```
 
 ### Step 6: Build and verify
 

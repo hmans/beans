@@ -90,7 +90,25 @@ case tea.KeyMsg:
 	}
 ```
 
-### Step 4: Add Backspace handler for detail states
+### Step 4: Add moveCursorToBean helper method
+
+Add this helper method to App (needed for history navigation and link following):
+
+```go
+// moveCursorToBean moves the list cursor to the bean with the given ID.
+// This triggers cursorChangedMsg which updates the detail pane.
+func (a *App) moveCursorToBean(beanID string) {
+	items := a.list.list.Items()
+	for i, item := range items {
+		if bi, ok := item.(beanItem); ok && bi.bean.ID == beanID {
+			a.list.list.Select(i)
+			return
+		}
+	}
+}
+```
+
+### Step 5: Add Backspace handler for detail states
 
 ```go
 	// Handle Backspace in detail - navigate history or return to list
@@ -113,13 +131,13 @@ case tea.KeyMsg:
 	}
 ```
 
-### Step 5: Remove old viewList/viewDetail case handling
+### Step 6: Remove old viewList/viewDetail case handling
 
 Remove or update the old switch cases:
 - Remove `case "q":` checks for `viewDetail` (now handled above)
 - Update the message forwarding at the bottom of Update()
 
-### Step 6: Update message forwarding
+### Step 7: Update message forwarding
 
 At the bottom of Update(), route messages to appropriate model:
 
@@ -136,12 +154,12 @@ case viewTagPicker:
 }
 ```
 
-### Step 7: Build and test
+### Step 8: Build and test
 
 Run: `mise build`
 Expected: Build succeeds
 
-### Step 8: Commit
+### Step 9: Commit
 
 ```bash
 git add internal/tui/tui.go
