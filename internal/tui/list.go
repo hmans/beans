@@ -498,15 +498,20 @@ func (m listModel) View() string {
 	}
 
 	// Inner height: total height minus border (2) minus footer (1) minus padding (1)
-	return m.viewContent(m.height-4) + "\n" + m.Footer()
+	return m.viewContent(m.height-4, true) + "\n" + m.Footer()
 }
 
 // viewContent renders just the bordered list without footer.
 // innerHeight is the content height inside the border (not including border lines).
-func (m listModel) viewContent(innerHeight int) string {
+// focused determines the border color (primary when focused, muted when not).
+func (m listModel) viewContent(innerHeight int, focused bool) string {
+	borderColor := ui.ColorMuted
+	if focused {
+		borderColor = ui.ColorPrimary
+	}
 	border := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(ui.ColorMuted).
+		BorderForeground(borderColor).
 		Width(m.width - 2).
 		Height(innerHeight)
 
@@ -579,7 +584,7 @@ func (m listModel) Footer() string {
 // ViewConstrained renders the list constrained to the given width and height.
 // Used for the left pane in two-column mode. Returns only the content without footer.
 // The output will be exactly `height` lines tall.
-func (m listModel) ViewConstrained(width, height int) string {
+func (m listModel) ViewConstrained(width, height int, focused bool) string {
 	// Temporarily set constrained dimensions
 	m.width = width
 	m.height = height
@@ -599,6 +604,6 @@ func (m listModel) ViewConstrained(width, height int) string {
 		m.list.Title = "Beans"
 	}
 
-	return m.viewContent(innerHeight)
+	return m.viewContent(innerHeight, focused)
 }
 

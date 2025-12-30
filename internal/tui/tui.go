@@ -636,7 +636,7 @@ func (a *App) renderTwoColumnView() string {
 	contentHeight := a.height - 1 // Reserve 1 line for footer
 
 	// Render left pane (list) with constrained width, no footer
-	leftPane := a.list.ViewConstrained(leftWidth, contentHeight)
+	leftPane := a.list.ViewConstrained(leftWidth, contentHeight, true) // TODO: pass actual focus state
 
 	// TODO(beans-pn6z): Render right pane (detail) with same height
 	// a.detail.width = rightWidth
