@@ -395,7 +395,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if (a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused) && len(msg.beanIDs) == 1 {
 			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanIDs[0])
 			if updatedBean != nil {
-				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height, false, false)
+				linksFocused := a.state == viewDetailLinksFocused
+				bodyFocused := a.state == viewDetailBodyFocused
+				_, rightWidth := calculatePaneWidths(a.width)
+				a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-2, linksFocused, bodyFocused)
 			}
 		}
 		return a, a.list.loadBeans
@@ -429,7 +432,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if (a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused) && len(msg.beanIDs) == 1 {
 			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanIDs[0])
 			if updatedBean != nil {
-				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height, false, false)
+				linksFocused := a.state == viewDetailLinksFocused
+				bodyFocused := a.state == viewDetailBodyFocused
+				_, rightWidth := calculatePaneWidths(a.width)
+				a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-2, linksFocused, bodyFocused)
 			}
 		}
 		return a, a.list.loadBeans
@@ -463,7 +469,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if (a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused) && len(msg.beanIDs) == 1 {
 			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanIDs[0])
 			if updatedBean != nil {
-				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height, false, false)
+				linksFocused := a.state == viewDetailLinksFocused
+				bodyFocused := a.state == viewDetailBodyFocused
+				_, rightWidth := calculatePaneWidths(a.width)
+				a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-2, linksFocused, bodyFocused)
 			}
 		}
 		return a, a.list.loadBeans
@@ -510,7 +519,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused {
 			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanID)
 			if updatedBean != nil {
-				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height, false, false)
+				linksFocused := a.state == viewDetailLinksFocused
+				bodyFocused := a.state == viewDetailBodyFocused
+				_, rightWidth := calculatePaneWidths(a.width)
+				a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-2, linksFocused, bodyFocused)
 			}
 		}
 		return a, a.list.loadBeans
@@ -605,7 +617,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Refresh the bean to show updated parent
 			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanIDs[0])
 			if updatedBean != nil {
-				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height, false, false)
+				linksFocused := a.state == viewDetailLinksFocused
+				bodyFocused := a.state == viewDetailBodyFocused
+				_, rightWidth := calculatePaneWidths(a.width)
+				a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-2, linksFocused, bodyFocused)
 			}
 		}
 		return a, a.list.loadBeans
