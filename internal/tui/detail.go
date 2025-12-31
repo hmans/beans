@@ -19,6 +19,9 @@ import (
 	"github.com/hmans/beans/internal/ui"
 )
 
+// borderSize is the total width/height added by a lipgloss border (1 left + 1 right, or 1 top + 1 bottom)
+const borderSize = 2
+
 // Cached glamour renderer - initialized once per width
 var (
 	glamourRenderer     *glamour.TermRenderer
@@ -92,12 +95,10 @@ func (d linkDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 	// Get colors from config
 	colors := d.cfg.GetBeanColors(link.bean.Status, link.bean.Type, link.bean.Priority)
 
-	// Calculate max title width using responsive columns
-	baseWidth := d.cols.ID + d.cols.Status + d.cols.Type + 12 + 4 // label + cursor + padding
-	if d.cols.ShowTags {
-		baseWidth += d.cols.Tags
-	}
-	maxTitleWidth := max(10, d.width-baseWidth-8) // 8 for border padding
+	// Calculate max title width - use fixed short column widths (3 chars each for type/status)
+	// d.width is already the inner width (minus border)
+	baseWidth := ui.ColWidthID + ui.ColWidthStatus + ui.ColWidthType + 12 + 4 // ID + status + type + label + cursor/padding
+	maxTitleWidth := max(10, d.width-baseWidth)
 
 	// Use shared bean row rendering (without cursor, we handle it separately)
 	row := ui.RenderBeanRow(
@@ -114,10 +115,11 @@ func (d linkDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 			MaxTitleWidth: maxTitleWidth,
 			ShowCursor:    false,
 			IsSelected:    false,
-			Tags:          link.bean.Tags,
-			ShowTags:      d.cols.ShowTags,
-			TagsColWidth:  d.cols.Tags,
-			MaxTags:       d.cols.MaxTags,
+			Tags:          nil,   // Don't show tags in linked beans for compact display
+			ShowTags:      false,
+			TagsColWidth:  0,
+			MaxTags:       0,
+			UseFullNames:  false, // Short type/status for compact display
 		},
 	)
 
@@ -135,20 +137,27 @@ type detailModel struct {
 	ready         bool
 	links         []resolvedLink       // combined outgoing + incoming links
 	linkList      list.Model           // list component for links (supports filtering)
-	linksActive   bool                 // true = links section focused
+	linksFocused  bool                 // true = links section has primary border
+	bodyFocused   bool                 // true = body section has primary border
 	cols          ui.ResponsiveColumns // responsive column widths for links
 	statusMessage string               // Status message to display in footer
 }
 
-func newDetailModel(b *bean.Bean, resolver *graph.Resolver, cfg *config.Config, width, height int) detailModel {
+func newDetailModel(b *bean.Bean, resolver *graph.Resolver, cfg *config.Config, width, height int, linksFocused, bodyFocused bool) detailModel {
 	m := detailModel{
-		bean:        b,
-		resolver:    resolver,
-		config:      cfg,
-		width:       width,
-		height:      height,
-		ready:       true,
-		linksActive: false,
+		bean:         b,
+		resolver:     resolver,
+		config:       cfg,
+		width:        width,
+		height:       height,
+		ready:        true,
+		linksFocused: linksFocused,
+		bodyFocused:  bodyFocused,
+	}
+
+	if b == nil {
+		// Empty state - no links, empty viewport
+		return m
 	}
 
 	// Resolve all links
@@ -171,16 +180,10 @@ func newDetailModel(b *bean.Bean, resolver *graph.Resolver, cfg *config.Config, 
 	// Initialize link list with items
 	m.linkList = m.createLinkList()
 
-	// If there are links, select first one and focus links by default
-	if len(m.links) > 0 {
-		m.linksActive = true
-	}
-
 	// Calculate header height dynamically
 	headerHeight := m.calculateHeaderHeight()
-	footerHeight := 2
-	vpWidth := width - 4
-	vpHeight := height - headerHeight - footerHeight
+	vpWidth := width - borderSize
+	vpHeight := height - headerHeight - borderSize
 
 	m.viewport = viewport.New(vpWidth, vpHeight)
 	m.viewport.SetContent(m.renderBody(vpWidth))
@@ -190,9 +193,10 @@ func newDetailModel(b *bean.Bean, resolver *graph.Resolver, cfg *config.Config, 
 
 // createLinkList creates a new list.Model for the links
 func (m detailModel) createLinkList() list.Model {
+	innerWidth := m.width - borderSize
 	delegate := linkDelegate{
 		cfg:   m.config,
-		width: m.width,
+		width: innerWidth,
 		cols:  m.cols,
 	}
 
@@ -208,16 +212,12 @@ func (m detailModel) createLinkList() list.Model {
 		}
 	}
 
-	// Calculate list height: show all links up to 1/3 of screen height
-	// Add 2 for the title row and padding
-	maxHeight := max(3, m.height/3)
-	listHeight := min(len(m.links), maxHeight) + 2
+	listHeight := m.linksListHeight()
 
-	l := list.New(items, delegate, m.width-8, listHeight)
+	l := list.New(items, delegate, m.width-2, listHeight)
 	l.Title = "Linked Beans"
 	l.SetShowStatusBar(false)
 	l.SetShowHelp(false)
-	l.SetShowPagination(false)
 	l.SetFilteringEnabled(true)
 
 	// Style the title bar similar to the detail header title (badge style) but with different color
@@ -261,16 +261,12 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 		// Update link list delegate with new dimensions
 		m.updateLinkListDelegate()
 
-		// Update link list size: show all links up to 1/3 of screen height
-		// Add 2 for the title row and padding
-		maxHeight := max(3, msg.Height/3)
-		listHeight := min(len(m.links), maxHeight) + 2
-		m.linkList.SetSize(msg.Width-8, listHeight)
+		// Update link list size
+		m.linkList.SetSize(msg.Width-borderSize, m.linksListHeight())
 
 		headerHeight := m.calculateHeaderHeight()
-		footerHeight := 2
-		vpWidth := msg.Width - 4
-		vpHeight := msg.Height - headerHeight - footerHeight
+		vpWidth := msg.Width - borderSize
+		vpHeight := msg.Height - headerHeight - borderSize
 
 		// Ensure vpHeight doesn't go negative
 		if vpHeight < 1 {
@@ -289,27 +285,15 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 
 	case tea.KeyMsg:
 		// If links list is filtering, let it handle all keys except quit
-		if m.linksActive && m.linkList.FilterState() == list.Filtering {
+		if m.linksFocused && m.linkList.FilterState() == list.Filtering {
 			m.linkList, cmd = m.linkList.Update(msg)
 			return m, cmd
 		}
 
 		switch msg.String() {
-		case "esc", "backspace":
-			return m, func() tea.Msg {
-				return backToListMsg{}
-			}
-
-		case "tab":
-			// Toggle focus between links and body
-			if len(m.links) > 0 {
-				m.linksActive = !m.linksActive
-			}
-			return m, nil
-
 		case "enter":
 			// Navigate to selected link
-			if m.linksActive {
+			if m.linksFocused {
 				if item, ok := m.linkList.SelectedItem().(linkItem); ok {
 					targetBean := item.link.bean
 					return m, func() tea.Msg {
@@ -387,7 +371,7 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 	}
 
 	// Forward updates to the appropriate component
-	if m.linksActive && len(m.links) > 0 {
+	if m.linksFocused && len(m.links) > 0 {
 		m.linkList, cmd = m.linkList.Update(msg)
 		cmds = append(cmds, cmd)
 	} else {
@@ -402,7 +386,7 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 func (m *detailModel) updateLinkListDelegate() {
 	delegate := linkDelegate{
 		cfg:   m.config,
-		width: m.width,
+		width: m.width - borderSize,
 		cols:  m.cols,
 	}
 	m.linkList.SetDelegate(delegate)
@@ -413,6 +397,10 @@ func (m detailModel) View() string {
 		return "Loading..."
 	}
 
+	if m.bean == nil {
+		return m.renderEmpty()
+	}
+
 	// Header (bean info only, no links)
 	header := m.renderHeader()
 
@@ -420,72 +408,69 @@ func (m detailModel) View() string {
 	var linksSection string
 	if len(m.links) > 0 {
 		linksBorderColor := ui.ColorMuted
-		if m.linksActive {
+		if m.linksFocused {
 			linksBorderColor = ui.ColorPrimary
 		}
 		linksBorder := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(linksBorderColor).
-			Width(m.width - 4)
-		linksSection = linksBorder.Render(m.linkList.View()) + "\n"
+			Width(m.width - borderSize)
+
+		listView := m.linkList.View()
+		linksSection = linksBorder.Render(listView) + "\n"
 	}
 
-	// Body
+	// Body - calculate exact height to fill remaining space
 	bodyBorderColor := ui.ColorMuted
-	if !m.linksActive {
+	if m.bodyFocused {
 		bodyBorderColor = ui.ColorPrimary
 	}
+
+	// Calculate body box height to fill remaining height
+	headerHeight := m.calculateHeaderHeight()
+	bodyBoxHeight := m.height - headerHeight
+	bodyContentHeight := bodyBoxHeight - borderSize
+
 	bodyBorder := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(bodyBorderColor).
-		Width(m.width - 4)
+		Width(m.width - borderSize).
+		Height(bodyContentHeight)
 	body := bodyBorder.Render(m.viewport.View())
 
-	// Footer
-	scrollPct := int(m.viewport.ScrollPercent() * 100)
-	footer := helpStyle.Render(fmt.Sprintf("%d%%", scrollPct)) + "  "
-	if len(m.links) > 0 {
-		footer += helpKeyStyle.Render("tab") + " " + helpStyle.Render("switch") + "  "
-		if m.linksActive {
-			footer += helpKeyStyle.Render("/") + " " + helpStyle.Render("filter") + "  "
-		}
-		footer += helpKeyStyle.Render("enter") + " " + helpStyle.Render("go to") + "  "
-	}
-	footer += helpKeyStyle.Render("b") + " " + helpStyle.Render("blocking") + "  " +
-		helpKeyStyle.Render("e") + " " + helpStyle.Render("edit") + "  " +
-		helpKeyStyle.Render("p") + " " + helpStyle.Render("parent") + "  " +
-		helpKeyStyle.Render("P") + " " + helpStyle.Render("priority") + "  " +
-		helpKeyStyle.Render("s") + " " + helpStyle.Render("status") + "  " +
-		helpKeyStyle.Render("t") + " " + helpStyle.Render("type") + "  " +
-		helpKeyStyle.Render("y") + " " + helpStyle.Render("copy id") + "  " +
-		helpKeyStyle.Render("j/k") + " " + helpStyle.Render("scroll") + "  " +
-		helpKeyStyle.Render("?") + " " + helpStyle.Render("help") + "  " +
-		helpKeyStyle.Render("esc") + " " + helpStyle.Render("back") + "  " +
-		helpKeyStyle.Render("q") + " " + helpStyle.Render("quit")
+	result := header + "\n" + linksSection + body
 
-	// Prepend status message if present
-	if m.statusMessage != "" {
-		statusStyle := lipgloss.NewStyle().Foreground(ui.ColorSuccess).Bold(true)
-		footer = statusStyle.Render(m.statusMessage) + "  " + footer
-	}
+	return result
+}
 
-	return header + "\n" + linksSection + body + "\n" + footer
+// linksListHeight returns the height to request for the bubbles list component.
+// Note: bubbles list ignores this when there are few items, so calculateHeaderHeight()
+// counts actual rendered lines instead.
+func (m detailModel) linksListHeight() int {
+	if len(m.links) == 0 {
+		return 0
+	}
+	maxItems := 5
+	numVisible := min(len(m.links), maxItems)
+	height := 1 + numVisible // title + items
+	if len(m.links) > maxItems {
+		height++ // pagination dots when there are more items
+	}
+	return height
 }
 
 func (m detailModel) calculateHeaderHeight() int {
-	// Base: title line + ID/status line + borders/padding = ~6
-	baseHeight := 6
+	// Header box: 2 lines content + border = 4 lines
+	height := 2 + borderSize
 
-	// Add height for links section (separate bordered box)
 	if len(m.links) > 0 {
-		// Links list height + borders (matches createLinkList calculation)
-		// +2 for title row and padding, +3 for borders and spacing
-		maxHeight := max(3, m.height/3)
-		listHeight := min(len(m.links), maxHeight) + 2
-		baseHeight += listHeight + 3
+		// Links box: count actual rendered lines (bubbles list ignores height with few items)
+		listView := m.linkList.View()
+		actualLines := strings.Count(listView, "\n") + 1
+		height += actualLines + borderSize
 	}
 
-	return baseHeight
+	return height
 }
 
 func (m detailModel) renderHeader() string {
@@ -516,12 +501,11 @@ func (m detailModel) renderHeader() string {
 		headerContent.WriteString(ui.RenderTags(m.bean.Tags))
 	}
 
-	// Header box style - always muted border (not focused, links section is separate)
 	headerBox := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(ui.ColorMuted).
 		Padding(0, 1).
-		Width(m.width - 4)
+		Width(m.width - borderSize)
 
 	return headerBox.Render(headerContent.String())
 }
@@ -663,6 +647,15 @@ func compareBeansByStatusPriorityAndType(a, b *bean.Bean, statusNames, priorityN
 	return strings.ToLower(a.Title) < strings.ToLower(b.Title)
 }
 
+
+func (m detailModel) renderEmpty() string {
+	style := lipgloss.NewStyle().
+		Width(m.width).
+		Height(m.height).
+		Align(lipgloss.Center, lipgloss.Center).
+		Foreground(ui.ColorMuted)
+	return style.Render("No bean selected")
+}
 
 func (m detailModel) renderBody(_ int) string {
 	if m.bean.Body == "" {

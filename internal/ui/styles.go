@@ -276,6 +276,42 @@ func RenderPriorityText(priority, color string) string {
 	return style.Render(priority)
 }
 
+// ShortType returns a single-character code for the bean type.
+func ShortType(t string) string {
+	switch t {
+	case "milestone":
+		return "M"
+	case "epic":
+		return "E"
+	case "bug":
+		return "B"
+	case "feature":
+		return "F"
+	case "task":
+		return "T"
+	default:
+		return "?"
+	}
+}
+
+// ShortStatus returns a single-character code for the bean status.
+func ShortStatus(s string) string {
+	switch s {
+	case "draft":
+		return "D"
+	case "todo":
+		return "T"
+	case "in-progress":
+		return "I"
+	case "completed":
+		return "C"
+	case "scrapped":
+		return "S"
+	default:
+		return "?"
+	}
+}
+
 // GetPrioritySymbol returns the raw symbol for a priority without styling.
 // Returns empty string for normal/empty priority.
 func GetPrioritySymbol(priority string) string {
@@ -327,24 +363,26 @@ type BeanRowConfig struct {
 	TreePrefix    string   // Tree prefix (e.g., "├─" or "  └─") to prepend to ID
 	Dimmed        bool     // Render row dimmed (for unmatched ancestor beans in tree)
 	IDColWidth    int      // Width of ID column (0 = default of ColWidthID)
+	UseFullNames  bool     // Use full type/status names instead of single-char abbreviations
 }
 
 // Base column widths for bean lists (minimum sizes)
 const (
 	ColWidthID     = 12
-	ColWidthStatus = 14
-	ColWidthType   = 12
+	ColWidthStatus = 3
+	ColWidthType   = 3
 	ColWidthTags   = 24
 )
 
 // ResponsiveColumns holds calculated column widths based on available space
 type ResponsiveColumns struct {
-	ID       int
-	Status   int
-	Type     int
-	Tags     int
-	MaxTags  int // How many tags to show
-	ShowTags bool
+	ID                int
+	Status            int
+	Type              int
+	Tags              int
+	MaxTags           int  // How many tags to show
+	ShowTags          bool
+	UseFullTypeStatus bool // Use full names instead of single-char abbreviations
 }
 
 // CalculateResponsiveColumns determines column widths based on available width.
@@ -359,6 +397,14 @@ func CalculateResponsiveColumns(totalWidth int, hasTags bool) ResponsiveColumns 
 		ShowTags: false,
 	}
 
+	// Use full type/status names when terminal is wide enough
+	const minWidthForFullNames = 120
+	if totalWidth >= minWidthForFullNames {
+		cols.UseFullTypeStatus = true
+		cols.Status = 12 // "in-progress" needs 11 chars
+		cols.Type = 10   // "milestone" needs 9 chars
+	}
+
 	// Don't show tags in narrow viewports - prioritize title space
 	// Only consider showing tags if terminal is wide enough (140+ columns)
 	const minWidthForTags = 140
@@ -368,7 +414,7 @@ func CalculateResponsiveColumns(totalWidth int, hasTags bool) ResponsiveColumns 
 	}
 
 	// At this point we have at least 140 columns
-	// Base usage: cursor (2) + ID (12) + status (14) + type (12) = 40
+	// Base usage: cursor (2) + ID + status + type (use responsive widths)
 	cursorWidth := 2
 	baseWidth := cursorWidth + cols.ID + cols.Status + cols.Type
 	available := totalWidth - baseWidth
@@ -448,22 +494,34 @@ func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string
 		idCol = TreeLine.Render(cfg.TreePrefix) + ID.Render(id) + padding
 	}
 
-	var typeCol string
-	if typeName != "" {
-		if cfg.Dimmed {
-			typeCol = typeStyle.Render(Muted.Render(typeName))
-		} else {
-			typeCol = typeStyle.Render(RenderTypeText(typeName, cfg.TypeColor))
-		}
+	// Type column - single character or full name
+	var typeStr string
+	if cfg.UseFullNames {
+		typeStr = typeName
+		typeStyle = typeStyle.Width(12) // wider for full names
 	} else {
-		typeCol = typeStyle.Render("")
+		typeStr = ShortType(typeName)
+	}
+	var typeCol string
+	if cfg.Dimmed {
+		typeCol = typeStyle.Render(Muted.Render(typeStr))
+	} else {
+		typeCol = typeStyle.Render(RenderTypeText(typeStr, cfg.TypeColor))
 	}
 
+	// Status column - single character or full name
+	var statusStr string
+	if cfg.UseFullNames {
+		statusStr = status
+		statusStyle = statusStyle.Width(12) // wider for full names
+	} else {
+		statusStr = ShortStatus(status)
+	}
 	var statusCol string
 	if cfg.Dimmed {
-		statusCol = statusStyle.Render(Muted.Render(status))
+		statusCol = statusStyle.Render(Muted.Render(statusStr))
 	} else {
-		statusCol = statusStyle.Render(RenderStatusTextWithColor(status, cfg.StatusColor, cfg.IsArchive))
+		statusCol = statusStyle.Render(RenderStatusTextWithColor(statusStr, cfg.StatusColor, cfg.IsArchive))
 	}
 
 	// Tags column (optional)
@@ -496,9 +554,9 @@ func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string
 	if maxWidth > 0 && prioritySymbol != "" {
 		maxWidth -= 2 // Account for symbol + space
 	}
-	if maxWidth > 3 && len(title) > maxWidth {
-		displayTitle = title[:maxWidth-3] + "..."
-	} else if maxWidth > 0 && maxWidth <= 3 && len(title) > maxWidth {
+	if maxWidth > 1 && len(title) > maxWidth {
+		displayTitle = title[:maxWidth-1] + "…"
+	} else if maxWidth > 0 && maxWidth <= 1 && len(title) > maxWidth {
 		displayTitle = title[:maxWidth]
 	}
 
