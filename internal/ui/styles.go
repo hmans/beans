@@ -537,7 +537,7 @@ func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string
 		if titleColWidth > titleLen {
 			padding = strings.Repeat(" ", titleColWidth-titleLen)
 		}
-		return cursor + idCol + typeCol + statusCol + prioritySymbol + titleStyled + padding + " " + tagsCol
+		return cursor + idCol + " " + typeCol + " " + statusCol + " " + prioritySymbol + titleStyled + padding + " " + tagsCol
 	}
-	return cursor + idCol + typeCol + statusCol + prioritySymbol + titleStyled
+	return cursor + idCol + " " + typeCol + " " + statusCol + " " + prioritySymbol + titleStyled
 }
