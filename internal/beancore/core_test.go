@@ -1535,3 +1535,48 @@ func TestArchiveShortID(t *testing.T) {
 		t.Error("bean should be archived")
 	}
 }
+
+func TestNormalizeID(t *testing.T) {
+	tmpDir := t.TempDir()
+	beansDir := filepath.Join(tmpDir, BeansDir)
+	os.MkdirAll(beansDir, 0755)
+
+	cfg := config.DefaultWithPrefix("beans-")
+	core := New(beansDir, cfg)
+	core.SetWarnWriter(nil)
+	if err := core.Load(); err != nil {
+		t.Fatalf("failed to load core: %v", err)
+	}
+
+	createTestBean(t, core, "beans-abc1", "Test Bean", "todo")
+
+	t.Run("exact match returns same ID", func(t *testing.T) {
+		normalized, found := core.NormalizeID("beans-abc1")
+		if !found {
+			t.Error("NormalizeID() should find exact match")
+		}
+		if normalized != "beans-abc1" {
+			t.Errorf("NormalizeID() = %q, want %q", normalized, "beans-abc1")
+		}
+	})
+
+	t.Run("short ID normalizes to full ID", func(t *testing.T) {
+		normalized, found := core.NormalizeID("abc1")
+		if !found {
+			t.Error("NormalizeID() should find short ID match")
+		}
+		if normalized != "beans-abc1" {
+			t.Errorf("NormalizeID() = %q, want %q", normalized, "beans-abc1")
+		}
+	})
+
+	t.Run("nonexistent ID returns original", func(t *testing.T) {
+		normalized, found := core.NormalizeID("nonexistent")
+		if found {
+			t.Error("NormalizeID() should not find nonexistent ID")
+		}
+		if normalized != "nonexistent" {
+			t.Errorf("NormalizeID() = %q, want %q", normalized, "nonexistent")
+		}
+	})
+}

@@ -1047,3 +1047,115 @@ func TestRelationshipFieldsWithFilter(t *testing.T) {
 		}
 	})
 }
+
+// setupTestResolverWithPrefix creates a test resolver with a configured prefix.
+func setupTestResolverWithPrefix(t *testing.T, prefix string) (*Resolver, *beancore.Core) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	beansDir := filepath.Join(tmpDir, ".beans")
+	if err := os.MkdirAll(beansDir, 0755); err != nil {
+		t.Fatalf("failed to create test .beans dir: %v", err)
+	}
+
+	cfg := config.DefaultWithPrefix(prefix)
+	core := beancore.New(beansDir, cfg)
+	if err := core.Load(); err != nil {
+		t.Fatalf("failed to load core: %v", err)
+	}
+
+	return &Resolver{Core: core}, core
+}
+
+func TestShortIDNormalization(t *testing.T) {
+	// Use a prefix so we can test short ID resolution
+	resolver, core := setupTestResolverWithPrefix(t, "beans-")
+	ctx := context.Background()
+
+	// Create test beans with full IDs (prefix + short ID)
+	parent := &bean.Bean{ID: "beans-parent1", Title: "Parent", Status: "todo", Type: "epic"}
+	child := &bean.Bean{ID: "beans-child1", Title: "Child", Status: "todo", Type: "task"}
+	target := &bean.Bean{ID: "beans-target1", Title: "Target", Status: "todo", Type: "task"}
+	core.Create(parent)
+	core.Create(child)
+	core.Create(target)
+
+	t.Run("SetParent normalizes short ID", func(t *testing.T) {
+		mr := resolver.Mutation()
+		// Use short ID (without prefix)
+		shortParentID := "parent1"
+		got, err := mr.SetParent(ctx, "beans-child1", &shortParentID)
+		if err != nil {
+			t.Fatalf("SetParent() error = %v", err)
+		}
+		// Should store the full ID, not the short one
+		if got.Parent != "beans-parent1" {
+			t.Errorf("SetParent().Parent = %q, want %q", got.Parent, "beans-parent1")
+		}
+	})
+
+	t.Run("AddBlocking normalizes short ID", func(t *testing.T) {
+		mr := resolver.Mutation()
+		// Use short ID (without prefix)
+		got, err := mr.AddBlocking(ctx, "beans-child1", "target1")
+		if err != nil {
+			t.Fatalf("AddBlocking() error = %v", err)
+		}
+		// Should store the full ID, not the short one
+		if len(got.Blocking) != 1 {
+			t.Fatalf("AddBlocking().Blocking count = %d, want 1", len(got.Blocking))
+		}
+		if got.Blocking[0] != "beans-target1" {
+			t.Errorf("AddBlocking().Blocking[0] = %q, want %q", got.Blocking[0], "beans-target1")
+		}
+	})
+
+	t.Run("RemoveBlocking normalizes short ID", func(t *testing.T) {
+		mr := resolver.Mutation()
+		// Remove using short ID
+		got, err := mr.RemoveBlocking(ctx, "beans-child1", "target1")
+		if err != nil {
+			t.Fatalf("RemoveBlocking() error = %v", err)
+		}
+		if len(got.Blocking) != 0 {
+			t.Errorf("RemoveBlocking().Blocking count = %d, want 0", len(got.Blocking))
+		}
+	})
+
+	t.Run("CreateBean normalizes parent short ID", func(t *testing.T) {
+		mr := resolver.Mutation()
+		beanType := "task"
+		shortParentID := "parent1"
+		input := model.CreateBeanInput{
+			Title:  "New Child",
+			Type:   &beanType,
+			Parent: &shortParentID,
+		}
+		got, err := mr.CreateBean(ctx, input)
+		if err != nil {
+			t.Fatalf("CreateBean() error = %v", err)
+		}
+		if got.Parent != "beans-parent1" {
+			t.Errorf("CreateBean().Parent = %q, want %q", got.Parent, "beans-parent1")
+		}
+	})
+
+	t.Run("CreateBean normalizes blocking short IDs", func(t *testing.T) {
+		mr := resolver.Mutation()
+		beanType := "task"
+		input := model.CreateBeanInput{
+			Title:    "Blocker Bean",
+			Type:     &beanType,
+			Blocking: []string{"target1"},
+		}
+		got, err := mr.CreateBean(ctx, input)
+		if err != nil {
+			t.Fatalf("CreateBean() error = %v", err)
+		}
+		if len(got.Blocking) != 1 {
+			t.Fatalf("CreateBean().Blocking count = %d, want 1", len(got.Blocking))
+		}
+		if got.Blocking[0] != "beans-target1" {
+			t.Errorf("CreateBean().Blocking[0] = %q, want %q", got.Blocking[0], "beans-target1")
+		}
+	})
+}
