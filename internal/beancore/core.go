@@ -281,6 +281,30 @@ func (c *Core) Get(id string) (*bean.Bean, error) {
 	return nil, ErrNotFound
 }
 
+// NormalizeID resolves a potentially short ID to its full form.
+// If a prefix is configured and the query doesn't include it, the prefix is automatically prepended.
+// Returns the full ID and true if found, or the original ID and false if not found.
+func (c *Core) NormalizeID(id string) (string, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	// Try exact match
+	if _, ok := c.beans[id]; ok {
+		return id, true
+	}
+
+	// If not found and we have a configured prefix that isn't already in the query,
+	// try with the prefix prepended (allows short IDs like "abc" to match "beans-abc")
+	if c.config != nil && c.config.Beans.Prefix != "" && !strings.HasPrefix(id, c.config.Beans.Prefix) {
+		fullID := c.config.Beans.Prefix + id
+		if _, ok := c.beans[fullID]; ok {
+			return fullID, true
+		}
+	}
+
+	return id, false
+}
+
 // Create adds a new bean, generating an ID if needed, and writes it to disk.
 func (c *Core) Create(b *bean.Bean) error {
 	c.mu.Lock()

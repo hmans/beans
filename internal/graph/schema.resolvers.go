@@ -104,15 +104,22 @@ func (r *mutationResolver) CreateBean(ctx context.Context, input model.CreateBea
 
 	// Handle parent (with validation)
 	if input.Parent != nil && *input.Parent != "" {
-		if err := r.Core.ValidateParent(b, *input.Parent); err != nil {
+		// Normalise short ID to full ID
+		parentID, _ := r.Core.NormalizeID(*input.Parent)
+		if err := r.Core.ValidateParent(b, parentID); err != nil {
 			return nil, err
 		}
-		b.Parent = *input.Parent
+		b.Parent = parentID
 	}
 
 	// Handle blocking
 	if len(input.Blocking) > 0 {
-		b.Blocking = input.Blocking
+		// Normalise short IDs to full IDs
+		normalizedBlocking := make([]string, len(input.Blocking))
+		for i, id := range input.Blocking {
+			normalizedBlocking[i], _ = r.Core.NormalizeID(id)
+		}
+		b.Blocking = normalizedBlocking
 	}
 
 	if err := r.Core.Create(b); err != nil {
@@ -186,7 +193,8 @@ func (r *mutationResolver) SetParent(ctx context.Context, id string, parentID *s
 
 	newParent := ""
 	if parentID != nil {
-		newParent = *parentID
+		// Normalise short ID to full ID
+		newParent, _ = r.Core.NormalizeID(*parentID)
 	}
 
 	// Validate parent type hierarchy
@@ -214,21 +222,24 @@ func (r *mutationResolver) AddBlocking(ctx context.Context, id string, targetID 
 		return nil, err
 	}
 
-	if targetID == b.ID {
+	// Normalise short ID to full ID
+	normalizedTargetID, _ := r.Core.NormalizeID(targetID)
+
+	if normalizedTargetID == b.ID {
 		return nil, fmt.Errorf("bean cannot block itself")
 	}
 
 	// Check target exists
-	if _, err := r.Core.Get(targetID); err != nil {
+	if _, err := r.Core.Get(normalizedTargetID); err != nil {
 		return nil, fmt.Errorf("target bean not found: %s", targetID)
 	}
 
 	// Check for cycles
-	if cycle := r.Core.DetectCycle(b.ID, "blocking", targetID); cycle != nil {
+	if cycle := r.Core.DetectCycle(b.ID, "blocking", normalizedTargetID); cycle != nil {
 		return nil, fmt.Errorf("would create cycle: %v", cycle)
 	}
 
-	b.AddBlocking(targetID)
+	b.AddBlocking(normalizedTargetID)
 	if err := r.Core.Update(b); err != nil {
 		return nil, err
 	}
@@ -242,7 +253,10 @@ func (r *mutationResolver) RemoveBlocking(ctx context.Context, id string, target
 		return nil, err
 	}
 
-	b.RemoveBlocking(targetID)
+	// Normalise short ID to full ID
+	normalizedTargetID, _ := r.Core.NormalizeID(targetID)
+
+	b.RemoveBlocking(normalizedTargetID)
 	if err := r.Core.Update(b); err != nil {
 		return nil, err
 	}
