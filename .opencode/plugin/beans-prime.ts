@@ -25,10 +25,14 @@ export const BeansPrimePlugin: Plugin = async ({ $ }) => {
 
   return {
     "experimental.chat.system.transform": async (_, output) => {
-      output.system.push(prime);
+      if (prime) {
+        output.system.push(prime);
+      }
     },
     "experimental.session.compacting": async (_, output) => {
-      output.context.push(prime);
+      if (prime) {
+        output.context.push(prime);
+      }
     },
   };
 };
