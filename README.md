@@ -76,6 +76,10 @@ But more importantly, you'll want to get your coding agent set up to use it. Let
 
 The most basic way to teach your agent about Beans is to simply add the following instruction to your `AGENTS.md`, `CLAUDE.md`, or equivalent file:
 
+```bash
+beans prime > AGENTS.md
+```
+
 > **IMPORTANT**: before you do anything else, run the `beans prime` command and heed its output.
 
 Some agents provide mechanisms to automate this step:
