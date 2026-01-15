@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/hmans/beans/internal/bean"
@@ -629,6 +630,68 @@ func TestMutationCreateBean(t *testing.T) {
 		}
 		if len(got.Blocking) != 1 {
 			t.Errorf("CreateBean().Blocking count = %d, want 1", len(got.Blocking))
+		}
+	})
+}
+
+func TestMutationCreateBeanWithCustomPrefix(t *testing.T) {
+	resolver, _ := setupTestResolver(t)
+	ctx := context.Background()
+
+	t.Run("create with custom prefix", func(t *testing.T) {
+		mr := resolver.Mutation()
+		customPrefix := "SYNC-TASK-"
+		input := model.CreateBeanInput{
+			Title:  "Custom Prefix Bean",
+			Prefix: &customPrefix,
+		}
+		got, err := mr.CreateBean(ctx, input)
+		if err != nil {
+			t.Fatalf("CreateBean() error = %v", err)
+		}
+		if got == nil {
+			t.Fatal("CreateBean() returned nil")
+		}
+		// ID should start with the custom prefix
+		if !strings.HasPrefix(got.ID, "SYNC-TASK-") {
+			t.Errorf("CreateBean().ID = %q, want prefix %q", got.ID, "SYNC-TASK-")
+		}
+		// ID should be prefix + 4 chars (default length)
+		if len(got.ID) != len("SYNC-TASK-")+4 {
+			t.Errorf("CreateBean().ID length = %d, want %d", len(got.ID), len("SYNC-TASK-")+4)
+		}
+	})
+
+	t.Run("create without prefix uses config default", func(t *testing.T) {
+		mr := resolver.Mutation()
+		input := model.CreateBeanInput{
+			Title: "No Custom Prefix Bean",
+		}
+		got, err := mr.CreateBean(ctx, input)
+		if err != nil {
+			t.Fatalf("CreateBean() error = %v", err)
+		}
+		// Without custom prefix, should use config default (empty in test setup)
+		// ID should just be 4 chars
+		if len(got.ID) != 4 {
+			t.Errorf("CreateBean().ID length = %d, want 4", len(got.ID))
+		}
+	})
+
+	t.Run("create with empty prefix string uses config default", func(t *testing.T) {
+		mr := resolver.Mutation()
+		emptyPrefix := ""
+		input := model.CreateBeanInput{
+			Title:  "Empty Prefix Bean",
+			Prefix: &emptyPrefix,
+		}
+		got, err := mr.CreateBean(ctx, input)
+		if err != nil {
+			t.Fatalf("CreateBean() error = %v", err)
+		}
+		// Empty string prefix should fall back to config default
+		if len(got.ID) != 4 {
+			t.Errorf("CreateBean().ID length = %d, want 4", len(got.ID))
 		}
 	})
 }

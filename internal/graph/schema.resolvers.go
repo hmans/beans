@@ -122,6 +122,15 @@ func (r *mutationResolver) CreateBean(ctx context.Context, input model.CreateBea
 		b.Blocking = normalizedBlocking
 	}
 
+	// Handle custom prefix - pre-generate ID if prefix is provided
+	if input.Prefix != nil && *input.Prefix != "" {
+		idLength := 4 // default
+		if cfg := r.Core.Config(); cfg != nil && cfg.Beans.IDLength > 0 {
+			idLength = cfg.Beans.IDLength
+		}
+		b.ID = bean.NewID(*input.Prefix, idLength)
+	}
+
 	if err := r.Core.Create(b); err != nil {
 		return nil, err
 	}

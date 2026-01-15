@@ -3610,7 +3610,7 @@ func (ec *executionContext) unmarshalInputCreateBeanInput(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"title", "type", "status", "priority", "tags", "body", "parent", "blocking"}
+	fieldsInOrder := [...]string{"title", "type", "status", "priority", "tags", "body", "parent", "blocking", "prefix"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -3673,6 +3673,13 @@ func (ec *executionContext) unmarshalInputCreateBeanInput(ctx context.Context, o
 				return it, err
 			}
 			it.Blocking = data
+		case "prefix":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("prefix"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Prefix = data
 		}
 	}
 

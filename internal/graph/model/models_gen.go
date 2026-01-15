@@ -68,6 +68,8 @@ type CreateBeanInput struct {
 	Parent *string `json:"parent,omitempty"`
 	// Bean IDs this bean is blocking
 	Blocking []string `json:"blocking,omitempty"`
+	// Custom ID prefix (overrides config prefix for this bean)
+	Prefix *string `json:"prefix,omitempty"`
 }
 
 type Mutation struct {

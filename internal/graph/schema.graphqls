@@ -66,6 +66,8 @@ input CreateBeanInput {
   parent: String
   "Bean IDs this bean is blocking"
   blocking: [String!]
+  "Custom ID prefix (overrides config prefix for this bean)"
+  prefix: String
 }
 
 """
