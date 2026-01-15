@@ -22,7 +22,9 @@ Beans is still under heavy development, and its features and APIs may still chan
 
 Since Beans emits its own prompt instructions for your coding agent, most changes will "just work"; but sometimes, we modify the schema of the underlying data files, which may require some manual migration steps. If you get caught by one of these changes, your agent will often be able to migrate your data for you:
 
-> "The Beans data format has changed. Please migrate this project's beans to the new format."
+```
+The Beans data format has changed. Please migrate this project's beans to the new format.
+```
 
 ## Features
 
@@ -76,7 +78,9 @@ But more importantly, you'll want to get your coding agent set up to use it. Let
 
 The most basic way to teach your agent about Beans is to simply add the following instruction to your `AGENTS.md`, `CLAUDE.md`, or equivalent file:
 
-> **IMPORTANT**: before you do anything else, run the `beans prime` command and heed its output.
+```
+**IMPORTANT**: before you do anything else, run the `beans prime` command and heed its output.
+```
 
 Some agents provide mechanisms to automate this step:
 
@@ -122,23 +126,33 @@ beans tui
 Assuming you have integrated Beans into your coding agent correctly, it will already know how to create and manage beans for you. You can use the usual assortment of natural language inquiries. If you've just
 added Beans to an existing project, you could try asking your agent to identify potential tasks and create beans for them:
 
-> "Are there any tasks we should be tracking for this project? If so, please create beans for them."
+```
+Are there any tasks we should be tracking for this project? If so, please create beans for them.
+```
 
 If you already have some beans available, you can ask your agent to recommend what to work on next:
 
-> "What should we work on next?"
+```
+What should we work on next?
+```
 
 You can also specifically ask it to start working on a particular bean:
 
-> "It's time to tackle myproj-123."
+```
+It's time to tackle myproj-123.
+```
 
 Consider that your agent will be just as capable to deal with beans as it is with code, so how about using it to quickly restructure your tasks?
 
-> "Please inspect this project's beans and reorganize them into epics. Also please create 2-3 milestones to group these epics in a meaningful way."
+```
+Please inspect this project's beans and reorganize them into epics. Also please create 2-3 milestones to group these epics in a meaningful way.
+```
 
 You can also add Beans-specific instructions to your `AGENTS.md`, `CLAUDE.md` or equivalent file, for example:
 
-> "When making a commit, include the relevant bean IDs in the commit message"
+```
+When making a commit, include the relevant bean IDs in the commit message
+```
 
 ## Contributing
 
