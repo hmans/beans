@@ -114,6 +114,8 @@ type Bean {
   updatedAt: Time!
   "Markdown body content"
   body: String!
+  "Content hash for optimistic concurrency control"
+  etag: String!
 
   # Direct link fields
   "Parent bean ID (optional, type-restricted)"
