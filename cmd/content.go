@@ -86,27 +86,12 @@ func mergeTags(existing, add, remove []string) []string {
 // applyBodyReplace replaces exactly one occurrence of old with new.
 // Returns an error if old is not found or found multiple times.
 func applyBodyReplace(body, old, new string) (string, error) {
-	if old == "" {
-		return "", fmt.Errorf("--old cannot be empty")
-	}
-	count := strings.Count(body, old)
-	if count == 0 {
-		return "", fmt.Errorf("text not found in body")
-	}
-	if count > 1 {
-		return "", fmt.Errorf("text found %d times in body (must be unique)", count)
-	}
-	return strings.Replace(body, old, new, 1), nil
+	return bean.ReplaceOnce(body, old, new)
 }
 
 // applyBodyAppend appends text to the body with a newline separator.
 func applyBodyAppend(body, text string) string {
-	if body == "" {
-		return text
-	}
-	// Ensure single newline separator
-	body = strings.TrimRight(body, "\n")
-	return body + "\n\n" + text
+	return bean.AppendWithSeparator(body, text)
 }
 
 // resolveAppendContent handles --append value, supporting stdin with "-".

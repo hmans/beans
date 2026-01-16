@@ -154,6 +154,32 @@ You can also add Beans-specific instructions to your `AGENTS.md`, `CLAUDE.md` or
 When making a commit, include the relevant bean IDs in the commit message
 ```
 
+## GraphQL API
+
+Beans includes a GraphQL API for advanced querying and mutations. View the full schema:
+
+```bash
+beans query --schema
+```
+
+### Examples
+
+```bash
+# Query beans with filtering
+beans query '{ beans(filter: { status: ["todo"] }) { id title } }'
+
+# Create a bean
+beans query 'mutation { createBean(input: { title: "New task", type: "task" }) { id } }'
+
+# Update status
+beans query 'mutation { updateBean(id: "bean-xxx", input: { status: "completed" }) { id } }'
+
+# Partial body update (check off a task)
+beans query 'mutation { replaceInBody(id: "bean-xxx", old: "- [ ] Task", new: "- [x] Task") { body } }'
+```
+
+All mutations support `ifMatch` for optimistic locking.
+
 ## Contributing
 
 This project currently does not accept contributions -- it's just way too early for that!

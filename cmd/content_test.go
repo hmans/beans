@@ -158,7 +158,7 @@ func TestApplyBodyReplace(t *testing.T) {
 			body:    "Hello",
 			old:     "",
 			new:     "world",
-			wantErr: "--old cannot be empty",
+			wantErr: "old text cannot be empty",
 		},
 		{
 			name: "partial match only once",
@@ -234,10 +234,10 @@ func TestApplyBodyAppend(t *testing.T) {
 			want: "Content\n\nMore",
 		},
 		{
-			name: "append empty text",
+			name: "append empty text is no-op",
 			body: "Content",
 			text: "",
-			want: "Content\n\n",
+			want: "Content",
 		},
 	}
 
