@@ -27,11 +27,11 @@ export const BeansPrimePlugin: Plugin = async ({ $, directory }) => {
   try {
     // Both conditions must be true:
     // 1. beans CLI is installed
-    // 2. beans configured for current project
+    // 2. Project has .beans.yml config
     const hasBeans = await $`which beans`.quiet();
-    const isConfigured = await $`beans check`.cwd(directory).quiet();
+    const hasConfig = await $`test -f ${directory}/.beans.yml`.quiet();
 
-    if (hasBeans.exitCode === 0 && isConfigured.exitCode === 0) {
+    if (hasBeans.exitCode === 0 && hasConfig.exitCode === 0) {
       const result = await $`beans prime`.cwd(directory).quiet();
       prime = result.stdout.toString();
     }
