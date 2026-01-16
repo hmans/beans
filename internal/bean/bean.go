@@ -2,7 +2,10 @@ package bean
 
 import (
 	"bytes"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"regexp"
 	"strings"
@@ -214,4 +217,31 @@ func (b *Bean) Render() ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+// ETag returns a hash of the bean's rendered content for optimistic concurrency control.
+// Uses FNV-1a 64-bit hash, producing a 16-character hex string.
+// Returns "0000000000000000" if rendering fails (should never happen for valid beans).
+func (b *Bean) ETag() string {
+	content, err := b.Render()
+	if err != nil {
+		// Return a sentinel value that will never match a real ETag,
+		// ensuring validation will fail rather than silently passing.
+		return "0000000000000000"
+	}
+	h := fnv.New64a()
+	h.Write(content)
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// MarshalJSON implements json.Marshaler to include computed etag field.
+func (b *Bean) MarshalJSON() ([]byte, error) {
+	type BeanAlias Bean // Avoid infinite recursion
+	return json.Marshal(&struct {
+		*BeanAlias
+		ETag string `json:"etag"`
+	}{
+		BeanAlias: (*BeanAlias)(b),
+		ETag:      b.ETag(),
+	})
 }

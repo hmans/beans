@@ -92,4 +92,6 @@ type UpdateBeanInput struct {
 	Tags []string `json:"tags,omitempty"`
 	// New body content
 	Body *string `json:"body,omitempty"`
+	// ETag for optimistic concurrency control (optional)
+	IfMatch *string `json:"ifMatch,omitempty"`
 }

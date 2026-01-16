@@ -797,7 +797,7 @@ func TestMutationSetParent(t *testing.T) {
 	t.Run("set parent", func(t *testing.T) {
 		mr := resolver.Mutation()
 		parentID := "parent-1"
-		got, err := mr.SetParent(ctx, "child-1", &parentID)
+		got, err := mr.SetParent(ctx, "child-1", &parentID, nil)
 		if err != nil {
 			t.Fatalf("SetParent() error = %v", err)
 		}
@@ -808,7 +808,7 @@ func TestMutationSetParent(t *testing.T) {
 
 	t.Run("clear parent", func(t *testing.T) {
 		mr := resolver.Mutation()
-		got, err := mr.SetParent(ctx, "child-1", nil)
+		got, err := mr.SetParent(ctx, "child-1", nil, nil)
 		if err != nil {
 			t.Fatalf("SetParent() error = %v", err)
 		}
@@ -820,7 +820,7 @@ func TestMutationSetParent(t *testing.T) {
 	t.Run("set parent on nonexistent bean", func(t *testing.T) {
 		mr := resolver.Mutation()
 		parentID := "parent-1"
-		_, err := mr.SetParent(ctx, "nonexistent", &parentID)
+		_, err := mr.SetParent(ctx, "nonexistent", &parentID, nil)
 		if err == nil {
 			t.Error("SetParent() expected error for nonexistent bean")
 		}
@@ -839,7 +839,7 @@ func TestMutationAddRemoveBlocking(t *testing.T) {
 
 	t.Run("add block", func(t *testing.T) {
 		mr := resolver.Mutation()
-		got, err := mr.AddBlocking(ctx, "blocker-1", "target-1")
+		got, err := mr.AddBlocking(ctx, "blocker-1", "target-1", nil)
 		if err != nil {
 			t.Fatalf("AddBlocking() error = %v", err)
 		}
@@ -853,7 +853,7 @@ func TestMutationAddRemoveBlocking(t *testing.T) {
 
 	t.Run("remove block", func(t *testing.T) {
 		mr := resolver.Mutation()
-		got, err := mr.RemoveBlocking(ctx, "blocker-1", "target-1")
+		got, err := mr.RemoveBlocking(ctx, "blocker-1", "target-1", nil)
 		if err != nil {
 			t.Fatalf("RemoveBlocking() error = %v", err)
 		}
@@ -864,7 +864,7 @@ func TestMutationAddRemoveBlocking(t *testing.T) {
 
 	t.Run("add block to nonexistent bean", func(t *testing.T) {
 		mr := resolver.Mutation()
-		_, err := mr.AddBlocking(ctx, "nonexistent", "target-1")
+		_, err := mr.AddBlocking(ctx, "nonexistent", "target-1", nil)
 		if err == nil {
 			t.Error("AddBlocking() expected error for nonexistent bean")
 		}
@@ -1129,6 +1129,192 @@ func setupTestResolverWithPrefix(t *testing.T, prefix string) (*Resolver, *beanc
 	return &Resolver{Core: core}, core
 }
 
+// setupTestResolverWithRequireIfMatch creates a test resolver with require_if_match enabled.
+func setupTestResolverWithRequireIfMatch(t *testing.T) (*Resolver, *beancore.Core) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	beansDir := filepath.Join(tmpDir, ".beans")
+	if err := os.MkdirAll(beansDir, 0755); err != nil {
+		t.Fatalf("failed to create test .beans dir: %v", err)
+	}
+
+	cfg := config.Default()
+	cfg.Beans.RequireIfMatch = true
+	core := beancore.New(beansDir, cfg)
+	if err := core.Load(); err != nil {
+		t.Fatalf("failed to load core: %v", err)
+	}
+
+	return &Resolver{Core: core}, core
+}
+
+func TestETagValidation(t *testing.T) {
+	t.Run("update with correct etag succeeds", func(t *testing.T) {
+		resolver, core := setupTestResolver(t)
+		ctx := context.Background()
+
+		b := &bean.Bean{ID: "etag-test-1", Title: "Test", Status: "todo"}
+		core.Create(b)
+
+		// Get current etag
+		currentETag := b.ETag()
+
+		mr := resolver.Mutation()
+		newTitle := "Updated"
+		input := model.UpdateBeanInput{
+			Title:   &newTitle,
+			IfMatch: &currentETag,
+		}
+		got, err := mr.UpdateBean(ctx, "etag-test-1", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() with correct etag error = %v", err)
+		}
+		if got.Title != "Updated" {
+			t.Errorf("UpdateBean().Title = %q, want %q", got.Title, "Updated")
+		}
+	})
+
+	t.Run("update with incorrect etag fails", func(t *testing.T) {
+		resolver, core := setupTestResolver(t)
+		ctx := context.Background()
+
+		b := &bean.Bean{ID: "etag-test-2", Title: "Test", Status: "todo"}
+		core.Create(b)
+
+		mr := resolver.Mutation()
+		newTitle := "Updated"
+		wrongETag := "wrongetagvalue1"
+		input := model.UpdateBeanInput{
+			Title:   &newTitle,
+			IfMatch: &wrongETag,
+		}
+		_, err := mr.UpdateBean(ctx, "etag-test-2", input)
+		if err == nil {
+			t.Error("UpdateBean() with wrong etag should fail")
+		}
+		if !strings.Contains(err.Error(), "etag mismatch") {
+			t.Errorf("Error should mention etag mismatch, got: %v", err)
+		}
+	})
+
+	t.Run("update without etag succeeds when not required", func(t *testing.T) {
+		resolver, core := setupTestResolver(t)
+		ctx := context.Background()
+
+		b := &bean.Bean{ID: "etag-test-3", Title: "Test", Status: "todo"}
+		core.Create(b)
+
+		mr := resolver.Mutation()
+		newTitle := "Updated"
+		input := model.UpdateBeanInput{
+			Title: &newTitle,
+		}
+		got, err := mr.UpdateBean(ctx, "etag-test-3", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() without etag error = %v", err)
+		}
+		if got.Title != "Updated" {
+			t.Errorf("UpdateBean().Title = %q, want %q", got.Title, "Updated")
+		}
+	})
+}
+
+func TestRequireIfMatchConfig(t *testing.T) {
+	t.Run("update without etag fails when require_if_match is true", func(t *testing.T) {
+		resolver, core := setupTestResolverWithRequireIfMatch(t)
+		ctx := context.Background()
+
+		b := &bean.Bean{ID: "require-etag-1", Title: "Test", Status: "todo"}
+		core.Create(b)
+
+		mr := resolver.Mutation()
+		newTitle := "Updated"
+		input := model.UpdateBeanInput{
+			Title: &newTitle,
+		}
+		_, err := mr.UpdateBean(ctx, "require-etag-1", input)
+		if err == nil {
+			t.Error("UpdateBean() without etag should fail when require_if_match is true")
+		}
+		if !strings.Contains(err.Error(), "if-match etag is required") {
+			t.Errorf("Error should mention etag is required, got: %v", err)
+		}
+	})
+
+	t.Run("update with correct etag succeeds when require_if_match is true", func(t *testing.T) {
+		resolver, core := setupTestResolverWithRequireIfMatch(t)
+		ctx := context.Background()
+
+		b := &bean.Bean{ID: "require-etag-2", Title: "Test", Status: "todo"}
+		core.Create(b)
+
+		currentETag := b.ETag()
+
+		mr := resolver.Mutation()
+		newTitle := "Updated"
+		input := model.UpdateBeanInput{
+			Title:   &newTitle,
+			IfMatch: &currentETag,
+		}
+		got, err := mr.UpdateBean(ctx, "require-etag-2", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() with correct etag error = %v", err)
+		}
+		if got.Title != "Updated" {
+			t.Errorf("UpdateBean().Title = %q, want %q", got.Title, "Updated")
+		}
+	})
+
+	t.Run("setParent without etag fails when require_if_match is true", func(t *testing.T) {
+		resolver, core := setupTestResolverWithRequireIfMatch(t)
+		ctx := context.Background()
+
+		parent := &bean.Bean{ID: "req-parent", Title: "Parent", Status: "todo", Type: "epic"}
+		child := &bean.Bean{ID: "req-child", Title: "Child", Status: "todo", Type: "task"}
+		core.Create(parent)
+		core.Create(child)
+
+		mr := resolver.Mutation()
+		parentID := "req-parent"
+		_, err := mr.SetParent(ctx, "req-child", &parentID, nil)
+		if err == nil {
+			t.Error("SetParent() without etag should fail when require_if_match is true")
+		}
+	})
+
+	t.Run("addBlocking without etag fails when require_if_match is true", func(t *testing.T) {
+		resolver, core := setupTestResolverWithRequireIfMatch(t)
+		ctx := context.Background()
+
+		b1 := &bean.Bean{ID: "req-blocker", Title: "Blocker", Status: "todo"}
+		b2 := &bean.Bean{ID: "req-target", Title: "Target", Status: "todo"}
+		core.Create(b1)
+		core.Create(b2)
+
+		mr := resolver.Mutation()
+		_, err := mr.AddBlocking(ctx, "req-blocker", "req-target", nil)
+		if err == nil {
+			t.Error("AddBlocking() without etag should fail when require_if_match is true")
+		}
+	})
+
+	t.Run("removeBlocking without etag fails when require_if_match is true", func(t *testing.T) {
+		resolver, core := setupTestResolverWithRequireIfMatch(t)
+		ctx := context.Background()
+
+		b1 := &bean.Bean{ID: "req-blocker2", Title: "Blocker", Status: "todo", Blocking: []string{"req-target2"}}
+		b2 := &bean.Bean{ID: "req-target2", Title: "Target", Status: "todo"}
+		core.Create(b1)
+		core.Create(b2)
+
+		mr := resolver.Mutation()
+		_, err := mr.RemoveBlocking(ctx, "req-blocker2", "req-target2", nil)
+		if err == nil {
+			t.Error("RemoveBlocking() without etag should fail when require_if_match is true")
+		}
+	})
+}
+
 func TestShortIDNormalization(t *testing.T) {
 	// Use a prefix so we can test short ID resolution
 	resolver, core := setupTestResolverWithPrefix(t, "beans-")
@@ -1146,7 +1332,7 @@ func TestShortIDNormalization(t *testing.T) {
 		mr := resolver.Mutation()
 		// Use short ID (without prefix)
 		shortParentID := "parent1"
-		got, err := mr.SetParent(ctx, "beans-child1", &shortParentID)
+		got, err := mr.SetParent(ctx, "beans-child1", &shortParentID, nil)
 		if err != nil {
 			t.Fatalf("SetParent() error = %v", err)
 		}
@@ -1159,7 +1345,7 @@ func TestShortIDNormalization(t *testing.T) {
 	t.Run("AddBlocking normalizes short ID", func(t *testing.T) {
 		mr := resolver.Mutation()
 		// Use short ID (without prefix)
-		got, err := mr.AddBlocking(ctx, "beans-child1", "target1")
+		got, err := mr.AddBlocking(ctx, "beans-child1", "target1", nil)
 		if err != nil {
 			t.Fatalf("AddBlocking() error = %v", err)
 		}
@@ -1175,7 +1361,7 @@ func TestShortIDNormalization(t *testing.T) {
 	t.Run("RemoveBlocking normalizes short ID", func(t *testing.T) {
 		mr := resolver.Mutation()
 		// Remove using short ID
-		got, err := mr.RemoveBlocking(ctx, "beans-child1", "target1")
+		got, err := mr.RemoveBlocking(ctx, "beans-child1", "target1", nil)
 		if err != nil {
 			t.Fatalf("RemoveBlocking() error = %v", err)
 		}

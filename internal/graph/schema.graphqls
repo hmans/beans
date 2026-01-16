@@ -33,17 +33,17 @@ type Mutation {
   """
   Set or clear the parent of a bean (validates type hierarchy)
   """
-  setParent(id: ID!, parentId: String): Bean!
+  setParent(id: ID!, parentId: String, ifMatch: String): Bean!
 
   """
   Add a bean to the blocking list
   """
-  addBlocking(id: ID!, targetId: ID!): Bean!
+  addBlocking(id: ID!, targetId: ID!, ifMatch: String): Bean!
 
   """
   Remove a bean from the blocking list
   """
-  removeBlocking(id: ID!, targetId: ID!): Bean!
+  removeBlocking(id: ID!, targetId: ID!, ifMatch: String): Bean!
 }
 
 """
@@ -86,6 +86,8 @@ input UpdateBeanInput {
   tags: [String!]
   "New body content"
   body: String
+  "ETag for optimistic concurrency control (optional)"
+  ifMatch: String
 }
 
 """
@@ -114,6 +116,8 @@ type Bean {
   updatedAt: Time!
   "Markdown body content"
   body: String!
+  "Content hash for optimistic concurrency control"
+  etag: String!
 
   # Direct link fields
   "Parent bean ID (optional, type-restricted)"

@@ -357,14 +357,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case blockingConfirmedMsg:
 		// Apply all blocking changes via GraphQL mutations
 		for _, targetID := range msg.toAdd {
-			_, err := a.resolver.Mutation().AddBlocking(context.Background(), msg.beanID, targetID)
+			_, err := a.resolver.Mutation().AddBlocking(context.Background(), msg.beanID, targetID, nil)
 			if err != nil {
 				// Continue with other changes even if one fails
 				continue
 			}
 		}
 		for _, targetID := range msg.toRemove {
-			_, err := a.resolver.Mutation().RemoveBlocking(context.Background(), msg.beanID, targetID)
+			_, err := a.resolver.Mutation().RemoveBlocking(context.Background(), msg.beanID, targetID, nil)
 			if err != nil {
 				// Continue with other changes even if one fails
 				continue
@@ -456,7 +456,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			parentID = &msg.parentID
 		}
 		for _, beanID := range msg.beanIDs {
-			_, err := a.resolver.Mutation().SetParent(context.Background(), beanID, parentID)
+			_, err := a.resolver.Mutation().SetParent(context.Background(), beanID, parentID, nil)
 			if err != nil {
 				// Continue with other beans even if one fails
 				continue

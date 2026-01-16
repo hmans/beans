@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -26,6 +27,7 @@ var (
 	updateRemoveBlocking []string
 	updateTag            []string
 	updateRemoveTag      []string
+	updateIfMatch        string
 	updateJSON           bool
 )
 
@@ -34,7 +36,7 @@ var updateCmd = &cobra.Command{
 	Aliases: []string{"u"},
 	Short:   "Update a bean's properties",
 	Long:    `Updates one or more properties of an existing bean.`,
-	Args:  cobra.ExactArgs(1),
+	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
 		resolver := &graph.Resolver{Core: core}
@@ -63,6 +65,12 @@ var updateCmd = &cobra.Command{
 		// Track changes for output
 		var changes []string
 
+		// Prepare ifMatch for GraphQL mutations
+		var ifMatch *string
+		if updateIfMatch != "" {
+			ifMatch = &updateIfMatch
+		}
+
 		// Build and validate field updates
 		input, fieldChanges, err := buildUpdateInput(cmd, b.Tags)
 		if err != nil {
@@ -70,11 +78,16 @@ var updateCmd = &cobra.Command{
 		}
 		changes = append(changes, fieldChanges...)
 
+		// Add ifMatch to input if provided
+		if ifMatch != nil {
+			input.IfMatch = ifMatch
+		}
+
 		// Apply field updates
 		if hasFieldUpdates(input) {
 			b, err = resolver.Mutation().UpdateBean(ctx, b.ID, input)
 			if err != nil {
-				return cmdError(updateJSON, output.ErrFileError, "failed to save bean: %v", err)
+				return mutationError(updateJSON, err)
 			}
 		}
 
@@ -84,27 +97,27 @@ var updateCmd = &cobra.Command{
 			if !updateRemoveParent && updateParent != "" {
 				parentID = &updateParent
 			}
-			b, err = resolver.Mutation().SetParent(ctx, b.ID, parentID)
+			b, err = resolver.Mutation().SetParent(ctx, b.ID, parentID, ifMatch)
 			if err != nil {
-				return cmdError(updateJSON, output.ErrValidation, "%s", err)
+				return mutationError(updateJSON, err)
 			}
 			changes = append(changes, "parent")
 		}
 
 		// Process blocking additions
 		for _, targetID := range updateBlocking {
-			b, err = resolver.Mutation().AddBlocking(ctx, b.ID, targetID)
+			b, err = resolver.Mutation().AddBlocking(ctx, b.ID, targetID, ifMatch)
 			if err != nil {
-				return cmdError(updateJSON, output.ErrValidation, "%s", err)
+				return mutationError(updateJSON, err)
 			}
 			changes = append(changes, "blocking")
 		}
 
 		// Process blocking removals
 		for _, targetID := range updateRemoveBlocking {
-			b, err = resolver.Mutation().RemoveBlocking(ctx, b.ID, targetID)
+			b, err = resolver.Mutation().RemoveBlocking(ctx, b.ID, targetID, ifMatch)
 			if err != nil {
-				return cmdError(updateJSON, output.ErrValidation, "%s", err)
+				return mutationError(updateJSON, err)
 			}
 			changes = append(changes, "blocking")
 		}
@@ -167,6 +180,7 @@ func buildUpdateInput(cmd *cobra.Command, existingTags []string) (model.UpdateBe
 		changes = append(changes, "title")
 	}
 
+	// Handle body modifications
 	if cmd.Flags().Changed("body") || cmd.Flags().Changed("body-file") {
 		body, err := resolveContent(updateBody, updateBodyFile)
 		if err != nil {
@@ -188,6 +202,21 @@ func buildUpdateInput(cmd *cobra.Command, existingTags []string) (model.UpdateBe
 func hasFieldUpdates(input model.UpdateBeanInput) bool {
 	return input.Status != nil || input.Type != nil || input.Priority != nil ||
 		input.Title != nil || input.Body != nil || input.Tags != nil
+}
+
+// isConflictError returns true if the error is an ETag-related conflict error.
+func isConflictError(err error) bool {
+	var mismatchErr *graph.ETagMismatchError
+	var requiredErr *graph.ETagRequiredError
+	return errors.As(err, &mismatchErr) || errors.As(err, &requiredErr)
+}
+
+// mutationError returns a cmdError with the appropriate error code based on the error type.
+func mutationError(jsonOutput bool, err error) error {
+	if isConflictError(err) {
+		return cmdError(jsonOutput, output.ErrConflict, "%s", err)
+	}
+	return cmdError(jsonOutput, output.ErrValidation, "%s", err)
 }
 
 func init() {
@@ -217,6 +246,7 @@ func init() {
 	updateCmd.Flags().StringArrayVar(&updateRemoveBlocking, "remove-blocking", nil, "ID of bean to unblock (can be repeated)")
 	updateCmd.Flags().StringArrayVar(&updateTag, "tag", nil, "Add tag (can be repeated)")
 	updateCmd.Flags().StringArrayVar(&updateRemoveTag, "remove-tag", nil, "Remove tag (can be repeated)")
+	updateCmd.Flags().StringVar(&updateIfMatch, "if-match", "", "Only update if etag matches (optimistic locking)")
 	updateCmd.MarkFlagsMutuallyExclusive("parent", "remove-parent")
 	updateCmd.Flags().BoolVar(&updateJSON, "json", false, "Output as JSON")
 	updateCmd.MarkFlagsMutuallyExclusive("body", "body-file")
