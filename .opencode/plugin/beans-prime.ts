@@ -1,4 +1,4 @@
-import type { Plugin } from "@opencode-ai/plugin";
+import type { Plugin } from '@opencode-ai/plugin';
 
 /**
  * Beans Prime Plugin for OpenCode
@@ -20,16 +20,32 @@ import type { Plugin } from "@opencode-ai/plugin";
  *    - Personal configuration, not shared
  */
 
-export const BeansPrimePlugin: Plugin = async ({ $ }) => {
-  const prime = await $`beans prime`.text();
+export const BeansPrimePlugin: Plugin = async ({ $, directory }) => {
+  // Check if beans CLI exists and project has beans config
+  let prime = undefined;
+
+  try {
+    // Both conditions must be true:
+    // 1. beans CLI is installed
+    // 2. beans configured for current project
+    const hasBeans = await $`which beans`.quiet();
+    const isConfigured = await $`beans check`.cwd(directory).quiet();
+
+    if (hasBeans.exitCode === 0 && isConfigured.exitCode === 0) {
+      const result = await $`beans prime`.cwd(directory).quiet();
+      prime = result.stdout.toString();
+    }
+  } catch (e) {
+    // beans not available or not configured - silently skip
+  }
 
   return {
-    "experimental.chat.system.transform": async (_, output) => {
+    'experimental.chat.system.transform': async (_, output) => {
       if (prime) {
         output.system.push(prime);
       }
     },
-    "experimental.session.compacting": async (_, output) => {
+    'experimental.session.compacting': async (_, output) => {
       if (prime) {
         output.context.push(prime);
       }
