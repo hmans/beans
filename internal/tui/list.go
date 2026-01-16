@@ -93,6 +93,7 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 			TreePrefix:    item.treePrefix,
 			Dimmed:        !item.matched,
 			IDColWidth:    d.idColWidth,
+			UseFullNames:  d.cols.UseFullTypeStatus,
 		},
 	)
 
@@ -128,6 +129,8 @@ func newListModel(resolver *graph.Resolver, cfg *config.Config) listModel {
 	delegate := itemDelegate{cfg: cfg, selectedBeans: &selectedBeans}
 
 	l := list.New([]list.Item{}, delegate, 0, 0)
+	l.KeyMap.Quit.SetEnabled(false)      // Only q quits, not escape
+	l.KeyMap.ForceQuit.SetEnabled(false) // Disable force quit too
 	l.Title = "Beans"
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(true)
@@ -154,11 +157,6 @@ type beansLoadedMsg struct {
 // errMsg is sent when an error occurs
 type errMsg struct {
 	err error
-}
-
-// selectBeanMsg is sent when a bean is selected
-type selectBeanMsg struct {
-	bean *bean.Bean
 }
 
 func (m listModel) Init() tea.Cmd {
@@ -227,6 +225,10 @@ func (m *listModel) hasActiveFilter() bool {
 
 func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 	var cmd tea.Cmd
+	var cmds []tea.Cmd
+
+	// Track cursor position before update
+	prevIndex := m.list.Index()
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -441,13 +443,28 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 						return clearFilterMsg{}
 					}
 				}
+				// Don't forward to bubbles list (would quit)
+				return m, nil
 			}
 		}
 	}
 
 	// Always forward to the list component
 	m.list, cmd = m.list.Update(msg)
-	return m, cmd
+	if cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	// Check if cursor moved and emit message
+	if m.list.Index() != prevIndex {
+		if item, ok := m.list.SelectedItem().(beanItem); ok {
+			cmds = append(cmds, func() tea.Msg {
+				return cursorChangedMsg{beanID: item.bean.ID}
+			})
+		}
+	}
+
+	return m, tea.Batch(cmds...)
 }
 
 // updateDelegate updates the list delegate with current responsive columns
@@ -479,16 +496,29 @@ func (m listModel) View() string {
 		m.list.Title = "Beans"
 	}
 
-	// Simple bordered container
+	// Inner height: total height minus border (2) minus footer (1) minus padding (1)
+	return m.viewContent(m.height-4, true) + "\n" + m.Footer()
+}
+
+// viewContent renders just the bordered list without footer.
+// innerHeight is the content height inside the border (not including border lines).
+// focused determines the border color (primary when focused, muted when not).
+func (m listModel) viewContent(innerHeight int, focused bool) string {
+	borderColor := ui.ColorMuted
+	if focused {
+		borderColor = ui.ColorPrimary
+	}
 	border := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(ui.ColorMuted).
+		BorderForeground(borderColor).
 		Width(m.width - 2).
-		Height(m.height - 4)
+		Height(innerHeight)
 
-	content := border.Render(m.list.View())
+	return border.Render(m.list.View())
+}
 
-	// Footer - show different help based on filter/selection state
+// Footer renders the help/status footer for the list view.
+func (m listModel) Footer() string {
 	var help string
 
 	// Show selection count if any beans are selected
@@ -547,6 +577,32 @@ func (m listModel) View() string {
 		footer += help
 	}
 
-	return content + "\n" + footer
+	return footer
+}
+
+// ViewConstrained renders the list constrained to the given width and height.
+// Used for the left pane in two-column mode. Returns only the content without footer.
+// The output will be exactly `height` lines tall.
+func (m listModel) ViewConstrained(width, height int, focused bool) string {
+	// Temporarily set constrained dimensions
+	m.width = width
+	m.height = height
+
+	// Inner height for border content (height minus 2 for top/bottom border)
+	innerHeight := height - 2
+	m.list.SetSize(width-2, innerHeight)
+
+	// Recalculate columns for constrained width
+	m.cols = ui.CalculateResponsiveColumns(width, m.hasTags)
+	m.updateDelegate()
+
+	// Update title based on active filter
+	if m.tagFilter != "" {
+		m.list.Title = fmt.Sprintf("Beans [tag: %s]", m.tagFilter)
+	} else {
+		m.list.Title = "Beans"
+	}
+
+	return m.viewContent(innerHeight, focused)
 }
 

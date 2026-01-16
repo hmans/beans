@@ -10,19 +10,24 @@ import (
 	"time"
 
 	"github.com/atotto/clipboard"
+	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/hmans/beans/internal/bean"
 	"github.com/hmans/beans/internal/beancore"
 	"github.com/hmans/beans/internal/config"
 	"github.com/hmans/beans/internal/graph"
 	"github.com/hmans/beans/internal/graph/model"
+	"github.com/hmans/beans/internal/ui"
 )
 
 // viewState represents which view is currently active
 type viewState int
 
 const (
-	viewList viewState = iota
-	viewDetail
+	viewListFocused viewState = iota
+	viewDetailLinksFocused
+	viewDetailBodyFocused
 	viewTagPicker
 	viewParentPicker
 	viewStatusPicker
@@ -33,8 +38,35 @@ const (
 	viewHelpOverlay
 )
 
+// Two-column layout constants
+const (
+	TwoColumnMinWidth = 120 // minimum terminal width for two-column layout
+	RightPaneMaxWidth = 80  // max width of preview pane (text files follow 80 char convention)
+)
+
+// calculatePaneWidths returns (leftWidth, rightWidth) for two-column layout.
+// Right pane is capped at RightPaneMaxWidth, left pane gets remaining space.
+func calculatePaneWidths(totalWidth int) (int, int) {
+	rightWidth := RightPaneMaxWidth
+	if totalWidth-rightWidth < 40 { // ensure left pane has reasonable minimum
+		rightWidth = totalWidth - 40
+	}
+	leftWidth := totalWidth - rightWidth - 1 // 1 for separator
+	return leftWidth, rightWidth
+}
+
 // beansChangedMsg is sent when beans change on disk (via file watcher)
 type beansChangedMsg struct{}
+
+// cursorChangedMsg is sent when the list cursor moves to a different bean
+type cursorChangedMsg struct {
+	beanID string
+}
+
+// selectBeanMsg is sent when a bean should be selected (e.g., following a link)
+type selectBeanMsg struct {
+	bean *bean.Bean
+}
 
 // openTagPickerMsg requests opening the tag picker
 type openTagPickerMsg struct{}
@@ -84,7 +116,7 @@ type App struct {
 	priorityPicker priorityPickerModel
 	createModal    createModalModel
 	helpOverlay    helpOverlayModel
-	history        []detailModel // stack of previous detail views for back navigation
+	history        []string // stack of previous bean IDs for back navigation
 	core           *beancore.Core
 	resolver       *graph.Resolver
 	config         *config.Config
@@ -107,7 +139,7 @@ type App struct {
 func New(core *beancore.Core, cfg *config.Config) *App {
 	resolver := &graph.Resolver{Core: core}
 	return &App{
-		state:    viewList,
+		state:    viewListFocused,
 		core:     core,
 		resolver: resolver,
 		config:   cfg,
@@ -120,6 +152,11 @@ func (a *App) Init() tea.Cmd {
 	return a.list.Init()
 }
 
+// isTwoColumnMode returns true if the terminal width supports two-column layout
+func (a *App) isTwoColumnMode() bool {
+	return a.width >= TwoColumnMinWidth
+}
+
 // Update handles messages
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
@@ -129,13 +166,20 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.width = msg.Width
 		a.height = msg.Height
 
+		// Update detail dimensions
+		_, rightWidth := calculatePaneWidths(a.width)
+		// Preserve focus state when resizing
+		linksFocused := a.state == viewDetailLinksFocused
+		bodyFocused := a.state == viewDetailBodyFocused
+		a.detail = newDetailModel(a.detail.bean, a.resolver, a.config, rightWidth, a.height-1, linksFocused, bodyFocused)
+
 	case tea.KeyMsg:
 		// Clear status messages on any keypress
 		a.list.statusMessage = ""
 		a.detail.statusMessage = ""
 
 		// Handle key chord sequences
-		if a.state == viewList && a.list.list.FilterState() != 1 {
+		if a.state == viewListFocused && a.list.list.FilterState() != list.Filtering {
 			if a.pendingKey == "g" {
 				a.pendingKey = ""
 				switch msg.String() {
@@ -163,35 +207,142 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			return a, tea.Quit
 		case "?":
-			// Open help overlay if not already showing it (and not in a picker/modal)
-			if a.state == viewList || a.state == viewDetail {
+			// Open help overlay from list or detail states
+			if a.state == viewListFocused || a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused {
 				a.previousState = a.state
 				a.helpOverlay = newHelpOverlayModel(a.width, a.height)
 				a.state = viewHelpOverlay
 				return a, a.helpOverlay.Init()
 			}
 		case "q":
-			if a.state == viewDetail || a.state == viewTagPicker || a.state == viewParentPicker || a.state == viewStatusPicker || a.state == viewTypePicker || a.state == viewBlockingPicker || a.state == viewPriorityPicker || a.state == viewHelpOverlay {
-				return a, tea.Quit
+			// q always quits (except when filtering)
+			if a.state == viewListFocused && a.list.list.FilterState() == list.Filtering {
+				break // let list handle it
 			}
-			// For list, only quit if not filtering
-			if a.state == viewList && a.list.list.FilterState() != 1 {
-				return a, tea.Quit
+			if a.state == viewDetailLinksFocused && a.detail.linkList.FilterState() == list.Filtering {
+				break // let detail handle it
+			}
+			return a, tea.Quit
+		}
+
+		// Handle Enter from list - focus detail
+		if a.state == viewListFocused && msg.String() == "enter" {
+			if a.list.list.FilterState() != list.Filtering {
+				if _, ok := a.list.list.SelectedItem().(beanItem); ok {
+					// Focus links if bean has links, else focus body
+					if len(a.detail.links) > 0 {
+						a.detail.linksFocused = true
+						a.detail.bodyFocused = false
+						a.state = viewDetailLinksFocused
+					} else {
+						a.detail.linksFocused = false
+						a.detail.bodyFocused = true
+						a.state = viewDetailBodyFocused
+					}
+					return a, nil
+				}
 			}
 		}
 
+		// Handle Tab in detail - toggle between links and body
+		if msg.String() == "tab" {
+			if a.state == viewDetailLinksFocused {
+				a.detail.linksFocused = false
+				a.detail.bodyFocused = true
+				a.state = viewDetailBodyFocused
+				return a, nil
+			} else if a.state == viewDetailBodyFocused && len(a.detail.links) > 0 {
+				a.detail.linksFocused = true
+				a.detail.bodyFocused = false
+				a.state = viewDetailLinksFocused
+				return a, nil
+			}
+		}
+
+		// Handle Backspace in detail - always return to list
+		if msg.String() == "backspace" {
+			if a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused {
+				a.detail.linksFocused = false
+				a.detail.bodyFocused = false
+				a.state = viewListFocused
+				a.history = nil // Clear history when explicitly returning to list
+				return a, nil
+			}
+		}
+
+		// Handle Escape in detail - navigate history or return to list
+		if msg.String() == "esc" {
+			if a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused {
+				if len(a.history) > 0 {
+					// Pop from history, move cursor to that bean
+					prevBeanID := a.history[len(a.history)-1]
+					a.history = a.history[:len(a.history)-1]
+					// Move list cursor to that bean and trigger detail update
+					cmd := a.moveCursorToBean(prevBeanID)
+					// Stay in current detail focus state
+					return a, cmd
+				}
+				// No history - return to list
+				a.detail.linksFocused = false
+				a.detail.bodyFocused = false
+				a.state = viewListFocused
+				return a, nil
+			}
+		}
+
+	case cursorChangedMsg:
+		_, rightWidth := calculatePaneWidths(a.width)
+		if msg.beanID != "" {
+			bean, err := a.resolver.Query().Bean(context.Background(), msg.beanID)
+			if err == nil && bean != nil {
+				// Recreate detail with current focus state
+				linksFocused := a.state == viewDetailLinksFocused
+				bodyFocused := a.state == viewDetailBodyFocused
+				a.detail = newDetailModel(bean, a.resolver, a.config, rightWidth, a.height-1, linksFocused, bodyFocused)
+				// If we're in linksFocused but the new bean has no links, switch to bodyFocused
+				if a.state == viewDetailLinksFocused && len(a.detail.links) == 0 {
+					a.detail.linksFocused = false
+					a.detail.bodyFocused = true
+					a.state = viewDetailBodyFocused
+				}
+			}
+		} else {
+			a.detail = detailModel{} // empty detail
+		}
+		return a, nil
+
+	case beansLoadedMsg:
+		// Forward to list view
+		a.list, cmd = a.list.Update(msg)
+
+		// Create initial detailModel for selected bean
+		_, rightWidth := calculatePaneWidths(a.width)
+		if len(msg.items) == 0 {
+			// Empty list - create detail with nil bean
+			a.detail = newDetailModel(nil, a.resolver, a.config, rightWidth, a.height-1, false, false)
+		} else if item, ok := a.list.list.SelectedItem().(beanItem); ok {
+			// Both linksFocused and bodyFocused are false initially (focus set when Enter is pressed)
+			a.detail = newDetailModel(item.bean, a.resolver, a.config, rightWidth, a.height-1, false, false)
+		}
+		return a, cmd
+
 	case beansChangedMsg:
 		// Beans changed on disk - refresh
-		if a.state == viewDetail {
+		if a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused {
 			// Try to reload the current bean via GraphQL
-			updatedBean, err := a.resolver.Query().Bean(context.Background(), a.detail.bean.ID)
-			if err != nil || updatedBean == nil {
-				// Bean was deleted - return to list
-				a.state = viewList
-				a.history = nil
-			} else {
-				// Recreate detail view with fresh bean data
-				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height)
+			if a.detail.bean != nil {
+				updatedBean, err := a.resolver.Query().Bean(context.Background(), a.detail.bean.ID)
+				if err != nil || updatedBean == nil {
+					// Bean was deleted - return to list
+					a.state = viewListFocused
+					a.history = nil
+				} else {
+					// Recreate detail view with fresh bean data
+					linksFocused := a.state == viewDetailLinksFocused
+					bodyFocused := a.state == viewDetailBodyFocused
+					_, rightWidth := calculatePaneWidths(a.width)
+					a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-1, linksFocused, bodyFocused)
+				}
 			}
 		}
 		// Trigger list refresh
@@ -209,7 +360,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.tagPicker.Init()
 
 	case tagSelectedMsg:
-		a.state = viewList
+		a.state = viewListFocused
 		a.list.setTagFilter(msg.tag)
 		return a, a.list.loadBeans
 
@@ -257,10 +408,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.state = a.previousState
 		// Clear selection after batch edit
 		clear(a.list.selectedBeans)
-		if a.state == viewDetail && len(msg.beanIDs) == 1 {
+		if (a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused) && len(msg.beanIDs) == 1 {
 			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanIDs[0])
 			if updatedBean != nil {
-				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height)
+				linksFocused := a.state == viewDetailLinksFocused
+				bodyFocused := a.state == viewDetailBodyFocused
+				_, rightWidth := calculatePaneWidths(a.width)
+				a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-1, linksFocused, bodyFocused)
 			}
 		}
 		return a, a.list.loadBeans
@@ -291,10 +445,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.state = a.previousState
 		// Clear selection after batch edit
 		clear(a.list.selectedBeans)
-		if a.state == viewDetail && len(msg.beanIDs) == 1 {
+		if (a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused) && len(msg.beanIDs) == 1 {
 			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanIDs[0])
 			if updatedBean != nil {
-				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height)
+				linksFocused := a.state == viewDetailLinksFocused
+				bodyFocused := a.state == viewDetailBodyFocused
+				_, rightWidth := calculatePaneWidths(a.width)
+				a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-1, linksFocused, bodyFocused)
 			}
 		}
 		return a, a.list.loadBeans
@@ -325,10 +482,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.state = a.previousState
 		// Clear selection after batch edit
 		clear(a.list.selectedBeans)
-		if a.state == viewDetail && len(msg.beanIDs) == 1 {
+		if (a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused) && len(msg.beanIDs) == 1 {
 			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanIDs[0])
 			if updatedBean != nil {
-				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height)
+				linksFocused := a.state == viewDetailLinksFocused
+				bodyFocused := a.state == viewDetailBodyFocused
+				_, rightWidth := calculatePaneWidths(a.width)
+				a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-1, linksFocused, bodyFocused)
 			}
 		}
 		return a, a.list.loadBeans
@@ -372,10 +532,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// Return to previous view and refresh
 		a.state = a.previousState
-		if a.state == viewDetail {
+		if a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused {
 			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanID)
 			if updatedBean != nil {
-				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height)
+				linksFocused := a.state == viewDetailLinksFocused
+				bodyFocused := a.state == viewDetailBodyFocused
+				_, rightWidth := calculatePaneWidths(a.width)
+				a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-1, linksFocused, bodyFocused)
 			}
 		}
 		return a, a.list.loadBeans
@@ -403,7 +566,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		// Return to list and open the new bean in editor
-		a.state = viewList
+		a.state = viewListFocused
 		return a, tea.Batch(
 			a.list.loadBeans,
 			func() tea.Msg {
@@ -466,11 +629,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.state = a.previousState
 		// Clear selection after batch edit
 		clear(a.list.selectedBeans)
-		if a.state == viewDetail && len(msg.beanIDs) == 1 {
+		if (a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused) && len(msg.beanIDs) == 1 {
 			// Refresh the bean to show updated parent
 			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanIDs[0])
 			if updatedBean != nil {
-				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height)
+				linksFocused := a.state == viewDetailLinksFocused
+				bodyFocused := a.state == viewDetailBodyFocused
+				_, rightWidth := calculatePaneWidths(a.width)
+				a.detail = newDetailModel(updatedBean, a.resolver, a.config, rightWidth, a.height-1, linksFocused, bodyFocused)
 			}
 		}
 		return a, a.list.loadBeans
@@ -491,43 +657,34 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// Set status on current view
-		if a.state == viewList {
+		if a.state == viewListFocused {
 			a.list.statusMessage = statusMsg
-		} else if a.state == viewDetail {
+		} else if a.state == viewDetailLinksFocused || a.state == viewDetailBodyFocused {
 			a.detail.statusMessage = statusMsg
 		}
 
 		return a, nil
 
 	case selectBeanMsg:
-		// Push current detail view to history if we're already viewing a bean
-		if a.state == viewDetail {
-			a.history = append(a.history, a.detail)
+		// Push current bean ID to history before navigating
+		if a.detail.bean != nil {
+			a.history = append(a.history, a.detail.bean.ID)
 		}
-		a.state = viewDetail
-		a.detail = newDetailModel(msg.bean, a.resolver, a.config, a.width, a.height)
-		return a, a.detail.Init()
+		// Move cursor to new bean and trigger detail update
+		cmd := a.moveCursorToBean(msg.bean.ID)
+		// Switch to list focus so user can navigate the list
+		a.state = viewListFocused
+		a.detail.linksFocused = false
+		a.detail.bodyFocused = false
+		return a, cmd
 
-	case backToListMsg:
-		// Pop from history if available, otherwise go to list
-		if len(a.history) > 0 {
-			a.detail = a.history[len(a.history)-1]
-			a.history = a.history[:len(a.history)-1]
-			// Stay in viewDetail state
-		} else {
-			a.state = viewList
-			// Force list to pick up any size changes that happened while in detail view
-			a.list, cmd = a.list.Update(tea.WindowSizeMsg{Width: a.width, Height: a.height})
-			return a, cmd
-		}
-		return a, nil
 	}
 
 	// Forward all messages to the current view
 	switch a.state {
-	case viewList:
+	case viewListFocused:
 		a.list, cmd = a.list.Update(msg)
-	case viewDetail:
+	case viewDetailLinksFocused, viewDetailBodyFocused:
 		a.detail, cmd = a.detail.Update(msg)
 	case viewTagPicker:
 		a.tagPicker, cmd = a.tagPicker.Update(msg)
@@ -550,6 +707,21 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a, cmd
 }
 
+// moveCursorToBean moves the list cursor to the bean with the given ID.
+// Returns a command that emits cursorChangedMsg to update the detail pane.
+func (a *App) moveCursorToBean(beanID string) tea.Cmd {
+	items := a.list.list.Items()
+	for i, item := range items {
+		if bi, ok := item.(beanItem); ok && bi.bean.ID == beanID {
+			a.list.list.Select(i)
+			return func() tea.Msg {
+				return cursorChangedMsg{beanID: beanID}
+			}
+		}
+	}
+	return nil
+}
+
 // collectTagsWithCounts returns all tags with their usage counts
 func (a *App) collectTagsWithCounts() []tagWithCount {
 	beans, _ := a.resolver.Query().Beans(context.Background(), nil)
@@ -568,13 +740,123 @@ func (a *App) collectTagsWithCounts() []tagWithCount {
 	return tags
 }
 
+// renderTwoColumnView renders the list and detail side by side with app-global footer
+func (a *App) renderTwoColumnView() string {
+	leftWidth, rightWidth := calculatePaneWidths(a.width)
+	contentHeight := a.height - 1 // Reserve 1 line for footer
+
+	// Determine focus states
+	listFocused := a.state == viewListFocused
+	linksFocused := a.state == viewDetailLinksFocused
+	bodyFocused := a.state == viewDetailBodyFocused
+
+	// Render left pane (list) with focus-dependent border
+	leftPane := a.list.ViewConstrained(leftWidth, contentHeight, listFocused)
+
+	// Render right pane (detail) with focus-dependent borders
+	a.detail.linksFocused = linksFocused
+	a.detail.bodyFocused = bodyFocused
+	a.detail.width = rightWidth
+	a.detail.height = contentHeight
+	rightPane := a.detail.View()
+
+	// Compose columns
+	columns := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
+
+	// App-global footer based on focused area
+	footer := a.renderFooter()
+
+	view := columns + "\n" + footer
+
+	return view
+}
+
+// renderFooter returns the footer help text based on current focus state
+func (a *App) renderFooter() string {
+	var footer string
+	switch a.state {
+	case viewListFocused:
+		return a.list.Footer() // list handles its own status messages
+	case viewDetailLinksFocused:
+		footer = a.renderDetailLinksFooter()
+	case viewDetailBodyFocused:
+		footer = a.renderDetailBodyFooter()
+	default:
+		return ""
+	}
+	// Prepend status message for detail states
+	return a.prependStatusMessage(footer)
+}
+
+func (a *App) renderDetailLinksFooter() string {
+	return helpKeyStyle.Render("tab") + " " + helpStyle.Render("switch") + "  " +
+		helpKeyStyle.Render("/") + " " + helpStyle.Render("filter") + "  " +
+		helpKeyStyle.Render("enter") + " " + helpStyle.Render("go to") + "  " +
+		helpKeyStyle.Render("j/k") + " " + helpStyle.Render("navigate") + "  " +
+		helpKeyStyle.Render("esc") + " " + helpStyle.Render("back") + "  " +
+		helpKeyStyle.Render("b") + " " + helpStyle.Render("blocking") + "  " +
+		helpKeyStyle.Render("e") + " " + helpStyle.Render("edit") + "  " +
+		helpKeyStyle.Render("p") + " " + helpStyle.Render("parent") + "  " +
+		helpKeyStyle.Render("P") + " " + helpStyle.Render("priority") + "  " +
+		helpKeyStyle.Render("s") + " " + helpStyle.Render("status") + "  " +
+		helpKeyStyle.Render("t") + " " + helpStyle.Render("type") + "  " +
+		helpKeyStyle.Render("y") + " " + helpStyle.Render("copy id") + "  " +
+		helpKeyStyle.Render("?") + " " + helpStyle.Render("help") + "  " +
+		helpKeyStyle.Render("q") + " " + helpStyle.Render("quit")
+}
+
+func (a *App) renderDetailBodyFooter() string {
+	var footer string
+
+	// Only show tab switch if there are links to switch to
+	if len(a.detail.links) > 0 {
+		footer = helpKeyStyle.Render("tab") + " " + helpStyle.Render("switch") + "  "
+	}
+
+	footer += helpKeyStyle.Render("j/k") + " " + helpStyle.Render("scroll") + "  " +
+		helpKeyStyle.Render("esc") + " " + helpStyle.Render("back") + "  " +
+		helpKeyStyle.Render("b") + " " + helpStyle.Render("blocking") + "  " +
+		helpKeyStyle.Render("e") + " " + helpStyle.Render("edit") + "  " +
+		helpKeyStyle.Render("p") + " " + helpStyle.Render("parent") + "  " +
+		helpKeyStyle.Render("P") + " " + helpStyle.Render("priority") + "  " +
+		helpKeyStyle.Render("s") + " " + helpStyle.Render("status") + "  " +
+		helpKeyStyle.Render("t") + " " + helpStyle.Render("type") + "  " +
+		helpKeyStyle.Render("y") + " " + helpStyle.Render("copy id") + "  " +
+		helpKeyStyle.Render("?") + " " + helpStyle.Render("help") + "  " +
+		helpKeyStyle.Render("q") + " " + helpStyle.Render("quit")
+
+	return footer
+}
+
+// prependStatusMessage adds status message prefix if present
+func (a *App) prependStatusMessage(footer string) string {
+	if a.detail.statusMessage != "" {
+		statusStyle := lipgloss.NewStyle().Foreground(ui.ColorSuccess).Bold(true)
+		return statusStyle.Render(a.detail.statusMessage) + "  " + footer
+	}
+	return footer
+}
+
 // View renders the current view
 func (a *App) View() string {
 	switch a.state {
-	case viewList:
+	case viewListFocused:
+		if a.isTwoColumnMode() {
+			return a.renderTwoColumnView()
+		}
 		return a.list.View()
-	case viewDetail:
-		return a.detail.View()
+
+	case viewDetailLinksFocused, viewDetailBodyFocused:
+		if a.isTwoColumnMode() {
+			return a.renderTwoColumnView()
+		}
+		// Narrow mode: show only detail at full width
+		a.detail.linksFocused = a.state == viewDetailLinksFocused
+		a.detail.bodyFocused = a.state == viewDetailBodyFocused
+		a.detail.width = a.width
+		a.detail.height = a.height - 1
+		return a.detail.View() + "\n" + a.renderFooter()
+
 	case viewTagPicker:
 		return a.tagPicker.View()
 	case viewParentPicker:
@@ -598,9 +880,15 @@ func (a *App) View() string {
 // getBackgroundView returns the view to show behind modal pickers
 func (a *App) getBackgroundView() string {
 	switch a.previousState {
-	case viewList:
+	case viewListFocused:
+		if a.isTwoColumnMode() {
+			return a.renderTwoColumnView()
+		}
 		return a.list.View()
-	case viewDetail:
+	case viewDetailLinksFocused, viewDetailBodyFocused:
+		if a.isTwoColumnMode() {
+			return a.renderTwoColumnView()
+		}
 		return a.detail.View()
 	default:
 		return a.list.View()
