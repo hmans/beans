@@ -82,3 +82,41 @@ func mergeTags(existing, add, remove []string) []string {
 	}
 	return result
 }
+
+// applyBodyReplace replaces exactly one occurrence of old with new.
+// Returns an error if old is not found or found multiple times.
+func applyBodyReplace(body, old, new string) (string, error) {
+	if old == "" {
+		return "", fmt.Errorf("--old cannot be empty")
+	}
+	count := strings.Count(body, old)
+	if count == 0 {
+		return "", fmt.Errorf("text not found in body")
+	}
+	if count > 1 {
+		return "", fmt.Errorf("text found %d times in body (must be unique)", count)
+	}
+	return strings.Replace(body, old, new, 1), nil
+}
+
+// applyBodyAppend appends text to the body with a newline separator.
+func applyBodyAppend(body, text string) string {
+	if body == "" {
+		return text
+	}
+	// Ensure single newline separator
+	body = strings.TrimRight(body, "\n")
+	return body + "\n\n" + text
+}
+
+// resolveAppendContent handles --append value, supporting stdin with "-".
+func resolveAppendContent(value string) (string, error) {
+	if value == "-" {
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return "", fmt.Errorf("reading stdin: %w", err)
+		}
+		return strings.TrimRight(string(data), "\n"), nil
+	}
+	return value, nil
+}
