@@ -122,47 +122,13 @@ beans update <id> \
   --status completed
 ```
 
-## Optimistic Concurrency Control
+## Concurrency Control
 
-Prevent concurrent modification conflicts using ETags:
-
-**Every bean has an `etag` field** - a content hash that changes whenever the bean is modified:
+Use etags with `--if-match`:
 ```bash
-beans show <id> --json           # Full JSON output includes etag
-beans show <id> --etag-only      # Just the etag: a1b2c3d4e5f67890
+ETAG=$(beans show <id> --etag-only)
+beans update <id> --if-match "$ETAG" ...
 ```
-
-**Use `--if-match` to ensure you're updating the latest version:**
-```bash
-# Get bean etag
-ETAG=$(beans show abc123 --etag-only)
-
-# Update only if bean hasn't changed (atomic operation)
-beans update abc123 \
-  --body-replace-old "- [ ] Deploy" --body-replace-new "- [x] Deploy" \
-  --status completed \
-  --if-match "$ETAG"
-```
-
-**On conflict, you get a clear error:**
-```json
-{
-  "success": false,
-  "error": "etag mismatch (expected oldvalue, got newvalue)",
-  "code": "CONFLICT"
-}
-```
-
-When you receive a conflict error:
-1. Re-fetch the bean to get the current state
-2. Review changes made by the other agent/process
-3. Decide whether to retry your update with the new etag
-
-**When to use `--if-match`:**
-- **Multiple agents working concurrently** - prevents lost updates
-- **Long-running operations** - ensures bean hasn't changed since you read it
-- **Critical updates** - extra safety for important changes
-- **Optional** - not required, but recommended when concurrency is a concern
 
 ## GraphQL Queries
 
