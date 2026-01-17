@@ -1,0 +1,6 @@
+{
+  "scripts": {
+    "setup": "mise install",
+    "run": "mise beans tui"
+  }
+}
