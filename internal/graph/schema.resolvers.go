@@ -104,15 +104,31 @@ func (r *mutationResolver) CreateBean(ctx context.Context, input model.CreateBea
 
 	// Handle parent (with validation)
 	if input.Parent != nil && *input.Parent != "" {
-		if err := r.Core.ValidateParent(b, *input.Parent); err != nil {
+		// Normalise short ID to full ID
+		parentID, _ := r.Core.NormalizeID(*input.Parent)
+		if err := r.Core.ValidateParent(b, parentID); err != nil {
 			return nil, err
 		}
-		b.Parent = *input.Parent
+		b.Parent = parentID
 	}
 
 	// Handle blocking
 	if len(input.Blocking) > 0 {
-		b.Blocking = input.Blocking
+		// Normalise short IDs to full IDs
+		normalizedBlocking := make([]string, len(input.Blocking))
+		for i, id := range input.Blocking {
+			normalizedBlocking[i], _ = r.Core.NormalizeID(id)
+		}
+		b.Blocking = normalizedBlocking
+	}
+
+	// Handle custom prefix - pre-generate ID if prefix is provided
+	if input.Prefix != nil && *input.Prefix != "" {
+		idLength := 4 // default
+		if cfg := r.Core.Config(); cfg != nil && cfg.Beans.IDLength > 0 {
+			idLength = cfg.Beans.IDLength
+		}
+		b.ID = bean.NewID(*input.Prefix, idLength)
 	}
 
 	if err := r.Core.Create(b); err != nil {
@@ -126,6 +142,11 @@ func (r *mutationResolver) CreateBean(ctx context.Context, input model.CreateBea
 func (r *mutationResolver) UpdateBean(ctx context.Context, id string, input model.UpdateBeanInput) (*bean.Bean, error) {
 	b, err := r.Core.Get(id)
 	if err != nil {
+		return nil, err
+	}
+
+	// Validate ETag if provided or required
+	if err := r.validateETag(b, input.IfMatch); err != nil {
 		return nil, err
 	}
 
@@ -178,15 +199,21 @@ func (r *mutationResolver) DeleteBean(ctx context.Context, id string) (bool, err
 }
 
 // SetParent is the resolver for the setParent field.
-func (r *mutationResolver) SetParent(ctx context.Context, id string, parentID *string) (*bean.Bean, error) {
+func (r *mutationResolver) SetParent(ctx context.Context, id string, parentID *string, ifMatch *string) (*bean.Bean, error) {
 	b, err := r.Core.Get(id)
 	if err != nil {
 		return nil, err
 	}
 
+	// Validate ETag if provided or required
+	if err := r.validateETag(b, ifMatch); err != nil {
+		return nil, err
+	}
+
 	newParent := ""
 	if parentID != nil {
-		newParent = *parentID
+		// Normalise short ID to full ID
+		newParent, _ = r.Core.NormalizeID(*parentID)
 	}
 
 	// Validate parent type hierarchy
@@ -208,27 +235,35 @@ func (r *mutationResolver) SetParent(ctx context.Context, id string, parentID *s
 }
 
 // AddBlocking is the resolver for the addBlocking field.
-func (r *mutationResolver) AddBlocking(ctx context.Context, id string, targetID string) (*bean.Bean, error) {
+func (r *mutationResolver) AddBlocking(ctx context.Context, id string, targetID string, ifMatch *string) (*bean.Bean, error) {
 	b, err := r.Core.Get(id)
 	if err != nil {
 		return nil, err
 	}
 
-	if targetID == b.ID {
+	// Validate ETag if provided or required
+	if err := r.validateETag(b, ifMatch); err != nil {
+		return nil, err
+	}
+
+	// Normalise short ID to full ID
+	normalizedTargetID, _ := r.Core.NormalizeID(targetID)
+
+	if normalizedTargetID == b.ID {
 		return nil, fmt.Errorf("bean cannot block itself")
 	}
 
 	// Check target exists
-	if _, err := r.Core.Get(targetID); err != nil {
+	if _, err := r.Core.Get(normalizedTargetID); err != nil {
 		return nil, fmt.Errorf("target bean not found: %s", targetID)
 	}
 
 	// Check for cycles
-	if cycle := r.Core.DetectCycle(b.ID, "blocking", targetID); cycle != nil {
+	if cycle := r.Core.DetectCycle(b.ID, "blocking", normalizedTargetID); cycle != nil {
 		return nil, fmt.Errorf("would create cycle: %v", cycle)
 	}
 
-	b.AddBlocking(targetID)
+	b.AddBlocking(normalizedTargetID)
 	if err := r.Core.Update(b); err != nil {
 		return nil, err
 	}
@@ -236,13 +271,21 @@ func (r *mutationResolver) AddBlocking(ctx context.Context, id string, targetID 
 }
 
 // RemoveBlocking is the resolver for the removeBlocking field.
-func (r *mutationResolver) RemoveBlocking(ctx context.Context, id string, targetID string) (*bean.Bean, error) {
+func (r *mutationResolver) RemoveBlocking(ctx context.Context, id string, targetID string, ifMatch *string) (*bean.Bean, error) {
 	b, err := r.Core.Get(id)
 	if err != nil {
 		return nil, err
 	}
 
-	b.RemoveBlocking(targetID)
+	// Validate ETag if provided or required
+	if err := r.validateETag(b, ifMatch); err != nil {
+		return nil, err
+	}
+
+	// Normalise short ID to full ID
+	normalizedTargetID, _ := r.Core.NormalizeID(targetID)
+
+	b.RemoveBlocking(normalizedTargetID)
 	if err := r.Core.Update(b); err != nil {
 		return nil, err
 	}

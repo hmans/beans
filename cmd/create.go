@@ -22,6 +22,7 @@ var (
 	createTag      []string
 	createParent   string
 	createBlocking []string
+	createPrefix   string
 	createJSON     bool
 )
 
@@ -86,6 +87,11 @@ var createCmd = &cobra.Command{
 			input.Blocking = createBlocking
 		}
 
+		// Add custom prefix
+		if createPrefix != "" {
+			input.Prefix = &createPrefix
+		}
+
 		// Create via GraphQL mutation
 		resolver := &graph.Resolver{Core: core}
 		b, err := resolver.Mutation().CreateBean(context.Background(), input)
@@ -125,6 +131,7 @@ func init() {
 	createCmd.Flags().StringArrayVar(&createTag, "tag", nil, "Add tag (can be repeated)")
 	createCmd.Flags().StringVar(&createParent, "parent", "", "Parent bean ID")
 	createCmd.Flags().StringArrayVar(&createBlocking, "blocking", nil, "ID of bean this blocks (can be repeated)")
+	createCmd.Flags().StringVar(&createPrefix, "prefix", "", "Custom ID prefix (overrides config prefix)")
 	createCmd.Flags().BoolVar(&createJSON, "json", false, "Output as JSON")
 	createCmd.MarkFlagsMutuallyExclusive("body", "body-file")
 	rootCmd.AddCommand(createCmd)

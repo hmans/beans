@@ -11,6 +11,7 @@ import (
 
 	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/hmans/beans/internal/beancore"
 	"github.com/hmans/beans/internal/config"
 	"github.com/hmans/beans/internal/graph"
@@ -33,8 +34,30 @@ const (
 	viewHelpOverlay
 )
 
+// Two-column layout constants
+const (
+	TwoColumnMinWidth = 120 // minimum terminal width for two-column layout
+	RightPaneMaxWidth = 80  // max width of preview pane (text files follow 80 char convention)
+)
+
+// calculatePaneWidths returns (leftWidth, rightWidth) for two-column layout.
+// Right pane is capped at RightPaneMaxWidth, left pane gets remaining space.
+func calculatePaneWidths(totalWidth int) (int, int) {
+	rightWidth := RightPaneMaxWidth
+	if totalWidth-rightWidth < 40 { // ensure left pane has reasonable minimum
+		rightWidth = totalWidth - 40
+	}
+	leftWidth := totalWidth - rightWidth - 1 // 1 for separator
+	return leftWidth, rightWidth
+}
+
 // beansChangedMsg is sent when beans change on disk (via file watcher)
 type beansChangedMsg struct{}
+
+// cursorChangedMsg is sent when the list cursor moves to a different bean
+type cursorChangedMsg struct {
+	beanID string
+}
 
 // openTagPickerMsg requests opening the tag picker
 type openTagPickerMsg struct{}
@@ -76,6 +99,7 @@ type App struct {
 	state          viewState
 	list           listModel
 	detail         detailModel
+	preview        previewModel
 	tagPicker      tagPickerModel
 	parentPicker   parentPickerModel
 	statusPicker   statusPickerModel
@@ -112,12 +136,18 @@ func New(core *beancore.Core, cfg *config.Config) *App {
 		resolver: resolver,
 		config:   cfg,
 		list:     newListModel(resolver, cfg),
+		preview:  newPreviewModel(nil, 0, 0),
 	}
 }
 
 // Init initializes the application
 func (a *App) Init() tea.Cmd {
 	return a.list.Init()
+}
+
+// isTwoColumnMode returns true if the terminal width supports two-column layout
+func (a *App) isTwoColumnMode() bool {
+	return a.width >= TwoColumnMinWidth
 }
 
 // Update handles messages
@@ -128,6 +158,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
 		a.height = msg.Height
+
+		// Update preview dimensions if in two-column mode
+		if a.isTwoColumnMode() {
+			_, rightWidth := calculatePaneWidths(a.width)
+			a.preview.width = rightWidth
+			a.preview.height = a.height - 2
+		}
 
 	case tea.KeyMsg:
 		// Clear status messages on any keypress
@@ -179,6 +216,31 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return a, tea.Quit
 			}
 		}
+
+	case cursorChangedMsg:
+		// Update preview with the newly highlighted bean
+		_, rightWidth := calculatePaneWidths(a.width)
+		if msg.beanID != "" {
+			bean, err := a.resolver.Query().Bean(context.Background(), msg.beanID)
+			if err == nil && bean != nil {
+				a.preview = newPreviewModel(bean, rightWidth, a.height-2)
+			}
+		} else {
+			a.preview = newPreviewModel(nil, rightWidth, a.height-2)
+		}
+		return a, nil
+
+	case beansLoadedMsg:
+		// Forward to list view
+		a.list, cmd = a.list.Update(msg)
+		// Update preview with current cursor position
+		_, rightWidth := calculatePaneWidths(a.width)
+		if len(msg.items) == 0 {
+			a.preview = newPreviewModel(nil, rightWidth, a.height-2)
+		} else if item, ok := a.list.list.SelectedItem().(beanItem); ok {
+			a.preview = newPreviewModel(item.bean, rightWidth, a.height-2)
+		}
+		return a, cmd
 
 	case beansChangedMsg:
 		// Beans changed on disk - refresh
@@ -357,14 +419,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case blockingConfirmedMsg:
 		// Apply all blocking changes via GraphQL mutations
 		for _, targetID := range msg.toAdd {
-			_, err := a.resolver.Mutation().AddBlocking(context.Background(), msg.beanID, targetID)
+			_, err := a.resolver.Mutation().AddBlocking(context.Background(), msg.beanID, targetID, nil)
 			if err != nil {
 				// Continue with other changes even if one fails
 				continue
 			}
 		}
 		for _, targetID := range msg.toRemove {
-			_, err := a.resolver.Mutation().RemoveBlocking(context.Background(), msg.beanID, targetID)
+			_, err := a.resolver.Mutation().RemoveBlocking(context.Background(), msg.beanID, targetID, nil)
 			if err != nil {
 				// Continue with other changes even if one fails
 				continue
@@ -456,7 +518,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			parentID = &msg.parentID
 		}
 		for _, beanID := range msg.beanIDs {
-			_, err := a.resolver.Mutation().SetParent(context.Background(), beanID, parentID)
+			_, err := a.resolver.Mutation().SetParent(context.Background(), beanID, parentID, nil)
 			if err != nil {
 				// Continue with other beans even if one fails
 				continue
@@ -568,10 +630,35 @@ func (a *App) collectTagsWithCounts() []tagWithCount {
 	return tags
 }
 
+// renderTwoColumnView renders the list and preview side by side with app-global footer
+func (a *App) renderTwoColumnView() string {
+	leftWidth, rightWidth := calculatePaneWidths(a.width)
+	contentHeight := a.height - 1 // Reserve 1 line for footer
+
+	// Render left pane (list) with constrained width, no footer
+	leftPane := a.list.ViewConstrained(leftWidth, contentHeight)
+
+	// Render right pane (preview) with same height
+	a.preview.width = rightWidth
+	a.preview.height = contentHeight
+	rightPane := a.preview.View()
+
+	// Compose columns
+	columns := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
+
+	// App-global footer spans full width
+	footer := a.list.Footer()
+
+	return columns + "\n" + footer
+}
+
 // View renders the current view
 func (a *App) View() string {
 	switch a.state {
 	case viewList:
+		if a.isTwoColumnMode() {
+			return a.renderTwoColumnView()
+		}
 		return a.list.View()
 	case viewDetail:
 		return a.detail.View()
