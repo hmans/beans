@@ -145,6 +145,11 @@ func (r *mutationResolver) UpdateBean(ctx context.Context, id string, input mode
 		return nil, err
 	}
 
+	// Validate ETag if provided or required
+	if err := r.validateETag(b, input.IfMatch); err != nil {
+		return nil, err
+	}
+
 	// Update fields if provided
 	if input.Title != nil {
 		b.Title = *input.Title
@@ -194,9 +199,14 @@ func (r *mutationResolver) DeleteBean(ctx context.Context, id string) (bool, err
 }
 
 // SetParent is the resolver for the setParent field.
-func (r *mutationResolver) SetParent(ctx context.Context, id string, parentID *string) (*bean.Bean, error) {
+func (r *mutationResolver) SetParent(ctx context.Context, id string, parentID *string, ifMatch *string) (*bean.Bean, error) {
 	b, err := r.Core.Get(id)
 	if err != nil {
+		return nil, err
+	}
+
+	// Validate ETag if provided or required
+	if err := r.validateETag(b, ifMatch); err != nil {
 		return nil, err
 	}
 
@@ -225,9 +235,14 @@ func (r *mutationResolver) SetParent(ctx context.Context, id string, parentID *s
 }
 
 // AddBlocking is the resolver for the addBlocking field.
-func (r *mutationResolver) AddBlocking(ctx context.Context, id string, targetID string) (*bean.Bean, error) {
+func (r *mutationResolver) AddBlocking(ctx context.Context, id string, targetID string, ifMatch *string) (*bean.Bean, error) {
 	b, err := r.Core.Get(id)
 	if err != nil {
+		return nil, err
+	}
+
+	// Validate ETag if provided or required
+	if err := r.validateETag(b, ifMatch); err != nil {
 		return nil, err
 	}
 
@@ -256,9 +271,14 @@ func (r *mutationResolver) AddBlocking(ctx context.Context, id string, targetID 
 }
 
 // RemoveBlocking is the resolver for the removeBlocking field.
-func (r *mutationResolver) RemoveBlocking(ctx context.Context, id string, targetID string) (*bean.Bean, error) {
+func (r *mutationResolver) RemoveBlocking(ctx context.Context, id string, targetID string, ifMatch *string) (*bean.Bean, error) {
 	b, err := r.Core.Get(id)
 	if err != nil {
+		return nil, err
+	}
+
+	// Validate ETag if provided or required
+	if err := r.validateETag(b, ifMatch); err != nil {
 		return nil, err
 	}
 

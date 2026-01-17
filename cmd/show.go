@@ -18,6 +18,7 @@ var (
 	showJSON     bool
 	showRaw      bool
 	showBodyOnly bool
+	showETagOnly bool
 )
 
 var showCmd = &cobra.Command{
@@ -77,6 +78,17 @@ var showCmd = &cobra.Command{
 					fmt.Print("\n---\n\n")
 				}
 				fmt.Print(b.Body)
+			}
+			return nil
+		}
+
+		// ETag only (for easy extraction in scripts)
+		if showETagOnly {
+			for i, b := range beans {
+				if i > 0 {
+					fmt.Println()
+				}
+				fmt.Print(b.ETag())
 			}
 			return nil
 		}
@@ -186,6 +198,7 @@ func init() {
 	showCmd.Flags().BoolVar(&showJSON, "json", false, "Output as JSON")
 	showCmd.Flags().BoolVar(&showRaw, "raw", false, "Output raw markdown without styling")
 	showCmd.Flags().BoolVar(&showBodyOnly, "body-only", false, "Output only the body content")
-	showCmd.MarkFlagsMutuallyExclusive("json", "raw", "body-only")
+	showCmd.Flags().BoolVar(&showETagOnly, "etag-only", false, "Output only the etag")
+	showCmd.MarkFlagsMutuallyExclusive("json", "raw", "body-only", "etag-only")
 	rootCmd.AddCommand(showCmd)
 }

@@ -93,6 +93,15 @@ Beans can have an optional priority. Use `-p` when creating or `--priority` when
 
 Beans without a priority are treated as `normal` priority for sorting purposes.
 
+## Concurrency Control
+
+Use etags with `--if-match` for optimistic locking:
+```bash
+ETAG=$(beans show <id> --etag-only)
+beans update <id> --if-match "$ETAG" -s completed
+```
+On conflict, returns an error with the current etag.
+
 ## GraphQL Queries
 
 The `beans query` command allows advanced querying using GraphQL.
