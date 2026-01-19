@@ -54,10 +54,13 @@ beans show --json <id> [id...]
 # Create a bean (always specify -t type)
 beans create --json "Title" -t task -d "Description..." -s todo
 
-# Update a bean
-beans update --json <id> -s in-progress       # Change status
-beans update --json <id> --parent <other-id>  # Set parent relationship
-beans update --json <id> --blocking <other-id> # Mark as blocking another bean
+# Update a bean (metadata, body, or both)
+beans update --json <id> -s in-progress                        # Change status
+beans update --json <id> --parent <other-id>                   # Set parent relationship
+beans update --json <id> --blocking <other-id>                 # Mark as blocking another bean
+beans update --json <id> --body-replace-old "old" --body-replace-new "new"  # Replace text
+beans update --json <id> --body-append "## Notes"              # Append to body
+beans update --json <id> -s completed --body-replace-old "- [ ] Task" --body-replace-new "- [x] Task"  # Combined
 
 # Archive completed/scrapped beans (only when user requests)
 beans archive
@@ -93,13 +96,40 @@ Beans can have an optional priority. Use `-p` when creating or `--priority` when
 
 Beans without a priority are treated as `normal` priority for sorting purposes.
 
+## Modifying Bean Body Content
+
+Use `beans update` to modify body content along with metadata changes:
+
+**Replace text (exact match, must occur exactly once):**
+```bash
+beans update <id> --body-replace-old "- [ ] Task 1" --body-replace-new "- [x] Task 1"
+```
+- Errors if text not found or found multiple times
+- Use empty string to delete the matched text
+
+**Append content:**
+```bash
+beans update <id> --body-append "## Notes\n\nAdded content"
+echo "Multi-line content" | beans update <id> --body-append -
+```
+- Adds text to end of body with blank line separator
+- Use `-` to read from stdin
+
+**Combined with metadata changes:**
+```bash
+beans update <id> \
+  --body-replace-old "- [ ] Deploy to prod" --body-replace-new "- [x] Deploy to prod" \
+  --status completed
+```
+
 ## Concurrency Control
 
-Use etags with `--if-match` for optimistic locking:
+Use etags with `--if-match`:
 ```bash
 ETAG=$(beans show <id> --etag-only)
-beans update <id> --if-match "$ETAG" -s completed
+beans update <id> --if-match "$ETAG" ...
 ```
+
 On conflict, returns an error with the current etag.
 
 ## GraphQL Queries

@@ -292,6 +292,54 @@ func (r *mutationResolver) RemoveBlocking(ctx context.Context, id string, target
 	return b, nil
 }
 
+// ReplaceInBody is the resolver for the replaceInBody field.
+func (r *mutationResolver) ReplaceInBody(ctx context.Context, id string, old string, new string, ifMatch *string) (*bean.Bean, error) {
+	b, err := r.Core.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate ETag if provided or required
+	if err := r.validateETag(b, ifMatch); err != nil {
+		return nil, err
+	}
+
+	// Apply replacement using shared logic
+	newBody, err := bean.ReplaceOnce(b.Body, old, new)
+	if err != nil {
+		return nil, err
+	}
+
+	b.Body = newBody
+	if err := r.Core.Update(b); err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+// AppendToBody is the resolver for the appendToBody field.
+func (r *mutationResolver) AppendToBody(ctx context.Context, id string, content string, ifMatch *string) (*bean.Bean, error) {
+	b, err := r.Core.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate ETag if provided or required
+	if err := r.validateETag(b, ifMatch); err != nil {
+		return nil, err
+	}
+
+	// Apply append using shared logic (no-op if content is empty)
+	b.Body = bean.AppendWithSeparator(b.Body, content)
+
+	if err := r.Core.Update(b); err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
 // Bean is the resolver for the bean field.
 func (r *queryResolver) Bean(ctx context.Context, id string) (*bean.Bean, error) {
 	b, err := r.Core.Get(id)

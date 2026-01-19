@@ -21,6 +21,9 @@ var (
 	updateTitle          string
 	updateBody           string
 	updateBodyFile       string
+	updateBodyReplaceOld string
+	updateBodyReplaceNew string
+	updateBodyAppend     string
 	updateParent         string
 	updateRemoveParent   bool
 	updateBlocking       []string
@@ -72,7 +75,7 @@ var updateCmd = &cobra.Command{
 		}
 
 		// Build and validate field updates
-		input, fieldChanges, err := buildUpdateInput(cmd, b.Tags)
+		input, fieldChanges, err := buildUpdateInput(cmd, b.Tags, b.Body)
 		if err != nil {
 			return cmdError(updateJSON, output.ErrValidation, "%s", err)
 		}
@@ -147,7 +150,7 @@ var updateCmd = &cobra.Command{
 }
 
 // buildUpdateInput constructs the GraphQL input from flags and returns which fields changed.
-func buildUpdateInput(cmd *cobra.Command, existingTags []string) (model.UpdateBeanInput, []string, error) {
+func buildUpdateInput(cmd *cobra.Command, existingTags []string, currentBody string) (model.UpdateBeanInput, []string, error) {
 	var input model.UpdateBeanInput
 	var changes []string
 
@@ -180,13 +183,29 @@ func buildUpdateInput(cmd *cobra.Command, existingTags []string) (model.UpdateBe
 		changes = append(changes, "title")
 	}
 
-	// Handle body modifications
+	// Handle body modifications (mutually exclusive)
 	if cmd.Flags().Changed("body") || cmd.Flags().Changed("body-file") {
 		body, err := resolveContent(updateBody, updateBodyFile)
 		if err != nil {
 			return input, nil, err
 		}
 		input.Body = &body
+		changes = append(changes, "body")
+	} else if cmd.Flags().Changed("body-replace-old") {
+		// --body-replace-old requires --body-replace-new (enforced by MarkFlagsRequiredTogether)
+		newBody, err := applyBodyReplace(currentBody, updateBodyReplaceOld, updateBodyReplaceNew)
+		if err != nil {
+			return input, nil, err
+		}
+		input.Body = &newBody
+		changes = append(changes, "body")
+	} else if cmd.Flags().Changed("body-append") {
+		appendText, err := resolveAppendContent(updateBodyAppend)
+		if err != nil {
+			return input, nil, err
+		}
+		newBody := applyBodyAppend(currentBody, appendText)
+		input.Body = &newBody
 		changes = append(changes, "body")
 	}
 
@@ -240,6 +259,9 @@ func init() {
 	updateCmd.Flags().StringVar(&updateTitle, "title", "", "New title")
 	updateCmd.Flags().StringVarP(&updateBody, "body", "d", "", "New body (use '-' to read from stdin)")
 	updateCmd.Flags().StringVar(&updateBodyFile, "body-file", "", "Read body from file")
+	updateCmd.Flags().StringVar(&updateBodyReplaceOld, "body-replace-old", "", "Text to find and replace (requires --body-replace-new)")
+	updateCmd.Flags().StringVar(&updateBodyReplaceNew, "body-replace-new", "", "Replacement text (requires --body-replace-old)")
+	updateCmd.Flags().StringVar(&updateBodyAppend, "body-append", "", "Text to append to body (use '-' for stdin)")
 	updateCmd.Flags().StringVar(&updateParent, "parent", "", "Set parent bean ID")
 	updateCmd.Flags().BoolVar(&updateRemoveParent, "remove-parent", false, "Remove parent")
 	updateCmd.Flags().StringArrayVar(&updateBlocking, "blocking", nil, "ID of bean this blocks (can be repeated)")
@@ -249,6 +271,7 @@ func init() {
 	updateCmd.Flags().StringVar(&updateIfMatch, "if-match", "", "Only update if etag matches (optimistic locking)")
 	updateCmd.MarkFlagsMutuallyExclusive("parent", "remove-parent")
 	updateCmd.Flags().BoolVar(&updateJSON, "json", false, "Output as JSON")
-	updateCmd.MarkFlagsMutuallyExclusive("body", "body-file")
+	updateCmd.MarkFlagsMutuallyExclusive("body", "body-file", "body-replace-old", "body-append")
+	updateCmd.MarkFlagsRequiredTogether("body-replace-old", "body-replace-new")
 	rootCmd.AddCommand(updateCmd)
 }

@@ -44,6 +44,19 @@ type Mutation {
   Remove a bean from the blocking list
   """
   removeBlocking(id: ID!, targetId: ID!, ifMatch: String): Bean!
+
+  """
+  Replace exactly one occurrence of text in a bean's body.
+  Returns an error if the old text is not found or found multiple times.
+  The new text can be empty to delete the matched text.
+  """
+  replaceInBody(id: ID!, old: String!, new: String!, ifMatch: String): Bean!
+
+  """
+  Append text to a bean's body with a blank line separator.
+  If content is empty, this is a no-op and returns the bean unchanged.
+  """
+  appendToBody(id: ID!, content: String!, ifMatch: String): Bean!
 }
 
 """
