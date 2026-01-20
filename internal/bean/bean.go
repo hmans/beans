@@ -104,6 +104,34 @@ func (b *Bean) RemoveBlocking(id string) {
 	b.Blocking = result
 }
 
+// IsBlockedBy returns true if this bean is blocked by the given bean ID.
+func (b *Bean) IsBlockedBy(id string) bool {
+	for _, blocker := range b.BlockedBy {
+		if blocker == id {
+			return true
+		}
+	}
+	return false
+}
+
+// AddBlockedBy adds a bean ID to the blocked-by list if not already present.
+func (b *Bean) AddBlockedBy(id string) {
+	if !b.IsBlockedBy(id) {
+		b.BlockedBy = append(b.BlockedBy, id)
+	}
+}
+
+// RemoveBlockedBy removes a bean ID from the blocked-by list.
+func (b *Bean) RemoveBlockedBy(id string) {
+	result := make([]string, 0, len(b.BlockedBy))
+	for _, blocker := range b.BlockedBy {
+		if blocker != id {
+			result = append(result, blocker)
+		}
+	}
+	b.BlockedBy = result
+}
+
 // Bean represents an issue stored as a markdown file with front matter.
 type Bean struct {
 	// ID is the unique NanoID identifier (from filename).
@@ -130,6 +158,9 @@ type Bean struct {
 
 	// Blocking is a list of bean IDs that this bean is blocking.
 	Blocking []string `yaml:"blocking,omitempty" json:"blocking,omitempty"`
+
+	// BlockedBy is a list of bean IDs that are blocking this bean.
+	BlockedBy []string `yaml:"blocked_by,omitempty" json:"blocked_by,omitempty"`
 }
 
 // frontMatter is the subset of Bean that gets serialized to YAML front matter.
@@ -143,6 +174,7 @@ type frontMatter struct {
 	UpdatedAt *time.Time `yaml:"updated_at,omitempty"`
 	Parent    string     `yaml:"parent,omitempty"`
 	Blocking  []string   `yaml:"blocking,omitempty"`
+	BlockedBy []string   `yaml:"blocked_by,omitempty"`
 }
 
 // Parse reads a bean from a reader (markdown with YAML front matter).
@@ -164,6 +196,7 @@ func Parse(r io.Reader) (*Bean, error) {
 		Body:      string(body),
 		Parent:    fm.Parent,
 		Blocking:  fm.Blocking,
+		BlockedBy: fm.BlockedBy,
 	}, nil
 }
 
@@ -178,6 +211,7 @@ type renderFrontMatter struct {
 	UpdatedAt *time.Time `yaml:"updated_at,omitempty"`
 	Parent    string     `yaml:"parent,omitempty"`
 	Blocking  []string   `yaml:"blocking,omitempty"`
+	BlockedBy []string   `yaml:"blocked_by,omitempty"`
 }
 
 // Render serializes the bean back to markdown with YAML front matter.
@@ -192,6 +226,7 @@ func (b *Bean) Render() ([]byte, error) {
 		UpdatedAt: b.UpdatedAt,
 		Parent:    b.Parent,
 		Blocking:  b.Blocking,
+		BlockedBy: b.BlockedBy,
 	}
 
 	fmBytes, err := yaml.Marshal(&fm)

@@ -745,6 +745,189 @@ func TestParentAndBlockingRoundtrip(t *testing.T) {
 	}
 }
 
+func TestParseWithBlockedBy(t *testing.T) {
+	tests := []struct {
+		name            string
+		input           string
+		expectedBlockedBy []string
+	}{
+		{
+			name: "with blocked_by",
+			input: `---
+title: Test
+status: todo
+blocked_by:
+  - abc123
+  - def456
+---`,
+			expectedBlockedBy: []string{"abc123", "def456"},
+		},
+		{
+			name: "no blocked_by",
+			input: `---
+title: Test
+status: todo
+---`,
+			expectedBlockedBy: nil,
+		},
+		{
+			name: "with blocking and blocked_by",
+			input: `---
+title: Test
+status: todo
+blocking:
+  - xyz789
+blocked_by:
+  - abc123
+---`,
+			expectedBlockedBy: []string{"abc123"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bean, err := Parse(strings.NewReader(tt.input))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if len(tt.expectedBlockedBy) == 0 && len(bean.BlockedBy) == 0 {
+				return // Both empty, OK
+			}
+
+			if len(bean.BlockedBy) != len(tt.expectedBlockedBy) {
+				t.Errorf("BlockedBy count = %d, want %d", len(bean.BlockedBy), len(tt.expectedBlockedBy))
+				return
+			}
+
+			for i, expected := range tt.expectedBlockedBy {
+				if bean.BlockedBy[i] != expected {
+					t.Errorf("BlockedBy[%d] = %q, want %q", i, bean.BlockedBy[i], expected)
+				}
+			}
+		})
+	}
+}
+
+func TestRenderWithBlockedBy(t *testing.T) {
+	tests := []struct {
+		name     string
+		bean     *Bean
+		contains []string
+	}{
+		{
+			name: "with blocked_by only",
+			bean: &Bean{
+				Title:     "Test Bean",
+				Status:    "todo",
+				BlockedBy: []string{"abc123", "def456"},
+			},
+			contains: []string{
+				"blocked_by:",
+				"- abc123",
+				"- def456",
+			},
+		},
+		{
+			name: "with blocking and blocked_by",
+			bean: &Bean{
+				Title:     "Test Bean",
+				Status:    "todo",
+				Blocking:  []string{"xyz789"},
+				BlockedBy: []string{"abc123"},
+			},
+			contains: []string{
+				"blocking:",
+				"- xyz789",
+				"blocked_by:",
+				"- abc123",
+			},
+		},
+		{
+			name: "without blocked_by",
+			bean: &Bean{
+				Title:  "Test Bean",
+				Status: "todo",
+			},
+			contains: []string{
+				"title: Test Bean",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := tt.bean.Render()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			result := string(output)
+			for _, want := range tt.contains {
+				if !strings.Contains(result, want) {
+					t.Errorf("output missing %q\ngot:\n%s", want, result)
+				}
+			}
+
+			// Check that empty blocked_by doesn't appear in output
+			if len(tt.bean.BlockedBy) == 0 && strings.Contains(result, "blocked_by:") {
+				t.Errorf("output should not contain 'blocked_by:' when no blocked_by\ngot:\n%s", result)
+			}
+		})
+	}
+}
+
+func TestBlockedByRoundtrip(t *testing.T) {
+	tests := []struct {
+		name      string
+		blockedBy []string
+	}{
+		{
+			name:      "single blocked_by",
+			blockedBy: []string{"abc123"},
+		},
+		{
+			name:      "multiple blocked_by",
+			blockedBy: []string{"abc123", "def456"},
+		},
+		{
+			name:      "empty blocked_by",
+			blockedBy: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			original := &Bean{
+				Title:     "Test",
+				Status:    "todo",
+				BlockedBy: tt.blockedBy,
+			}
+
+			rendered, err := original.Render()
+			if err != nil {
+				t.Fatalf("Render error: %v", err)
+			}
+
+			parsed, err := Parse(strings.NewReader(string(rendered)))
+			if err != nil {
+				t.Fatalf("Parse error: %v", err)
+			}
+
+			if len(parsed.BlockedBy) != len(tt.blockedBy) {
+				t.Errorf("BlockedBy count: got %d, want %d", len(parsed.BlockedBy), len(tt.blockedBy))
+				return
+			}
+
+			for i, expected := range tt.blockedBy {
+				if parsed.BlockedBy[i] != expected {
+					t.Errorf("BlockedBy[%d] = %q, want %q", i, parsed.BlockedBy[i], expected)
+				}
+			}
+		})
+	}
+}
+
 func TestBeanRelationshipMethods(t *testing.T) {
 	t.Run("HasParent", func(t *testing.T) {
 		withParent := &Bean{Parent: "xyz789"}
@@ -807,6 +990,58 @@ func TestBeanRelationshipMethods(t *testing.T) {
 		b.RemoveBlocking("nonexistent")
 		if len(b.Blocking) != 2 {
 			t.Errorf("RemoveBlocking non-existent: got len=%d, want 2", len(b.Blocking))
+		}
+	})
+
+	t.Run("IsBlockedBy", func(t *testing.T) {
+		b := &Bean{BlockedBy: []string{"abc", "def"}}
+		if !b.IsBlockedBy("abc") {
+			t.Error("expected IsBlockedBy('abc') = true")
+		}
+		if !b.IsBlockedBy("def") {
+			t.Error("expected IsBlockedBy('def') = true")
+		}
+		if b.IsBlockedBy("xyz") {
+			t.Error("expected IsBlockedBy('xyz') = false")
+		}
+
+		empty := &Bean{}
+		if empty.IsBlockedBy("abc") {
+			t.Error("expected IsBlockedBy('abc') = false for empty blocked_by")
+		}
+	})
+
+	t.Run("AddBlockedBy", func(t *testing.T) {
+		b := &Bean{BlockedBy: []string{"abc"}}
+		b.AddBlockedBy("def")
+		if len(b.BlockedBy) != 2 {
+			t.Errorf("AddBlockedBy new: got len=%d, want 2", len(b.BlockedBy))
+		}
+		if !b.IsBlockedBy("def") {
+			t.Error("AddBlockedBy didn't add the blocker")
+		}
+
+		// Adding duplicate should not add
+		b.AddBlockedBy("abc")
+		if len(b.BlockedBy) != 2 {
+			t.Errorf("AddBlockedBy duplicate: got len=%d, want 2", len(b.BlockedBy))
+		}
+	})
+
+	t.Run("RemoveBlockedBy", func(t *testing.T) {
+		b := &Bean{BlockedBy: []string{"abc", "def", "ghi"}}
+		b.RemoveBlockedBy("def")
+		if len(b.BlockedBy) != 2 {
+			t.Errorf("RemoveBlockedBy existing: got len=%d, want 2", len(b.BlockedBy))
+		}
+		if b.IsBlockedBy("def") {
+			t.Error("RemoveBlockedBy didn't remove the blocker")
+		}
+
+		// Removing non-existent should not change anything
+		b.RemoveBlockedBy("nonexistent")
+		if len(b.BlockedBy) != 2 {
+			t.Errorf("RemoveBlockedBy non-existent: got len=%d, want 2", len(b.BlockedBy))
 		}
 	})
 }

@@ -1689,6 +1689,233 @@ func TestMutationAppendToBody(t *testing.T) {
 	})
 }
 
+func TestBlockedByCycleDetection(t *testing.T) {
+	resolver, core := setupTestResolver(t)
+	ctx := context.Background()
+
+	t.Run("blocked_by self-reference fails", func(t *testing.T) {
+		b := &bean.Bean{ID: "self-ref", Title: "Self Reference", Status: "todo"}
+		core.Create(b)
+
+		mr := resolver.Mutation()
+		_, err := mr.AddBlockedBy(ctx, "self-ref", "self-ref", nil)
+		if err == nil {
+			t.Error("AddBlockedBy() should fail for self-reference")
+		}
+		if !strings.Contains(err.Error(), "blocked by itself") {
+			t.Errorf("Error should mention self-reference, got: %v", err)
+		}
+	})
+
+	t.Run("blocked_by cycle via blocked_by only is detected", func(t *testing.T) {
+		// This tests the scenario where cycles are created using only blocked_by
+		a := &bean.Bean{ID: "cycle-a", Title: "Bean A", Status: "todo"}
+		b := &bean.Bean{ID: "cycle-b", Title: "Bean B", Status: "todo"}
+		core.Create(a)
+		core.Create(b)
+
+		mr := resolver.Mutation()
+
+		// A is blocked by B (B → A)
+		_, err := mr.AddBlockedBy(ctx, "cycle-a", "cycle-b", nil)
+		if err != nil {
+			t.Fatalf("AddBlockedBy(A, B) error = %v", err)
+		}
+
+		// B is blocked by A (A → B) - should create cycle A → B → A
+		_, err = mr.AddBlockedBy(ctx, "cycle-b", "cycle-a", nil)
+		if err == nil {
+			t.Error("AddBlockedBy(B, A) should fail - would create cycle")
+		}
+		if !strings.Contains(err.Error(), "cycle") {
+			t.Errorf("Error should mention cycle, got: %v", err)
+		}
+	})
+
+	t.Run("blocked_by cycle via blocking is detected", func(t *testing.T) {
+		// A blocks B, then B is blocked_by A creates a conflict
+		a := &bean.Bean{ID: "cross-a", Title: "Bean A", Status: "todo"}
+		b := &bean.Bean{ID: "cross-b", Title: "Bean B", Status: "todo"}
+		core.Create(a)
+		core.Create(b)
+
+		mr := resolver.Mutation()
+
+		// A blocks B (A → B)
+		_, err := mr.AddBlocking(ctx, "cross-a", "cross-b", nil)
+		if err != nil {
+			t.Fatalf("AddBlocking(A, B) error = %v", err)
+		}
+
+		// A is blocked by B (B → A) - should create cycle
+		_, err = mr.AddBlockedBy(ctx, "cross-a", "cross-b", nil)
+		if err == nil {
+			t.Error("AddBlockedBy(A, B) should fail - would create cycle")
+		}
+		if !strings.Contains(err.Error(), "cycle") {
+			t.Errorf("Error should mention cycle, got: %v", err)
+		}
+	})
+
+	t.Run("blocking cycle via blocked_by is detected", func(t *testing.T) {
+		// A is blocked_by B, then A blocking B creates a conflict
+		a := &bean.Bean{ID: "cross2-a", Title: "Bean A", Status: "todo"}
+		b := &bean.Bean{ID: "cross2-b", Title: "Bean B", Status: "todo"}
+		core.Create(a)
+		core.Create(b)
+
+		mr := resolver.Mutation()
+
+		// A is blocked by B (B → A)
+		_, err := mr.AddBlockedBy(ctx, "cross2-a", "cross2-b", nil)
+		if err != nil {
+			t.Fatalf("AddBlockedBy(A, B) error = %v", err)
+		}
+
+		// A blocks B (A → B) - should create cycle
+		_, err = mr.AddBlocking(ctx, "cross2-a", "cross2-b", nil)
+		if err == nil {
+			t.Error("AddBlocking(A, B) should fail - would create cycle")
+		}
+		if !strings.Contains(err.Error(), "cycle") {
+			t.Errorf("Error should mention cycle, got: %v", err)
+		}
+	})
+
+	t.Run("blocker bean not found fails", func(t *testing.T) {
+		a := &bean.Bean{ID: "exists-a", Title: "Bean A", Status: "todo"}
+		core.Create(a)
+
+		mr := resolver.Mutation()
+		_, err := mr.AddBlockedBy(ctx, "exists-a", "nonexistent", nil)
+		if err == nil {
+			t.Error("AddBlockedBy() should fail when blocker doesn't exist")
+		}
+		if !strings.Contains(err.Error(), "not found") {
+			t.Errorf("Error should mention not found, got: %v", err)
+		}
+	})
+}
+
+func TestCreateBeanBlockedByValidation(t *testing.T) {
+	resolver, core := setupTestResolver(t)
+	ctx := context.Background()
+
+	t.Run("create with blocked_by referencing nonexistent bean fails", func(t *testing.T) {
+		mr := resolver.Mutation()
+		input := model.CreateBeanInput{
+			Title:     "New Bean",
+			BlockedBy: []string{"nonexistent"},
+		}
+		_, err := mr.CreateBean(ctx, input)
+		if err == nil {
+			t.Error("CreateBean() should fail when blocked_by references nonexistent bean")
+		}
+		if !strings.Contains(err.Error(), "not found") {
+			t.Errorf("Error should mention not found, got: %v", err)
+		}
+	})
+
+	t.Run("create with blocking referencing nonexistent bean fails", func(t *testing.T) {
+		mr := resolver.Mutation()
+		input := model.CreateBeanInput{
+			Title:    "New Bean",
+			Blocking: []string{"nonexistent"},
+		}
+		_, err := mr.CreateBean(ctx, input)
+		if err == nil {
+			t.Error("CreateBean() should fail when blocking references nonexistent bean")
+		}
+		if !strings.Contains(err.Error(), "not found") {
+			t.Errorf("Error should mention not found, got: %v", err)
+		}
+	})
+
+	t.Run("create with same bean in both blocking and blocked_by fails", func(t *testing.T) {
+		target := &bean.Bean{ID: "target-bean", Title: "Target", Status: "todo"}
+		core.Create(target)
+
+		mr := resolver.Mutation()
+		input := model.CreateBeanInput{
+			Title:     "Cyclic Bean",
+			Blocking:  []string{"target-bean"},
+			BlockedBy: []string{"target-bean"},
+		}
+		_, err := mr.CreateBean(ctx, input)
+		if err == nil {
+			t.Error("CreateBean() should fail when same bean is in both blocking and blocked_by")
+		}
+		if !strings.Contains(err.Error(), "cycle") {
+			t.Errorf("Error should mention cycle, got: %v", err)
+		}
+	})
+
+	t.Run("create with valid blocked_by succeeds", func(t *testing.T) {
+		blocker := &bean.Bean{ID: "valid-blocker", Title: "Blocker", Status: "todo"}
+		core.Create(blocker)
+
+		mr := resolver.Mutation()
+		input := model.CreateBeanInput{
+			Title:     "Blocked Bean",
+			BlockedBy: []string{"valid-blocker"},
+		}
+		got, err := mr.CreateBean(ctx, input)
+		if err != nil {
+			t.Fatalf("CreateBean() error = %v", err)
+		}
+		if len(got.BlockedBy) != 1 {
+			t.Errorf("CreateBean().BlockedBy count = %d, want 1", len(got.BlockedBy))
+		}
+		if got.BlockedBy[0] != "valid-blocker" {
+			t.Errorf("CreateBean().BlockedBy[0] = %q, want %q", got.BlockedBy[0], "valid-blocker")
+		}
+	})
+}
+
+func TestMutationAddRemoveBlockedBy(t *testing.T) {
+	resolver, core := setupTestResolver(t)
+	ctx := context.Background()
+
+	// Create test beans
+	blocked := &bean.Bean{ID: "blocked-1", Title: "Blocked", Status: "todo"}
+	blocker := &bean.Bean{ID: "blocker-1", Title: "Blocker", Status: "todo"}
+	core.Create(blocked)
+	core.Create(blocker)
+
+	t.Run("add blocked_by", func(t *testing.T) {
+		mr := resolver.Mutation()
+		got, err := mr.AddBlockedBy(ctx, "blocked-1", "blocker-1", nil)
+		if err != nil {
+			t.Fatalf("AddBlockedBy() error = %v", err)
+		}
+		if len(got.BlockedBy) != 1 {
+			t.Errorf("AddBlockedBy().BlockedBy count = %d, want 1", len(got.BlockedBy))
+		}
+		if got.BlockedBy[0] != "blocker-1" {
+			t.Errorf("AddBlockedBy().BlockedBy[0] = %q, want %q", got.BlockedBy[0], "blocker-1")
+		}
+	})
+
+	t.Run("remove blocked_by", func(t *testing.T) {
+		mr := resolver.Mutation()
+		got, err := mr.RemoveBlockedBy(ctx, "blocked-1", "blocker-1", nil)
+		if err != nil {
+			t.Fatalf("RemoveBlockedBy() error = %v", err)
+		}
+		if len(got.BlockedBy) != 0 {
+			t.Errorf("RemoveBlockedBy().BlockedBy count = %d, want 0", len(got.BlockedBy))
+		}
+	})
+
+	t.Run("add blocked_by to nonexistent bean fails", func(t *testing.T) {
+		mr := resolver.Mutation()
+		_, err := mr.AddBlockedBy(ctx, "nonexistent", "blocker-1", nil)
+		if err == nil {
+			t.Error("AddBlockedBy() expected error for nonexistent bean")
+		}
+	})
+}
+
 func TestReplaceInBodyRequireIfMatch(t *testing.T) {
 	resolver, core := setupTestResolverWithRequireIfMatch(t)
 	ctx := context.Background()

@@ -15,23 +15,25 @@ import (
 )
 
 var (
-	updateStatus         string
-	updateType           string
-	updatePriority       string
-	updateTitle          string
-	updateBody           string
-	updateBodyFile       string
-	updateBodyReplaceOld string
-	updateBodyReplaceNew string
-	updateBodyAppend     string
-	updateParent         string
-	updateRemoveParent   bool
-	updateBlocking       []string
-	updateRemoveBlocking []string
-	updateTag            []string
-	updateRemoveTag      []string
-	updateIfMatch        string
-	updateJSON           bool
+	updateStatus          string
+	updateType            string
+	updatePriority        string
+	updateTitle           string
+	updateBody            string
+	updateBodyFile        string
+	updateBodyReplaceOld  string
+	updateBodyReplaceNew  string
+	updateBodyAppend      string
+	updateParent          string
+	updateRemoveParent    bool
+	updateBlocking        []string
+	updateRemoveBlocking  []string
+	updateBlockedBy       []string
+	updateRemoveBlockedBy []string
+	updateTag             []string
+	updateRemoveTag       []string
+	updateIfMatch         string
+	updateJSON            bool
 )
 
 var updateCmd = &cobra.Command{
@@ -125,10 +127,28 @@ var updateCmd = &cobra.Command{
 			changes = append(changes, "blocking")
 		}
 
+		// Process blocked-by additions
+		for _, targetID := range updateBlockedBy {
+			b, err = resolver.Mutation().AddBlockedBy(ctx, b.ID, targetID, ifMatch)
+			if err != nil {
+				return mutationError(updateJSON, err)
+			}
+			changes = append(changes, "blocked-by")
+		}
+
+		// Process blocked-by removals
+		for _, targetID := range updateRemoveBlockedBy {
+			b, err = resolver.Mutation().RemoveBlockedBy(ctx, b.ID, targetID, ifMatch)
+			if err != nil {
+				return mutationError(updateJSON, err)
+			}
+			changes = append(changes, "blocked-by")
+		}
+
 		// Require at least one change
 		if len(changes) == 0 {
 			return cmdError(updateJSON, output.ErrValidation,
-				"no changes specified (use --status, --type, --priority, --title, --body, --parent, --blocking, --tag, or their --remove-* variants)")
+				"no changes specified (use --status, --type, --priority, --title, --body, --parent, --blocking, --blocked-by, --tag, or their --remove-* variants)")
 		}
 
 		// Output result
@@ -266,6 +286,8 @@ func init() {
 	updateCmd.Flags().BoolVar(&updateRemoveParent, "remove-parent", false, "Remove parent")
 	updateCmd.Flags().StringArrayVar(&updateBlocking, "blocking", nil, "ID of bean this blocks (can be repeated)")
 	updateCmd.Flags().StringArrayVar(&updateRemoveBlocking, "remove-blocking", nil, "ID of bean to unblock (can be repeated)")
+	updateCmd.Flags().StringArrayVar(&updateBlockedBy, "blocked-by", nil, "ID of bean that blocks this one (can be repeated)")
+	updateCmd.Flags().StringArrayVar(&updateRemoveBlockedBy, "remove-blocked-by", nil, "ID of blocker bean to remove (can be repeated)")
 	updateCmd.Flags().StringArrayVar(&updateTag, "tag", nil, "Add tag (can be repeated)")
 	updateCmd.Flags().StringArrayVar(&updateRemoveTag, "remove-tag", nil, "Remove tag (can be repeated)")
 	updateCmd.Flags().StringVar(&updateIfMatch, "if-match", "", "Only update if etag matches (optimistic locking)")

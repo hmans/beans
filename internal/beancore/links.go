@@ -72,16 +72,25 @@ func (c *Core) FindIncomingLinks(targetID string) []IncomingLink {
 				})
 			}
 		}
+		// Check blocked_by links (inverse: if A has blocked_by B, then B links to A)
+		for _, blocker := range b.BlockedBy {
+			if blocker == targetID {
+				result = append(result, IncomingLink{
+					FromBean: b,
+					LinkType: "blocked_by",
+				})
+			}
+		}
 	}
 	return result
 }
 
 // DetectCycle checks if adding a link from fromID to toID would create a cycle.
-// Only checks for blocking and parent link types.
+// Checks for blocking, blocked_by, and parent link types.
 // Returns the cycle path if a cycle would be created, nil otherwise.
 func (c *Core) DetectCycle(fromID, linkType, toID string) []string {
 	// Only check hierarchical link types
-	if linkType != "blocking" && linkType != "parent" {
+	if linkType != "blocking" && linkType != "blocked_by" && linkType != "parent" {
 		return nil
 	}
 
@@ -123,6 +132,8 @@ func (c *Core) findPathToTarget(current, target, linkType string, visited map[st
 		}
 	case "blocking":
 		targets = b.Blocking
+	case "blocked_by":
+		targets = b.BlockedBy
 	}
 
 	for _, t := range targets {
@@ -179,10 +190,26 @@ func (c *Core) CheckAllLinks() *LinkCheckResult {
 				})
 			}
 		}
+
+		// Check blocked_by links
+		for _, blocker := range b.BlockedBy {
+			if blocker == b.ID {
+				result.SelfLinks = append(result.SelfLinks, SelfLink{
+					BeanID:   b.ID,
+					LinkType: "blocked_by",
+				})
+			} else if _, ok := c.beans[blocker]; !ok {
+				result.BrokenLinks = append(result.BrokenLinks, BrokenLink{
+					BeanID:   b.ID,
+					LinkType: "blocked_by",
+					Target:   blocker,
+				})
+			}
+		}
 	}
 
-	// Check for cycles in blocking and parent links
-	for _, linkType := range []string{"blocking", "parent"} {
+	// Check for cycles in blocking, blocked_by, and parent links
+	for _, linkType := range []string{"blocking", "blocked_by", "parent"} {
 		cycles := c.findCycles(linkType)
 		result.Cycles = append(result.Cycles, cycles...)
 	}
@@ -241,6 +268,8 @@ func (c *Core) findCycles(linkType string) []Cycle {
 				}
 			case "blocking":
 				targets = b.Blocking
+			case "blocked_by":
+				targets = b.BlockedBy
 			}
 
 			for _, target := range targets {
@@ -320,6 +349,14 @@ func (c *Core) RemoveLinksTo(targetID string) (int, error) {
 			removed += originalBlockingLen - len(b.Blocking)
 		}
 
+		// Remove blocked_by links
+		originalBlockedByLen := len(b.BlockedBy)
+		b.RemoveBlockedBy(targetID)
+		if len(b.BlockedBy) < originalBlockedByLen {
+			changed = true
+			removed += originalBlockedByLen - len(b.BlockedBy)
+		}
+
 		if changed {
 			if err := c.saveToDisk(b); err != nil {
 				return removed, err
@@ -372,6 +409,26 @@ func (c *Core) FixBrokenLinks() (int, error) {
 			b.Blocking = newBlocking
 			changed = true
 			fixed += originalBlockingLen - len(newBlocking)
+		}
+
+		// Fix blocked_by links
+		originalBlockedByLen := len(b.BlockedBy)
+		var newBlockedBy []string
+		for _, blocker := range b.BlockedBy {
+			// Skip self-references
+			if blocker == b.ID {
+				continue
+			}
+			// Skip broken links (target doesn't exist)
+			if _, ok := c.beans[blocker]; !ok {
+				continue
+			}
+			newBlockedBy = append(newBlockedBy, blocker)
+		}
+		if len(newBlockedBy) < originalBlockedByLen {
+			b.BlockedBy = newBlockedBy
+			changed = true
+			fixed += originalBlockedByLen - len(newBlockedBy)
 		}
 
 		if changed {

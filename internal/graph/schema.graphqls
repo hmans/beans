@@ -46,6 +46,16 @@ type Mutation {
   removeBlocking(id: ID!, targetId: ID!, ifMatch: String): Bean!
 
   """
+  Add a bean to the blocked-by list (this bean is blocked by targetId)
+  """
+  addBlockedBy(id: ID!, targetId: ID!, ifMatch: String): Bean!
+
+  """
+  Remove a bean from the blocked-by list
+  """
+  removeBlockedBy(id: ID!, targetId: ID!, ifMatch: String): Bean!
+
+  """
   Replace exactly one occurrence of text in a bean's body.
   Returns an error if the old text is not found or found multiple times.
   The new text can be empty to delete the matched text.
@@ -79,6 +89,8 @@ input CreateBeanInput {
   parent: String
   "Bean IDs this bean is blocking"
   blocking: [String!]
+  "Bean IDs that are blocking this bean"
+  blockedBy: [String!]
   "Custom ID prefix (overrides config prefix for this bean)"
   prefix: String
 }
@@ -137,6 +149,8 @@ type Bean {
   parentId: String
   "IDs of beans this bean is blocking"
   blockingIds: [String!]!
+  "IDs of beans that are blocking this bean (direct field)"
+  blockedByIds: [String!]!
 
   # Computed relationship fields
   "Beans that block this one (incoming blocking links)"
@@ -193,10 +207,16 @@ input BeanFilter {
   hasBlocking: Boolean
   "Include only beans that are blocking this specific bean ID"
   blockingId: String
-  "Include only beans that are blocked by others"
+  "Include only beans that are blocked by others (via incoming blocking links or blocked_by field)"
   isBlocked: Boolean
+  "Include only beans that have explicit blocked-by entries"
+  hasBlockedBy: Boolean
+  "Include only beans blocked by this specific bean ID (via blocked_by field)"
+  blockedById: String
   "Exclude beans that have a parent"
   noParent: Boolean
   "Exclude beans that are blocking other beans"
   noBlocking: Boolean
+  "Exclude beans that have explicit blocked-by entries"
+  noBlockedBy: Boolean
 }

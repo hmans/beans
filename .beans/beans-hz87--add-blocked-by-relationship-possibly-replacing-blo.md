@@ -1,11 +1,11 @@
 ---
 # beans-hz87
 title: Add blocked-by relationship (possibly replacing blocking)
-status: todo
+status: completed
 type: feature
 priority: normal
 created_at: 2025-12-14T14:37:11Z
-updated_at: 2025-12-14T15:05:05Z
+updated_at: 2026-01-20T08:19:45Z
 parent: beans-f11p
 ---
 
@@ -35,10 +35,39 @@ A `blocked-by` relationship is more natural because:
 
 ## Checklist
 
-- [ ] Decide: replace `blocking` or add `blocked-by` alongside it
-- [ ] Update front matter parsing to support `blocked-by`
-- [ ] Update GraphQL schema with new field/relationship
-- [ ] Update CLI commands (`beans update --blocked-by`, `--remove-blocked-by`)
-- [ ] Update `beans prime` documentation
-- [ ] Migrate or deprecate existing `blocking` if replacing
-- [ ] Update tests
+- [x] Decide: add `blocked-by` alongside `blocking` (both coexist)
+- [x] Update front matter parsing to support `blocked-by`
+- [x] Update GraphQL schema with new field/relationship
+- [x] Update CLI commands (`beans update --blocked-by`, `--remove-blocked-by`, and `beans create --blocked-by`)
+- [x] Update `beans prime` documentation
+- [x] Keep both `blocking` and `blocked-by` (no migration needed)
+- [x] Update tests
+
+## Summary of Changes
+
+Added `blocked_by` as a new stored field that coexists with the existing `blocking` field:
+
+### Core Changes
+- Added `BlockedBy []string` field to Bean struct with YAML/JSON serialization
+- Added `IsBlockedBy()`, `AddBlockedBy()`, `RemoveBlockedBy()` helper methods
+- Added `blockedByIds` field to GraphQL Bean type
+- Added `blockedBy` to CreateBeanInput
+- Added `addBlockedBy` and `removeBlockedBy` GraphQL mutations
+- Added new filter options: `hasBlockedBy`, `blockedById`, `noBlockedBy`
+- Updated `isBlocked` filter to check both incoming `blocking` links AND direct `blocked_by` entries
+
+### CLI Changes
+- Added `--blocked-by` flag to `beans create` command
+- Added `--blocked-by` and `--remove-blocked-by` flags to `beans update` command
+
+### Link Management
+- Updated `FindIncomingLinks()` to include `blocked_by` link type
+- Updated `CheckAllLinks()` to validate `blocked_by` links
+- Updated `RemoveLinksTo()` to clean up `blocked_by` references
+- Updated `FixBrokenLinks()` to repair broken `blocked_by` links
+- Added cycle detection for `blocked_by` relationships
+
+### Documentation
+- Updated `prompt.tmpl` with `--blocked-by` examples and relationship documentation
+
+Refs: #62

@@ -27,6 +27,11 @@ func (r *beanResolver) BlockingIds(ctx context.Context, obj *bean.Bean) ([]strin
 	return obj.Blocking, nil
 }
 
+// BlockedByIds is the resolver for the blockedByIds field.
+func (r *beanResolver) BlockedByIds(ctx context.Context, obj *bean.Bean) ([]string, error) {
+	return obj.BlockedBy, nil
+}
+
 // BlockedBy is the resolver for the blockedBy field.
 func (r *beanResolver) BlockedBy(ctx context.Context, obj *bean.Bean, filter *model.BeanFilter) ([]*bean.Bean, error) {
 	incoming := r.Core.FindIncomingLinks(obj.ID)
@@ -112,14 +117,41 @@ func (r *mutationResolver) CreateBean(ctx context.Context, input model.CreateBea
 		b.Parent = parentID
 	}
 
-	// Handle blocking
+	// Handle blocking (with validation)
 	if len(input.Blocking) > 0 {
 		// Normalise short IDs to full IDs
 		normalizedBlocking := make([]string, len(input.Blocking))
 		for i, id := range input.Blocking {
 			normalizedBlocking[i], _ = r.Core.NormalizeID(id)
+			// Verify target exists
+			if _, err := r.Core.Get(normalizedBlocking[i]); err != nil {
+				return nil, fmt.Errorf("target bean not found: %s", id)
+			}
 		}
 		b.Blocking = normalizedBlocking
+	}
+
+	// Handle blocked_by (with cycle validation)
+	if len(input.BlockedBy) > 0 {
+		// Normalise short IDs to full IDs
+		normalizedBlockedBy := make([]string, len(input.BlockedBy))
+		for i, id := range input.BlockedBy {
+			normalizedBlockedBy[i], _ = r.Core.NormalizeID(id)
+			// Verify blocker exists
+			if _, err := r.Core.Get(normalizedBlockedBy[i]); err != nil {
+				return nil, fmt.Errorf("blocker bean not found: %s", id)
+			}
+		}
+		// Check for cycles with blocking relationships
+		// (new bean being blocked_by X means X→newBean, check if newBean→X exists via blocking)
+		for _, blockerID := range normalizedBlockedBy {
+			for _, blockingID := range b.Blocking {
+				if blockerID == blockingID {
+					return nil, fmt.Errorf("would create cycle: new bean both blocks and is blocked by %s", blockerID)
+				}
+			}
+		}
+		b.BlockedBy = normalizedBlockedBy
 	}
 
 	// Handle custom prefix - pre-generate ID if prefix is provided
@@ -258,8 +290,13 @@ func (r *mutationResolver) AddBlocking(ctx context.Context, id string, targetID 
 		return nil, fmt.Errorf("target bean not found: %s", targetID)
 	}
 
-	// Check for cycles
+	// Check for cycles in both directions:
+	// 1. Check if targetId already has a path to id via blocking links
 	if cycle := r.Core.DetectCycle(b.ID, "blocking", normalizedTargetID); cycle != nil {
+		return nil, fmt.Errorf("would create cycle: %v", cycle)
+	}
+	// 2. Check if targetId already has a path to id via blocked_by links
+	if cycle := r.Core.DetectCycle(normalizedTargetID, "blocked_by", b.ID); cycle != nil {
 		return nil, fmt.Errorf("would create cycle: %v", cycle)
 	}
 
@@ -286,6 +323,69 @@ func (r *mutationResolver) RemoveBlocking(ctx context.Context, id string, target
 	normalizedTargetID, _ := r.Core.NormalizeID(targetID)
 
 	b.RemoveBlocking(normalizedTargetID)
+	if err := r.Core.Update(b); err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+// AddBlockedBy is the resolver for the addBlockedBy field.
+func (r *mutationResolver) AddBlockedBy(ctx context.Context, id string, targetID string, ifMatch *string) (*bean.Bean, error) {
+	b, err := r.Core.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate ETag if provided or required
+	if err := r.validateETag(b, ifMatch); err != nil {
+		return nil, err
+	}
+
+	// Normalise short ID to full ID
+	normalizedTargetID, _ := r.Core.NormalizeID(targetID)
+
+	if normalizedTargetID == b.ID {
+		return nil, fmt.Errorf("bean cannot be blocked by itself")
+	}
+
+	// Check target exists
+	if _, err := r.Core.Get(normalizedTargetID); err != nil {
+		return nil, fmt.Errorf("blocker bean not found: %s", targetID)
+	}
+
+	// Check for cycles in both directions:
+	// 1. Check if targetId already has a path to id via blocking links
+	if cycle := r.Core.DetectCycle(normalizedTargetID, "blocking", b.ID); cycle != nil {
+		return nil, fmt.Errorf("would create cycle: %v", cycle)
+	}
+	// 2. Check if id already has a path to targetId via blocked_by links
+	if cycle := r.Core.DetectCycle(b.ID, "blocked_by", normalizedTargetID); cycle != nil {
+		return nil, fmt.Errorf("would create cycle: %v", cycle)
+	}
+
+	b.AddBlockedBy(normalizedTargetID)
+	if err := r.Core.Update(b); err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+// RemoveBlockedBy is the resolver for the removeBlockedBy field.
+func (r *mutationResolver) RemoveBlockedBy(ctx context.Context, id string, targetID string, ifMatch *string) (*bean.Bean, error) {
+	b, err := r.Core.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate ETag if provided or required
+	if err := r.validateETag(b, ifMatch); err != nil {
+		return nil, err
+	}
+
+	// Normalise short ID to full ID
+	normalizedTargetID, _ := r.Core.NormalizeID(targetID)
+
+	b.RemoveBlockedBy(normalizedTargetID)
 	if err := r.Core.Update(b); err != nil {
 		return nil, err
 	}

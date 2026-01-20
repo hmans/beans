@@ -42,12 +42,18 @@ type BeanFilter struct {
 	HasBlocking *bool `json:"hasBlocking,omitempty"`
 	// Include only beans that are blocking this specific bean ID
 	BlockingID *string `json:"blockingId,omitempty"`
-	// Include only beans that are blocked by others
+	// Include only beans that are blocked by others (via incoming blocking links or blocked_by field)
 	IsBlocked *bool `json:"isBlocked,omitempty"`
+	// Include only beans that have explicit blocked-by entries
+	HasBlockedBy *bool `json:"hasBlockedBy,omitempty"`
+	// Include only beans blocked by this specific bean ID (via blocked_by field)
+	BlockedByID *string `json:"blockedById,omitempty"`
 	// Exclude beans that have a parent
 	NoParent *bool `json:"noParent,omitempty"`
 	// Exclude beans that are blocking other beans
 	NoBlocking *bool `json:"noBlocking,omitempty"`
+	// Exclude beans that have explicit blocked-by entries
+	NoBlockedBy *bool `json:"noBlockedBy,omitempty"`
 }
 
 // Input for creating a new bean
@@ -68,6 +74,8 @@ type CreateBeanInput struct {
 	Parent *string `json:"parent,omitempty"`
 	// Bean IDs this bean is blocking
 	Blocking []string `json:"blocking,omitempty"`
+	// Bean IDs that are blocking this bean
+	BlockedBy []string `json:"blockedBy,omitempty"`
 	// Custom ID prefix (overrides config prefix for this bean)
 	Prefix *string `json:"prefix,omitempty"`
 }

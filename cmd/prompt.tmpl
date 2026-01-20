@@ -58,6 +58,7 @@ beans create --json "Title" -t task -d "Description..." -s todo
 beans update --json <id> -s in-progress                        # Change status
 beans update --json <id> --parent <other-id>                   # Set parent relationship
 beans update --json <id> --blocking <other-id>                 # Mark as blocking another bean
+beans update --json <id> --blocked-by <other-id>               # Mark as blocked by another bean
 beans update --json <id> --body-replace-old "old" --body-replace-new "new"  # Replace text
 beans update --json <id> --body-append "## Notes"              # Append to body
 beans update --json <id> -s completed --body-replace-old "- [ ] Task" --body-replace-new "- [x] Task"  # Combined
@@ -71,7 +72,8 @@ Use `beans <command> --help` for full options. Use `--json` for machine-readable
 ## Relationships
 
 - **Parent**: Hierarchy (milestone → epic → feature → task/bug). Set with `--parent <id>`.
-- **Blocking**: Dependencies. Set with `--blocking <id>` to indicate this bean blocks another.
+- **Blocking**: Use `--blocking <id>` when THIS bean blocks another (the other bean can't proceed until this is done).
+- **Blocked-by**: Use `--blocked-by <id>` when THIS bean is blocked by another (this bean can't proceed until the other is done). **Prefer this when creating dependent work.**
 
 ## Issue Types
 
