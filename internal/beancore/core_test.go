@@ -1,6 +1,7 @@
 package beancore
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,6 +22,25 @@ func setupTestCore(t *testing.T) (*Core, string) {
 	}
 
 	cfg := config.Default()
+	core := New(beansDir, cfg)
+	core.SetWarnWriter(nil) // suppress warnings in tests
+	if err := core.Load(); err != nil {
+		t.Fatalf("failed to load core: %v", err)
+	}
+
+	return core, beansDir
+}
+
+func setupTestCoreWithRequireIfMatch(t *testing.T) (*Core, string) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	beansDir := filepath.Join(tmpDir, BeansDir)
+	if err := os.MkdirAll(beansDir, 0755); err != nil {
+		t.Fatalf("failed to create test .beans dir: %v", err)
+	}
+
+	cfg := config.Default()
+	cfg.Beans.RequireIfMatch = true
 	core := New(beansDir, cfg)
 	core.SetWarnWriter(nil) // suppress warnings in tests
 	if err := core.Load(); err != nil {
@@ -210,7 +230,6 @@ func TestGetNotFound(t *testing.T) {
 	}
 }
 
-
 func TestGetShortID(t *testing.T) {
 	// Create a core with a configured prefix
 	tmpDir := t.TempDir()
@@ -282,7 +301,7 @@ func TestUpdate(t *testing.T) {
 	b.Title = "Updated Title"
 	b.Status = "in-progress"
 
-	err := core.Update(b)
+	err := core.Update(b, nil)
 	if err != nil {
 		t.Fatalf("Update() error = %v", err)
 	}
@@ -319,7 +338,7 @@ func TestUpdateNotFound(t *testing.T) {
 		Status: "todo",
 	}
 
-	err := core.Update(b)
+	err := core.Update(b, nil)
 	if err != ErrNotFound {
 		t.Errorf("Update() error = %v, want ErrNotFound", err)
 	}
@@ -483,10 +502,10 @@ func TestBlocksPreserved(t *testing.T) {
 
 	// Create bean A that blocks bean B
 	beanA := &bean.Bean{
-		ID:     "aaa1",
-		Slug:   "blocker",
-		Title:  "Blocker Bean",
-		Status: "todo",
+		ID:       "aaa1",
+		Slug:     "blocker",
+		Title:    "Blocker Bean",
+		Status:   "todo",
 		Blocking: []string{"bbb2"},
 	}
 	if err := core.Create(beanA); err != nil {
@@ -1579,4 +1598,158 @@ func TestNormalizeID(t *testing.T) {
 			t.Errorf("NormalizeID() = %q, want %q", normalized, "nonexistent")
 		}
 	})
+}
+
+
+func TestUpdateWithETag(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	t.Run("update with correct etag succeeds", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:     "etag-test-1",
+			Title:  "ETag Test",
+			Status: "todo",
+			Body:   "Original",
+		}
+		if err := core.Create(b); err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+
+		currentETag := b.ETag()
+		b.Title = "Updated"
+		err := core.Update(b, &currentETag)
+		if err != nil {
+			t.Errorf("Update() with correct etag failed: %v", err)
+		}
+	})
+
+	t.Run("update with wrong etag fails", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:     "etag-test-2",
+			Title:  "ETag Test",
+			Status: "todo",
+		}
+		if err := core.Create(b); err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+
+		wrongETag := "wrongetag123"
+		b.Title = "Should Fail"
+		err := core.Update(b, &wrongETag)
+		
+		var mismatchErr *ETagMismatchError
+		if !errors.As(err, &mismatchErr) {
+			t.Errorf("Update() with wrong etag should return ETagMismatchError, got %T: %v", err, err)
+		}
+	})
+
+	t.Run("update without etag succeeds when not required", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:     "etag-test-3",
+			Title:  "ETag Test",
+			Status: "todo",
+		}
+		if err := core.Create(b); err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+
+		b.Title = "No ETag"
+		err := core.Update(b, nil)
+		if err != nil {
+			t.Errorf("Update() without etag failed: %v", err)
+		}
+	})
+}
+
+func TestUpdateWithETagRequired(t *testing.T) {
+	core, _ := setupTestCoreWithRequireIfMatch(t)
+
+	t.Run("update without etag fails when required", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:     "etag-req-test-1",
+			Title:  "ETag Required Test",
+			Status: "todo",
+		}
+		if err := core.Create(b); err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+
+		b.Title = "Should Fail"
+		err := core.Update(b, nil)
+		
+		var requiredErr *ETagRequiredError
+		if !errors.As(err, &requiredErr) {
+			t.Errorf("Update() without etag should return ETagRequiredError when required, got %T: %v", err, err)
+		}
+	})
+
+	t.Run("update with empty etag fails when required", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:     "etag-req-test-2",
+			Title:  "ETag Required Test",
+			Status: "todo",
+		}
+		if err := core.Create(b); err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+
+		emptyETag := ""
+		b.Title = "Should Fail"
+		err := core.Update(b, &emptyETag)
+		
+		var requiredErr *ETagRequiredError
+		if !errors.As(err, &requiredErr) {
+			t.Errorf("Update() with empty etag should return ETagRequiredError when required, got %T: %v", err, err)
+		}
+	})
+
+	t.Run("update with correct etag succeeds even when required", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:     "etag-req-test-3",
+			Title:  "ETag Required Test",
+			Status: "todo",
+		}
+		if err := core.Create(b); err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+
+		currentETag := b.ETag()
+		b.Title = "Success"
+		err := core.Update(b, &currentETag)
+		if err != nil {
+			t.Errorf("Update() with correct etag failed: %v", err)
+		}
+	})
+}
+func TestUpdateWithETagDebug(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	b := &bean.Bean{
+		ID:     "etag-debug",
+		Title:  "ETag Test",
+		Status: "todo",
+		Body:   "Original",
+	}
+	if err := core.Create(b); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	etagAfterCreate := b.ETag()
+	t.Logf("ETag after create: %s", etagAfterCreate)
+
+	// Get from core to see what's stored
+	stored, _ := core.Get("etag-debug")
+	storedEtag := stored.ETag()
+	t.Logf("ETag of stored bean: %s", storedEtag)
+
+	// Modify our local copy
+	b.Title = "Updated"
+	modifiedEtag := b.ETag()
+	t.Logf("ETag of modified local bean: %s", modifiedEtag)
+
+	// What will Update see?
+	err := core.Update(b, &etagAfterCreate)
+	if err != nil {
+		t.Logf("Update failed: %v", err)
+	}
 }
