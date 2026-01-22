@@ -203,29 +203,38 @@ func buildUpdateInput(cmd *cobra.Command, existingTags []string, currentBody str
 		changes = append(changes, "title")
 	}
 
-	// Handle body modifications (mutually exclusive)
+	// Handle body modifications
 	if cmd.Flags().Changed("body") || cmd.Flags().Changed("body-file") {
+		// Full body replacement
 		body, err := resolveContent(updateBody, updateBodyFile)
 		if err != nil {
 			return input, nil, err
 		}
 		input.Body = &body
 		changes = append(changes, "body")
-	} else if cmd.Flags().Changed("body-replace-old") {
-		// --body-replace-old requires --body-replace-new (enforced by MarkFlagsRequiredTogether)
-		newBody, err := applyBodyReplace(currentBody, updateBodyReplaceOld, updateBodyReplaceNew)
-		if err != nil {
-			return input, nil, err
+	} else if cmd.Flags().Changed("body-replace-old") || cmd.Flags().Changed("body-append") {
+		// Body modifications via bodyMod
+		bodyMod := &model.BodyModification{}
+
+		if cmd.Flags().Changed("body-replace-old") {
+			// --body-replace-old requires --body-replace-new (enforced by MarkFlagsRequiredTogether)
+			bodyMod.Replace = []*model.ReplaceOperation{
+				{
+					Old: updateBodyReplaceOld,
+					New: updateBodyReplaceNew,
+				},
+			}
 		}
-		input.Body = &newBody
-		changes = append(changes, "body")
-	} else if cmd.Flags().Changed("body-append") {
-		appendText, err := resolveAppendContent(updateBodyAppend)
-		if err != nil {
-			return input, nil, err
+
+		if cmd.Flags().Changed("body-append") {
+			appendText, err := resolveAppendContent(updateBodyAppend)
+			if err != nil {
+				return input, nil, err
+			}
+			bodyMod.Append = &appendText
 		}
-		newBody := applyBodyAppend(currentBody, appendText)
-		input.Body = &newBody
+
+		input.BodyMod = bodyMod
 		changes = append(changes, "body")
 	}
 
@@ -240,7 +249,7 @@ func buildUpdateInput(cmd *cobra.Command, existingTags []string, currentBody str
 // hasFieldUpdates returns true if any field in the input is set.
 func hasFieldUpdates(input model.UpdateBeanInput) bool {
 	return input.Status != nil || input.Type != nil || input.Priority != nil ||
-		input.Title != nil || input.Body != nil || input.Tags != nil
+		input.Title != nil || input.Body != nil || input.BodyMod != nil || input.Tags != nil
 }
 
 // isConflictError returns true if the error is an ETag-related conflict error.
@@ -293,7 +302,10 @@ func init() {
 	updateCmd.Flags().StringVar(&updateIfMatch, "if-match", "", "Only update if etag matches (optimistic locking)")
 	updateCmd.MarkFlagsMutuallyExclusive("parent", "remove-parent")
 	updateCmd.Flags().BoolVar(&updateJSON, "json", false, "Output as JSON")
-	updateCmd.MarkFlagsMutuallyExclusive("body", "body-file", "body-replace-old", "body-append")
+	// body and body-file are mutually exclusive with body modifications
+	updateCmd.MarkFlagsMutuallyExclusive("body", "body-file", "body-replace-old")
+	updateCmd.MarkFlagsMutuallyExclusive("body", "body-file", "body-append")
+	// body-replace-old and body-append can now be used together!
 	updateCmd.MarkFlagsRequiredTogether("body-replace-old", "body-replace-new")
 	rootCmd.AddCommand(updateCmd)
 }

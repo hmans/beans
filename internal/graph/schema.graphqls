@@ -109,10 +109,40 @@ input UpdateBeanInput {
   priority: String
   "Replace all tags (nil preserves existing)"
   tags: [String!]
-  "New body content"
+  "New body content (full replacement, mutually exclusive with bodyMod)"
   body: String
+  "Structured body modifications (mutually exclusive with body)"
+  bodyMod: BodyModification
   "ETag for optimistic concurrency control (optional)"
   ifMatch: String
+}
+
+"""
+Structured body modifications applied atomically.
+Operations are applied in order: all replacements sequentially, then append.
+If any operation fails, the entire mutation fails (transactional).
+"""
+input BodyModification {
+  """
+  Text replacements applied sequentially in array order.
+  Each old text must match exactly once at the time it's applied.
+  """
+  replace: [ReplaceOperation!]
+  """
+  Text to append after all replacements.
+  Appended with blank line separator.
+  """
+  append: String
+}
+
+"""
+A single text replacement operation.
+"""
+input ReplaceOperation {
+  "Text to find (must occur exactly once, cannot be empty)"
+  old: String!
+  "Replacement text (can be empty to delete the matched text)"
+  new: String!
 }
 
 """

@@ -182,6 +182,11 @@ func (r *mutationResolver) UpdateBean(ctx context.Context, id string, input mode
 		return nil, err
 	}
 
+	// Validate body and bodyMod are mutually exclusive
+	if input.Body != nil && input.BodyMod != nil {
+		return nil, fmt.Errorf("cannot specify both body and bodyMod")
+	}
+
 	// Update fields if provided
 	if input.Title != nil {
 		b.Title = *input.Title
@@ -197,6 +202,27 @@ func (r *mutationResolver) UpdateBean(ctx context.Context, id string, input mode
 	}
 	if input.Body != nil {
 		b.Body = *input.Body
+	} else if input.BodyMod != nil {
+		// Apply body modifications
+		workingBody := b.Body
+
+		// Apply replacements sequentially
+		if input.BodyMod.Replace != nil {
+			for i, replaceOp := range input.BodyMod.Replace {
+				newBody, err := bean.ReplaceOnce(workingBody, replaceOp.Old, replaceOp.New)
+				if err != nil {
+					return nil, fmt.Errorf("replacement %d failed: %w", i, err)
+				}
+				workingBody = newBody
+			}
+		}
+
+		// Apply append if provided
+		if input.BodyMod.Append != nil && *input.BodyMod.Append != "" {
+			workingBody = bean.AppendWithSeparator(workingBody, *input.BodyMod.Append)
+		}
+
+		b.Body = workingBody
 	}
 	if input.Tags != nil {
 		b.Tags = input.Tags

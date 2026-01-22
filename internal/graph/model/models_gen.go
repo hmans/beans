@@ -56,6 +56,18 @@ type BeanFilter struct {
 	NoBlockedBy *bool `json:"noBlockedBy,omitempty"`
 }
 
+// Structured body modifications applied atomically.
+// Operations are applied in order: all replacements sequentially, then append.
+// If any operation fails, the entire mutation fails (transactional).
+type BodyModification struct {
+	// Text replacements applied sequentially in array order.
+	// Each old text must match exactly once at the time it's applied.
+	Replace []*ReplaceOperation `json:"replace,omitempty"`
+	// Text to append after all replacements.
+	// Appended with blank line separator.
+	Append *string `json:"append,omitempty"`
+}
+
 // Input for creating a new bean
 type CreateBeanInput struct {
 	// Bean title (required)
@@ -86,6 +98,14 @@ type Mutation struct {
 type Query struct {
 }
 
+// A single text replacement operation.
+type ReplaceOperation struct {
+	// Text to find (must occur exactly once, cannot be empty)
+	Old string `json:"old"`
+	// Replacement text (can be empty to delete the matched text)
+	New string `json:"new"`
+}
+
 // Input for updating an existing bean
 type UpdateBeanInput struct {
 	// New title
@@ -98,8 +118,10 @@ type UpdateBeanInput struct {
 	Priority *string `json:"priority,omitempty"`
 	// Replace all tags (nil preserves existing)
 	Tags []string `json:"tags,omitempty"`
-	// New body content
+	// New body content (full replacement, mutually exclusive with bodyMod)
 	Body *string `json:"body,omitempty"`
+	// Structured body modifications (mutually exclusive with body)
+	BodyMod *BodyModification `json:"bodyMod,omitempty"`
 	// ETag for optimistic concurrency control (optional)
 	IfMatch *string `json:"ifMatch,omitempty"`
 }
