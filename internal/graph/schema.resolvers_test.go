@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1408,316 +1409,514 @@ func TestShortIDNormalization(t *testing.T) {
 	})
 }
 
-func TestMutationReplaceInBody(t *testing.T) {
+func TestUpdateBeanWithBodyMod(t *testing.T) {
 	resolver, core := setupTestResolver(t)
 	ctx := context.Background()
 
-	t.Run("successful replacement", func(t *testing.T) {
+	t.Run("bodyMod with single replacement only", func(t *testing.T) {
 		b := &bean.Bean{
-			ID:     "replace-test-1",
+			ID:     "bodymod-test-1",
 			Title:  "Test",
 			Status: "todo",
 			Body:   "## Tasks\n- [ ] Task 1\n- [ ] Task 2",
 		}
 		core.Create(b)
 
-		mr := resolver.Mutation()
-		got, err := mr.ReplaceInBody(ctx, "replace-test-1", "- [ ] Task 1", "- [x] Task 1", nil)
+		input := model.UpdateBeanInput{
+			BodyMod: &model.BodyModification{
+				Replace: []*model.ReplaceOperation{
+					{Old: "- [ ] Task 1", New: "- [x] Task 1"},
+				},
+			},
+		}
+
+		got, err := resolver.Mutation().UpdateBean(ctx, "bodymod-test-1", input)
 		if err != nil {
-			t.Fatalf("ReplaceInBody() error = %v", err)
+			t.Fatalf("UpdateBean() error = %v", err)
 		}
 		want := "## Tasks\n- [x] Task 1\n- [ ] Task 2"
 		if got.Body != want {
-			t.Errorf("ReplaceInBody().Body = %q, want %q", got.Body, want)
+			t.Errorf("UpdateBean().Body = %q, want %q", got.Body, want)
 		}
 	})
 
-	t.Run("delete text with empty new", func(t *testing.T) {
+	t.Run("bodyMod with append only", func(t *testing.T) {
 		b := &bean.Bean{
-			ID:     "replace-test-2",
+			ID:     "bodymod-test-2",
 			Title:  "Test",
 			Status: "todo",
-			Body:   "Hello world",
+			Body:   "Existing content",
 		}
 		core.Create(b)
 
-		mr := resolver.Mutation()
-		got, err := mr.ReplaceInBody(ctx, "replace-test-2", " world", "", nil)
+		appendText := "## Notes\n\nNew section"
+		input := model.UpdateBeanInput{
+			BodyMod: &model.BodyModification{
+				Append: &appendText,
+			},
+		}
+
+		got, err := resolver.Mutation().UpdateBean(ctx, "bodymod-test-2", input)
 		if err != nil {
-			t.Fatalf("ReplaceInBody() error = %v", err)
+			t.Fatalf("UpdateBean() error = %v", err)
 		}
-		if got.Body != "Hello" {
-			t.Errorf("ReplaceInBody().Body = %q, want %q", got.Body, "Hello")
+		want := "Existing content\n\n## Notes\n\nNew section"
+		if got.Body != want {
+			t.Errorf("UpdateBean().Body = %q, want %q", got.Body, want)
 		}
 	})
 
-	t.Run("error when text not found", func(t *testing.T) {
+	t.Run("bodyMod with replacement and append combined", func(t *testing.T) {
 		b := &bean.Bean{
-			ID:     "replace-test-3",
+			ID:     "bodymod-test-3",
+			Title:  "Test",
+			Status: "todo",
+			Body:   "## Tasks\n- [ ] Deploy",
+		}
+		core.Create(b)
+
+		appendText := "## Summary\n\nCompleted"
+		input := model.UpdateBeanInput{
+			BodyMod: &model.BodyModification{
+				Replace: []*model.ReplaceOperation{
+					{Old: "- [ ] Deploy", New: "- [x] Deploy"},
+				},
+				Append: &appendText,
+			},
+		}
+
+		got, err := resolver.Mutation().UpdateBean(ctx, "bodymod-test-3", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() error = %v", err)
+		}
+		want := "## Tasks\n- [x] Deploy\n\n## Summary\n\nCompleted"
+		if got.Body != want {
+			t.Errorf("UpdateBean().Body = %q, want %q", got.Body, want)
+		}
+	})
+
+	t.Run("bodyMod with multiple replacements sequential", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:     "bodymod-test-4",
+			Title:  "Test",
+			Status: "todo",
+			Body:   "- [ ] Task 1\n- [ ] Task 2\n- [ ] Task 3",
+		}
+		core.Create(b)
+
+		input := model.UpdateBeanInput{
+			BodyMod: &model.BodyModification{
+				Replace: []*model.ReplaceOperation{
+					{Old: "- [ ] Task 1", New: "- [x] Task 1"},
+					{Old: "- [ ] Task 2", New: "- [x] Task 2"},
+					{Old: "- [ ] Task 3", New: "- [x] Task 3"},
+				},
+			},
+		}
+
+		got, err := resolver.Mutation().UpdateBean(ctx, "bodymod-test-4", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() error = %v", err)
+		}
+		want := "- [x] Task 1\n- [x] Task 2\n- [x] Task 3"
+		if got.Body != want {
+			t.Errorf("UpdateBean().Body = %q, want %q", got.Body, want)
+		}
+	})
+
+	t.Run("bodyMod with metadata update", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:     "bodymod-test-5",
+			Title:  "Test",
+			Status: "todo",
+			Body:   "- [ ] Task",
+		}
+		core.Create(b)
+
+		status := "completed"
+		appendText := "## Done"
+		input := model.UpdateBeanInput{
+			Status: &status,
+			BodyMod: &model.BodyModification{
+				Replace: []*model.ReplaceOperation{
+					{Old: "- [ ] Task", New: "- [x] Task"},
+				},
+				Append: &appendText,
+			},
+		}
+
+		got, err := resolver.Mutation().UpdateBean(ctx, "bodymod-test-5", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() error = %v", err)
+		}
+		if got.Status != "completed" {
+			t.Errorf("UpdateBean().Status = %q, want %q", got.Status, "completed")
+		}
+		want := "- [x] Task\n\n## Done"
+		if got.Body != want {
+			t.Errorf("UpdateBean().Body = %q, want %q", got.Body, want)
+		}
+	})
+
+	t.Run("error when both body and bodyMod provided", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:     "bodymod-test-6",
+			Title:  "Test",
+			Status: "todo",
+			Body:   "Original",
+		}
+		core.Create(b)
+
+		bodyText := "New body"
+		appendText := "Append"
+		input := model.UpdateBeanInput{
+			Body: &bodyText,
+			BodyMod: &model.BodyModification{
+				Append: &appendText,
+			},
+		}
+
+		_, err := resolver.Mutation().UpdateBean(ctx, "bodymod-test-6", input)
+		if err == nil {
+			t.Error("UpdateBean() expected error when both body and bodyMod provided")
+		}
+		if !strings.Contains(err.Error(), "cannot specify both body and bodyMod") {
+			t.Errorf("Error should mention mutual exclusivity, got: %v", err)
+		}
+	})
+
+	t.Run("error when replacement text not found", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:     "bodymod-test-7",
 			Title:  "Test",
 			Status: "todo",
 			Body:   "Hello world",
 		}
 		core.Create(b)
 
-		mr := resolver.Mutation()
-		_, err := mr.ReplaceInBody(ctx, "replace-test-3", "nonexistent", "new", nil)
-		if err == nil {
-			t.Error("ReplaceInBody() expected error for text not found")
+		input := model.UpdateBeanInput{
+			BodyMod: &model.BodyModification{
+				Replace: []*model.ReplaceOperation{
+					{Old: "nonexistent", New: "fail"},
+				},
+			},
 		}
-		if !strings.Contains(err.Error(), "not found") {
+
+		_, err := resolver.Mutation().UpdateBean(ctx, "bodymod-test-7", input)
+		if err == nil {
+			t.Error("UpdateBean() expected error when replacement text not found")
+		}
+		if !strings.Contains(err.Error(), "text not found") {
 			t.Errorf("Error should mention text not found, got: %v", err)
 		}
 	})
 
-	t.Run("error when text found multiple times", func(t *testing.T) {
+	t.Run("error when replacement text found multiple times", func(t *testing.T) {
 		b := &bean.Bean{
-			ID:     "replace-test-4",
+			ID:     "bodymod-test-8",
 			Title:  "Test",
 			Status: "todo",
-			Body:   "hello hello hello",
+			Body:   "foo foo foo",
 		}
 		core.Create(b)
 
-		mr := resolver.Mutation()
-		_, err := mr.ReplaceInBody(ctx, "replace-test-4", "hello", "hi", nil)
+		input := model.UpdateBeanInput{
+			BodyMod: &model.BodyModification{
+				Replace: []*model.ReplaceOperation{
+					{Old: "foo", New: "bar"},
+				},
+			},
+		}
+
+		_, err := resolver.Mutation().UpdateBean(ctx, "bodymod-test-8", input)
 		if err == nil {
-			t.Error("ReplaceInBody() expected error for multiple occurrences")
+			t.Error("UpdateBean() expected error when replacement text found multiple times")
 		}
-		if !strings.Contains(err.Error(), "3 times") {
-			t.Errorf("Error should mention count, got: %v", err)
+		if !strings.Contains(err.Error(), "found 3 times") {
+			t.Errorf("Error should mention multiple matches, got: %v", err)
 		}
 	})
 
-	t.Run("error when old is empty", func(t *testing.T) {
+	t.Run("transactional: later replacement fails, nothing saved", func(t *testing.T) {
 		b := &bean.Bean{
-			ID:     "replace-test-5",
+			ID:     "bodymod-test-9",
 			Title:  "Test",
 			Status: "todo",
-			Body:   "Hello",
+			Body:   "Task 1\nTask 2",
 		}
 		core.Create(b)
+		originalBody := b.Body
 
-		mr := resolver.Mutation()
-		_, err := mr.ReplaceInBody(ctx, "replace-test-5", "", "new", nil)
+		input := model.UpdateBeanInput{
+			BodyMod: &model.BodyModification{
+				Replace: []*model.ReplaceOperation{
+					{Old: "Task 1", New: "Done 1"},    // This should succeed
+					{Old: "nonexistent", New: "fail"}, // This should fail
+				},
+			},
+		}
+
+		_, err := resolver.Mutation().UpdateBean(ctx, "bodymod-test-9", input)
 		if err == nil {
-			t.Error("ReplaceInBody() expected error for empty old text")
+			t.Error("UpdateBean() expected error")
 		}
-		if !strings.Contains(err.Error(), "cannot be empty") {
-			t.Errorf("Error should mention empty old text, got: %v", err)
+
+		// Verify bean wasn't modified
+		updated, _ := core.Get("bodymod-test-9")
+		if updated.Body != originalBody {
+			t.Errorf("Bean body was modified despite error. Got %q, want %q", updated.Body, originalBody)
 		}
 	})
 
-	t.Run("error when bean not found", func(t *testing.T) {
-		mr := resolver.Mutation()
-		_, err := mr.ReplaceInBody(ctx, "nonexistent", "old", "new", nil)
-		if err == nil {
-			t.Error("ReplaceInBody() expected error for nonexistent bean")
-		}
-	})
-
-	t.Run("with correct etag succeeds", func(t *testing.T) {
+	t.Run("empty append is no-op", func(t *testing.T) {
 		b := &bean.Bean{
-			ID:     "replace-test-6",
-			Title:  "Test",
-			Status: "todo",
-			Body:   "original text",
-		}
-		core.Create(b)
-
-		currentETag := b.ETag()
-		mr := resolver.Mutation()
-		got, err := mr.ReplaceInBody(ctx, "replace-test-6", "original", "modified", &currentETag)
-		if err != nil {
-			t.Fatalf("ReplaceInBody() with correct etag error = %v", err)
-		}
-		if got.Body != "modified text" {
-			t.Errorf("ReplaceInBody().Body = %q, want %q", got.Body, "modified text")
-		}
-	})
-
-	t.Run("with incorrect etag fails", func(t *testing.T) {
-		b := &bean.Bean{
-			ID:     "replace-test-7",
-			Title:  "Test",
-			Status: "todo",
-			Body:   "original text",
-		}
-		core.Create(b)
-
-		wrongETag := "wrongetagvalue1"
-		mr := resolver.Mutation()
-		_, err := mr.ReplaceInBody(ctx, "replace-test-7", "original", "modified", &wrongETag)
-		if err == nil {
-			t.Error("ReplaceInBody() with wrong etag should fail")
-		}
-		if !strings.Contains(err.Error(), "etag mismatch") {
-			t.Errorf("Error should mention etag mismatch, got: %v", err)
-		}
-	})
-}
-
-func TestMutationAppendToBody(t *testing.T) {
-	resolver, core := setupTestResolver(t)
-	ctx := context.Background()
-
-	t.Run("append to non-empty body", func(t *testing.T) {
-		b := &bean.Bean{
-			ID:     "append-test-1",
-			Title:  "Test",
-			Status: "todo",
-			Body:   "## Tasks\n- [ ] Task 1",
-		}
-		core.Create(b)
-
-		mr := resolver.Mutation()
-		got, err := mr.AppendToBody(ctx, "append-test-1", "## Notes\n\nSome notes", nil)
-		if err != nil {
-			t.Fatalf("AppendToBody() error = %v", err)
-		}
-		want := "## Tasks\n- [ ] Task 1\n\n## Notes\n\nSome notes"
-		if got.Body != want {
-			t.Errorf("AppendToBody().Body = %q, want %q", got.Body, want)
-		}
-	})
-
-	t.Run("append to empty body", func(t *testing.T) {
-		b := &bean.Bean{
-			ID:     "append-test-2",
-			Title:  "Test",
-			Status: "todo",
-			Body:   "",
-		}
-		core.Create(b)
-
-		mr := resolver.Mutation()
-		got, err := mr.AppendToBody(ctx, "append-test-2", "New content", nil)
-		if err != nil {
-			t.Fatalf("AppendToBody() error = %v", err)
-		}
-		if got.Body != "New content" {
-			t.Errorf("AppendToBody().Body = %q, want %q", got.Body, "New content")
-		}
-	})
-
-	t.Run("append empty content is no-op", func(t *testing.T) {
-		b := &bean.Bean{
-			ID:     "append-test-3",
+			ID:     "bodymod-test-10",
 			Title:  "Test",
 			Status: "todo",
 			Body:   "Original content",
 		}
 		core.Create(b)
 
-		mr := resolver.Mutation()
-		got, err := mr.AppendToBody(ctx, "append-test-3", "", nil)
+		emptyAppend := ""
+		input := model.UpdateBeanInput{
+			BodyMod: &model.BodyModification{
+				Append: &emptyAppend,
+			},
+		}
+
+		got, err := resolver.Mutation().UpdateBean(ctx, "bodymod-test-10", input)
 		if err != nil {
-			t.Fatalf("AppendToBody() error = %v", err)
+			t.Fatalf("UpdateBean() error = %v", err)
 		}
 		if got.Body != "Original content" {
-			t.Errorf("AppendToBody().Body = %q, want %q (no-op for empty content)", got.Body, "Original content")
-		}
-	})
-
-	t.Run("append strips trailing newlines from body", func(t *testing.T) {
-		b := &bean.Bean{
-			ID:     "append-test-4",
-			Title:  "Test",
-			Status: "todo",
-			Body:   "Existing\n\n\n",
-		}
-		core.Create(b)
-
-		mr := resolver.Mutation()
-		got, err := mr.AppendToBody(ctx, "append-test-4", "New", nil)
-		if err != nil {
-			t.Fatalf("AppendToBody() error = %v", err)
-		}
-		want := "Existing\n\nNew"
-		if got.Body != want {
-			t.Errorf("AppendToBody().Body = %q, want %q", got.Body, want)
-		}
-	})
-
-	t.Run("error when bean not found", func(t *testing.T) {
-		mr := resolver.Mutation()
-		_, err := mr.AppendToBody(ctx, "nonexistent", "content", nil)
-		if err == nil {
-			t.Error("AppendToBody() expected error for nonexistent bean")
-		}
-	})
-
-	t.Run("with correct etag succeeds", func(t *testing.T) {
-		b := &bean.Bean{
-			ID:     "append-test-5",
-			Title:  "Test",
-			Status: "todo",
-			Body:   "original",
-		}
-		core.Create(b)
-
-		currentETag := b.ETag()
-		mr := resolver.Mutation()
-		got, err := mr.AppendToBody(ctx, "append-test-5", "appended", &currentETag)
-		if err != nil {
-			t.Fatalf("AppendToBody() with correct etag error = %v", err)
-		}
-		want := "original\n\nappended"
-		if got.Body != want {
-			t.Errorf("AppendToBody().Body = %q, want %q", got.Body, want)
-		}
-	})
-
-	t.Run("with incorrect etag fails", func(t *testing.T) {
-		b := &bean.Bean{
-			ID:     "append-test-6",
-			Title:  "Test",
-			Status: "todo",
-			Body:   "original",
-		}
-		core.Create(b)
-
-		wrongETag := "wrongetagvalue1"
-		mr := resolver.Mutation()
-		_, err := mr.AppendToBody(ctx, "append-test-6", "appended", &wrongETag)
-		if err == nil {
-			t.Error("AppendToBody() with wrong etag should fail")
-		}
-		if !strings.Contains(err.Error(), "etag mismatch") {
-			t.Errorf("Error should mention etag mismatch, got: %v", err)
+			t.Errorf("UpdateBean().Body = %q, want %q (no-op for empty append)", got.Body, "Original content")
 		}
 	})
 }
 
-func TestReplaceInBodyRequireIfMatch(t *testing.T) {
-	resolver, core := setupTestResolverWithRequireIfMatch(t)
+func TestUpdateBeanWithETag(t *testing.T) {
+	resolver, core := setupTestResolver(t)
 	ctx := context.Background()
 
-	t.Run("replaceInBody without etag fails when require_if_match is true", func(t *testing.T) {
-		b := &bean.Bean{ID: "req-replace-1", Title: "Test", Status: "todo", Body: "hello world"}
+	t.Run("update with correct etag succeeds", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:     "etag-update-1",
+			Title:  "Test",
+			Status: "todo",
+		}
 		core.Create(b)
 
-		mr := resolver.Mutation()
-		_, err := mr.ReplaceInBody(ctx, "req-replace-1", "hello", "hi", nil)
-		if err == nil {
-			t.Error("ReplaceInBody() without etag should fail when require_if_match is true")
+		currentETag := b.ETag()
+		newTitle := "Updated"
+		input := model.UpdateBeanInput{
+			Title:   &newTitle,
+			IfMatch: &currentETag,
 		}
-		if !strings.Contains(err.Error(), "if-match etag is required") {
-			t.Errorf("Error should mention etag is required, got: %v", err)
+
+		got, err := resolver.Mutation().UpdateBean(ctx, "etag-update-1", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() with correct etag failed: %v", err)
+		}
+		if got.Title != "Updated" {
+			t.Errorf("UpdateBean().Title = %q, want %q", got.Title, "Updated")
 		}
 	})
 
-	t.Run("appendToBody without etag fails when require_if_match is true", func(t *testing.T) {
-		b := &bean.Bean{ID: "req-append-1", Title: "Test", Status: "todo", Body: "hello"}
+	t.Run("update with wrong etag fails", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:     "etag-update-2",
+			Title:  "Test",
+			Status: "todo",
+		}
 		core.Create(b)
 
-		mr := resolver.Mutation()
-		_, err := mr.AppendToBody(ctx, "req-append-1", "world", nil)
-		if err == nil {
-			t.Error("AppendToBody() without etag should fail when require_if_match is true")
+		wrongETag := "wrongetag123"
+		newTitle := "Should Fail"
+		input := model.UpdateBeanInput{
+			Title:   &newTitle,
+			IfMatch: &wrongETag,
 		}
-		if !strings.Contains(err.Error(), "if-match etag is required") {
-			t.Errorf("Error should mention etag is required, got: %v", err)
+
+		_, err := resolver.Mutation().UpdateBean(ctx, "etag-update-2", input)
+		if err == nil {
+			t.Error("UpdateBean() with wrong etag should fail")
+		}
+
+		var mismatchErr *beancore.ETagMismatchError
+		if !errors.As(err, &mismatchErr) {
+			t.Errorf("Expected ETagMismatchError, got %T: %v", err, err)
+		}
+	})
+}
+
+func TestSetParentWithETag(t *testing.T) {
+	resolver, core := setupTestResolver(t)
+	ctx := context.Background()
+
+	// Create parent
+	parent := &bean.Bean{
+		ID:     "parent-etag",
+		Title:  "Parent",
+		Status: "todo",
+		Type:   "epic",
+	}
+	core.Create(parent)
+
+	t.Run("setParent with correct etag succeeds", func(t *testing.T) {
+		child := &bean.Bean{
+			ID:     "child-etag-1",
+			Title:  "Child",
+			Status: "todo",
+			Type:   "task",
+		}
+		core.Create(child)
+
+		currentETag := child.ETag()
+		parentID := "parent-etag"
+
+		got, err := resolver.Mutation().SetParent(ctx, "child-etag-1", &parentID, &currentETag)
+		if err != nil {
+			t.Fatalf("SetParent() with correct etag failed: %v", err)
+		}
+		if got.Parent != "parent-etag" {
+			t.Errorf("SetParent().Parent = %q, want %q", got.Parent, "parent-etag")
+		}
+	})
+
+	t.Run("setParent with wrong etag fails", func(t *testing.T) {
+		child := &bean.Bean{
+			ID:     "child-etag-2",
+			Title:  "Child",
+			Status: "todo",
+			Type:   "task",
+		}
+		core.Create(child)
+
+		wrongETag := "wrongetag123"
+		parentID := "parent-etag"
+
+		_, err := resolver.Mutation().SetParent(ctx, "child-etag-2", &parentID, &wrongETag)
+		if err == nil {
+			t.Error("SetParent() with wrong etag should fail")
+		}
+
+		var mismatchErr *beancore.ETagMismatchError
+		if !errors.As(err, &mismatchErr) {
+			t.Errorf("Expected ETagMismatchError, got %T: %v", err, err)
+		}
+	})
+}
+
+func TestAddBlockingWithETag(t *testing.T) {
+	resolver, core := setupTestResolver(t)
+	ctx := context.Background()
+
+	// Create target bean
+	target := &bean.Bean{
+		ID:     "target-etag",
+		Title:  "Target",
+		Status: "todo",
+		Type:   "task",
+	}
+	core.Create(target)
+
+	t.Run("addBlocking with correct etag succeeds", func(t *testing.T) {
+		blocker := &bean.Bean{
+			ID:     "blocker-etag-1",
+			Title:  "Blocker",
+			Status: "todo",
+			Type:   "task",
+		}
+		core.Create(blocker)
+
+		currentETag := blocker.ETag()
+
+		got, err := resolver.Mutation().AddBlocking(ctx, "blocker-etag-1", "target-etag", &currentETag)
+		if err != nil {
+			t.Fatalf("AddBlocking() with correct etag failed: %v", err)
+		}
+		if len(got.Blocking) != 1 || got.Blocking[0] != "target-etag" {
+			t.Errorf("AddBlocking().Blocking = %v, want [target-etag]", got.Blocking)
+		}
+	})
+
+	t.Run("addBlocking with wrong etag fails", func(t *testing.T) {
+		blocker := &bean.Bean{
+			ID:     "blocker-etag-2",
+			Title:  "Blocker",
+			Status: "todo",
+			Type:   "task",
+		}
+		core.Create(blocker)
+
+		wrongETag := "wrongetag123"
+
+		_, err := resolver.Mutation().AddBlocking(ctx, "blocker-etag-2", "target-etag", &wrongETag)
+		if err == nil {
+			t.Error("AddBlocking() with wrong etag should fail")
+		}
+
+		var mismatchErr *beancore.ETagMismatchError
+		if !errors.As(err, &mismatchErr) {
+			t.Errorf("Expected ETagMismatchError, got %T: %v", err, err)
+		}
+	})
+}
+
+func TestRemoveBlockingWithETag(t *testing.T) {
+	resolver, core := setupTestResolver(t)
+	ctx := context.Background()
+
+	// Create target bean
+	target := &bean.Bean{
+		ID:     "target-rm-etag",
+		Title:  "Target",
+		Status: "todo",
+		Type:   "task",
+	}
+	core.Create(target)
+
+	t.Run("removeBlocking with correct etag succeeds", func(t *testing.T) {
+		blocker := &bean.Bean{
+			ID:       "blocker-rm-etag-1",
+			Title:    "Blocker",
+			Status:   "todo",
+			Type:     "task",
+			Blocking: []string{"target-rm-etag"},
+		}
+		core.Create(blocker)
+
+		currentETag := blocker.ETag()
+
+		got, err := resolver.Mutation().RemoveBlocking(ctx, "blocker-rm-etag-1", "target-rm-etag", &currentETag)
+		if err != nil {
+			t.Fatalf("RemoveBlocking() with correct etag failed: %v", err)
+		}
+		if len(got.Blocking) != 0 {
+			t.Errorf("RemoveBlocking().Blocking = %v, want []", got.Blocking)
+		}
+	})
+
+	t.Run("removeBlocking with wrong etag fails", func(t *testing.T) {
+		blocker := &bean.Bean{
+			ID:       "blocker-rm-etag-2",
+			Title:    "Blocker",
+			Status:   "todo",
+			Type:     "task",
+			Blocking: []string{"target-rm-etag"},
+		}
+		core.Create(blocker)
+
+		wrongETag := "wrongetag123"
+
+		_, err := resolver.Mutation().RemoveBlocking(ctx, "blocker-rm-etag-2", "target-rm-etag", &wrongETag)
+		if err == nil {
+			t.Error("RemoveBlocking() with wrong etag should fail")
+		}
+
+		var mismatchErr *beancore.ETagMismatchError
+		if !errors.As(err, &mismatchErr) {
+			t.Errorf("Expected ETagMismatchError, got %T: %v", err, err)
 		}
 	})
 }
