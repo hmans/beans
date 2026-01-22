@@ -3,8 +3,10 @@
 package beancore
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"os"
 	"path/filepath"
@@ -21,6 +23,24 @@ const BeansDir = ".beans"
 const ArchiveDir = "archive"
 
 var ErrNotFound = errors.New("bean not found")
+
+// ETagMismatchError is returned when an ETag validation fails.
+// This allows callers to distinguish concurrency conflicts from other errors.
+type ETagMismatchError struct {
+	Provided string
+	Current  string
+}
+
+func (e *ETagMismatchError) Error() string {
+	return fmt.Sprintf("etag mismatch: provided %s, current is %s", e.Provided, e.Current)
+}
+
+// ETagRequiredError is returned when require_if_match is enabled and no ETag is provided.
+type ETagRequiredError struct{}
+
+func (e *ETagRequiredError) Error() string {
+	return "if-match etag is required (set require_if_match: false in config to disable)"
+}
 
 // Core provides thread-safe in-memory storage for beans with filesystem persistence.
 type Core struct {
@@ -347,13 +367,55 @@ func (c *Core) Create(b *bean.Bean) error {
 }
 
 // Update modifies an existing bean and writes it to disk.
-func (c *Core) Update(b *bean.Bean) error {
+// If ifMatch is provided, validates the current on-disk version's etag matches before updating.
+// This provides optimistic concurrency control to prevent lost updates.
+func (c *Core) Update(b *bean.Bean, ifMatch *string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Verify bean exists
-	if _, ok := c.beans[b.ID]; !ok {
+	// Verify bean exists in memory
+	storedBean, ok := c.beans[b.ID]
+	if !ok {
 		return ErrNotFound
+	}
+
+	// Validate etag if provided or required
+	requireIfMatch := c.config != nil && c.config.Beans.RequireIfMatch
+
+	if requireIfMatch && (ifMatch == nil || *ifMatch == "") {
+		return &ETagRequiredError{}
+	}
+
+	if ifMatch != nil && *ifMatch != "" {
+		// Calculate etag from the on-disk version by reading the stored bean's path
+		// This is necessary because the in-memory bean may have already been modified
+		// (Go uses pointers, so modifying the bean passed to Update also modifies c.beans[id])
+		var currentETag string
+		if storedBean.Path != "" {
+			// Read current file from disk to calculate etag
+			diskPath := filepath.Join(c.root, storedBean.Path)
+			content, err := os.ReadFile(diskPath)
+			if err != nil {
+				// If file doesn't exist yet, fall back to stored bean's etag
+				// This can happen for beans created but not yet persisted
+				currentETag = storedBean.ETag()
+			} else {
+				// Calculate etag from on-disk content
+				h := fnv.New64a()
+				h.Write(content)
+				currentETag = hex.EncodeToString(h.Sum(nil))
+			}
+		} else {
+			// No path yet, use in-memory etag
+			currentETag = storedBean.ETag()
+		}
+
+		if currentETag != *ifMatch {
+			return &ETagMismatchError{
+				Provided: *ifMatch,
+				Current:  currentETag,
+			}
+		}
 	}
 
 	// Update timestamp

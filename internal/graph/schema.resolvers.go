@@ -177,11 +177,6 @@ func (r *mutationResolver) UpdateBean(ctx context.Context, id string, input mode
 		return nil, err
 	}
 
-	// Validate ETag if provided or required
-	if err := r.validateETag(b, input.IfMatch); err != nil {
-		return nil, err
-	}
-
 	// Validate body and bodyMod are mutually exclusive
 	if input.Body != nil && input.BodyMod != nil {
 		return nil, fmt.Errorf("cannot specify both body and bodyMod")
@@ -228,7 +223,8 @@ func (r *mutationResolver) UpdateBean(ctx context.Context, id string, input mode
 		b.Tags = input.Tags
 	}
 
-	if err := r.Core.Update(b); err != nil {
+	// ETag validation now happens inside Update() under write lock
+	if err := r.Core.Update(b, input.IfMatch); err != nil {
 		return nil, err
 	}
 
@@ -263,11 +259,6 @@ func (r *mutationResolver) SetParent(ctx context.Context, id string, parentID *s
 		return nil, err
 	}
 
-	// Validate ETag if provided or required
-	if err := r.validateETag(b, ifMatch); err != nil {
-		return nil, err
-	}
-
 	newParent := ""
 	if parentID != nil {
 		// Normalise short ID to full ID
@@ -286,7 +277,8 @@ func (r *mutationResolver) SetParent(ctx context.Context, id string, parentID *s
 	}
 
 	b.Parent = newParent
-	if err := r.Core.Update(b); err != nil {
+	// ETag validation now happens inside Update() under write lock
+	if err := r.Core.Update(b, ifMatch); err != nil {
 		return nil, err
 	}
 	return b, nil
@@ -296,11 +288,6 @@ func (r *mutationResolver) SetParent(ctx context.Context, id string, parentID *s
 func (r *mutationResolver) AddBlocking(ctx context.Context, id string, targetID string, ifMatch *string) (*bean.Bean, error) {
 	b, err := r.Core.Get(id)
 	if err != nil {
-		return nil, err
-	}
-
-	// Validate ETag if provided or required
-	if err := r.validateETag(b, ifMatch); err != nil {
 		return nil, err
 	}
 
@@ -327,7 +314,8 @@ func (r *mutationResolver) AddBlocking(ctx context.Context, id string, targetID 
 	}
 
 	b.AddBlocking(normalizedTargetID)
-	if err := r.Core.Update(b); err != nil {
+	// ETag validation now happens inside Update() under write lock
+	if err := r.Core.Update(b, ifMatch); err != nil {
 		return nil, err
 	}
 	return b, nil
@@ -340,16 +328,12 @@ func (r *mutationResolver) RemoveBlocking(ctx context.Context, id string, target
 		return nil, err
 	}
 
-	// Validate ETag if provided or required
-	if err := r.validateETag(b, ifMatch); err != nil {
-		return nil, err
-	}
-
 	// Normalise short ID to full ID
 	normalizedTargetID, _ := r.Core.NormalizeID(targetID)
 
 	b.RemoveBlocking(normalizedTargetID)
-	if err := r.Core.Update(b); err != nil {
+	// ETag validation now happens inside Update() under write lock
+	if err := r.Core.Update(b, ifMatch); err != nil {
 		return nil, err
 	}
 	return b, nil

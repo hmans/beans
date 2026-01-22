@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hmans/beans/internal/beancore"
 	"github.com/hmans/beans/internal/config"
 	"github.com/hmans/beans/internal/graph"
 	"github.com/hmans/beans/internal/graph/model"
@@ -254,8 +255,8 @@ func hasFieldUpdates(input model.UpdateBeanInput) bool {
 
 // isConflictError returns true if the error is an ETag-related conflict error.
 func isConflictError(err error) bool {
-	var mismatchErr *graph.ETagMismatchError
-	var requiredErr *graph.ETagRequiredError
+	var mismatchErr *beancore.ETagMismatchError
+	var requiredErr *beancore.ETagRequiredError
 	return errors.As(err, &mismatchErr) || errors.As(err, &requiredErr)
 }
 

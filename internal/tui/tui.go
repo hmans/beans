@@ -500,7 +500,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						// then call Update to set updated_at
 						_ = a.core.Load()
 						if b, err = a.core.Get(a.editingBeanID); err == nil {
-							_ = a.core.Update(b)
+							_ = a.core.Update(b, nil)
 						}
 					}
 				}
