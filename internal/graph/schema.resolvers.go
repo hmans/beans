@@ -346,11 +346,6 @@ func (r *mutationResolver) AddBlockedBy(ctx context.Context, id string, targetID
 		return nil, err
 	}
 
-	// Validate ETag if provided or required
-	if err := r.validateETag(b, ifMatch); err != nil {
-		return nil, err
-	}
-
 	// Normalise short ID to full ID
 	normalizedTargetID, _ := r.Core.NormalizeID(targetID)
 
@@ -374,7 +369,8 @@ func (r *mutationResolver) AddBlockedBy(ctx context.Context, id string, targetID
 	}
 
 	b.AddBlockedBy(normalizedTargetID)
-	if err := r.Core.Update(b); err != nil {
+	// ETag validation now happens inside Update() under write lock
+	if err := r.Core.Update(b, ifMatch); err != nil {
 		return nil, err
 	}
 	return b, nil
@@ -387,66 +383,14 @@ func (r *mutationResolver) RemoveBlockedBy(ctx context.Context, id string, targe
 		return nil, err
 	}
 
-	// Validate ETag if provided or required
-	if err := r.validateETag(b, ifMatch); err != nil {
-		return nil, err
-	}
-
 	// Normalise short ID to full ID
 	normalizedTargetID, _ := r.Core.NormalizeID(targetID)
 
 	b.RemoveBlockedBy(normalizedTargetID)
-	if err := r.Core.Update(b); err != nil {
+	// ETag validation now happens inside Update() under write lock
+	if err := r.Core.Update(b, ifMatch); err != nil {
 		return nil, err
 	}
-	return b, nil
-}
-
-// ReplaceInBody is the resolver for the replaceInBody field.
-func (r *mutationResolver) ReplaceInBody(ctx context.Context, id string, old string, new string, ifMatch *string) (*bean.Bean, error) {
-	b, err := r.Core.Get(id)
-	if err != nil {
-		return nil, err
-	}
-
-	// Validate ETag if provided or required
-	if err := r.validateETag(b, ifMatch); err != nil {
-		return nil, err
-	}
-
-	// Apply replacement using shared logic
-	newBody, err := bean.ReplaceOnce(b.Body, old, new)
-	if err != nil {
-		return nil, err
-	}
-
-	b.Body = newBody
-	if err := r.Core.Update(b); err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
-// AppendToBody is the resolver for the appendToBody field.
-func (r *mutationResolver) AppendToBody(ctx context.Context, id string, content string, ifMatch *string) (*bean.Bean, error) {
-	b, err := r.Core.Get(id)
-	if err != nil {
-		return nil, err
-	}
-
-	// Validate ETag if provided or required
-	if err := r.validateETag(b, ifMatch); err != nil {
-		return nil, err
-	}
-
-	// Apply append using shared logic (no-op if content is empty)
-	b.Body = bean.AppendWithSeparator(b.Body, content)
-
-	if err := r.Core.Update(b); err != nil {
-		return nil, err
-	}
-
 	return b, nil
 }
 

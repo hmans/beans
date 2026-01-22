@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -2094,35 +2095,229 @@ func TestMutationAddRemoveBlockedBy(t *testing.T) {
 	})
 }
 
-func TestReplaceInBodyRequireIfMatch(t *testing.T) {
-	resolver, core := setupTestResolverWithRequireIfMatch(t)
+func TestUpdateBeanWithETag(t *testing.T) {
+	resolver, core := setupTestResolver(t)
 	ctx := context.Background()
 
-	t.Run("replaceInBody without etag fails when require_if_match is true", func(t *testing.T) {
-		b := &bean.Bean{ID: "req-replace-1", Title: "Test", Status: "todo", Body: "hello world"}
+	t.Run("update with correct etag succeeds", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:     "etag-update-1",
+			Title:  "Test",
+			Status: "todo",
+		}
 		core.Create(b)
 
-		mr := resolver.Mutation()
-		_, err := mr.ReplaceInBody(ctx, "req-replace-1", "hello", "hi", nil)
-		if err == nil {
-			t.Error("ReplaceInBody() without etag should fail when require_if_match is true")
+		currentETag := b.ETag()
+		newTitle := "Updated"
+		input := model.UpdateBeanInput{
+			Title:   &newTitle,
+			IfMatch: &currentETag,
 		}
-		if !strings.Contains(err.Error(), "if-match etag is required") {
-			t.Errorf("Error should mention etag is required, got: %v", err)
+
+		got, err := resolver.Mutation().UpdateBean(ctx, "etag-update-1", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() with correct etag failed: %v", err)
+		}
+		if got.Title != "Updated" {
+			t.Errorf("UpdateBean().Title = %q, want %q", got.Title, "Updated")
 		}
 	})
 
-	t.Run("appendToBody without etag fails when require_if_match is true", func(t *testing.T) {
-		b := &bean.Bean{ID: "req-append-1", Title: "Test", Status: "todo", Body: "hello"}
+	t.Run("update with wrong etag fails", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:     "etag-update-2",
+			Title:  "Test",
+			Status: "todo",
+		}
 		core.Create(b)
 
-		mr := resolver.Mutation()
-		_, err := mr.AppendToBody(ctx, "req-append-1", "world", nil)
-		if err == nil {
-			t.Error("AppendToBody() without etag should fail when require_if_match is true")
+		wrongETag := "wrongetag123"
+		newTitle := "Should Fail"
+		input := model.UpdateBeanInput{
+			Title:   &newTitle,
+			IfMatch: &wrongETag,
 		}
-		if !strings.Contains(err.Error(), "if-match etag is required") {
-			t.Errorf("Error should mention etag is required, got: %v", err)
+
+		_, err := resolver.Mutation().UpdateBean(ctx, "etag-update-2", input)
+		if err == nil {
+			t.Error("UpdateBean() with wrong etag should fail")
+		}
+
+		var mismatchErr *beancore.ETagMismatchError
+		if !errors.As(err, &mismatchErr) {
+			t.Errorf("Expected ETagMismatchError, got %T: %v", err, err)
+		}
+	})
+}
+
+func TestSetParentWithETag(t *testing.T) {
+	resolver, core := setupTestResolver(t)
+	ctx := context.Background()
+
+	// Create parent
+	parent := &bean.Bean{
+		ID:     "parent-etag",
+		Title:  "Parent",
+		Status: "todo",
+		Type:   "epic",
+	}
+	core.Create(parent)
+
+	t.Run("setParent with correct etag succeeds", func(t *testing.T) {
+		child := &bean.Bean{
+			ID:     "child-etag-1",
+			Title:  "Child",
+			Status: "todo",
+			Type:   "task",
+		}
+		core.Create(child)
+
+		currentETag := child.ETag()
+		parentID := "parent-etag"
+
+		got, err := resolver.Mutation().SetParent(ctx, "child-etag-1", &parentID, &currentETag)
+		if err != nil {
+			t.Fatalf("SetParent() with correct etag failed: %v", err)
+		}
+		if got.Parent != "parent-etag" {
+			t.Errorf("SetParent().Parent = %q, want %q", got.Parent, "parent-etag")
+		}
+	})
+
+	t.Run("setParent with wrong etag fails", func(t *testing.T) {
+		child := &bean.Bean{
+			ID:     "child-etag-2",
+			Title:  "Child",
+			Status: "todo",
+			Type:   "task",
+		}
+		core.Create(child)
+
+		wrongETag := "wrongetag123"
+		parentID := "parent-etag"
+
+		_, err := resolver.Mutation().SetParent(ctx, "child-etag-2", &parentID, &wrongETag)
+		if err == nil {
+			t.Error("SetParent() with wrong etag should fail")
+		}
+
+		var mismatchErr *beancore.ETagMismatchError
+		if !errors.As(err, &mismatchErr) {
+			t.Errorf("Expected ETagMismatchError, got %T: %v", err, err)
+		}
+	})
+}
+
+func TestAddBlockingWithETag(t *testing.T) {
+	resolver, core := setupTestResolver(t)
+	ctx := context.Background()
+
+	// Create target bean
+	target := &bean.Bean{
+		ID:     "target-etag",
+		Title:  "Target",
+		Status: "todo",
+		Type:   "task",
+	}
+	core.Create(target)
+
+	t.Run("addBlocking with correct etag succeeds", func(t *testing.T) {
+		blocker := &bean.Bean{
+			ID:     "blocker-etag-1",
+			Title:  "Blocker",
+			Status: "todo",
+			Type:   "task",
+		}
+		core.Create(blocker)
+
+		currentETag := blocker.ETag()
+
+		got, err := resolver.Mutation().AddBlocking(ctx, "blocker-etag-1", "target-etag", &currentETag)
+		if err != nil {
+			t.Fatalf("AddBlocking() with correct etag failed: %v", err)
+		}
+		if len(got.Blocking) != 1 || got.Blocking[0] != "target-etag" {
+			t.Errorf("AddBlocking().Blocking = %v, want [target-etag]", got.Blocking)
+		}
+	})
+
+	t.Run("addBlocking with wrong etag fails", func(t *testing.T) {
+		blocker := &bean.Bean{
+			ID:     "blocker-etag-2",
+			Title:  "Blocker",
+			Status: "todo",
+			Type:   "task",
+		}
+		core.Create(blocker)
+
+		wrongETag := "wrongetag123"
+
+		_, err := resolver.Mutation().AddBlocking(ctx, "blocker-etag-2", "target-etag", &wrongETag)
+		if err == nil {
+			t.Error("AddBlocking() with wrong etag should fail")
+		}
+
+		var mismatchErr *beancore.ETagMismatchError
+		if !errors.As(err, &mismatchErr) {
+			t.Errorf("Expected ETagMismatchError, got %T: %v", err, err)
+		}
+	})
+}
+
+func TestRemoveBlockingWithETag(t *testing.T) {
+	resolver, core := setupTestResolver(t)
+	ctx := context.Background()
+
+	// Create target bean
+	target := &bean.Bean{
+		ID:     "target-rm-etag",
+		Title:  "Target",
+		Status: "todo",
+		Type:   "task",
+	}
+	core.Create(target)
+
+	t.Run("removeBlocking with correct etag succeeds", func(t *testing.T) {
+		blocker := &bean.Bean{
+			ID:       "blocker-rm-etag-1",
+			Title:    "Blocker",
+			Status:   "todo",
+			Type:     "task",
+			Blocking: []string{"target-rm-etag"},
+		}
+		core.Create(blocker)
+
+		currentETag := blocker.ETag()
+
+		got, err := resolver.Mutation().RemoveBlocking(ctx, "blocker-rm-etag-1", "target-rm-etag", &currentETag)
+		if err != nil {
+			t.Fatalf("RemoveBlocking() with correct etag failed: %v", err)
+		}
+		if len(got.Blocking) != 0 {
+			t.Errorf("RemoveBlocking().Blocking = %v, want []", got.Blocking)
+		}
+	})
+
+	t.Run("removeBlocking with wrong etag fails", func(t *testing.T) {
+		blocker := &bean.Bean{
+			ID:       "blocker-rm-etag-2",
+			Title:    "Blocker",
+			Status:   "todo",
+			Type:     "task",
+			Blocking: []string{"target-rm-etag"},
+		}
+		core.Create(blocker)
+
+		wrongETag := "wrongetag123"
+
+		_, err := resolver.Mutation().RemoveBlocking(ctx, "blocker-rm-etag-2", "target-rm-etag", &wrongETag)
+		if err == nil {
+			t.Error("RemoveBlocking() with wrong etag should fail")
+		}
+
+		var mismatchErr *beancore.ETagMismatchError
+		if !errors.As(err, &mismatchErr) {
+			t.Errorf("Expected ETagMismatchError, got %T: %v", err, err)
 		}
 	})
 }
