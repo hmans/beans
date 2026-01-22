@@ -44,19 +44,6 @@ type Mutation {
   Remove a bean from the blocking list
   """
   removeBlocking(id: ID!, targetId: ID!, ifMatch: String): Bean!
-
-  """
-  Replace exactly one occurrence of text in a bean's body.
-  Returns an error if the old text is not found or found multiple times.
-  The new text can be empty to delete the matched text.
-  """
-  replaceInBody(id: ID!, old: String!, new: String!, ifMatch: String): Bean!
-
-  """
-  Append text to a bean's body with a blank line separator.
-  If content is empty, this is a no-op and returns the bean unchanged.
-  """
-  appendToBody(id: ID!, content: String!, ifMatch: String): Bean!
 }
 
 """
@@ -97,10 +84,40 @@ input UpdateBeanInput {
   priority: String
   "Replace all tags (nil preserves existing)"
   tags: [String!]
-  "New body content"
+  "New body content (full replacement, mutually exclusive with bodyMod)"
   body: String
+  "Structured body modifications (mutually exclusive with body)"
+  bodyMod: BodyModification
   "ETag for optimistic concurrency control (optional)"
   ifMatch: String
+}
+
+"""
+Structured body modifications applied atomically.
+Operations are applied in order: all replacements sequentially, then append.
+If any operation fails, the entire mutation fails (transactional).
+"""
+input BodyModification {
+  """
+  Text replacements applied sequentially in array order.
+  Each old text must match exactly once at the time it's applied.
+  """
+  replace: [ReplaceOperation!]
+  """
+  Text to append after all replacements.
+  Appended with blank line separator.
+  """
+  append: String
+}
+
+"""
+A single text replacement operation.
+"""
+input ReplaceOperation {
+  "Text to find (must occur exactly once, cannot be empty)"
+  old: String!
+  "Replacement text (can be empty to delete the matched text)"
+  new: String!
 }
 
 """

@@ -150,6 +150,11 @@ func (r *mutationResolver) UpdateBean(ctx context.Context, id string, input mode
 		return nil, err
 	}
 
+	// Validate body and bodyMod are mutually exclusive
+	if input.Body != nil && input.BodyMod != nil {
+		return nil, fmt.Errorf("cannot specify both body and bodyMod")
+	}
+
 	// Update fields if provided
 	if input.Title != nil {
 		b.Title = *input.Title
@@ -165,6 +170,27 @@ func (r *mutationResolver) UpdateBean(ctx context.Context, id string, input mode
 	}
 	if input.Body != nil {
 		b.Body = *input.Body
+	} else if input.BodyMod != nil {
+		// Apply body modifications
+		workingBody := b.Body
+
+		// Apply replacements sequentially
+		if input.BodyMod.Replace != nil {
+			for i, replaceOp := range input.BodyMod.Replace {
+				newBody, err := bean.ReplaceOnce(workingBody, replaceOp.Old, replaceOp.New)
+				if err != nil {
+					return nil, fmt.Errorf("replacement %d failed: %w", i, err)
+				}
+				workingBody = newBody
+			}
+		}
+
+		// Apply append if provided
+		if input.BodyMod.Append != nil && *input.BodyMod.Append != "" {
+			workingBody = bean.AppendWithSeparator(workingBody, *input.BodyMod.Append)
+		}
+
+		b.Body = workingBody
 	}
 	if input.Tags != nil {
 		b.Tags = input.Tags
@@ -289,54 +315,6 @@ func (r *mutationResolver) RemoveBlocking(ctx context.Context, id string, target
 	if err := r.Core.Update(b); err != nil {
 		return nil, err
 	}
-	return b, nil
-}
-
-// ReplaceInBody is the resolver for the replaceInBody field.
-func (r *mutationResolver) ReplaceInBody(ctx context.Context, id string, old string, new string, ifMatch *string) (*bean.Bean, error) {
-	b, err := r.Core.Get(id)
-	if err != nil {
-		return nil, err
-	}
-
-	// Validate ETag if provided or required
-	if err := r.validateETag(b, ifMatch); err != nil {
-		return nil, err
-	}
-
-	// Apply replacement using shared logic
-	newBody, err := bean.ReplaceOnce(b.Body, old, new)
-	if err != nil {
-		return nil, err
-	}
-
-	b.Body = newBody
-	if err := r.Core.Update(b); err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
-// AppendToBody is the resolver for the appendToBody field.
-func (r *mutationResolver) AppendToBody(ctx context.Context, id string, content string, ifMatch *string) (*bean.Bean, error) {
-	b, err := r.Core.Get(id)
-	if err != nil {
-		return nil, err
-	}
-
-	// Validate ETag if provided or required
-	if err := r.validateETag(b, ifMatch); err != nil {
-		return nil, err
-	}
-
-	// Apply append using shared logic (no-op if content is empty)
-	b.Body = bean.AppendWithSeparator(b.Body, content)
-
-	if err := r.Core.Update(b); err != nil {
-		return nil, err
-	}
-
 	return b, nil
 }
 
