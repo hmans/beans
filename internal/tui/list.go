@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -115,7 +116,8 @@ type listModel struct {
 	idColWidth int                  // ID column width (accounts for tree depth)
 
 	// Active filters
-	tagFilter string // if set, only show beans with this tag
+	tagFilter     string // if set, only show beans with this tag
+	hideCompleted bool   // if true, hide completed and scrapped beans
 
 	// Multi-select state
 	selectedBeans map[string]bool // IDs of beans marked for multi-edit
@@ -167,10 +169,16 @@ func (m listModel) Init() tea.Cmd {
 }
 
 func (m listModel) loadBeans() tea.Msg {
-	// Build filter if tag filter is set
+	// Build filter based on active filters
 	var filter *model.BeanFilter
-	if m.tagFilter != "" {
-		filter = &model.BeanFilter{Tags: []string{m.tagFilter}}
+	if m.tagFilter != "" || m.hideCompleted {
+		filter = &model.BeanFilter{}
+		if m.tagFilter != "" {
+			filter.Tags = []string{m.tagFilter}
+		}
+		if m.hideCompleted {
+			filter.ExcludeStatus = []string{"completed", "scrapped"}
+		}
 	}
 
 	// Query filtered beans
@@ -214,6 +222,11 @@ func (m listModel) loadBeans() tea.Msg {
 // setTagFilter sets the tag filter
 func (m *listModel) setTagFilter(tag string) {
 	m.tagFilter = tag
+}
+
+// toggleHideCompleted toggles the hideCompleted filter
+func (m *listModel) toggleHideCompleted() {
+	m.hideCompleted = !m.hideCompleted
 }
 
 // clearFilter clears all active filters
@@ -417,6 +430,10 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 						}
 					}
 				}
+			case "H":
+				// Toggle hide completed/scrapped beans
+				m.toggleHideCompleted()
+				return m, m.loadBeans
 			case "y":
 				// Copy bean ID(s) to clipboard
 				if len(m.selectedBeans) > 0 {
@@ -490,9 +507,16 @@ func (m listModel) View() string {
 		return "Loading..."
 	}
 
-	// Update title based on active filter
+	// Update title based on active filters
+	var titleParts []string
 	if m.tagFilter != "" {
-		m.list.Title = fmt.Sprintf("Beans [tag: %s]", m.tagFilter)
+		titleParts = append(titleParts, fmt.Sprintf("tag: %s", m.tagFilter))
+	}
+	if m.hideCompleted {
+		titleParts = append(titleParts, "hiding completed")
+	}
+	if len(titleParts) > 0 {
+		m.list.Title = fmt.Sprintf("Beans [%s]", strings.Join(titleParts, "] ["))
 	} else {
 		m.list.Title = "Beans"
 	}
@@ -592,13 +616,19 @@ func (m listModel) ViewConstrained(width, height int) string {
 	m.cols = ui.CalculateResponsiveColumns(width, m.hasTags)
 	m.updateDelegate()
 
-	// Update title based on active filter
+	// Update title based on active filters
+	var titleParts []string
 	if m.tagFilter != "" {
-		m.list.Title = fmt.Sprintf("Beans [tag: %s]", m.tagFilter)
+		titleParts = append(titleParts, fmt.Sprintf("tag: %s", m.tagFilter))
+	}
+	if m.hideCompleted {
+		titleParts = append(titleParts, "hiding completed")
+	}
+	if len(titleParts) > 0 {
+		m.list.Title = fmt.Sprintf("Beans [%s]", strings.Join(titleParts, "] ["))
 	} else {
 		m.list.Title = "Beans"
 	}
 
 	return m.viewContent(innerHeight)
 }
-
