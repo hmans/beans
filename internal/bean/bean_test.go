@@ -1217,6 +1217,49 @@ func TestRenderWithIDCommentRoundtrip(t *testing.T) {
 	}
 }
 
+func TestRenderTrailingNewline(t *testing.T) {
+	tests := []struct {
+		name string
+		bean *Bean
+	}{
+		{
+			name: "with body",
+			bean: &Bean{
+				Title:  "Test Bean",
+				Status: "todo",
+				Body:   "Some content without trailing newline",
+			},
+		},
+		{
+			name: "with body ending in newline",
+			bean: &Bean{
+				Title:  "Test Bean",
+				Status: "todo",
+				Body:   "Some content with trailing newline\n",
+			},
+		},
+		{
+			name: "without body",
+			bean: &Bean{
+				Title:  "Test Bean",
+				Status: "todo",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rendered, err := tt.bean.Render()
+			if err != nil {
+				t.Fatalf("Render error: %v", err)
+			}
+			if !strings.HasSuffix(string(rendered), "\n") {
+				t.Errorf("rendered output should end with newline\ngot: %q", rendered)
+			}
+		})
+	}
+}
+
 func TestETag(t *testing.T) {
 	t.Run("consistent hash", func(t *testing.T) {
 		b := &Bean{

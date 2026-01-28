@@ -153,6 +153,9 @@ func Parse(r io.Reader) (*Bean, error) {
 		return nil, fmt.Errorf("parsing front matter: %w", err)
 	}
 
+	// Trim trailing newline from body (POSIX files end with newline, but it's not part of content)
+	bodyStr := strings.TrimSuffix(string(body), "\n")
+
 	return &Bean{
 		Title:     fm.Title,
 		Status:    fm.Status,
@@ -161,7 +164,7 @@ func Parse(r io.Reader) (*Bean, error) {
 		Tags:      fm.Tags,
 		CreatedAt: fm.CreatedAt,
 		UpdatedAt: fm.UpdatedAt,
-		Body:      string(body),
+		Body:      bodyStr,
 		Parent:    fm.Parent,
 		Blocking:  fm.Blocking,
 	}, nil
@@ -214,6 +217,13 @@ func (b *Bean) Render() ([]byte, error) {
 			buf.WriteString("\n")
 		}
 		buf.WriteString(b.Body)
+		// Ensure trailing newline if body doesn't end with one
+		if !strings.HasSuffix(b.Body, "\n") {
+			buf.WriteString("\n")
+		}
+	} else {
+		// Even without body, add trailing newline for POSIX compliance
+		buf.WriteString("\n")
 	}
 
 	return buf.Bytes(), nil
