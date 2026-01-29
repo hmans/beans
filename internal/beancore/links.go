@@ -508,33 +508,7 @@ func isResolvedStatus(status string) bool {
 // IsBlocked returns true if the bean with the given ID is blocked by any
 // active (non-completed, non-scrapped) beans.
 func (c *Core) IsBlocked(beanID string) bool {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	b, ok := c.beans[beanID]
-	if !ok {
-		return false
-	}
-
-	// Check direct blocked_by field
-	for _, blockerID := range b.BlockedBy {
-		if blocker, ok := c.beans[blockerID]; ok {
-			if !isResolvedStatus(blocker.Status) {
-				return true
-			}
-		}
-	}
-
-	// Check incoming blocking links (other beans that have this bean in their Blocking list)
-	for _, other := range c.beans {
-		for _, blocked := range other.Blocking {
-			if blocked == beanID && !isResolvedStatus(other.Status) {
-				return true
-			}
-		}
-	}
-
-	return false
+	return len(c.FindActiveBlockers(beanID)) > 0
 }
 
 // FindActiveBlockers returns all beans that are actively blocking the given bean.
