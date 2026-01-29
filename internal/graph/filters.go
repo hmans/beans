@@ -273,50 +273,23 @@ func filterByNoBlocking(beans []*bean.Bean) []*bean.Bean {
 }
 
 // filterByIsBlocked filters beans that are blocked by others.
-// A bean is considered blocked if:
-// - Another bean has this bean in its blocking list (incoming blocking link), OR
-// - This bean has entries in its blocked_by field
+// A bean is considered blocked only if it has active (non-completed, non-scrapped) blockers.
 func filterByIsBlocked(beans []*bean.Bean, core *beancore.Core) []*bean.Bean {
 	var result []*bean.Bean
 	for _, b := range beans {
-		// Check direct blocked_by field first (more efficient)
-		if len(b.BlockedBy) > 0 {
+		if core.IsBlocked(b.ID) {
 			result = append(result, b)
-			continue
-		}
-		// Check incoming blocking links
-		incoming := core.FindIncomingLinks(b.ID)
-		for _, link := range incoming {
-			if link.LinkType == "blocking" {
-				result = append(result, b)
-				break
-			}
 		}
 	}
 	return result
 }
 
 // filterByNotBlocked filters beans that are NOT blocked by others.
-// A bean is considered not blocked if:
-// - No other bean has this bean in its blocking list, AND
-// - This bean has no entries in its blocked_by field
+// A bean is considered not blocked if it has no active (non-completed, non-scrapped) blockers.
 func filterByNotBlocked(beans []*bean.Bean, core *beancore.Core) []*bean.Bean {
 	var result []*bean.Bean
 	for _, b := range beans {
-		// Check direct blocked_by field first
-		if len(b.BlockedBy) > 0 {
-			continue
-		}
-		// Check incoming blocking links
-		isBlocked := false
-		incoming := core.FindIncomingLinks(b.ID)
-		for _, link := range incoming {
-			if link.LinkType == "blocking" {
-				isBlocked = true
-				break
-			}
-		}
-		if !isBlocked {
+		if !core.IsBlocked(b.ID) {
 			result = append(result, b)
 		}
 	}

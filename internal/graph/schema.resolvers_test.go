@@ -545,6 +545,149 @@ func TestQueryBeansWithParentAndBlocks(t *testing.T) {
 	})
 }
 
+func TestIsBlockedFilterWithResolvedBlockers(t *testing.T) {
+	resolver, core := setupTestResolver(t)
+	ctx := context.Background()
+
+	// Create beans to test blocking with various blocker statuses
+	activeBlocker := &bean.Bean{
+		ID:       "active-blocker",
+		Title:    "Active Blocker",
+		Status:   "todo",
+		Blocking: []string{"blocked-by-active"},
+	}
+	completedBlocker := &bean.Bean{
+		ID:       "completed-blocker",
+		Title:    "Completed Blocker",
+		Status:   "completed",
+		Blocking: []string{"blocked-by-completed"},
+	}
+	scrappedBlocker := &bean.Bean{
+		ID:       "scrapped-blocker",
+		Title:    "Scrapped Blocker",
+		Status:   "scrapped",
+		Blocking: []string{"blocked-by-scrapped"},
+	}
+	blockedByActive := &bean.Bean{
+		ID:     "blocked-by-active",
+		Title:  "Blocked by Active",
+		Status: "todo",
+	}
+	blockedByCompleted := &bean.Bean{
+		ID:     "blocked-by-completed",
+		Title:  "Blocked by Completed",
+		Status: "todo",
+	}
+	blockedByScrapped := &bean.Bean{
+		ID:     "blocked-by-scrapped",
+		Title:  "Blocked by Scrapped",
+		Status: "todo",
+	}
+	notBlocked := &bean.Bean{
+		ID:     "not-blocked",
+		Title:  "Not Blocked",
+		Status: "todo",
+	}
+	// Bean with mixed blockers (one active, one completed)
+	mixedBlocker := &bean.Bean{
+		ID:       "mixed-blocker",
+		Title:    "Mixed Blocker (active)",
+		Status:   "in-progress",
+		Blocking: []string{"mixed-blocked"},
+	}
+	mixedBlockerCompleted := &bean.Bean{
+		ID:       "mixed-blocker-completed",
+		Title:    "Mixed Blocker (completed)",
+		Status:   "completed",
+		Blocking: []string{"mixed-blocked"},
+	}
+	mixedBlocked := &bean.Bean{
+		ID:     "mixed-blocked",
+		Title:  "Mixed Blocked",
+		Status: "todo",
+	}
+
+	beans := []*bean.Bean{
+		activeBlocker, completedBlocker, scrappedBlocker,
+		blockedByActive, blockedByCompleted, blockedByScrapped,
+		notBlocked, mixedBlocker, mixedBlockerCompleted, mixedBlocked,
+	}
+	for _, b := range beans {
+		if err := core.Create(b); err != nil {
+			t.Fatalf("Create error: %v", err)
+		}
+	}
+
+	t.Run("isBlocked true returns only beans with active blockers", func(t *testing.T) {
+		qr := resolver.Query()
+		isBlocked := true
+		filter := &model.BeanFilter{
+			IsBlocked: &isBlocked,
+		}
+		got, err := qr.Beans(ctx, filter)
+		if err != nil {
+			t.Fatalf("Beans() error = %v", err)
+		}
+
+		// Should only return beans blocked by active blockers
+		ids := make(map[string]bool)
+		for _, b := range got {
+			ids[b.ID] = true
+		}
+
+		if !ids["blocked-by-active"] {
+			t.Error("expected blocked-by-active in results (has active blocker)")
+		}
+		if !ids["mixed-blocked"] {
+			t.Error("expected mixed-blocked in results (has one active blocker)")
+		}
+		if ids["blocked-by-completed"] {
+			t.Error("blocked-by-completed should NOT be in results (blocker is completed)")
+		}
+		if ids["blocked-by-scrapped"] {
+			t.Error("blocked-by-scrapped should NOT be in results (blocker is scrapped)")
+		}
+		if ids["not-blocked"] {
+			t.Error("not-blocked should NOT be in results (no blockers)")
+		}
+	})
+
+	t.Run("isBlocked false excludes beans with active blockers", func(t *testing.T) {
+		qr := resolver.Query()
+		isBlocked := false
+		filter := &model.BeanFilter{
+			IsBlocked: &isBlocked,
+		}
+		got, err := qr.Beans(ctx, filter)
+		if err != nil {
+			t.Fatalf("Beans() error = %v", err)
+		}
+
+		ids := make(map[string]bool)
+		for _, b := range got {
+			ids[b.ID] = true
+		}
+
+		// Should include beans with no active blockers
+		if !ids["blocked-by-completed"] {
+			t.Error("expected blocked-by-completed in results (blocker is completed)")
+		}
+		if !ids["blocked-by-scrapped"] {
+			t.Error("expected blocked-by-scrapped in results (blocker is scrapped)")
+		}
+		if !ids["not-blocked"] {
+			t.Error("expected not-blocked in results (no blockers)")
+		}
+		// Should exclude beans with active blockers
+		if ids["blocked-by-active"] {
+			t.Error("blocked-by-active should NOT be in results (has active blocker)")
+		}
+		if ids["mixed-blocked"] {
+			t.Error("mixed-blocked should NOT be in results (has active blocker)")
+		}
+	})
+}
+
 func TestMutationCreateBean(t *testing.T) {
 	resolver, core := setupTestResolver(t)
 	ctx := context.Background()
