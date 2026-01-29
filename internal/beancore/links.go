@@ -498,3 +498,53 @@ func joinWithOr(items []string) string {
 		return strings.Join(items[:len(items)-1], ", ") + ", or " + items[len(items)-1]
 	}
 }
+
+// isResolvedStatus returns true if the status means the bean is "done"
+// (either completed or scrapped).
+func isResolvedStatus(status string) bool {
+	return status == "completed" || status == "scrapped"
+}
+
+// IsBlocked returns true if the bean with the given ID is blocked by any
+// active (non-completed, non-scrapped) beans.
+func (c *Core) IsBlocked(beanID string) bool {
+	return len(c.FindActiveBlockers(beanID)) > 0
+}
+
+// FindActiveBlockers returns all beans that are actively blocking the given bean.
+// A blocker is "active" if its status is NOT "completed" or "scrapped".
+// This includes blockers from both the blocked_by field and incoming blocking links.
+func (c *Core) FindActiveBlockers(beanID string) []*bean.Bean {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	b, ok := c.beans[beanID]
+	if !ok {
+		return nil
+	}
+
+	seen := make(map[string]bool)
+	var blockers []*bean.Bean
+
+	// Check direct blocked_by field
+	for _, blockerID := range b.BlockedBy {
+		if blocker, ok := c.beans[blockerID]; ok {
+			if !isResolvedStatus(blocker.Status) && !seen[blockerID] {
+				seen[blockerID] = true
+				blockers = append(blockers, blocker)
+			}
+		}
+	}
+
+	// Check incoming blocking links (other beans that have this bean in their Blocking list)
+	for _, other := range c.beans {
+		for _, blocked := range other.Blocking {
+			if blocked == beanID && !isResolvedStatus(other.Status) && !seen[other.ID] {
+				seen[other.ID] = true
+				blockers = append(blockers, other)
+			}
+		}
+	}
+
+	return blockers
+}

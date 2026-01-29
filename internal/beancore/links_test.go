@@ -423,3 +423,218 @@ func TestCanonicalCycleKey(t *testing.T) {
 		}
 	}
 }
+
+func TestIsBlocked(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	// Create test beans with various blocking scenarios
+	activeBlocker := &bean.Bean{
+		ID:       "active-blocker",
+		Title:    "Active Blocker",
+		Status:   "todo",
+		Blocking: []string{"blocked-by-active"},
+	}
+	completedBlocker := &bean.Bean{
+		ID:       "completed-blocker",
+		Title:    "Completed Blocker",
+		Status:   "completed",
+		Blocking: []string{"blocked-by-completed"},
+	}
+	scrappedBlocker := &bean.Bean{
+		ID:       "scrapped-blocker",
+		Title:    "Scrapped Blocker",
+		Status:   "scrapped",
+		Blocking: []string{"blocked-by-scrapped"},
+	}
+	blockedByActive := &bean.Bean{
+		ID:     "blocked-by-active",
+		Title:  "Blocked by Active",
+		Status: "todo",
+	}
+	blockedByCompleted := &bean.Bean{
+		ID:     "blocked-by-completed",
+		Title:  "Blocked by Completed",
+		Status: "todo",
+	}
+	blockedByScrapped := &bean.Bean{
+		ID:     "blocked-by-scrapped",
+		Title:  "Blocked by Scrapped",
+		Status: "todo",
+	}
+	notBlocked := &bean.Bean{
+		ID:     "not-blocked",
+		Title:  "Not Blocked",
+		Status: "todo",
+	}
+	// Bean with direct blocked_by field
+	blockedByFieldActive := &bean.Bean{
+		ID:        "blocked-by-field-active",
+		Title:     "Blocked by Field (Active)",
+		Status:    "todo",
+		BlockedBy: []string{"active-blocker"},
+	}
+	blockedByFieldCompleted := &bean.Bean{
+		ID:        "blocked-by-field-completed",
+		Title:     "Blocked by Field (Completed)",
+		Status:    "todo",
+		BlockedBy: []string{"completed-blocker"},
+	}
+	// Bean with broken blocker link
+	blockedByBroken := &bean.Bean{
+		ID:        "blocked-by-broken",
+		Title:     "Blocked by Broken Link",
+		Status:    "todo",
+		BlockedBy: []string{"nonexistent"},
+	}
+	// Bean with multiple blockers (one active, one completed)
+	mixedBlockers := &bean.Bean{
+		ID:        "mixed-blockers",
+		Title:     "Mixed Blockers",
+		Status:    "todo",
+		BlockedBy: []string{"active-blocker", "completed-blocker"},
+	}
+	// Bean with multiple blockers (all completed)
+	allResolvedBlockers := &bean.Bean{
+		ID:        "all-resolved-blockers",
+		Title:     "All Resolved Blockers",
+		Status:    "todo",
+		BlockedBy: []string{"completed-blocker", "scrapped-blocker"},
+	}
+
+	beans := []*bean.Bean{
+		activeBlocker, completedBlocker, scrappedBlocker,
+		blockedByActive, blockedByCompleted, blockedByScrapped,
+		notBlocked, blockedByFieldActive, blockedByFieldCompleted,
+		blockedByBroken, mixedBlockers, allResolvedBlockers,
+	}
+	for _, b := range beans {
+		if err := core.Create(b); err != nil {
+			t.Fatalf("Create error: %v", err)
+		}
+	}
+
+	tests := []struct {
+		name   string
+		beanID string
+		want   bool
+	}{
+		{"blocked by active via Blocking field", "blocked-by-active", true},
+		{"blocked by completed via Blocking field", "blocked-by-completed", false},
+		{"blocked by scrapped via Blocking field", "blocked-by-scrapped", false},
+		{"not blocked", "not-blocked", false},
+		{"blocked by active via BlockedBy field", "blocked-by-field-active", true},
+		{"blocked by completed via BlockedBy field", "blocked-by-field-completed", false},
+		{"broken blocker link", "blocked-by-broken", false},
+		{"mixed blockers (one active)", "mixed-blockers", true},
+		{"all resolved blockers", "all-resolved-blockers", false},
+		{"nonexistent bean", "nonexistent", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := core.IsBlocked(tt.beanID)
+			if got != tt.want {
+				t.Errorf("IsBlocked(%q) = %v, want %v", tt.beanID, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFindActiveBlockers(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	// Create test beans
+	activeBlocker1 := &bean.Bean{
+		ID:       "active-blocker-1",
+		Title:    "Active Blocker 1",
+		Status:   "in-progress",
+		Blocking: []string{"target"},
+	}
+	activeBlocker2 := &bean.Bean{
+		ID:     "active-blocker-2",
+		Title:  "Active Blocker 2",
+		Status: "todo",
+	}
+	completedBlocker := &bean.Bean{
+		ID:       "completed-blocker",
+		Title:    "Completed Blocker",
+		Status:   "completed",
+		Blocking: []string{"target"},
+	}
+	target := &bean.Bean{
+		ID:        "target",
+		Title:     "Target Bean",
+		Status:    "todo",
+		BlockedBy: []string{"active-blocker-2", "completed-blocker"},
+	}
+	noBlockers := &bean.Bean{
+		ID:     "no-blockers",
+		Title:  "No Blockers",
+		Status: "todo",
+	}
+
+	beans := []*bean.Bean{activeBlocker1, activeBlocker2, completedBlocker, target, noBlockers}
+	for _, b := range beans {
+		if err := core.Create(b); err != nil {
+			t.Fatalf("Create error: %v", err)
+		}
+	}
+
+	t.Run("returns active blockers from both sources", func(t *testing.T) {
+		blockers := core.FindActiveBlockers("target")
+		if len(blockers) != 2 {
+			t.Errorf("FindActiveBlockers() returned %d blockers, want 2", len(blockers))
+		}
+		// Check that both active blockers are present
+		ids := make(map[string]bool)
+		for _, b := range blockers {
+			ids[b.ID] = true
+		}
+		if !ids["active-blocker-1"] {
+			t.Error("expected active-blocker-1 in result")
+		}
+		if !ids["active-blocker-2"] {
+			t.Error("expected active-blocker-2 in result")
+		}
+		if ids["completed-blocker"] {
+			t.Error("completed-blocker should not be in result")
+		}
+	})
+
+	t.Run("returns nil for bean with no blockers", func(t *testing.T) {
+		blockers := core.FindActiveBlockers("no-blockers")
+		if len(blockers) != 0 {
+			t.Errorf("FindActiveBlockers() returned %d blockers, want 0", len(blockers))
+		}
+	})
+
+	t.Run("returns nil for nonexistent bean", func(t *testing.T) {
+		blockers := core.FindActiveBlockers("nonexistent")
+		if blockers != nil {
+			t.Errorf("FindActiveBlockers() returned %v, want nil", blockers)
+		}
+	})
+}
+
+func TestIsResolvedStatus(t *testing.T) {
+	tests := []struct {
+		status string
+		want   bool
+	}{
+		{"completed", true},
+		{"scrapped", true},
+		{"todo", false},
+		{"in-progress", false},
+		{"draft", false},
+		{"", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.status, func(t *testing.T) {
+			got := isResolvedStatus(tt.status)
+			if got != tt.want {
+				t.Errorf("isResolvedStatus(%q) = %v, want %v", tt.status, got, tt.want)
+			}
+		})
+	}
+}
