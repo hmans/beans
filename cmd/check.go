@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
 	"github.com/hmans/beans/internal/beancore"
 	"github.com/hmans/beans/internal/config"
 	"github.com/hmans/beans/internal/ui"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -95,6 +95,18 @@ Note: Cycles cannot be auto-fixed and require manual intervention.`,
 			}
 			if typeColorErrors == 0 {
 				fmt.Printf("  %s All type colors valid\n", ui.Success.Render("✓"))
+			}
+		}
+
+		// 5. Check custom prime template exists (if configured)
+		if cfg.Templates.Prime != "" {
+			primePath := cfg.ResolvePrimeTemplatePath()
+			if _, err := os.Stat(primePath); os.IsNotExist(err) {
+				configErrors = append(configErrors, fmt.Sprintf("custom prime template not found: %s", primePath))
+			} else if err != nil {
+				configErrors = append(configErrors, fmt.Sprintf("cannot access custom prime template: %s: %v", primePath, err))
+			} else if !checkJSON {
+				fmt.Printf("  %s Custom prime template exists (%s)\n", ui.Success.Render("✓"), cfg.Templates.Prime)
 			}
 		}
 

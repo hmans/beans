@@ -69,10 +69,17 @@ type PriorityConfig struct {
 	Description string `yaml:"description,omitempty"`
 }
 
+// TemplatesConfig defines custom template overrides.
+type TemplatesConfig struct {
+	// Prime is the path to a custom prime template file (relative to config file location)
+	Prime string `yaml:"prime,omitempty"`
+}
+
 // Config holds the beans configuration.
 // Note: Statuses are no longer stored in config - they are hardcoded like types.
 type Config struct {
-	Beans BeansConfig `yaml:"beans"`
+	Beans     BeansConfig     `yaml:"beans"`
+	Templates TemplatesConfig `yaml:"templates,omitempty"`
 
 	// configDir is the directory containing the config file (not serialized)
 	// Used to resolve relative paths
@@ -198,6 +205,22 @@ func (c *Config) ResolveBeansPath() string {
 		return filepath.Join(cwd, c.Beans.Path)
 	}
 	return filepath.Join(c.configDir, c.Beans.Path)
+}
+
+// ResolvePrimeTemplatePath returns the absolute path to the custom prime template file,
+// or an empty string if no custom prime template is configured.
+func (c *Config) ResolvePrimeTemplatePath() string {
+	if c.Templates.Prime == "" {
+		return ""
+	}
+	if filepath.IsAbs(c.Templates.Prime) {
+		return c.Templates.Prime
+	}
+	if c.configDir == "" {
+		cwd, _ := os.Getwd()
+		return filepath.Join(cwd, c.Templates.Prime)
+	}
+	return filepath.Join(c.configDir, c.Templates.Prime)
 }
 
 // ConfigDir returns the directory containing the config file.
