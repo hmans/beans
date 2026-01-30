@@ -75,12 +75,10 @@ type ComplexityRoot struct {
 	Mutation struct {
 		AddBlockedBy    func(childComplexity int, id string, targetID string, ifMatch *string) int
 		AddBlocking     func(childComplexity int, id string, targetID string, ifMatch *string) int
-		AppendToBody    func(childComplexity int, id string, content string, ifMatch *string) int
 		CreateBean      func(childComplexity int, input model.CreateBeanInput) int
 		DeleteBean      func(childComplexity int, id string) int
 		RemoveBlockedBy func(childComplexity int, id string, targetID string, ifMatch *string) int
 		RemoveBlocking  func(childComplexity int, id string, targetID string, ifMatch *string) int
-		ReplaceInBody   func(childComplexity int, id string, old string, new string, ifMatch *string) int
 		SetParent       func(childComplexity int, id string, parentID *string, ifMatch *string) int
 		UpdateBean      func(childComplexity int, id string, input model.UpdateBeanInput) int
 	}
@@ -109,8 +107,6 @@ type MutationResolver interface {
 	RemoveBlocking(ctx context.Context, id string, targetID string, ifMatch *string) (*bean.Bean, error)
 	AddBlockedBy(ctx context.Context, id string, targetID string, ifMatch *string) (*bean.Bean, error)
 	RemoveBlockedBy(ctx context.Context, id string, targetID string, ifMatch *string) (*bean.Bean, error)
-	ReplaceInBody(ctx context.Context, id string, old string, new string, ifMatch *string) (*bean.Bean, error)
-	AppendToBody(ctx context.Context, id string, content string, ifMatch *string) (*bean.Bean, error)
 }
 type QueryResolver interface {
 	Bean(ctx context.Context, id string) (*bean.Bean, error)
@@ -288,17 +284,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.AddBlocking(childComplexity, args["id"].(string), args["targetId"].(string), args["ifMatch"].(*string)), true
-	case "Mutation.appendToBody":
-		if e.complexity.Mutation.AppendToBody == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_appendToBody_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.AppendToBody(childComplexity, args["id"].(string), args["content"].(string), args["ifMatch"].(*string)), true
 	case "Mutation.createBean":
 		if e.complexity.Mutation.CreateBean == nil {
 			break
@@ -343,17 +328,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.RemoveBlocking(childComplexity, args["id"].(string), args["targetId"].(string), args["ifMatch"].(*string)), true
-	case "Mutation.replaceInBody":
-		if e.complexity.Mutation.ReplaceInBody == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_replaceInBody_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.ReplaceInBody(childComplexity, args["id"].(string), args["old"].(string), args["new"].(string), args["ifMatch"].(*string)), true
 	case "Mutation.setParent":
 		if e.complexity.Mutation.SetParent == nil {
 			break
@@ -409,7 +383,9 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	ec := executionContext{opCtx, e, 0, 0, make(chan graphql.DeferredResult)}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputBeanFilter,
+		ec.unmarshalInputBodyModification,
 		ec.unmarshalInputCreateBeanInput,
+		ec.unmarshalInputReplaceOperation,
 		ec.unmarshalInputUpdateBeanInput,
 	)
 	first := true
@@ -602,27 +578,6 @@ func (ec *executionContext) field_Mutation_addBlocking_args(ctx context.Context,
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_appendToBody_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
-	if err != nil {
-		return nil, err
-	}
-	args["id"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "content", ec.unmarshalNString2string)
-	if err != nil {
-		return nil, err
-	}
-	args["content"] = arg1
-	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "ifMatch", ec.unmarshalOString2ᚖstring)
-	if err != nil {
-		return nil, err
-	}
-	args["ifMatch"] = arg2
-	return args, nil
-}
-
 func (ec *executionContext) field_Mutation_createBean_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -684,32 +639,6 @@ func (ec *executionContext) field_Mutation_removeBlocking_args(ctx context.Conte
 		return nil, err
 	}
 	args["ifMatch"] = arg2
-	return args, nil
-}
-
-func (ec *executionContext) field_Mutation_replaceInBody_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
-	if err != nil {
-		return nil, err
-	}
-	args["id"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "old", ec.unmarshalNString2string)
-	if err != nil {
-		return nil, err
-	}
-	args["old"] = arg1
-	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "new", ec.unmarshalNString2string)
-	if err != nil {
-		return nil, err
-	}
-	args["new"] = arg2
-	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "ifMatch", ec.unmarshalOString2ᚖstring)
-	if err != nil {
-		return nil, err
-	}
-	args["ifMatch"] = arg3
 	return args, nil
 }
 
@@ -2184,168 +2113,6 @@ func (ec *executionContext) fieldContext_Mutation_removeBlockedBy(ctx context.Co
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_removeBlockedBy_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_replaceInBody(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Mutation_replaceInBody,
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Mutation().ReplaceInBody(ctx, fc.Args["id"].(string), fc.Args["old"].(string), fc.Args["new"].(string), fc.Args["ifMatch"].(*string))
-		},
-		nil,
-		ec.marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋbeanᚐBean,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_Mutation_replaceInBody(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_Bean_id(ctx, field)
-			case "slug":
-				return ec.fieldContext_Bean_slug(ctx, field)
-			case "path":
-				return ec.fieldContext_Bean_path(ctx, field)
-			case "title":
-				return ec.fieldContext_Bean_title(ctx, field)
-			case "status":
-				return ec.fieldContext_Bean_status(ctx, field)
-			case "type":
-				return ec.fieldContext_Bean_type(ctx, field)
-			case "priority":
-				return ec.fieldContext_Bean_priority(ctx, field)
-			case "tags":
-				return ec.fieldContext_Bean_tags(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_Bean_createdAt(ctx, field)
-			case "updatedAt":
-				return ec.fieldContext_Bean_updatedAt(ctx, field)
-			case "body":
-				return ec.fieldContext_Bean_body(ctx, field)
-			case "etag":
-				return ec.fieldContext_Bean_etag(ctx, field)
-			case "parentId":
-				return ec.fieldContext_Bean_parentId(ctx, field)
-			case "blockingIds":
-				return ec.fieldContext_Bean_blockingIds(ctx, field)
-			case "blockedByIds":
-				return ec.fieldContext_Bean_blockedByIds(ctx, field)
-			case "blockedBy":
-				return ec.fieldContext_Bean_blockedBy(ctx, field)
-			case "blocking":
-				return ec.fieldContext_Bean_blocking(ctx, field)
-			case "parent":
-				return ec.fieldContext_Bean_parent(ctx, field)
-			case "children":
-				return ec.fieldContext_Bean_children(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_replaceInBody_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_appendToBody(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Mutation_appendToBody,
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Mutation().AppendToBody(ctx, fc.Args["id"].(string), fc.Args["content"].(string), fc.Args["ifMatch"].(*string))
-		},
-		nil,
-		ec.marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋbeanᚐBean,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_Mutation_appendToBody(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "id":
-				return ec.fieldContext_Bean_id(ctx, field)
-			case "slug":
-				return ec.fieldContext_Bean_slug(ctx, field)
-			case "path":
-				return ec.fieldContext_Bean_path(ctx, field)
-			case "title":
-				return ec.fieldContext_Bean_title(ctx, field)
-			case "status":
-				return ec.fieldContext_Bean_status(ctx, field)
-			case "type":
-				return ec.fieldContext_Bean_type(ctx, field)
-			case "priority":
-				return ec.fieldContext_Bean_priority(ctx, field)
-			case "tags":
-				return ec.fieldContext_Bean_tags(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_Bean_createdAt(ctx, field)
-			case "updatedAt":
-				return ec.fieldContext_Bean_updatedAt(ctx, field)
-			case "body":
-				return ec.fieldContext_Bean_body(ctx, field)
-			case "etag":
-				return ec.fieldContext_Bean_etag(ctx, field)
-			case "parentId":
-				return ec.fieldContext_Bean_parentId(ctx, field)
-			case "blockingIds":
-				return ec.fieldContext_Bean_blockingIds(ctx, field)
-			case "blockedByIds":
-				return ec.fieldContext_Bean_blockedByIds(ctx, field)
-			case "blockedBy":
-				return ec.fieldContext_Bean_blockedBy(ctx, field)
-			case "blocking":
-				return ec.fieldContext_Bean_blocking(ctx, field)
-			case "parent":
-				return ec.fieldContext_Bean_parent(ctx, field)
-			case "children":
-				return ec.fieldContext_Bean_children(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_appendToBody_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -4221,6 +3988,40 @@ func (ec *executionContext) unmarshalInputBeanFilter(ctx context.Context, obj an
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputBodyModification(ctx context.Context, obj any) (model.BodyModification, error) {
+	var it model.BodyModification
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"replace", "append"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "replace":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("replace"))
+			data, err := ec.unmarshalOReplaceOperation2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐReplaceOperationᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Replace = data
+		case "append":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("append"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Append = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputCreateBeanInput(ctx context.Context, obj any) (model.CreateBeanInput, error) {
 	var it model.CreateBeanInput
 	asMap := map[string]any{}
@@ -4311,6 +4112,40 @@ func (ec *executionContext) unmarshalInputCreateBeanInput(ctx context.Context, o
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputReplaceOperation(ctx context.Context, obj any) (model.ReplaceOperation, error) {
+	var it model.ReplaceOperation
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"old", "new"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "old":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("old"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Old = data
+		case "new":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("new"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.New = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateBeanInput(ctx context.Context, obj any) (model.UpdateBeanInput, error) {
 	var it model.UpdateBeanInput
 	asMap := map[string]any{}
@@ -4318,7 +4153,7 @@ func (ec *executionContext) unmarshalInputUpdateBeanInput(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"title", "status", "type", "priority", "tags", "body", "ifMatch"}
+	fieldsInOrder := [...]string{"title", "status", "type", "priority", "tags", "addTags", "removeTags", "body", "bodyMod", "parent", "addBlocking", "removeBlocking", "addBlockedBy", "removeBlockedBy", "ifMatch"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -4360,6 +4195,20 @@ func (ec *executionContext) unmarshalInputUpdateBeanInput(ctx context.Context, o
 				return it, err
 			}
 			it.Tags = data
+		case "addTags":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("addTags"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AddTags = data
+		case "removeTags":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("removeTags"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RemoveTags = data
 		case "body":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("body"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
@@ -4367,6 +4216,48 @@ func (ec *executionContext) unmarshalInputUpdateBeanInput(ctx context.Context, o
 				return it, err
 			}
 			it.Body = data
+		case "bodyMod":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("bodyMod"))
+			data, err := ec.unmarshalOBodyModification2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐBodyModification(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BodyMod = data
+		case "parent":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("parent"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Parent = data
+		case "addBlocking":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("addBlocking"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AddBlocking = data
+		case "removeBlocking":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("removeBlocking"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RemoveBlocking = data
+		case "addBlockedBy":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("addBlockedBy"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AddBlockedBy = data
+		case "removeBlockedBy":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("removeBlockedBy"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RemoveBlockedBy = data
 		case "ifMatch":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("ifMatch"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
@@ -4796,20 +4687,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "removeBlockedBy":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_removeBlockedBy(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "replaceInBody":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_replaceInBody(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "appendToBody":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_appendToBody(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -5358,6 +5235,11 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 	return res
 }
 
+func (ec *executionContext) unmarshalNReplaceOperation2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐReplaceOperation(ctx context.Context, v any) (*model.ReplaceOperation, error) {
+	res, err := ec.unmarshalInputReplaceOperation(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {
 	res, err := graphql.UnmarshalString(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -5699,6 +5581,14 @@ func (ec *executionContext) unmarshalOBeanFilter2ᚖgithubᚗcomᚋhmansᚋbeans
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalOBodyModification2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐBodyModification(ctx context.Context, v any) (*model.BodyModification, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputBodyModification(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalOBoolean2bool(ctx context.Context, v any) (bool, error) {
 	res, err := graphql.UnmarshalBoolean(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -5727,6 +5617,24 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	_ = ctx
 	res := graphql.MarshalBoolean(*v)
 	return res
+}
+
+func (ec *executionContext) unmarshalOReplaceOperation2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐReplaceOperationᚄ(ctx context.Context, v any) ([]*model.ReplaceOperation, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]*model.ReplaceOperation, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNReplaceOperation2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐReplaceOperation(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) unmarshalOString2string(ctx context.Context, v any) (string, error) {

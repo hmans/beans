@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hmans/beans/internal/beancore"
 	"github.com/hmans/beans/internal/config"
 	"github.com/hmans/beans/internal/graph"
 	"github.com/hmans/beans/internal/graph/model"
@@ -88,61 +89,13 @@ var updateCmd = &cobra.Command{
 			input.IfMatch = ifMatch
 		}
 
-		// Apply field updates
+		// Apply all updates atomically via single UpdateBean mutation
+		// This includes field updates, body modifications, and relationship changes
 		if hasFieldUpdates(input) {
 			b, err = resolver.Mutation().UpdateBean(ctx, b.ID, input)
 			if err != nil {
 				return mutationError(updateJSON, err)
 			}
-		}
-
-		// Handle parent changes
-		if cmd.Flags().Changed("parent") || updateRemoveParent {
-			var parentID *string
-			if !updateRemoveParent && updateParent != "" {
-				parentID = &updateParent
-			}
-			b, err = resolver.Mutation().SetParent(ctx, b.ID, parentID, ifMatch)
-			if err != nil {
-				return mutationError(updateJSON, err)
-			}
-			changes = append(changes, "parent")
-		}
-
-		// Process blocking additions
-		for _, targetID := range updateBlocking {
-			b, err = resolver.Mutation().AddBlocking(ctx, b.ID, targetID, ifMatch)
-			if err != nil {
-				return mutationError(updateJSON, err)
-			}
-			changes = append(changes, "blocking")
-		}
-
-		// Process blocking removals
-		for _, targetID := range updateRemoveBlocking {
-			b, err = resolver.Mutation().RemoveBlocking(ctx, b.ID, targetID, ifMatch)
-			if err != nil {
-				return mutationError(updateJSON, err)
-			}
-			changes = append(changes, "blocking")
-		}
-
-		// Process blocked-by additions
-		for _, targetID := range updateBlockedBy {
-			b, err = resolver.Mutation().AddBlockedBy(ctx, b.ID, targetID, ifMatch)
-			if err != nil {
-				return mutationError(updateJSON, err)
-			}
-			changes = append(changes, "blocked-by")
-		}
-
-		// Process blocked-by removals
-		for _, targetID := range updateRemoveBlockedBy {
-			b, err = resolver.Mutation().RemoveBlockedBy(ctx, b.ID, targetID, ifMatch)
-			if err != nil {
-				return mutationError(updateJSON, err)
-			}
-			changes = append(changes, "blocked-by")
 		}
 
 		// Require at least one change
@@ -203,35 +156,79 @@ func buildUpdateInput(cmd *cobra.Command, existingTags []string, currentBody str
 		changes = append(changes, "title")
 	}
 
-	// Handle body modifications (mutually exclusive)
+	// Handle body modifications
 	if cmd.Flags().Changed("body") || cmd.Flags().Changed("body-file") {
+		// Full body replacement
 		body, err := resolveContent(updateBody, updateBodyFile)
 		if err != nil {
 			return input, nil, err
 		}
 		input.Body = &body
 		changes = append(changes, "body")
-	} else if cmd.Flags().Changed("body-replace-old") {
-		// --body-replace-old requires --body-replace-new (enforced by MarkFlagsRequiredTogether)
-		newBody, err := applyBodyReplace(currentBody, updateBodyReplaceOld, updateBodyReplaceNew)
-		if err != nil {
-			return input, nil, err
+	} else if cmd.Flags().Changed("body-replace-old") || cmd.Flags().Changed("body-append") {
+		// Body modifications via bodyMod
+		bodyMod := &model.BodyModification{}
+
+		if cmd.Flags().Changed("body-replace-old") {
+			// --body-replace-old requires --body-replace-new (enforced by MarkFlagsRequiredTogether)
+			bodyMod.Replace = []*model.ReplaceOperation{
+				{
+					Old: updateBodyReplaceOld,
+					New: updateBodyReplaceNew,
+				},
+			}
 		}
-		input.Body = &newBody
-		changes = append(changes, "body")
-	} else if cmd.Flags().Changed("body-append") {
-		appendText, err := resolveAppendContent(updateBodyAppend)
-		if err != nil {
-			return input, nil, err
+
+		if cmd.Flags().Changed("body-append") {
+			appendText, err := resolveAppendContent(updateBodyAppend)
+			if err != nil {
+				return input, nil, err
+			}
+			bodyMod.Append = &appendText
 		}
-		newBody := applyBodyAppend(currentBody, appendText)
-		input.Body = &newBody
+
+		input.BodyMod = bodyMod
 		changes = append(changes, "body")
 	}
 
-	if len(updateTag) > 0 || len(updateRemoveTag) > 0 {
-		input.Tags = mergeTags(existingTags, updateTag, updateRemoveTag)
+	// Handle tags using granular add/remove (consistent with relationships)
+	if len(updateTag) > 0 {
+		input.AddTags = updateTag
 		changes = append(changes, "tags")
+	}
+	if len(updateRemoveTag) > 0 {
+		input.RemoveTags = updateRemoveTag
+		changes = append(changes, "tags")
+	}
+
+	// Handle parent relationship
+	if cmd.Flags().Changed("parent") {
+		input.Parent = &updateParent
+		changes = append(changes, "parent")
+	} else if updateRemoveParent {
+		emptyParent := ""
+		input.Parent = &emptyParent
+		changes = append(changes, "parent")
+	}
+
+	// Handle blocking relationships
+	if len(updateBlocking) > 0 {
+		input.AddBlocking = updateBlocking
+		changes = append(changes, "blocking")
+	}
+	if len(updateRemoveBlocking) > 0 {
+		input.RemoveBlocking = updateRemoveBlocking
+		changes = append(changes, "blocking")
+	}
+
+	// Handle blocked-by relationships
+	if len(updateBlockedBy) > 0 {
+		input.AddBlockedBy = updateBlockedBy
+		changes = append(changes, "blocked-by")
+	}
+	if len(updateRemoveBlockedBy) > 0 {
+		input.RemoveBlockedBy = updateRemoveBlockedBy
+		changes = append(changes, "blocked-by")
 	}
 
 	return input, changes, nil
@@ -240,13 +237,16 @@ func buildUpdateInput(cmd *cobra.Command, existingTags []string, currentBody str
 // hasFieldUpdates returns true if any field in the input is set.
 func hasFieldUpdates(input model.UpdateBeanInput) bool {
 	return input.Status != nil || input.Type != nil || input.Priority != nil ||
-		input.Title != nil || input.Body != nil || input.Tags != nil
+		input.Title != nil || input.Body != nil || input.BodyMod != nil || input.Tags != nil ||
+		input.AddTags != nil || input.RemoveTags != nil ||
+		input.Parent != nil || input.AddBlocking != nil || input.RemoveBlocking != nil ||
+		input.AddBlockedBy != nil || input.RemoveBlockedBy != nil
 }
 
 // isConflictError returns true if the error is an ETag-related conflict error.
 func isConflictError(err error) bool {
-	var mismatchErr *graph.ETagMismatchError
-	var requiredErr *graph.ETagRequiredError
+	var mismatchErr *beancore.ETagMismatchError
+	var requiredErr *beancore.ETagRequiredError
 	return errors.As(err, &mismatchErr) || errors.As(err, &requiredErr)
 }
 
@@ -293,7 +293,10 @@ func init() {
 	updateCmd.Flags().StringVar(&updateIfMatch, "if-match", "", "Only update if etag matches (optimistic locking)")
 	updateCmd.MarkFlagsMutuallyExclusive("parent", "remove-parent")
 	updateCmd.Flags().BoolVar(&updateJSON, "json", false, "Output as JSON")
-	updateCmd.MarkFlagsMutuallyExclusive("body", "body-file", "body-replace-old", "body-append")
+	// body and body-file are mutually exclusive with body modifications
+	updateCmd.MarkFlagsMutuallyExclusive("body", "body-file", "body-replace-old")
+	updateCmd.MarkFlagsMutuallyExclusive("body", "body-file", "body-append")
+	// body-replace-old and body-append can now be used together!
 	updateCmd.MarkFlagsRequiredTogether("body-replace-old", "body-replace-new")
 	rootCmd.AddCommand(updateCmd)
 }

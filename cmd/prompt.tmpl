@@ -124,6 +124,26 @@ beans update <id> \
   --status completed
 ```
 
+**Multiple replacements (via GraphQL):**
+```bash
+beans query 'mutation {
+  updateBean(id: "<id>", input: {
+    status: "completed"
+    bodyMod: {
+      replace: [
+        { old: "- [ ] Task 1", new: "- [x] Task 1" }
+        { old: "- [ ] Task 2", new: "- [x] Task 2" }
+      ]
+      append: "## Summary\n\nAll tasks completed!"
+    }
+  }) { id body etag }
+}'
+```
+- Replacements execute sequentially (each operates on result of previous)
+- Append applied after all replacements
+- All operations atomic with single etag validation
+- Transactional: any failure = no changes saved
+
 ## Concurrency Control
 
 Use etags with `--if-match`:

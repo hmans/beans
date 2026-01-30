@@ -133,7 +133,7 @@ func TestSearch_UpdateUpdatesIndex(t *testing.T) {
 	// Update the bean
 	b.Title = "Updated Title"
 	b.Body = "Modified content"
-	if err := core.Update(b); err != nil {
+	if err := core.Update(b, nil); err != nil {
 		t.Fatalf("Update() error = %v", err)
 	}
 
