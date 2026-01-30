@@ -243,6 +243,73 @@ func TestLoadAndSave(t *testing.T) {
 	}
 }
 
+func TestLoadAndSaveWithTemplates(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := &Config{
+		Beans: BeansConfig{
+			Path:        ".beans",
+			Prefix:      "test-",
+			IDLength:    4,
+			DefaultType: "task",
+		},
+		Templates: TemplatesConfig{
+			Prime: "extras/prime.tmpl",
+		},
+	}
+	cfg.SetConfigDir(tmpDir)
+
+	// Save it
+	if err := cfg.Save(tmpDir); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	// Load it back
+	configPath := filepath.Join(tmpDir, ConfigFileName)
+	loaded, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Verify templates section round-trips
+	if loaded.Templates.Prime != "extras/prime.tmpl" {
+		t.Errorf("Templates.Prime = %q, want %q", loaded.Templates.Prime, "extras/prime.tmpl")
+	}
+}
+
+func TestLoadAndSaveWithoutTemplates(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := &Config{
+		Beans: BeansConfig{
+			Path:        ".beans",
+			Prefix:      "test-",
+			IDLength:    4,
+			DefaultType: "task",
+		},
+	}
+	cfg.SetConfigDir(tmpDir)
+
+	// Save it
+	if err := cfg.Save(tmpDir); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	// Load it back - templates should be empty
+	configPath := filepath.Join(tmpDir, ConfigFileName)
+	loaded, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if loaded.Templates.Prime != "" {
+		t.Errorf("Templates.Prime = %q, want empty string", loaded.Templates.Prime)
+	}
+	if loaded.ResolvePrimeTemplatePath() != "" {
+		t.Errorf("ResolvePrimeTemplatePath() = %q, want empty string", loaded.ResolvePrimeTemplatePath())
+	}
+}
+
 func TestLoadAppliesDefaults(t *testing.T) {
 	// Create temp directory with minimal config
 	tmpDir := t.TempDir()
@@ -677,6 +744,102 @@ func TestResolveBeansPath(t *testing.T) {
 		want := "/project/root/.beans"
 		if got != want {
 			t.Errorf("ResolveBeansPath() = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestResolvePrimeTemplatePath(t *testing.T) {
+	t.Run("returns empty when not configured", func(t *testing.T) {
+		cfg := Default()
+		cfg.SetConfigDir("/project/root")
+
+		got := cfg.ResolvePrimeTemplatePath()
+		if got != "" {
+			t.Errorf("ResolvePrimeTemplatePath() = %q, want empty string", got)
+		}
+	})
+
+	t.Run("resolves relative path from config directory", func(t *testing.T) {
+		cfg := &Config{
+			Templates: TemplatesConfig{Prime: "extras/custom-prime.tmpl"},
+		}
+		cfg.SetConfigDir("/project/root")
+
+		got := cfg.ResolvePrimeTemplatePath()
+		want := "/project/root/extras/custom-prime.tmpl"
+		if got != want {
+			t.Errorf("ResolvePrimeTemplatePath() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("returns absolute path unchanged", func(t *testing.T) {
+		cfg := &Config{
+			Templates: TemplatesConfig{Prime: "/absolute/path/to/prime.tmpl"},
+		}
+		cfg.SetConfigDir("/project/root")
+
+		got := cfg.ResolvePrimeTemplatePath()
+		want := "/absolute/path/to/prime.tmpl"
+		if got != want {
+			t.Errorf("ResolvePrimeTemplatePath() = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestLoadWithTemplatesConfig(t *testing.T) {
+	t.Run("loads templates.prime from config", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		configPath := filepath.Join(tmpDir, ConfigFileName)
+
+		configYAML := `beans:
+  prefix: "test-"
+  id_length: 4
+templates:
+  prime: extras/custom-prime.tmpl
+`
+		if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+			t.Fatalf("WriteFile error = %v", err)
+		}
+
+		cfg, err := Load(configPath)
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		if cfg.Templates.Prime != "extras/custom-prime.tmpl" {
+			t.Errorf("Templates.Prime = %q, want %q", cfg.Templates.Prime, "extras/custom-prime.tmpl")
+		}
+
+		// Verify path resolution
+		want := filepath.Join(tmpDir, "extras/custom-prime.tmpl")
+		got := cfg.ResolvePrimeTemplatePath()
+		if got != want {
+			t.Errorf("ResolvePrimeTemplatePath() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("templates section is optional", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		configPath := filepath.Join(tmpDir, ConfigFileName)
+
+		configYAML := `beans:
+  prefix: "test-"
+  id_length: 4
+`
+		if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+			t.Fatalf("WriteFile error = %v", err)
+		}
+
+		cfg, err := Load(configPath)
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		if cfg.Templates.Prime != "" {
+			t.Errorf("Templates.Prime = %q, want empty string", cfg.Templates.Prime)
+		}
+		if cfg.ResolvePrimeTemplatePath() != "" {
+			t.Errorf("ResolvePrimeTemplatePath() = %q, want empty string", cfg.ResolvePrimeTemplatePath())
 		}
 	})
 }
