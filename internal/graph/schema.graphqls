@@ -100,6 +100,18 @@ input UpdateBeanInput {
   body: String
   "Structured body modifications (mutually exclusive with body)"
   bodyMod: BodyModification
+  
+  "Set parent bean ID (null/empty to clear, validates type hierarchy)"
+  parent: String
+  "Add beans to blocking list (validates cycles and existence)"
+  addBlocking: [String!]
+  "Remove beans from blocking list"
+  removeBlocking: [String!]
+  "Add beans to blocked-by list (validates cycles and existence)"
+  addBlockedBy: [String!]
+  "Remove beans from blocked-by list"
+  removeBlockedBy: [String!]
+  
   "ETag for optimistic concurrency control (optional)"
   ifMatch: String
 }

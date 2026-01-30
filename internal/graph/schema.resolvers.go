@@ -223,6 +223,33 @@ func (r *mutationResolver) UpdateBean(ctx context.Context, id string, input mode
 		b.Tags = input.Tags
 	}
 
+	// Handle parent relationship
+	if input.Parent != nil {
+		if err := r.validateAndSetParent(b, *input.Parent); err != nil {
+			return nil, err
+		}
+	}
+
+	// Handle blocking relationships
+	if input.AddBlocking != nil {
+		if err := r.validateAndAddBlocking(b, input.AddBlocking); err != nil {
+			return nil, err
+		}
+	}
+	if input.RemoveBlocking != nil {
+		r.removeBlockingRelationships(b, input.RemoveBlocking)
+	}
+
+	// Handle blocked-by relationships
+	if input.AddBlockedBy != nil {
+		if err := r.validateAndAddBlockedBy(b, input.AddBlockedBy); err != nil {
+			return nil, err
+		}
+	}
+	if input.RemoveBlockedBy != nil {
+		r.removeBlockedByRelationships(b, input.RemoveBlockedBy)
+	}
+
 	// ETag validation now happens inside Update() under write lock
 	if err := r.Core.Update(b, input.IfMatch); err != nil {
 		return nil, err

@@ -1868,6 +1868,362 @@ func TestUpdateBeanWithBodyMod(t *testing.T) {
 	})
 }
 
+func TestUpdateBeanWithRelationships(t *testing.T) {
+	resolver, core := setupTestResolver(t)
+	ctx := context.Background()
+
+	t.Run("atomic update with parent and blocking", func(t *testing.T) {
+		epic := &bean.Bean{ID: "epic-1", Title: "Epic", Type: "epic", Status: "todo"}
+		task := &bean.Bean{ID: "task-1", Title: "Task", Type: "task", Status: "todo"}
+		blocker := &bean.Bean{ID: "blocker-1", Title: "Blocker", Type: "task", Status: "todo"}
+		core.Create(epic)
+		core.Create(task)
+		core.Create(blocker)
+
+		input := model.UpdateBeanInput{
+			Status:      stringPtr("in-progress"),
+			Parent:      stringPtr("epic-1"),
+			AddBlocking: []string{"blocker-1"},
+		}
+
+		got, err := resolver.Mutation().UpdateBean(ctx, "task-1", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() error = %v", err)
+		}
+
+		if got.Status != "in-progress" {
+			t.Errorf("UpdateBean().Status = %q, want %q", got.Status, "in-progress")
+		}
+		if got.Parent != "epic-1" {
+			t.Errorf("UpdateBean().Parent = %q, want %q", got.Parent, "epic-1")
+		}
+		if len(got.Blocking) != 1 || got.Blocking[0] != "blocker-1" {
+			t.Errorf("UpdateBean().Blocking = %v, want [blocker-1]", got.Blocking)
+		}
+	})
+
+	t.Run("atomic update with bodyMod and relationships", func(t *testing.T) {
+		epic := &bean.Bean{ID: "epic-2", Title: "Epic", Type: "epic", Status: "todo"}
+		task := &bean.Bean{ID: "task-2", Title: "Task", Type: "task", Status: "todo", Body: "- [ ] Step 1"}
+		blocker := &bean.Bean{ID: "blocker-2", Title: "Blocker", Type: "task", Status: "todo"}
+		core.Create(epic)
+		core.Create(task)
+		core.Create(blocker)
+
+		input := model.UpdateBeanInput{
+			Status: stringPtr("completed"),
+			Parent: stringPtr("epic-2"),
+			BodyMod: &model.BodyModification{
+				Replace: []*model.ReplaceOperation{
+					{Old: "- [ ] Step 1", New: "- [x] Step 1"},
+				},
+				Append: stringPtr("## Done"),
+			},
+			AddBlocking: []string{"blocker-2"},
+		}
+
+		got, err := resolver.Mutation().UpdateBean(ctx, "task-2", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() error = %v", err)
+		}
+
+		if got.Status != "completed" {
+			t.Errorf("Status = %q, want completed", got.Status)
+		}
+		if got.Parent != "epic-2" {
+			t.Errorf("Parent = %q, want epic-2", got.Parent)
+		}
+		if !strings.Contains(got.Body, "- [x] Step 1") {
+			t.Errorf("Body missing completed task")
+		}
+		if !strings.Contains(got.Body, "## Done") {
+			t.Errorf("Body missing appended content")
+		}
+		if len(got.Blocking) != 1 {
+			t.Errorf("Blocking count = %d, want 1", len(got.Blocking))
+		}
+	})
+
+	t.Run("parent validation fails for invalid type hierarchy", func(t *testing.T) {
+		task1 := &bean.Bean{ID: "task-invalid-1", Title: "Task 1", Type: "task", Status: "todo"}
+		task2 := &bean.Bean{ID: "task-invalid-2", Title: "Task 2", Type: "task", Status: "todo"}
+		core.Create(task1)
+		core.Create(task2)
+
+		input := model.UpdateBeanInput{
+			Parent: stringPtr("task-invalid-2"),
+		}
+
+		_, err := resolver.Mutation().UpdateBean(ctx, "task-invalid-1", input)
+		if err == nil {
+			t.Error("UpdateBean() should fail for invalid parent type")
+		}
+	})
+
+	t.Run("blocking self-reference validation", func(t *testing.T) {
+		task := &bean.Bean{ID: "task-self", Title: "Task", Type: "task", Status: "todo"}
+		core.Create(task)
+
+		input := model.UpdateBeanInput{
+			AddBlocking: []string{"task-self"},
+		}
+
+		_, err := resolver.Mutation().UpdateBean(ctx, "task-self", input)
+		if err == nil {
+			t.Error("UpdateBean() should fail when bean blocks itself")
+		}
+		if !strings.Contains(err.Error(), "block itself") {
+			t.Errorf("Error should mention self-blocking, got: %v", err)
+		}
+	})
+
+	t.Run("blocking cycle detection", func(t *testing.T) {
+		task1 := &bean.Bean{ID: "task-block-1", Title: "Task 1", Type: "task", Status: "todo"}
+		task2 := &bean.Bean{ID: "task-block-2", Title: "Task 2", Type: "task", Status: "todo", Blocking: []string{"task-block-1"}}
+		core.Create(task1)
+		core.Create(task2)
+
+		// Try to make task-1 block task-2 (would create cycle)
+		input := model.UpdateBeanInput{
+			AddBlocking: []string{"task-block-2"},
+		}
+
+		_, err := resolver.Mutation().UpdateBean(ctx, "task-block-1", input)
+		if err == nil {
+			t.Error("UpdateBean() should fail when creating blocking cycle")
+		}
+		if !strings.Contains(err.Error(), "cycle") {
+			t.Errorf("Error should mention cycle, got: %v", err)
+		}
+	})
+
+	t.Run("blocking target not found", func(t *testing.T) {
+		task := &bean.Bean{ID: "task-notfound", Title: "Task", Type: "task", Status: "todo"}
+		core.Create(task)
+
+		input := model.UpdateBeanInput{
+			AddBlocking: []string{"nonexistent"},
+		}
+
+		_, err := resolver.Mutation().UpdateBean(ctx, "task-notfound", input)
+		if err == nil {
+			t.Error("UpdateBean() should fail when blocking target doesn't exist")
+		}
+		if !strings.Contains(err.Error(), "not found") {
+			t.Errorf("Error should mention not found, got: %v", err)
+		}
+	})
+
+	t.Run("remove blocking relationships", func(t *testing.T) {
+		task := &bean.Bean{ID: "task-remove-1", Title: "Task", Type: "task", Status: "todo", Blocking: []string{"other-1", "other-2"}}
+		other1 := &bean.Bean{ID: "other-1", Title: "Other 1", Type: "task", Status: "todo"}
+		other2 := &bean.Bean{ID: "other-2", Title: "Other 2", Type: "task", Status: "todo"}
+		core.Create(task)
+		core.Create(other1)
+		core.Create(other2)
+
+		input := model.UpdateBeanInput{
+			RemoveBlocking: []string{"other-1"},
+		}
+
+		got, err := resolver.Mutation().UpdateBean(ctx, "task-remove-1", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() error = %v", err)
+		}
+
+		if len(got.Blocking) != 1 || got.Blocking[0] != "other-2" {
+			t.Errorf("Blocking = %v, want [other-2]", got.Blocking)
+		}
+	})
+
+	t.Run("blockedBy self-reference validation", func(t *testing.T) {
+		task := &bean.Bean{ID: "task-blockedby-self", Title: "Task", Type: "task", Status: "todo"}
+		core.Create(task)
+
+		input := model.UpdateBeanInput{
+			AddBlockedBy: []string{"task-blockedby-self"},
+		}
+
+		_, err := resolver.Mutation().UpdateBean(ctx, "task-blockedby-self", input)
+		if err == nil {
+			t.Error("UpdateBean() should fail when bean is blocked by itself")
+		}
+		if !strings.Contains(err.Error(), "blocked by itself") {
+			t.Errorf("Error should mention self-blocking, got: %v", err)
+		}
+	})
+
+	t.Run("blockedBy target not found", func(t *testing.T) {
+		task := &bean.Bean{ID: "task-blockedby-notfound", Title: "Task", Type: "task", Status: "todo"}
+		core.Create(task)
+
+		input := model.UpdateBeanInput{
+			AddBlockedBy: []string{"nonexistent"},
+		}
+
+		_, err := resolver.Mutation().UpdateBean(ctx, "task-blockedby-notfound", input)
+		if err == nil {
+			t.Error("UpdateBean() should fail when blocker doesn't exist")
+		}
+		if !strings.Contains(err.Error(), "not found") {
+			t.Errorf("Error should mention not found, got: %v", err)
+		}
+	})
+
+	t.Run("combined add and remove operations", func(t *testing.T) {
+		task := &bean.Bean{ID: "task-combined", Title: "Task", Type: "task", Status: "todo", Blocking: []string{"old-1"}}
+		old1 := &bean.Bean{ID: "old-1", Title: "Old", Type: "task", Status: "todo"}
+		new1 := &bean.Bean{ID: "new-1", Title: "New", Type: "task", Status: "todo"}
+		core.Create(task)
+		core.Create(old1)
+		core.Create(new1)
+
+		input := model.UpdateBeanInput{
+			RemoveBlocking: []string{"old-1"},
+			AddBlocking:    []string{"new-1"},
+		}
+
+		got, err := resolver.Mutation().UpdateBean(ctx, "task-combined", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() error = %v", err)
+		}
+
+		if len(got.Blocking) != 1 || got.Blocking[0] != "new-1" {
+			t.Errorf("Blocking = %v, want [new-1]", got.Blocking)
+		}
+	})
+
+	t.Run("blockedBy cycle detection", func(t *testing.T) {
+		task1 := &bean.Bean{ID: "task-blockedby-cycle-1", Title: "Task 1", Type: "task", Status: "todo"}
+		task2 := &bean.Bean{ID: "task-blockedby-cycle-2", Title: "Task 2", Type: "task", Status: "todo", BlockedBy: []string{"task-blockedby-cycle-1"}}
+		core.Create(task1)
+		core.Create(task2)
+
+		// Try to make task-1 blocked by task-2 (would create cycle)
+		input := model.UpdateBeanInput{
+			AddBlockedBy: []string{"task-blockedby-cycle-2"},
+		}
+
+		_, err := resolver.Mutation().UpdateBean(ctx, "task-blockedby-cycle-1", input)
+		if err == nil {
+			t.Error("UpdateBean() should fail when creating blockedBy cycle")
+		}
+		if !strings.Contains(err.Error(), "cycle") {
+			t.Errorf("Error should mention cycle, got: %v", err)
+		}
+	})
+
+	t.Run("remove parent", func(t *testing.T) {
+		epic := &bean.Bean{ID: "epic-parent-remove", Title: "Epic", Type: "epic", Status: "todo"}
+		task := &bean.Bean{ID: "task-parent-remove", Title: "Task", Type: "task", Status: "todo", Parent: "epic-parent-remove"}
+		core.Create(epic)
+		core.Create(task)
+
+		// Remove parent by setting to empty string
+		emptyParent := ""
+		input := model.UpdateBeanInput{
+			Parent: &emptyParent,
+		}
+
+		got, err := resolver.Mutation().UpdateBean(ctx, "task-parent-remove", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() error = %v", err)
+		}
+
+		if got.Parent != "" {
+			t.Errorf("Parent = %q, want empty string", got.Parent)
+		}
+	})
+
+	t.Run("remove blockedBy relationships", func(t *testing.T) {
+		task := &bean.Bean{ID: "task-remove-blockedby", Title: "Task", Type: "task", Status: "todo", BlockedBy: []string{"blocker-1", "blocker-2"}}
+		blocker1 := &bean.Bean{ID: "blocker-1", Title: "Blocker 1", Type: "task", Status: "todo"}
+		blocker2 := &bean.Bean{ID: "blocker-2", Title: "Blocker 2", Type: "task", Status: "todo"}
+		core.Create(task)
+		core.Create(blocker1)
+		core.Create(blocker2)
+
+		input := model.UpdateBeanInput{
+			RemoveBlockedBy: []string{"blocker-1"},
+		}
+
+		got, err := resolver.Mutation().UpdateBean(ctx, "task-remove-blockedby", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() error = %v", err)
+		}
+
+		if len(got.BlockedBy) != 1 || got.BlockedBy[0] != "blocker-2" {
+			t.Errorf("BlockedBy = %v, want [blocker-2]", got.BlockedBy)
+		}
+	})
+
+	t.Run("multiple blocking additions", func(t *testing.T) {
+		task := &bean.Bean{ID: "task-multi-blocking", Title: "Task", Type: "task", Status: "todo"}
+		target1 := &bean.Bean{ID: "target-1", Title: "Target 1", Type: "task", Status: "todo"}
+		target2 := &bean.Bean{ID: "target-2", Title: "Target 2", Type: "task", Status: "todo"}
+		core.Create(task)
+		core.Create(target1)
+		core.Create(target2)
+
+		input := model.UpdateBeanInput{
+			AddBlocking: []string{"target-1", "target-2"},
+		}
+
+		got, err := resolver.Mutation().UpdateBean(ctx, "task-multi-blocking", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() error = %v", err)
+		}
+
+		if len(got.Blocking) != 2 {
+			t.Errorf("Blocking count = %d, want 2", len(got.Blocking))
+		}
+	})
+
+	t.Run("all relationship types combined", func(t *testing.T) {
+		epic := &bean.Bean{ID: "epic-all", Title: "Epic", Type: "epic", Status: "todo"}
+		task := &bean.Bean{ID: "task-all", Title: "Task", Type: "task", Status: "todo", Blocking: []string{"old-blocking"}}
+		blocker := &bean.Bean{ID: "new-blocker", Title: "Blocker", Type: "task", Status: "todo"}
+		blocked := &bean.Bean{ID: "new-blocked", Title: "Blocked", Type: "task", Status: "todo"}
+		oldBlocking := &bean.Bean{ID: "old-blocking", Title: "Old Blocking", Type: "task", Status: "todo"}
+		core.Create(epic)
+		core.Create(task)
+		core.Create(blocker)
+		core.Create(blocked)
+		core.Create(oldBlocking)
+
+		input := model.UpdateBeanInput{
+			Status:         stringPtr("in-progress"),
+			Parent:         stringPtr("epic-all"),
+			AddBlocking:    []string{"new-blocked"},
+			RemoveBlocking: []string{"old-blocking"},
+			AddBlockedBy:   []string{"new-blocker"},
+		}
+
+		got, err := resolver.Mutation().UpdateBean(ctx, "task-all", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() error = %v", err)
+		}
+
+		if got.Status != "in-progress" {
+			t.Errorf("Status = %q, want in-progress", got.Status)
+		}
+		if got.Parent != "epic-all" {
+			t.Errorf("Parent = %q, want epic-all", got.Parent)
+		}
+		if len(got.Blocking) != 1 || got.Blocking[0] != "new-blocked" {
+			t.Errorf("Blocking = %v, want [new-blocked]", got.Blocking)
+		}
+		if len(got.BlockedBy) != 1 || got.BlockedBy[0] != "new-blocker" {
+			t.Errorf("BlockedBy = %v, want [new-blocker]", got.BlockedBy)
+		}
+	})
+}
+
+// Helper function for tests
+func stringPtr(s string) *string {
+	return &s
+}
+
 func TestBlockedByCycleDetection(t *testing.T) {
 	resolver, core := setupTestResolver(t)
 	ctx := context.Background()
@@ -2321,3 +2677,4 @@ func TestRemoveBlockingWithETag(t *testing.T) {
 		}
 	})
 }
+
