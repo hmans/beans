@@ -45,9 +45,9 @@ touch internal/web/dist/.gitkeep
 depends = ["codegen", "build:embed"]
 run = """
 go build -ldflags "\
-  -X github.com/hmans/beans/cmd/beans.version=$(git describe --tags --always --dirty 2>/dev/null || echo dev) \
-  -X github.com/hmans/beans/cmd/beans.commit=$(git rev-parse --short HEAD 2>/dev/null || echo unknown) \
-  -X github.com/hmans/beans/cmd/beans.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  -X github.com/hmans/beans/cmd.version=$(git describe --tags --always --dirty 2>/dev/null || echo dev) \
+  -X github.com/hmans/beans/cmd.commit=$(git rev-parse --short HEAD 2>/dev/null || echo unknown) \
+  -X github.com/hmans/beans/cmd.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   .
 """
 

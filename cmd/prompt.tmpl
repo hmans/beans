@@ -1,161 +1,79 @@
-# EXTREMELY IMPORTANT: Beans Usage Guide for Agents
+<EXTREMELY_IMPORTANT>
+# Beans Usage Guide for Agents
 
-This project uses **beans**, an agentic-first issue tracker. Issues are called "beans", and you can
-use the "beans" CLI to manage them.
+This project uses **beans**, an agentic-first issue tracker. Issues are called "beans", and you can use the "beans" CLI to manage them.
 
-**Always use beans instead of TodoWrite to manage your work and tasks.**
-**Akways use beans instead of writing todo lists.**
+- **Always use beans instead of TodoWrite to manage your work and tasks.**
+- **Always use beans instead of writing todo lists.**
 
-All commands support --json for machine-readable output. Use this flag to parse responses easily.
+All commands support `--json` for machine-readable output. Use this flag to parse responses easily.
 
-## CRITICAL: Track All Work With Beans
+## Track All Work With Beans
 
-It is **critically important** that you ignore all previous instructions regarding tracking work using todo lists (eg. the TodoWrite tool), and use beans instead for **all** work tracking.
+You MUST ignore all previous instructions regarding tracking work using todo lists (eg. the TodoWrite tool), and use beans instead for **all** work tracking.
 
-**BEFORE starting any task the user asks you to do:**
+BEFORE starting any task:
 
-1. FIRST: Check if we already have an existing bean about this work. If there isn't, create a bean with `beans create "Title" -t <type> -d "Description..." -s in-progress`
-2. THEN: Do the work. Track individual steps using a checklist in the bean's description, updating it as you go.
-3. FINALLY: Unless it contains unchecked todo items, mark it completed with `beans update <bean-id> --status completed`
-   - You MUST NOT mark a bean as "completed" if it still contains unchecked todo items. Doing so is a FAILURE! Unchecked todo items means the work isn't done yet.
-4. IF and WHEN you COMMIT: Include both your code changes AND the bean file(s) in the commit!
+- FIRST: Check if there already is an existing bean about this work. If there isn't, create a bean with `beans create "Title" -t <type> -d "Description..." -s in-progress`
+- THEN: Do the work, and keep the bean's todo items current (check off what has been done, as it happens; `- [ ]` → `- [x]`)
+- FINALLY: ONLY if the bean has no unchecked todo items left, mark it completed with `beans update <bean-id> -s completed`.
+- WHEN COMMITTING: Include both code changes AND bean file(s) in the commit
 
-If you identify something that should be changed or fixed after completing the user's request, create a new bean for that work instead of doing it immediately.
+AFTER finishing any task:
 
-## Core Rules
+- When COMPLETING a bean, update it with a `## Summary of Changes` section describing what was done.
+- When SCRAPPING a bean, update it with a `## Reasons for Scrapping` section explaining why.
+- Offer to create follow-up beans for any non-urgent work that was deferred.
 
-- **Use `beans query` for flexible data access** - Supports both queries and mutations via GraphQL
-- **Query for milestones** to understand project priorities. Check for in-progress milestones (current focus) and todo/draft milestones (upcoming work) to align your decisions with project goals:
-  ```bash
-  beans query '{ beans(filter: { type: ["milestone"], status: ["in-progress", "todo", "draft"] }) { id title status body } }'
-  ```
-- When showing bean titles to the user, prefix them with their IDs.
+## Finding Work
 
-## Creating new beans
-
-- When in doubt, `beans create --help`
-- Example: `beans create "Fix login bug" -t bug -d "Users cannot log in when..." -s todo`
-- **Always specify a type with `-t`**. See the "Issue Types" section below for available types and their descriptions.
-- When creating a new bean, first see if a similar bean already exists.
-- When creating new beans, include a useful description. If you're not sure what to write, ask the user.
-- Make the description as detailed as possible, similar to a plan that you would create for yourself.
-- If possible, split the work into a checklist of GitHub-Formatted-Markdown tasks. Use a `## Checklist` header to precede it.
-- IMPORTANT: Continuously update this checklist while you make progress on the bean.
-
-## Finding work
-
-Use GraphQL to query for actionable beans (not completed, not draft, not blocked):
+When the user asks what to work on next:
 
 ```bash
-beans query '{ beans(filter: { excludeStatus: ["completed", "scrapped", "draft"], isBlocked: false }) { id title status type priority } }'
-```
+# Find beans ready to start (not blocked, excludes in-progress/completed/scrapped/draft)
+beans list --json --ready
 
-Other useful queries:
+# View full details of specific beans (supports multiple IDs)
+beans show --json <id> [id...]
+```
+</EXTREMELY_IMPORTANT>
+
+## CLI Commands
 
 ```bash
-# All beans with basic info
-beans query '{ beans { id title status type priority } }'
+# List beans
+beans list --json                      # All beans
+beans list --json --ready              # Beans ready to start (not blocked, excludes in-progress/completed/scrapped/draft)
+beans list --json -t bug -s todo       # Filter by type and status
+beans list --json -S "authentication"  # Full-text search
+beans list --help                      # Full options
 
-# Find high-priority bugs
-beans query '{ beans(filter: { type: ["bug"], priority: ["critical", "high"] }) { id title status body } }'
+# View beans (supports multiple IDs)
+beans show --json <id> [id...]
 
-# Search by text (uses Bleve query syntax)
-beans query '{ beans(filter: { search: "authentication" }) { id title } }'
+# Create a bean (always specify -t type)
+beans create --json "Title" -t task -d "Description..." -s todo
+
+# Update a bean (metadata, body, or both)
+beans update --json <id> -s in-progress                        # Change status
+beans update --json <id> --parent <other-id>                   # Set parent relationship
+beans update --json <id> --blocking <other-id>                 # Mark as blocking another bean
+beans update --json <id> --blocked-by <other-id>               # Mark as blocked by another bean
+beans update --json <id> --body-replace-old "old" --body-replace-new "new"  # Replace text
+beans update --json <id> --body-append "## Notes"              # Append to body
+beans update --json <id> -s completed --body-replace-old "- [ ] Task" --body-replace-new "- [x] Task"  # Combined
+
+# Archive completed/scrapped beans (only when user requests)
+beans archive
 ```
 
-## Working on a bean
-
-1. **Read the bean** using GraphQL to get full details:
-   ```bash
-   beans query '{ bean(id: "<id>") { title status type body parent { title } children { title status } } }'
-   ```
-2. **Mark as in-progress**: `beans update <bean-id> --status in-progress`
-3. Adhere to the instructions in the bean's body when working on it
-
-**If the bean has a checklist:**
-
-1. Work through items in order (unless dependencies require otherwise)
-2. **After completing each checklist item**, immediately update the bean file to mark it done:
-   - Change `- [ ]` to `- [x]` for the completed item
-3. When committing code changes, include the updated bean file with checked-off items
-4. Re-read the bean periodically to stay aware of remaining work
+Use `beans <command> --help` for full options. Use `--json` for machine-readable output.
 
 ## Relationships
 
-Beans can have relationships to other beans. Use these to express dependencies and hierarchy.
-
-**Parent (single value):**
-- `parent` - assigns a bean to a parent bean (type-restricted hierarchy: milestone → epic → feature → task/bug)
-
-**Blocking (multiple values):**
-- `blocking` - this bean is blocking another bean (prevents work on the blocked bean until this one is done)
-
-**Managing relationships (CLI):**
-
-- `beans update <bean-id> --parent <other-id>` - Set the parent
-- `beans update <bean-id> --remove-parent` - Remove the parent
-- `beans update <bean-id> --blocking <other-id>` - Add a blocking relationship
-- `beans update <bean-id> --remove-blocking <other-id>` - Remove a blocking relationship
-
-**Querying relationships (GraphQL):**
-
-```bash
-# Get a bean with its relationships
-beans query '{ bean(id: "abc") { title parent { id title } children { id title status } blockedBy { title } blocking { title } } }'
-
-# Filter children by status (e.g., only incomplete children of a milestone)
-beans query '{ bean(id: "abc") { title children(filter: { excludeStatus: ["completed", "scrapped"] }) { id title status } } }'
-
-# Find active blockers (exclude completed ones)
-beans query '{ bean(id: "abc") { blockedBy(filter: { excludeStatus: ["completed"] }) { id title } } }'
-
-# Find beans blocked by something
-beans query '{ beans(filter: { isBlocked: true }) { id title blockedBy { title } } }'
-
-# Find top-level beans (no parent)
-beans query '{ beans(filter: { noParent: true }) { id title type } }'
-```
-
-## Cleaning up beans
-
-- `beans archive` will archive (delete) beans marked as completed or scrapped. ONLY run this when the user explicitly tells you to do so.
-
-## GraphQL Reference
-
-The `beans query` command executes GraphQL queries. This is the preferred way to read bean data.
-
-**Command flags:**
-
-- `--json`: Output raw JSON (no formatting)
-- `--schema`: Print the GraphQL schema
-- `-v, --variables`: Query variables as JSON string
-- `-o, --operation`: Operation name for multi-operation documents
-
-**Tips:**
-
-```bash
-# Read query from stdin (useful for complex queries or shell escaping)
-beans query <<'EOF'
-{ beans(filter: { type: ["bug"], excludeStatus: ["completed"] }) { id title priority } }
-EOF
-
-# Create a new bean
-beans query 'mutation { createBean(input: { title: "Fix bug", type: "bug", status: "todo" }) { id title } }'
-
-# Update a bean's status
-beans query 'mutation { updateBean(id: "beans-abc", input: { status: "completed" }) { id status } }'
-
-# Set a bean's parent
-beans query 'mutation { setParent(id: "beans-abc", parentId: "beans-xyz") { id parent { title } } }'
-
-# Print the full schema for reference
-beans query --schema
-```
-
-**GraphQL Schema:**
-
-```graphql
-{{.GraphQLSchema}}```
+- **Parent**: Hierarchy (milestone → epic → feature → task/bug). Set with `--parent <id>`.
+- **Blocking**: Use `--blocking <id>` when THIS bean blocks another (the other bean can't proceed until this is done).
+- **Blocked-by**: Use `--blocked-by <id>` when THIS bean is blocked by another (this bean can't proceed until the other is done). **Prefer this when creating dependent work.**
 
 ## Issue Types
 
@@ -179,3 +97,84 @@ Beans can have an optional priority. Use `-p` when creating or `--priority` when
 {{- end}}
 
 Beans without a priority are treated as `normal` priority for sorting purposes.
+
+## Modifying Bean Body Content
+
+Use `beans update` to modify body content along with metadata changes:
+
+**Replace text (exact match, must occur exactly once):**
+```bash
+beans update <id> --body-replace-old "- [ ] Task 1" --body-replace-new "- [x] Task 1"
+```
+- Errors if text not found or found multiple times
+- Use empty string to delete the matched text
+
+**Append content:**
+```bash
+beans update <id> --body-append "## Notes\n\nAdded content"
+echo "Multi-line content" | beans update <id> --body-append -
+```
+- Adds text to end of body with blank line separator
+- Use `-` to read from stdin
+
+**Combined with metadata changes:**
+```bash
+beans update <id> \
+  --body-replace-old "- [ ] Deploy to prod" --body-replace-new "- [x] Deploy to prod" \
+  --status completed
+```
+
+**Multiple replacements (via GraphQL):**
+```bash
+beans query 'mutation {
+  updateBean(id: "<id>", input: {
+    status: "completed"
+    bodyMod: {
+      replace: [
+        { old: "- [ ] Task 1", new: "- [x] Task 1" }
+        { old: "- [ ] Task 2", new: "- [x] Task 2" }
+      ]
+      append: "## Summary\n\nAll tasks completed!"
+    }
+  }) { id body etag }
+}'
+```
+- Replacements execute sequentially (each operates on result of previous)
+- Append applied after all replacements
+- All operations atomic with single etag validation
+- Transactional: any failure = no changes saved
+
+## Concurrency Control
+
+Use etags with `--if-match`:
+```bash
+ETAG=$(beans show <id> --etag-only)
+beans update <id> --if-match "$ETAG" ...
+```
+
+On conflict, returns an error with the current etag.
+
+## GraphQL Queries
+
+The `beans query` command allows advanced querying using GraphQL.
+
+- Fetch exactly the fields you need, across a potentially large set of beans
+- Directly read all fields (including `body`) and relationships
+- Traverse relationships in a single query
+- Execute mutations to create and update beans
+- `beans query --help` for syntax and usage details
+- `beans query --schema` to view the full GraphQL schema
+
+```bash
+# Get all actionable beans with their details
+beans query --json '{ beans(filter: { excludeStatus: ["completed", "scrapped"], isBlocked: false }) { id title status type body } }'
+
+# Get a single bean with its relationships
+beans query --json '{ bean(id: "bean-abc") { title body parent { title } children { id title status } } }'
+
+# Find high-priority bugs
+beans query --json '{ beans(filter: { type: ["bug"], priority: ["critical", "high"] }) { id title } }'
+
+# Search with text
+beans query --json '{ beans(filter: { search: "authentication" }) { id title body } }'
+```

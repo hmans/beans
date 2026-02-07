@@ -82,3 +82,26 @@ func mergeTags(existing, add, remove []string) []string {
 	}
 	return result
 }
+
+// applyBodyReplace replaces exactly one occurrence of old with new.
+// Returns an error if old is not found or found multiple times.
+func applyBodyReplace(body, old, new string) (string, error) {
+	return bean.ReplaceOnce(body, old, new)
+}
+
+// applyBodyAppend appends text to the body with a newline separator.
+func applyBodyAppend(body, text string) string {
+	return bean.AppendWithSeparator(body, text)
+}
+
+// resolveAppendContent handles --append value, supporting stdin with "-".
+func resolveAppendContent(value string) (string, error) {
+	if value == "-" {
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return "", fmt.Errorf("reading stdin: %w", err)
+		}
+		return strings.TrimRight(string(data), "\n"), nil
+	}
+	return value, nil
+}

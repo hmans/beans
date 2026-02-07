@@ -76,6 +76,17 @@ func ApplyFilter(beans []*bean.Bean, filter *model.BeanFilter, core *beancore.Co
 		}
 	}
 
+	// Blocked-by filters (for direct blocked_by field)
+	if filter.HasBlockedBy != nil && *filter.HasBlockedBy {
+		result = filterByHasBlockedBy(result)
+	}
+	if filter.BlockedByID != nil && *filter.BlockedByID != "" {
+		result = filterByBlockedByID(result, *filter.BlockedByID)
+	}
+	if filter.NoBlockedBy != nil && *filter.NoBlockedBy {
+		result = filterByNoBlockedBy(result)
+	}
+
 	return result
 }
 
@@ -262,12 +273,46 @@ func filterByNoBlocking(beans []*bean.Bean) []*bean.Bean {
 }
 
 // filterByIsBlocked filters beans that are blocked by others.
+// A bean is considered blocked only if it has active (non-completed, non-scrapped) blockers.
 func filterByIsBlocked(beans []*bean.Bean, core *beancore.Core) []*bean.Bean {
 	var result []*bean.Bean
 	for _, b := range beans {
-		incoming := core.FindIncomingLinks(b.ID)
-		for _, link := range incoming {
-			if link.LinkType == "blocking" {
+		if core.IsBlocked(b.ID) {
+			result = append(result, b)
+		}
+	}
+	return result
+}
+
+// filterByNotBlocked filters beans that are NOT blocked by others.
+// A bean is considered not blocked if it has no active (non-completed, non-scrapped) blockers.
+func filterByNotBlocked(beans []*bean.Bean, core *beancore.Core) []*bean.Bean {
+	var result []*bean.Bean
+	for _, b := range beans {
+		if !core.IsBlocked(b.ID) {
+			result = append(result, b)
+		}
+	}
+	return result
+}
+
+// filterByHasBlockedBy filters beans that have explicit blocked_by entries.
+func filterByHasBlockedBy(beans []*bean.Bean) []*bean.Bean {
+	var result []*bean.Bean
+	for _, b := range beans {
+		if len(b.BlockedBy) > 0 {
+			result = append(result, b)
+		}
+	}
+	return result
+}
+
+// filterByBlockedByID filters beans that are blocked by a specific bean ID (via blocked_by field).
+func filterByBlockedByID(beans []*bean.Bean, blockerID string) []*bean.Bean {
+	var result []*bean.Bean
+	for _, b := range beans {
+		for _, blocker := range b.BlockedBy {
+			if blocker == blockerID {
 				result = append(result, b)
 				break
 			}
@@ -276,19 +321,11 @@ func filterByIsBlocked(beans []*bean.Bean, core *beancore.Core) []*bean.Bean {
 	return result
 }
 
-// filterByNotBlocked filters beans that are NOT blocked by others.
-func filterByNotBlocked(beans []*bean.Bean, core *beancore.Core) []*bean.Bean {
+// filterByNoBlockedBy filters beans that have no explicit blocked_by entries.
+func filterByNoBlockedBy(beans []*bean.Bean) []*bean.Bean {
 	var result []*bean.Bean
 	for _, b := range beans {
-		isBlocked := false
-		incoming := core.FindIncomingLinks(b.ID)
-		for _, link := range incoming {
-			if link.LinkType == "blocking" {
-				isBlocked = true
-				break
-			}
-		}
-		if !isBlocked {
+		if len(b.BlockedBy) == 0 {
 			result = append(result, b)
 		}
 	}

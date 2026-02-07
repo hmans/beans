@@ -3,8 +3,10 @@
 package beancore
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"os"
 	"path/filepath"
@@ -18,8 +20,27 @@ import (
 )
 
 const BeansDir = ".beans"
+const ArchiveDir = "archive"
 
 var ErrNotFound = errors.New("bean not found")
+
+// ETagMismatchError is returned when an ETag validation fails.
+// This allows callers to distinguish concurrency conflicts from other errors.
+type ETagMismatchError struct {
+	Provided string
+	Current  string
+}
+
+func (e *ETagMismatchError) Error() string {
+	return fmt.Sprintf("etag mismatch: provided %s, current is %s", e.Provided, e.Current)
+}
+
+// ETagRequiredError is returned when require_if_match is enabled and no ETag is provided.
+type ETagRequiredError struct{}
+
+func (e *ETagRequiredError) Error() string {
+	return "if-match etag is required (set require_if_match: false in config to disable)"
+}
 
 // Core provides thread-safe in-memory storage for beans with filesystem persistence.
 type Core struct {
@@ -90,29 +111,32 @@ func (c *Core) Load() error {
 }
 
 // loadFromDisk reads all beans from disk (must be called with lock held).
+// Loads all .md files from the root directory and any subdirectories.
 func (c *Core) loadFromDisk() error {
 	// Clear existing beans
 	c.beans = make(map[string]*bean.Bean)
 
-	// Only read .md files directly in the .beans directory (no subdirectories)
-	entries, err := os.ReadDir(c.root)
-	if err != nil {
-		return err
-	}
-
-	for _, entry := range entries {
-		// Skip directories and non-.md files
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
-			continue
+	// Walk the entire .beans directory tree, loading all .md files
+	err := filepath.WalkDir(c.root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
 
-		path := filepath.Join(c.root, entry.Name())
-		b, err := c.loadBean(path)
-		if err != nil {
-			return fmt.Errorf("loading %s: %w", path, err)
+		// Skip non-.md files
+		if d.IsDir() || !strings.HasSuffix(d.Name(), ".md") {
+			return nil
+		}
+
+		b, loadErr := c.loadBean(path)
+		if loadErr != nil {
+			return fmt.Errorf("loading %s: %w", path, loadErr)
 		}
 
 		c.beans[b.ID] = b
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	// Reinitialize search index if it was active: close and re-create (best-effort, don't fail load)
@@ -277,6 +301,30 @@ func (c *Core) Get(id string) (*bean.Bean, error) {
 	return nil, ErrNotFound
 }
 
+// NormalizeID resolves a potentially short ID to its full form.
+// If a prefix is configured and the query doesn't include it, the prefix is automatically prepended.
+// Returns the full ID and true if found, or the original ID and false if not found.
+func (c *Core) NormalizeID(id string) (string, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	// Try exact match
+	if _, ok := c.beans[id]; ok {
+		return id, true
+	}
+
+	// If not found and we have a configured prefix that isn't already in the query,
+	// try with the prefix prepended (allows short IDs like "abc" to match "beans-abc")
+	if c.config != nil && c.config.Beans.Prefix != "" && !strings.HasPrefix(id, c.config.Beans.Prefix) {
+		fullID := c.config.Beans.Prefix + id
+		if _, ok := c.beans[fullID]; ok {
+			return fullID, true
+		}
+	}
+
+	return id, false
+}
+
 // Create adds a new bean, generating an ID if needed, and writes it to disk.
 func (c *Core) Create(b *bean.Bean) error {
 	c.mu.Lock()
@@ -319,13 +367,55 @@ func (c *Core) Create(b *bean.Bean) error {
 }
 
 // Update modifies an existing bean and writes it to disk.
-func (c *Core) Update(b *bean.Bean) error {
+// If ifMatch is provided, validates the current on-disk version's etag matches before updating.
+// This provides optimistic concurrency control to prevent lost updates.
+func (c *Core) Update(b *bean.Bean, ifMatch *string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Verify bean exists
-	if _, ok := c.beans[b.ID]; !ok {
+	// Verify bean exists in memory
+	storedBean, ok := c.beans[b.ID]
+	if !ok {
 		return ErrNotFound
+	}
+
+	// Validate etag if provided or required
+	requireIfMatch := c.config != nil && c.config.Beans.RequireIfMatch
+
+	if requireIfMatch && (ifMatch == nil || *ifMatch == "") {
+		return &ETagRequiredError{}
+	}
+
+	if ifMatch != nil && *ifMatch != "" {
+		// Calculate etag from the on-disk version by reading the stored bean's path
+		// This is necessary because the in-memory bean may have already been modified
+		// (Go uses pointers, so modifying the bean passed to Update also modifies c.beans[id])
+		var currentETag string
+		if storedBean.Path != "" {
+			// Read current file from disk to calculate etag
+			diskPath := filepath.Join(c.root, storedBean.Path)
+			content, err := os.ReadFile(diskPath)
+			if err != nil {
+				// If file doesn't exist yet, fall back to stored bean's etag
+				// This can happen for beans created but not yet persisted
+				currentETag = storedBean.ETag()
+			} else {
+				// Calculate etag from on-disk content
+				h := fnv.New64a()
+				h.Write(content)
+				currentETag = hex.EncodeToString(h.Sum(nil))
+			}
+		} else {
+			// No path yet, use in-memory etag
+			currentETag = storedBean.ETag()
+		}
+
+		if currentETag != *ifMatch {
+			return &ETagMismatchError{
+				Provided: *ifMatch,
+				Current:  currentETag,
+			}
+		}
 	}
 
 	// Update timestamp
@@ -422,6 +512,191 @@ func (c *Core) Delete(id string) error {
 	}
 
 	return nil
+}
+
+// Archive moves a bean to the archive directory.
+// Supports short IDs (without prefix) if a prefix is configured.
+func (c *Core) Archive(id string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Find the bean
+	targetBean, targetID, err := c.findBeanLocked(id)
+	if err != nil {
+		return err
+	}
+
+	// Check if already archived
+	if c.isArchivedPath(targetBean.Path) {
+		return nil // Already archived, nothing to do
+	}
+
+	// Ensure archive directory exists
+	archivePath := filepath.Join(c.root, ArchiveDir)
+	if err := os.MkdirAll(archivePath, 0755); err != nil {
+		return fmt.Errorf("creating archive directory: %w", err)
+	}
+
+	// Move the file
+	oldPath := filepath.Join(c.root, targetBean.Path)
+	newRelPath := filepath.Join(ArchiveDir, filepath.Base(targetBean.Path))
+	newPath := filepath.Join(c.root, newRelPath)
+
+	if err := os.Rename(oldPath, newPath); err != nil {
+		return fmt.Errorf("moving bean to archive: %w", err)
+	}
+
+	// Update bean's path
+	targetBean.Path = newRelPath
+	c.beans[targetID] = targetBean
+
+	return nil
+}
+
+// Unarchive moves a bean from the archive directory back to the main directory.
+// Supports short IDs (without prefix) if a prefix is configured.
+func (c *Core) Unarchive(id string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Find the bean
+	targetBean, targetID, err := c.findBeanLocked(id)
+	if err != nil {
+		return err
+	}
+
+	// Check if not archived
+	if !c.isArchivedPath(targetBean.Path) {
+		return nil // Not archived, nothing to do
+	}
+
+	// Move the file back to main directory
+	oldPath := filepath.Join(c.root, targetBean.Path)
+	newRelPath := filepath.Base(targetBean.Path)
+	newPath := filepath.Join(c.root, newRelPath)
+
+	if err := os.Rename(oldPath, newPath); err != nil {
+		return fmt.Errorf("moving bean from archive: %w", err)
+	}
+
+	// Update bean's path
+	targetBean.Path = newRelPath
+	c.beans[targetID] = targetBean
+
+	return nil
+}
+
+// IsArchived returns true if the bean with the given ID is in the archive.
+// Supports short IDs (without prefix) if a prefix is configured.
+func (c *Core) IsArchived(id string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	b, _, err := c.findBeanLocked(id)
+	if err != nil {
+		return false
+	}
+
+	return c.isArchivedPath(b.Path)
+}
+
+// isArchivedPath returns true if the path indicates an archived bean.
+func (c *Core) isArchivedPath(path string) bool {
+	return strings.HasPrefix(path, ArchiveDir+string(filepath.Separator)) ||
+		strings.HasPrefix(path, ArchiveDir+"/")
+}
+
+// normalizeID returns the full ID with prefix if a prefix is configured
+// and the ID doesn't already have it.
+func (c *Core) normalizeID(id string) string {
+	if c.config != nil && c.config.Beans.Prefix != "" && !strings.HasPrefix(id, c.config.Beans.Prefix) {
+		return c.config.Beans.Prefix + id
+	}
+	return id
+}
+
+// findBeanLocked finds a bean by ID, supporting short IDs.
+// Must be called with lock held.
+func (c *Core) findBeanLocked(id string) (*bean.Bean, string, error) {
+	// Try exact match
+	if b, ok := c.beans[id]; ok {
+		return b, id, nil
+	}
+
+	// Try with prefix prepended
+	fullID := c.normalizeID(id)
+	if fullID != id {
+		if b, ok := c.beans[fullID]; ok {
+			return b, fullID, nil
+		}
+	}
+
+	return nil, "", ErrNotFound
+}
+
+// GetFromArchive loads a bean directly from the archive directory.
+// This is used when a bean isn't in the main loaded set but might be archived.
+// Returns nil, nil if the archive directory doesn't exist or bean not found.
+func (c *Core) GetFromArchive(id string) (*bean.Bean, error) {
+	fullID := c.normalizeID(id)
+
+	archiveDir := filepath.Join(c.root, ArchiveDir)
+	if _, err := os.Stat(archiveDir); os.IsNotExist(err) {
+		return nil, nil
+	}
+
+	// Look for the bean file in the archive
+	entries, err := os.ReadDir(archiveDir)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+
+		fileID, _ := bean.ParseFilename(entry.Name())
+		if fileID == fullID {
+			path := filepath.Join(archiveDir, entry.Name())
+			return c.loadBean(path)
+		}
+	}
+
+	return nil, nil
+}
+
+// LoadAndUnarchive finds a bean in the archive, loads it, unarchives it,
+// and adds it to the in-memory store. Returns the bean or ErrNotFound.
+func (c *Core) LoadAndUnarchive(id string) (*bean.Bean, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Find the bean (always loaded since we now include archived beans)
+	b, targetID, err := c.findBeanLocked(id)
+	if err != nil {
+		return nil, ErrNotFound
+	}
+
+	// If already in main directory, just return it
+	if !c.isArchivedPath(b.Path) {
+		return b, nil
+	}
+
+	// Move file from archive to main directory
+	oldPath := filepath.Join(c.root, b.Path)
+	newRelPath := filepath.Base(b.Path)
+	newPath := filepath.Join(c.root, newRelPath)
+
+	if err := os.Rename(oldPath, newPath); err != nil {
+		return nil, fmt.Errorf("moving bean from archive: %w", err)
+	}
+
+	// Update bean's path
+	b.Path = newRelPath
+	c.beans[targetID] = b
+
+	return b, nil
 }
 
 // Init creates the .beans directory if it doesn't exist.

@@ -118,6 +118,7 @@ func (d linkDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 			ShowTags:      d.cols.ShowTags,
 			TagsColWidth:  d.cols.Tags,
 			MaxTags:       d.cols.MaxTags,
+			UseFullNames:  true, // Full type/status names in detail view
 		},
 	)
 
@@ -381,7 +382,7 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 		case "y":
 			// Copy bean ID to clipboard
 			return m, func() tea.Msg {
-				return copyBeanIDMsg{id: m.bean.ID}
+				return copyBeanIDMsg{ids: []string{m.bean.ID}}
 			}
 		}
 	}

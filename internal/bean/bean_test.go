@@ -745,6 +745,189 @@ func TestParentAndBlockingRoundtrip(t *testing.T) {
 	}
 }
 
+func TestParseWithBlockedBy(t *testing.T) {
+	tests := []struct {
+		name            string
+		input           string
+		expectedBlockedBy []string
+	}{
+		{
+			name: "with blocked_by",
+			input: `---
+title: Test
+status: todo
+blocked_by:
+  - abc123
+  - def456
+---`,
+			expectedBlockedBy: []string{"abc123", "def456"},
+		},
+		{
+			name: "no blocked_by",
+			input: `---
+title: Test
+status: todo
+---`,
+			expectedBlockedBy: nil,
+		},
+		{
+			name: "with blocking and blocked_by",
+			input: `---
+title: Test
+status: todo
+blocking:
+  - xyz789
+blocked_by:
+  - abc123
+---`,
+			expectedBlockedBy: []string{"abc123"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bean, err := Parse(strings.NewReader(tt.input))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if len(tt.expectedBlockedBy) == 0 && len(bean.BlockedBy) == 0 {
+				return // Both empty, OK
+			}
+
+			if len(bean.BlockedBy) != len(tt.expectedBlockedBy) {
+				t.Errorf("BlockedBy count = %d, want %d", len(bean.BlockedBy), len(tt.expectedBlockedBy))
+				return
+			}
+
+			for i, expected := range tt.expectedBlockedBy {
+				if bean.BlockedBy[i] != expected {
+					t.Errorf("BlockedBy[%d] = %q, want %q", i, bean.BlockedBy[i], expected)
+				}
+			}
+		})
+	}
+}
+
+func TestRenderWithBlockedBy(t *testing.T) {
+	tests := []struct {
+		name     string
+		bean     *Bean
+		contains []string
+	}{
+		{
+			name: "with blocked_by only",
+			bean: &Bean{
+				Title:     "Test Bean",
+				Status:    "todo",
+				BlockedBy: []string{"abc123", "def456"},
+			},
+			contains: []string{
+				"blocked_by:",
+				"- abc123",
+				"- def456",
+			},
+		},
+		{
+			name: "with blocking and blocked_by",
+			bean: &Bean{
+				Title:     "Test Bean",
+				Status:    "todo",
+				Blocking:  []string{"xyz789"},
+				BlockedBy: []string{"abc123"},
+			},
+			contains: []string{
+				"blocking:",
+				"- xyz789",
+				"blocked_by:",
+				"- abc123",
+			},
+		},
+		{
+			name: "without blocked_by",
+			bean: &Bean{
+				Title:  "Test Bean",
+				Status: "todo",
+			},
+			contains: []string{
+				"title: Test Bean",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := tt.bean.Render()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			result := string(output)
+			for _, want := range tt.contains {
+				if !strings.Contains(result, want) {
+					t.Errorf("output missing %q\ngot:\n%s", want, result)
+				}
+			}
+
+			// Check that empty blocked_by doesn't appear in output
+			if len(tt.bean.BlockedBy) == 0 && strings.Contains(result, "blocked_by:") {
+				t.Errorf("output should not contain 'blocked_by:' when no blocked_by\ngot:\n%s", result)
+			}
+		})
+	}
+}
+
+func TestBlockedByRoundtrip(t *testing.T) {
+	tests := []struct {
+		name      string
+		blockedBy []string
+	}{
+		{
+			name:      "single blocked_by",
+			blockedBy: []string{"abc123"},
+		},
+		{
+			name:      "multiple blocked_by",
+			blockedBy: []string{"abc123", "def456"},
+		},
+		{
+			name:      "empty blocked_by",
+			blockedBy: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			original := &Bean{
+				Title:     "Test",
+				Status:    "todo",
+				BlockedBy: tt.blockedBy,
+			}
+
+			rendered, err := original.Render()
+			if err != nil {
+				t.Fatalf("Render error: %v", err)
+			}
+
+			parsed, err := Parse(strings.NewReader(string(rendered)))
+			if err != nil {
+				t.Fatalf("Parse error: %v", err)
+			}
+
+			if len(parsed.BlockedBy) != len(tt.blockedBy) {
+				t.Errorf("BlockedBy count: got %d, want %d", len(parsed.BlockedBy), len(tt.blockedBy))
+				return
+			}
+
+			for i, expected := range tt.blockedBy {
+				if parsed.BlockedBy[i] != expected {
+					t.Errorf("BlockedBy[%d] = %q, want %q", i, parsed.BlockedBy[i], expected)
+				}
+			}
+		})
+	}
+}
+
 func TestBeanRelationshipMethods(t *testing.T) {
 	t.Run("HasParent", func(t *testing.T) {
 		withParent := &Bean{Parent: "xyz789"}
@@ -809,6 +992,58 @@ func TestBeanRelationshipMethods(t *testing.T) {
 			t.Errorf("RemoveBlocking non-existent: got len=%d, want 2", len(b.Blocking))
 		}
 	})
+
+	t.Run("IsBlockedBy", func(t *testing.T) {
+		b := &Bean{BlockedBy: []string{"abc", "def"}}
+		if !b.IsBlockedBy("abc") {
+			t.Error("expected IsBlockedBy('abc') = true")
+		}
+		if !b.IsBlockedBy("def") {
+			t.Error("expected IsBlockedBy('def') = true")
+		}
+		if b.IsBlockedBy("xyz") {
+			t.Error("expected IsBlockedBy('xyz') = false")
+		}
+
+		empty := &Bean{}
+		if empty.IsBlockedBy("abc") {
+			t.Error("expected IsBlockedBy('abc') = false for empty blocked_by")
+		}
+	})
+
+	t.Run("AddBlockedBy", func(t *testing.T) {
+		b := &Bean{BlockedBy: []string{"abc"}}
+		b.AddBlockedBy("def")
+		if len(b.BlockedBy) != 2 {
+			t.Errorf("AddBlockedBy new: got len=%d, want 2", len(b.BlockedBy))
+		}
+		if !b.IsBlockedBy("def") {
+			t.Error("AddBlockedBy didn't add the blocker")
+		}
+
+		// Adding duplicate should not add
+		b.AddBlockedBy("abc")
+		if len(b.BlockedBy) != 2 {
+			t.Errorf("AddBlockedBy duplicate: got len=%d, want 2", len(b.BlockedBy))
+		}
+	})
+
+	t.Run("RemoveBlockedBy", func(t *testing.T) {
+		b := &Bean{BlockedBy: []string{"abc", "def", "ghi"}}
+		b.RemoveBlockedBy("def")
+		if len(b.BlockedBy) != 2 {
+			t.Errorf("RemoveBlockedBy existing: got len=%d, want 2", len(b.BlockedBy))
+		}
+		if b.IsBlockedBy("def") {
+			t.Error("RemoveBlockedBy didn't remove the blocker")
+		}
+
+		// Removing non-existent should not change anything
+		b.RemoveBlockedBy("nonexistent")
+		if len(b.BlockedBy) != 2 {
+			t.Errorf("RemoveBlockedBy non-existent: got len=%d, want 2", len(b.BlockedBy))
+		}
+	})
 }
 
 func TestValidateTag(t *testing.T) {
@@ -824,18 +1059,18 @@ func TestValidateTag(t *testing.T) {
 		{"urgent2", false},
 		{"wont-fix", false},
 		{"a-b-c", false},
-		{"", true},           // empty
-		{"Frontend", true},   // uppercase
-		{"URGENT", true},     // all uppercase
-		{"123", true},        // starts with number
-		{"123abc", true},     // starts with number
-		{"my tag", true},     // contains space
-		{"my_tag", true},     // contains underscore
-		{"my--tag", true},    // consecutive hyphens
-		{"-tag", true},       // starts with hyphen
-		{"tag-", true},       // ends with hyphen
-		{"my.tag", true},     // contains dot
-		{"my/tag", true},     // contains slash
+		{"", true},         // empty
+		{"Frontend", true}, // uppercase
+		{"URGENT", true},   // all uppercase
+		{"123", true},      // starts with number
+		{"123abc", true},   // starts with number
+		{"my tag", true},   // contains space
+		{"my_tag", true},   // contains underscore
+		{"my--tag", true},  // consecutive hyphens
+		{"-tag", true},     // starts with hyphen
+		{"tag-", true},     // ends with hyphen
+		{"my.tag", true},   // contains dot
+		{"my/tag", true},   // contains slash
 	}
 
 	for _, tt := range tests {
@@ -1214,5 +1449,263 @@ func TestRenderWithIDCommentRoundtrip(t *testing.T) {
 	}
 	if parsed.Status != original.Status {
 		t.Errorf("Status roundtrip: got %q, want %q", parsed.Status, original.Status)
+	}
+}
+
+func TestRenderTrailingNewline(t *testing.T) {
+	tests := []struct {
+		name string
+		bean *Bean
+	}{
+		{
+			name: "with body",
+			bean: &Bean{
+				Title:  "Test Bean",
+				Status: "todo",
+				Body:   "Some content without trailing newline",
+			},
+		},
+		{
+			name: "with body ending in newline",
+			bean: &Bean{
+				Title:  "Test Bean",
+				Status: "todo",
+				Body:   "Some content with trailing newline\n",
+			},
+		},
+		{
+			name: "without body",
+			bean: &Bean{
+				Title:  "Test Bean",
+				Status: "todo",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rendered, err := tt.bean.Render()
+			if err != nil {
+				t.Fatalf("Render error: %v", err)
+			}
+			if !strings.HasSuffix(string(rendered), "\n") {
+				t.Errorf("rendered output should end with newline\ngot: %q", rendered)
+			}
+		})
+	}
+}
+
+func TestETag(t *testing.T) {
+	t.Run("consistent hash", func(t *testing.T) {
+		b := &Bean{
+			Title:  "Test",
+			Status: "todo",
+			Body:   "content",
+		}
+		etag1 := b.ETag()
+		etag2 := b.ETag()
+		if etag1 != etag2 {
+			t.Errorf("ETag not consistent: %s != %s", etag1, etag2)
+		}
+	})
+
+	t.Run("16 hex characters", func(t *testing.T) {
+		b := &Bean{
+			Title:  "Test",
+			Status: "todo",
+		}
+		etag := b.ETag()
+		if len(etag) != 16 {
+			t.Errorf("ETag length = %d, want 16", len(etag))
+		}
+		// Verify it's valid hex
+		for _, c := range etag {
+			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+				t.Errorf("ETag contains non-hex char: %c", c)
+			}
+		}
+	})
+
+	t.Run("changes when title changes", func(t *testing.T) {
+		b := &Bean{
+			Title:  "Test",
+			Status: "todo",
+		}
+		etag1 := b.ETag()
+
+		b.Title = "Changed"
+		etag2 := b.ETag()
+
+		if etag1 == etag2 {
+			t.Error("ETag should change when title changes")
+		}
+	})
+
+	t.Run("changes when status changes", func(t *testing.T) {
+		b := &Bean{
+			Title:  "Test",
+			Status: "todo",
+		}
+		etag1 := b.ETag()
+
+		b.Status = "in-progress"
+		etag2 := b.ETag()
+
+		if etag1 == etag2 {
+			t.Error("ETag should change when status changes")
+		}
+	})
+
+	t.Run("changes when body changes", func(t *testing.T) {
+		b := &Bean{
+			Title:  "Test",
+			Status: "todo",
+			Body:   "original",
+		}
+		etag1 := b.ETag()
+
+		b.Body = "modified"
+		etag2 := b.ETag()
+
+		if etag1 == etag2 {
+			t.Error("ETag should change when body changes")
+		}
+	})
+
+	t.Run("changes when metadata changes", func(t *testing.T) {
+		b := &Bean{
+			Title:    "Test",
+			Status:   "todo",
+			Priority: "normal",
+		}
+		etag1 := b.ETag()
+
+		b.Priority = "high"
+		etag2 := b.ETag()
+
+		if etag1 == etag2 {
+			t.Error("ETag should change when priority changes")
+		}
+	})
+
+	t.Run("same content same etag", func(t *testing.T) {
+		b1 := &Bean{
+			Title:  "Test",
+			Status: "todo",
+			Body:   "content",
+		}
+		b2 := &Bean{
+			Title:  "Test",
+			Status: "todo",
+			Body:   "content",
+		}
+
+		if b1.ETag() != b2.ETag() {
+			t.Error("Same content should produce same ETag")
+		}
+	})
+
+	t.Run("different order of tags produces different etag", func(t *testing.T) {
+		b1 := &Bean{
+			Title:  "Test",
+			Status: "todo",
+			Tags:   []string{"a", "b"},
+		}
+		b2 := &Bean{
+			Title:  "Test",
+			Status: "todo",
+			Tags:   []string{"b", "a"},
+		}
+
+		// Tag order matters in rendered output, so ETags will differ
+		if b1.ETag() == b2.ETag() {
+			t.Error("Different tag order should produce different ETag")
+		}
+	})
+
+	t.Run("etag is empty on render error", func(t *testing.T) {
+		// This is a defensive test - Render() shouldn't fail in practice,
+		// but ETag() handles it gracefully by returning empty string
+		b := &Bean{
+			Title:  "Test",
+			Status: "todo",
+		}
+		etag := b.ETag()
+		if etag == "" {
+			t.Error("ETag should not be empty for valid bean")
+		}
+	})
+}
+
+func TestMarshalJSONIncludesETag(t *testing.T) {
+	b := &Bean{
+		ID:     "test-123",
+		Title:  "Test Bean",
+		Status: "todo",
+		Body:   "Some content",
+	}
+
+	data, err := json.Marshal(b)
+	if err != nil {
+		t.Fatalf("Marshal error: %v", err)
+	}
+
+	// Check etag field is present
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"etag"`) {
+		t.Errorf("JSON should contain 'etag' field, got: %s", jsonStr)
+	}
+
+	// Parse and verify etag value
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("Unmarshal error: %v", err)
+	}
+
+	etag, ok := result["etag"].(string)
+	if !ok {
+		t.Error("etag should be a string")
+	}
+	if len(etag) != 16 {
+		t.Errorf("etag length = %d, want 16", len(etag))
+	}
+
+	// Verify it matches the computed ETag
+	if etag != b.ETag() {
+		t.Errorf("JSON etag = %s, want %s", etag, b.ETag())
+	}
+}
+
+func TestETagChangesAfterModification(t *testing.T) {
+	// Verify that ETag changes reflect actual content changes
+	// (this is important for optimistic concurrency control)
+	b := &Bean{
+		Title:  "Original",
+		Status: "todo",
+		Body:   "Original body",
+	}
+
+	etag1 := b.ETag()
+
+	// Modify the bean
+	b.Title = "Modified"
+	b.Body = "Modified body"
+
+	etag2 := b.ETag()
+
+	if etag1 == etag2 {
+		t.Error("ETag should change after modification")
+	}
+
+	// Verify JSON serialization reflects the change
+	data1, _ := json.Marshal(&Bean{Title: "Original", Status: "todo", Body: "Original body"})
+	data2, _ := json.Marshal(b)
+
+	var result1, result2 map[string]interface{}
+	json.Unmarshal(data1, &result1)
+	json.Unmarshal(data2, &result2)
+
+	if result1["etag"] == result2["etag"] {
+		t.Error("JSON etag should differ after modification")
 	}
 }

@@ -100,11 +100,11 @@ Examples:
 			return err
 		}
 
-		// Output
+		// Output (both modes are prettified, but --json skips color)
 		if queryJSON {
-			fmt.Println(string(result))
+			fmt.Println(string(pretty.Pretty(result)))
 		} else {
-			prettyPrint(result)
+			fmt.Println(string(pretty.Color(pretty.Pretty(result), nil)))
 		}
 
 		return nil
@@ -181,11 +181,6 @@ func formatGraphQLErrors(errs gqlerror.List) error {
 	return fmt.Errorf("graphql errors:\n  %s", strings.Join(msgs, "\n  "))
 }
 
-// prettyPrint outputs the JSON with colors and indentation.
-func prettyPrint(data []byte) {
-	fmt.Println(string(pretty.Color(pretty.Pretty(data), nil)))
-}
-
 // printSchema outputs the GraphQL schema.
 func printSchema() error {
 	fmt.Print(GetGraphQLSchema())
@@ -207,7 +202,7 @@ func GetGraphQLSchema() string {
 }
 
 func init() {
-	graphqlCmd.Flags().BoolVar(&queryJSON, "json", false, "Output raw JSON (no formatting)")
+	graphqlCmd.Flags().BoolVar(&queryJSON, "json", false, "Output JSON without colors (for piping)")
 	graphqlCmd.Flags().StringVarP(&queryVariables, "variables", "v", "", "Query variables as JSON string")
 	graphqlCmd.Flags().StringVarP(&queryOperation, "operation", "o", "", "Operation name (for multi-operation documents)")
 	graphqlCmd.Flags().BoolVar(&querySchemaOnly, "schema", false, "Print the GraphQL schema and exit")

@@ -69,17 +69,27 @@ type Mutation {
   """
   Set or clear the parent of a bean (validates type hierarchy)
   """
-  setParent(id: ID!, parentId: String): Bean!
+  setParent(id: ID!, parentId: String, ifMatch: String): Bean!
 
   """
   Add a bean to the blocking list
   """
-  addBlocking(id: ID!, targetId: ID!): Bean!
+  addBlocking(id: ID!, targetId: ID!, ifMatch: String): Bean!
 
   """
   Remove a bean from the blocking list
   """
-  removeBlocking(id: ID!, targetId: ID!): Bean!
+  removeBlocking(id: ID!, targetId: ID!, ifMatch: String): Bean!
+
+  """
+  Add a bean to the blocked-by list (this bean is blocked by targetId)
+  """
+  addBlockedBy(id: ID!, targetId: ID!, ifMatch: String): Bean!
+
+  """
+  Remove a bean from the blocked-by list
+  """
+  removeBlockedBy(id: ID!, targetId: ID!, ifMatch: String): Bean!
 }
 
 """
@@ -102,6 +112,10 @@ input CreateBeanInput {
   parent: String
   "Bean IDs this bean is blocking"
   blocking: [String!]
+  "Bean IDs that are blocking this bean"
+  blockedBy: [String!]
+  "Custom ID prefix (overrides config prefix for this bean)"
+  prefix: String
 }
 
 """
@@ -116,10 +130,58 @@ input UpdateBeanInput {
   type: String
   "New priority"
   priority: String
-  "Replace all tags (nil preserves existing)"
+  "Replace all tags (nil preserves existing, mutually exclusive with addTags/removeTags)"
   tags: [String!]
-  "New body content"
+  "Add tags to existing list"
+  addTags: [String!]
+  "Remove tags from existing list"
+  removeTags: [String!]
+  "New body content (full replacement, mutually exclusive with bodyMod)"
   body: String
+  "Structured body modifications (mutually exclusive with body)"
+  bodyMod: BodyModification
+  
+  "Set parent bean ID (null/empty to clear, validates type hierarchy)"
+  parent: String
+  "Add beans to blocking list (validates cycles and existence)"
+  addBlocking: [String!]
+  "Remove beans from blocking list"
+  removeBlocking: [String!]
+  "Add beans to blocked-by list (validates cycles and existence)"
+  addBlockedBy: [String!]
+  "Remove beans from blocked-by list"
+  removeBlockedBy: [String!]
+  
+  "ETag for optimistic concurrency control (optional)"
+  ifMatch: String
+}
+
+"""
+Structured body modifications applied atomically.
+Operations are applied in order: all replacements sequentially, then append.
+If any operation fails, the entire mutation fails (transactional).
+"""
+input BodyModification {
+  """
+  Text replacements applied sequentially in array order.
+  Each old text must match exactly once at the time it's applied.
+  """
+  replace: [ReplaceOperation!]
+  """
+  Text to append after all replacements.
+  Appended with blank line separator.
+  """
+  append: String
+}
+
+"""
+A single text replacement operation.
+"""
+input ReplaceOperation {
+  "Text to find (must occur exactly once, cannot be empty)"
+  old: String!
+  "Replacement text (can be empty to delete the matched text)"
+  new: String!
 }
 
 """
@@ -148,12 +210,16 @@ type Bean {
   updatedAt: Time!
   "Markdown body content"
   body: String!
+  "Content hash for optimistic concurrency control"
+  etag: String!
 
   # Direct link fields
   "Parent bean ID (optional, type-restricted)"
   parentId: String
   "IDs of beans this bean is blocking"
   blockingIds: [String!]!
+  "IDs of beans that are blocking this bean (direct field)"
+  blockedByIds: [String!]!
 
   # Computed relationship fields
   "Beans that block this one (incoming blocking links)"
@@ -210,10 +276,16 @@ input BeanFilter {
   hasBlocking: Boolean
   "Include only beans that are blocking this specific bean ID"
   blockingId: String
-  "Include only beans that are blocked by others"
+  "Include only beans that are blocked by others (via incoming blocking links or blocked_by field)"
   isBlocked: Boolean
+  "Include only beans that have explicit blocked-by entries"
+  hasBlockedBy: Boolean
+  "Include only beans blocked by this specific bean ID (via blocked_by field)"
+  blockedById: String
   "Exclude beans that have a parent"
   noParent: Boolean
   "Exclude beans that are blocking other beans"
   noBlocking: Boolean
+  "Exclude beans that have explicit blocked-by entries"
+  noBlockedBy: Boolean
 }

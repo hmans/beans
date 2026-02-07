@@ -129,6 +129,15 @@ func (c *Core) Watch(onChange func()) error {
 		return err
 	}
 
+	// Watch all subdirectories (best effort - don't fail if any can't be watched)
+	_ = filepath.WalkDir(c.root, func(path string, d os.DirEntry, err error) error {
+		if err != nil || !d.IsDir() || path == c.root {
+			return nil
+		}
+		_ = watcher.Add(path)
+		return nil
+	})
+
 	c.watching = true
 	c.done = make(chan struct{})
 	c.onChange = onChange
@@ -190,14 +199,14 @@ func (c *Core) watchLoop(watcher *fsnotify.Watcher) {
 				return
 			}
 
-			// Only care about .md files
+			// Only care about .md files within the .beans directory tree
 			if !strings.HasSuffix(event.Name, ".md") {
 				continue
 			}
 
-			// Only care about files directly in .beans (not subdirectories)
-			dir := filepath.Dir(event.Name)
-			if dir != c.root {
+			// Verify the file is within the .beans directory
+			relPath, err := filepath.Rel(c.root, event.Name)
+			if err != nil || strings.HasPrefix(relPath, "..") {
 				continue
 			}
 

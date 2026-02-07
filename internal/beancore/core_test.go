@@ -1,6 +1,7 @@
 package beancore
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,6 +22,25 @@ func setupTestCore(t *testing.T) (*Core, string) {
 	}
 
 	cfg := config.Default()
+	core := New(beansDir, cfg)
+	core.SetWarnWriter(nil) // suppress warnings in tests
+	if err := core.Load(); err != nil {
+		t.Fatalf("failed to load core: %v", err)
+	}
+
+	return core, beansDir
+}
+
+func setupTestCoreWithRequireIfMatch(t *testing.T) (*Core, string) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	beansDir := filepath.Join(tmpDir, BeansDir)
+	if err := os.MkdirAll(beansDir, 0755); err != nil {
+		t.Fatalf("failed to create test .beans dir: %v", err)
+	}
+
+	cfg := config.Default()
+	cfg.Beans.RequireIfMatch = true
 	core := New(beansDir, cfg)
 	core.SetWarnWriter(nil) // suppress warnings in tests
 	if err := core.Load(); err != nil {
@@ -210,7 +230,6 @@ func TestGetNotFound(t *testing.T) {
 	}
 }
 
-
 func TestGetShortID(t *testing.T) {
 	// Create a core with a configured prefix
 	tmpDir := t.TempDir()
@@ -282,7 +301,7 @@ func TestUpdate(t *testing.T) {
 	b.Title = "Updated Title"
 	b.Status = "in-progress"
 
-	err := core.Update(b)
+	err := core.Update(b, nil)
 	if err != nil {
 		t.Fatalf("Update() error = %v", err)
 	}
@@ -319,7 +338,7 @@ func TestUpdateNotFound(t *testing.T) {
 		Status: "todo",
 	}
 
-	err := core.Update(b)
+	err := core.Update(b, nil)
 	if err != ErrNotFound {
 		t.Errorf("Update() error = %v, want ErrNotFound", err)
 	}
@@ -483,10 +502,10 @@ func TestBlocksPreserved(t *testing.T) {
 
 	// Create bean A that blocks bean B
 	beanA := &bean.Bean{
-		ID:     "aaa1",
-		Slug:   "blocker",
-		Title:  "Blocker Bean",
-		Status: "todo",
+		ID:       "aaa1",
+		Slug:     "blocker",
+		Title:    "Blocker Bean",
+		Status:   "todo",
 		Blocking: []string{"bbb2"},
 	}
 	if err := core.Create(beanA); err != nil {
@@ -1113,5 +1132,624 @@ status: todo
 		}
 	case <-time.After(500 * time.Millisecond):
 		t.Error("timeout waiting for events")
+	}
+}
+
+// Archive functionality tests
+
+func TestArchive(t *testing.T) {
+	core, beansDir := setupTestCore(t)
+
+	b := createTestBean(t, core, "arc1", "To Archive", "completed")
+	originalFilename := filepath.Base(b.Path)
+
+	// Archive the bean
+	err := core.Archive("arc1")
+	if err != nil {
+		t.Fatalf("Archive() error = %v", err)
+	}
+
+	// Verify file moved to archive directory
+	archivePath := filepath.Join(beansDir, ArchiveDir, originalFilename)
+	if _, err := os.Stat(archivePath); os.IsNotExist(err) {
+		t.Error("bean file should exist in archive directory")
+	}
+
+	// Verify file no longer in main directory
+	mainPath := filepath.Join(beansDir, "arc1--to-archive.md")
+	if _, err := os.Stat(mainPath); !os.IsNotExist(err) {
+		t.Error("bean file should not exist in main directory")
+	}
+
+	// Verify bean is still accessible in memory
+	archived, err := core.Get("arc1")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+
+	// Verify path is updated
+	if archived.Path != filepath.Join(ArchiveDir, "arc1--to-archive.md") {
+		t.Errorf("Path = %q, want %q", archived.Path, filepath.Join(ArchiveDir, "arc1--to-archive.md"))
+	}
+}
+
+func TestArchiveIdempotent(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	createTestBean(t, core, "arc1", "To Archive", "completed")
+
+	// Archive twice should not error
+	if err := core.Archive("arc1"); err != nil {
+		t.Fatalf("first Archive() error = %v", err)
+	}
+	if err := core.Archive("arc1"); err != nil {
+		t.Fatalf("second Archive() error = %v", err)
+	}
+}
+
+func TestArchiveNotFound(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	err := core.Archive("nonexistent")
+	if err != ErrNotFound {
+		t.Errorf("Archive() error = %v, want ErrNotFound", err)
+	}
+}
+
+func TestUnarchive(t *testing.T) {
+	core, beansDir := setupTestCore(t)
+
+	b := createTestBean(t, core, "una1", "To Unarchive", "completed")
+	originalFilename := filepath.Base(b.Path)
+
+	// Archive first
+	if err := core.Archive("una1"); err != nil {
+		t.Fatalf("Archive() error = %v", err)
+	}
+
+	// Unarchive
+	err := core.Unarchive("una1")
+	if err != nil {
+		t.Fatalf("Unarchive() error = %v", err)
+	}
+
+	// Verify file moved back to main directory
+	mainPath := filepath.Join(beansDir, originalFilename)
+	if _, err := os.Stat(mainPath); os.IsNotExist(err) {
+		t.Error("bean file should exist in main directory")
+	}
+
+	// Verify file no longer in archive
+	archivePath := filepath.Join(beansDir, ArchiveDir, originalFilename)
+	if _, err := os.Stat(archivePath); !os.IsNotExist(err) {
+		t.Error("bean file should not exist in archive directory")
+	}
+
+	// Verify path is updated
+	unarchived, err := core.Get("una1")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if unarchived.Path != "una1--to-unarchive.md" {
+		t.Errorf("Path = %q, want %q", unarchived.Path, "una1--to-unarchive.md")
+	}
+}
+
+func TestUnarchiveIdempotent(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	createTestBean(t, core, "una1", "To Unarchive", "completed")
+
+	// Unarchive non-archived bean should not error
+	if err := core.Unarchive("una1"); err != nil {
+		t.Fatalf("Unarchive() on non-archived bean error = %v", err)
+	}
+}
+
+func TestIsArchived(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	createTestBean(t, core, "isa1", "Test Archived", "completed")
+
+	t.Run("not archived", func(t *testing.T) {
+		if core.IsArchived("isa1") {
+			t.Error("IsArchived() should return false for non-archived bean")
+		}
+	})
+
+	// Archive the bean
+	if err := core.Archive("isa1"); err != nil {
+		t.Fatalf("Archive() error = %v", err)
+	}
+
+	t.Run("archived", func(t *testing.T) {
+		if !core.IsArchived("isa1") {
+			t.Error("IsArchived() should return true for archived bean")
+		}
+	})
+
+	t.Run("nonexistent", func(t *testing.T) {
+		if core.IsArchived("nonexistent") {
+			t.Error("IsArchived() should return false for nonexistent bean")
+		}
+	})
+}
+
+func TestArchivedBeansAlwaysLoaded(t *testing.T) {
+	core, beansDir := setupTestCore(t)
+
+	// Create beans and archive one
+	createTestBean(t, core, "act1", "Active Bean", "todo")
+	createTestBean(t, core, "arc1", "Archived Bean", "completed")
+	if err := core.Archive("arc1"); err != nil {
+		t.Fatalf("Archive() error = %v", err)
+	}
+
+	// Create a new core and load - archived beans should always be included
+	core2 := New(beansDir, config.Default())
+	core2.SetWarnWriter(nil)
+	if err := core2.Load(); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	t.Run("all beans loaded including archived", func(t *testing.T) {
+		beans := core2.All()
+		if len(beans) != 2 {
+			t.Errorf("All() returned %d beans, want 2 (active + archived)", len(beans))
+		}
+	})
+
+	t.Run("active bean accessible", func(t *testing.T) {
+		if _, err := core2.Get("act1"); err != nil {
+			t.Errorf("active bean should be found: %v", err)
+		}
+	})
+
+	t.Run("archived bean accessible", func(t *testing.T) {
+		if _, err := core2.Get("arc1"); err != nil {
+			t.Errorf("archived bean should be found: %v", err)
+		}
+	})
+
+	t.Run("archived bean has correct path", func(t *testing.T) {
+		b, _ := core2.Get("arc1")
+		if !core2.IsArchived("arc1") {
+			t.Error("archived bean should be identified as archived")
+		}
+		if b.Path != "archive/arc1--archived-bean.md" {
+			t.Errorf("archived bean path = %q, want %q", b.Path, "archive/arc1--archived-bean.md")
+		}
+	})
+}
+
+func TestLoadFromSubdirectories(t *testing.T) {
+	// Create a core with beans in various subdirectories
+	tmpDir := t.TempDir()
+	beansDir := filepath.Join(tmpDir, BeansDir)
+	if err := os.MkdirAll(beansDir, 0755); err != nil {
+		t.Fatalf("failed to create test .beans dir: %v", err)
+	}
+
+	// Create subdirectories
+	milestone1Dir := filepath.Join(beansDir, "milestone-1")
+	milestone2Dir := filepath.Join(beansDir, "milestone-2")
+	nestedDir := filepath.Join(beansDir, "epics", "auth")
+	if err := os.MkdirAll(milestone1Dir, 0755); err != nil {
+		t.Fatalf("failed to create milestone-1 dir: %v", err)
+	}
+	if err := os.MkdirAll(milestone2Dir, 0755); err != nil {
+		t.Fatalf("failed to create milestone-2 dir: %v", err)
+	}
+	if err := os.MkdirAll(nestedDir, 0755); err != nil {
+		t.Fatalf("failed to create nested dir: %v", err)
+	}
+
+	// Create beans in different locations
+	writeTestBeanFile(t, filepath.Join(beansDir, "root1--root-bean.md"), "root1", "Root Bean", "todo")
+	writeTestBeanFile(t, filepath.Join(milestone1Dir, "m1b1--milestone-one-bean.md"), "m1b1", "Milestone One Bean", "todo")
+	writeTestBeanFile(t, filepath.Join(milestone2Dir, "m2b1--milestone-two-bean.md"), "m2b1", "Milestone Two Bean", "in-progress")
+	writeTestBeanFile(t, filepath.Join(nestedDir, "auth1--auth-bean.md"), "auth1", "Auth Bean", "todo")
+
+	// Load and verify all beans are found
+	core := New(beansDir, config.Default())
+	core.SetWarnWriter(nil)
+	if err := core.Load(); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	beans := core.All()
+	if len(beans) != 4 {
+		t.Errorf("All() returned %d beans, want 4", len(beans))
+	}
+
+	// Verify each bean is accessible and has correct path
+	testCases := []struct {
+		id           string
+		expectedPath string
+	}{
+		{"root1", "root1--root-bean.md"},
+		{"m1b1", "milestone-1/m1b1--milestone-one-bean.md"},
+		{"m2b1", "milestone-2/m2b1--milestone-two-bean.md"},
+		{"auth1", "epics/auth/auth1--auth-bean.md"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.id, func(t *testing.T) {
+			b, err := core.Get(tc.id)
+			if err != nil {
+				t.Fatalf("Get(%q) error = %v", tc.id, err)
+			}
+			if b.Path != tc.expectedPath {
+				t.Errorf("Path = %q, want %q", b.Path, tc.expectedPath)
+			}
+		})
+	}
+}
+
+// writeTestBeanFile creates a bean file directly on disk (for testing load scenarios)
+func writeTestBeanFile(t *testing.T, path, id, title, status string) {
+	t.Helper()
+	content := fmt.Sprintf(`---
+title: %s
+status: %s
+type: task
+---
+
+Test bean content.
+`, title, status)
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write test bean file: %v", err)
+	}
+}
+
+func TestGetFromArchive(t *testing.T) {
+	core, beansDir := setupTestCore(t)
+
+	createTestBean(t, core, "gfa1", "Get From Archive", "completed")
+	if err := core.Archive("gfa1"); err != nil {
+		t.Fatalf("Archive() error = %v", err)
+	}
+
+	// Create a new core - archived beans are loaded but GetFromArchive reads directly from disk
+	core2 := New(beansDir, config.Default())
+	core2.SetWarnWriter(nil)
+	if err := core2.Load(); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	t.Run("bean in archive", func(t *testing.T) {
+		b, err := core2.GetFromArchive("gfa1")
+		if err != nil {
+			t.Fatalf("GetFromArchive() error = %v", err)
+		}
+		if b == nil {
+			t.Fatal("GetFromArchive() returned nil")
+		}
+		if b.ID != "gfa1" {
+			t.Errorf("ID = %q, want %q", b.ID, "gfa1")
+		}
+	})
+
+	t.Run("bean not in archive", func(t *testing.T) {
+		b, err := core2.GetFromArchive("nonexistent")
+		if err != nil {
+			t.Fatalf("GetFromArchive() error = %v", err)
+		}
+		if b != nil {
+			t.Error("GetFromArchive() should return nil for nonexistent bean")
+		}
+	})
+
+	t.Run("no archive directory", func(t *testing.T) {
+		// Create a fresh core with no archive
+		tmpDir := t.TempDir()
+		freshBeansDir := filepath.Join(tmpDir, BeansDir)
+		if err := os.MkdirAll(freshBeansDir, 0755); err != nil {
+			t.Fatalf("failed to create .beans dir: %v", err)
+		}
+		core3 := New(freshBeansDir, config.Default())
+		core3.SetWarnWriter(nil)
+		if err := core3.Load(); err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		b, err := core3.GetFromArchive("anything")
+		if err != nil {
+			t.Fatalf("GetFromArchive() error = %v", err)
+		}
+		if b != nil {
+			t.Error("GetFromArchive() should return nil when archive doesn't exist")
+		}
+	})
+}
+
+func TestLoadAndUnarchive(t *testing.T) {
+	core, beansDir := setupTestCore(t)
+
+	createTestBean(t, core, "lau1", "Load And Unarchive", "completed")
+	if err := core.Archive("lau1"); err != nil {
+		t.Fatalf("Archive() error = %v", err)
+	}
+
+	// Create a new core - archived beans are now always loaded
+	core2 := New(beansDir, config.Default())
+	core2.SetWarnWriter(nil)
+	if err := core2.Load(); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Bean should be accessible (archived beans are always loaded)
+	b, err := core2.Get("lau1")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if !core2.IsArchived("lau1") {
+		t.Error("bean should be identified as archived before LoadAndUnarchive")
+	}
+
+	// Load and unarchive should move the file
+	unarchived, err := core2.LoadAndUnarchive("lau1")
+	if err != nil {
+		t.Fatalf("LoadAndUnarchive() error = %v", err)
+	}
+	if unarchived == nil {
+		t.Fatal("LoadAndUnarchive() returned nil")
+	}
+	if unarchived.ID != b.ID {
+		t.Errorf("LoadAndUnarchive returned different bean: got %q, want %q", unarchived.ID, b.ID)
+	}
+
+	// Bean should no longer be archived
+	if core2.IsArchived("lau1") {
+		t.Error("bean should not be archived after LoadAndUnarchive")
+	}
+
+	// File should be in main directory, not archive
+	mainPath := filepath.Join(beansDir, "lau1--load-and-unarchive.md")
+	if _, err := os.Stat(mainPath); os.IsNotExist(err) {
+		t.Error("bean file should exist in main directory after LoadAndUnarchive")
+	}
+
+	// File should NOT be in archive directory
+	archivePath := filepath.Join(beansDir, "archive", "lau1--load-and-unarchive.md")
+	if _, err := os.Stat(archivePath); !os.IsNotExist(err) {
+		t.Error("bean file should not exist in archive directory after LoadAndUnarchive")
+	}
+}
+
+func TestLoadAndUnarchiveNotFound(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	_, err := core.LoadAndUnarchive("nonexistent")
+	if err != ErrNotFound {
+		t.Errorf("LoadAndUnarchive() error = %v, want ErrNotFound", err)
+	}
+}
+
+func TestArchiveShortID(t *testing.T) {
+	// Create a core with a configured prefix
+	tmpDir := t.TempDir()
+	beansDir := filepath.Join(tmpDir, BeansDir)
+	if err := os.MkdirAll(beansDir, 0755); err != nil {
+		t.Fatalf("failed to create test .beans dir: %v", err)
+	}
+
+	cfg := config.DefaultWithPrefix("beans-")
+	core := New(beansDir, cfg)
+	core.SetWarnWriter(nil)
+	if err := core.Load(); err != nil {
+		t.Fatalf("failed to load core: %v", err)
+	}
+
+	createTestBean(t, core, "beans-xyz1", "Test", "completed")
+
+	// Archive by short ID (without prefix)
+	err := core.Archive("xyz1")
+	if err != nil {
+		t.Fatalf("Archive() error = %v", err)
+	}
+
+	// Verify it's archived
+	if !core.IsArchived("beans-xyz1") {
+		t.Error("bean should be archived")
+	}
+}
+
+func TestNormalizeID(t *testing.T) {
+	tmpDir := t.TempDir()
+	beansDir := filepath.Join(tmpDir, BeansDir)
+	os.MkdirAll(beansDir, 0755)
+
+	cfg := config.DefaultWithPrefix("beans-")
+	core := New(beansDir, cfg)
+	core.SetWarnWriter(nil)
+	if err := core.Load(); err != nil {
+		t.Fatalf("failed to load core: %v", err)
+	}
+
+	createTestBean(t, core, "beans-abc1", "Test Bean", "todo")
+
+	t.Run("exact match returns same ID", func(t *testing.T) {
+		normalized, found := core.NormalizeID("beans-abc1")
+		if !found {
+			t.Error("NormalizeID() should find exact match")
+		}
+		if normalized != "beans-abc1" {
+			t.Errorf("NormalizeID() = %q, want %q", normalized, "beans-abc1")
+		}
+	})
+
+	t.Run("short ID normalizes to full ID", func(t *testing.T) {
+		normalized, found := core.NormalizeID("abc1")
+		if !found {
+			t.Error("NormalizeID() should find short ID match")
+		}
+		if normalized != "beans-abc1" {
+			t.Errorf("NormalizeID() = %q, want %q", normalized, "beans-abc1")
+		}
+	})
+
+	t.Run("nonexistent ID returns original", func(t *testing.T) {
+		normalized, found := core.NormalizeID("nonexistent")
+		if found {
+			t.Error("NormalizeID() should not find nonexistent ID")
+		}
+		if normalized != "nonexistent" {
+			t.Errorf("NormalizeID() = %q, want %q", normalized, "nonexistent")
+		}
+	})
+}
+
+
+func TestUpdateWithETag(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	t.Run("update with correct etag succeeds", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:     "etag-test-1",
+			Title:  "ETag Test",
+			Status: "todo",
+			Body:   "Original",
+		}
+		if err := core.Create(b); err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+
+		currentETag := b.ETag()
+		b.Title = "Updated"
+		err := core.Update(b, &currentETag)
+		if err != nil {
+			t.Errorf("Update() with correct etag failed: %v", err)
+		}
+	})
+
+	t.Run("update with wrong etag fails", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:     "etag-test-2",
+			Title:  "ETag Test",
+			Status: "todo",
+		}
+		if err := core.Create(b); err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+
+		wrongETag := "wrongetag123"
+		b.Title = "Should Fail"
+		err := core.Update(b, &wrongETag)
+		
+		var mismatchErr *ETagMismatchError
+		if !errors.As(err, &mismatchErr) {
+			t.Errorf("Update() with wrong etag should return ETagMismatchError, got %T: %v", err, err)
+		}
+	})
+
+	t.Run("update without etag succeeds when not required", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:     "etag-test-3",
+			Title:  "ETag Test",
+			Status: "todo",
+		}
+		if err := core.Create(b); err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+
+		b.Title = "No ETag"
+		err := core.Update(b, nil)
+		if err != nil {
+			t.Errorf("Update() without etag failed: %v", err)
+		}
+	})
+}
+
+func TestUpdateWithETagRequired(t *testing.T) {
+	core, _ := setupTestCoreWithRequireIfMatch(t)
+
+	t.Run("update without etag fails when required", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:     "etag-req-test-1",
+			Title:  "ETag Required Test",
+			Status: "todo",
+		}
+		if err := core.Create(b); err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+
+		b.Title = "Should Fail"
+		err := core.Update(b, nil)
+		
+		var requiredErr *ETagRequiredError
+		if !errors.As(err, &requiredErr) {
+			t.Errorf("Update() without etag should return ETagRequiredError when required, got %T: %v", err, err)
+		}
+	})
+
+	t.Run("update with empty etag fails when required", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:     "etag-req-test-2",
+			Title:  "ETag Required Test",
+			Status: "todo",
+		}
+		if err := core.Create(b); err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+
+		emptyETag := ""
+		b.Title = "Should Fail"
+		err := core.Update(b, &emptyETag)
+		
+		var requiredErr *ETagRequiredError
+		if !errors.As(err, &requiredErr) {
+			t.Errorf("Update() with empty etag should return ETagRequiredError when required, got %T: %v", err, err)
+		}
+	})
+
+	t.Run("update with correct etag succeeds even when required", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:     "etag-req-test-3",
+			Title:  "ETag Required Test",
+			Status: "todo",
+		}
+		if err := core.Create(b); err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+
+		currentETag := b.ETag()
+		b.Title = "Success"
+		err := core.Update(b, &currentETag)
+		if err != nil {
+			t.Errorf("Update() with correct etag failed: %v", err)
+		}
+	})
+}
+func TestUpdateWithETagDebug(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	b := &bean.Bean{
+		ID:     "etag-debug",
+		Title:  "ETag Test",
+		Status: "todo",
+		Body:   "Original",
+	}
+	if err := core.Create(b); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	etagAfterCreate := b.ETag()
+	t.Logf("ETag after create: %s", etagAfterCreate)
+
+	// Get from core to see what's stored
+	stored, _ := core.Get("etag-debug")
+	storedEtag := stored.ETag()
+	t.Logf("ETag of stored bean: %s", storedEtag)
+
+	// Modify our local copy
+	b.Title = "Updated"
+	modifiedEtag := b.ETag()
+	t.Logf("ETag of modified local bean: %s", modifiedEtag)
+
+	// What will Update see?
+	err := core.Update(b, &etagAfterCreate)
+	if err != nil {
+		t.Logf("Update failed: %v", err)
 	}
 }

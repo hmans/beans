@@ -2,7 +2,10 @@ package bean
 
 import (
 	"bytes"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"regexp"
 	"strings"
@@ -101,6 +104,34 @@ func (b *Bean) RemoveBlocking(id string) {
 	b.Blocking = result
 }
 
+// IsBlockedBy returns true if this bean is blocked by the given bean ID.
+func (b *Bean) IsBlockedBy(id string) bool {
+	for _, blocker := range b.BlockedBy {
+		if blocker == id {
+			return true
+		}
+	}
+	return false
+}
+
+// AddBlockedBy adds a bean ID to the blocked-by list if not already present.
+func (b *Bean) AddBlockedBy(id string) {
+	if !b.IsBlockedBy(id) {
+		b.BlockedBy = append(b.BlockedBy, id)
+	}
+}
+
+// RemoveBlockedBy removes a bean ID from the blocked-by list.
+func (b *Bean) RemoveBlockedBy(id string) {
+	result := make([]string, 0, len(b.BlockedBy))
+	for _, blocker := range b.BlockedBy {
+		if blocker != id {
+			result = append(result, blocker)
+		}
+	}
+	b.BlockedBy = result
+}
+
 // Bean represents an issue stored as a markdown file with front matter.
 type Bean struct {
 	// ID is the unique NanoID identifier (from filename).
@@ -127,6 +158,9 @@ type Bean struct {
 
 	// Blocking is a list of bean IDs that this bean is blocking.
 	Blocking []string `yaml:"blocking,omitempty" json:"blocking,omitempty"`
+
+	// BlockedBy is a list of bean IDs that are blocking this bean.
+	BlockedBy []string `yaml:"blocked_by,omitempty" json:"blocked_by,omitempty"`
 }
 
 // frontMatter is the subset of Bean that gets serialized to YAML front matter.
@@ -140,6 +174,7 @@ type frontMatter struct {
 	UpdatedAt *time.Time `yaml:"updated_at,omitempty"`
 	Parent    string     `yaml:"parent,omitempty"`
 	Blocking  []string   `yaml:"blocking,omitempty"`
+	BlockedBy []string   `yaml:"blocked_by,omitempty"`
 }
 
 // Parse reads a bean from a reader (markdown with YAML front matter).
@@ -150,6 +185,9 @@ func Parse(r io.Reader) (*Bean, error) {
 		return nil, fmt.Errorf("parsing front matter: %w", err)
 	}
 
+	// Trim trailing newline from body (POSIX files end with newline, but it's not part of content)
+	bodyStr := strings.TrimSuffix(string(body), "\n")
+
 	return &Bean{
 		Title:     fm.Title,
 		Status:    fm.Status,
@@ -158,9 +196,10 @@ func Parse(r io.Reader) (*Bean, error) {
 		Tags:      fm.Tags,
 		CreatedAt: fm.CreatedAt,
 		UpdatedAt: fm.UpdatedAt,
-		Body:      string(body),
+		Body:      bodyStr,
 		Parent:    fm.Parent,
 		Blocking:  fm.Blocking,
+		BlockedBy: fm.BlockedBy,
 	}, nil
 }
 
@@ -175,6 +214,7 @@ type renderFrontMatter struct {
 	UpdatedAt *time.Time `yaml:"updated_at,omitempty"`
 	Parent    string     `yaml:"parent,omitempty"`
 	Blocking  []string   `yaml:"blocking,omitempty"`
+	BlockedBy []string   `yaml:"blocked_by,omitempty"`
 }
 
 // Render serializes the bean back to markdown with YAML front matter.
@@ -189,6 +229,7 @@ func (b *Bean) Render() ([]byte, error) {
 		UpdatedAt: b.UpdatedAt,
 		Parent:    b.Parent,
 		Blocking:  b.Blocking,
+		BlockedBy: b.BlockedBy,
 	}
 
 	fmBytes, err := yaml.Marshal(&fm)
@@ -211,7 +252,41 @@ func (b *Bean) Render() ([]byte, error) {
 			buf.WriteString("\n")
 		}
 		buf.WriteString(b.Body)
+		// Ensure trailing newline if body doesn't end with one
+		if !strings.HasSuffix(b.Body, "\n") {
+			buf.WriteString("\n")
+		}
+	} else {
+		// Even without body, add trailing newline for POSIX compliance
+		buf.WriteString("\n")
 	}
 
 	return buf.Bytes(), nil
+}
+
+// ETag returns a hash of the bean's rendered content for optimistic concurrency control.
+// Uses FNV-1a 64-bit hash, producing a 16-character hex string.
+// Returns "0000000000000000" if rendering fails (should never happen for valid beans).
+func (b *Bean) ETag() string {
+	content, err := b.Render()
+	if err != nil {
+		// Return a sentinel value that will never match a real ETag,
+		// ensuring validation will fail rather than silently passing.
+		return "0000000000000000"
+	}
+	h := fnv.New64a()
+	h.Write(content)
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// MarshalJSON implements json.Marshaler to include computed etag field.
+func (b *Bean) MarshalJSON() ([]byte, error) {
+	type BeanAlias Bean // Avoid infinite recursion
+	return json.Marshal(&struct {
+		*BeanAlias
+		ETag string `json:"etag"`
+	}{
+		BeanAlias: (*BeanAlias)(b),
+		ETag:      b.ETag(),
+	})
 }

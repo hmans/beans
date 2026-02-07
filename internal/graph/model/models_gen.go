@@ -61,12 +61,30 @@ type BeanFilter struct {
 	HasBlocking *bool `json:"hasBlocking,omitempty"`
 	// Include only beans that are blocking this specific bean ID
 	BlockingID *string `json:"blockingId,omitempty"`
-	// Include only beans that are blocked by others
+	// Include only beans that are blocked by others (via incoming blocking links or blocked_by field)
 	IsBlocked *bool `json:"isBlocked,omitempty"`
+	// Include only beans that have explicit blocked-by entries
+	HasBlockedBy *bool `json:"hasBlockedBy,omitempty"`
+	// Include only beans blocked by this specific bean ID (via blocked_by field)
+	BlockedByID *string `json:"blockedById,omitempty"`
 	// Exclude beans that have a parent
 	NoParent *bool `json:"noParent,omitempty"`
 	// Exclude beans that are blocking other beans
 	NoBlocking *bool `json:"noBlocking,omitempty"`
+	// Exclude beans that have explicit blocked-by entries
+	NoBlockedBy *bool `json:"noBlockedBy,omitempty"`
+}
+
+// Structured body modifications applied atomically.
+// Operations are applied in order: all replacements sequentially, then append.
+// If any operation fails, the entire mutation fails (transactional).
+type BodyModification struct {
+	// Text replacements applied sequentially in array order.
+	// Each old text must match exactly once at the time it's applied.
+	Replace []*ReplaceOperation `json:"replace,omitempty"`
+	// Text to append after all replacements.
+	// Appended with blank line separator.
+	Append *string `json:"append,omitempty"`
 }
 
 // Input for creating a new bean
@@ -87,12 +105,24 @@ type CreateBeanInput struct {
 	Parent *string `json:"parent,omitempty"`
 	// Bean IDs this bean is blocking
 	Blocking []string `json:"blocking,omitempty"`
+	// Bean IDs that are blocking this bean
+	BlockedBy []string `json:"blockedBy,omitempty"`
+	// Custom ID prefix (overrides config prefix for this bean)
+	Prefix *string `json:"prefix,omitempty"`
 }
 
 type Mutation struct {
 }
 
 type Query struct {
+}
+
+// A single text replacement operation.
+type ReplaceOperation struct {
+	// Text to find (must occur exactly once, cannot be empty)
+	Old string `json:"old"`
+	// Replacement text (can be empty to delete the matched text)
+	New string `json:"new"`
 }
 
 type Subscription struct {
@@ -108,10 +138,28 @@ type UpdateBeanInput struct {
 	Type *string `json:"type,omitempty"`
 	// New priority
 	Priority *string `json:"priority,omitempty"`
-	// Replace all tags (nil preserves existing)
+	// Replace all tags (nil preserves existing, mutually exclusive with addTags/removeTags)
 	Tags []string `json:"tags,omitempty"`
-	// New body content
+	// Add tags to existing list
+	AddTags []string `json:"addTags,omitempty"`
+	// Remove tags from existing list
+	RemoveTags []string `json:"removeTags,omitempty"`
+	// New body content (full replacement, mutually exclusive with bodyMod)
 	Body *string `json:"body,omitempty"`
+	// Structured body modifications (mutually exclusive with body)
+	BodyMod *BodyModification `json:"bodyMod,omitempty"`
+	// Set parent bean ID (null/empty to clear, validates type hierarchy)
+	Parent *string `json:"parent,omitempty"`
+	// Add beans to blocking list (validates cycles and existence)
+	AddBlocking []string `json:"addBlocking,omitempty"`
+	// Remove beans from blocking list
+	RemoveBlocking []string `json:"removeBlocking,omitempty"`
+	// Add beans to blocked-by list (validates cycles and existence)
+	AddBlockedBy []string `json:"addBlockedBy,omitempty"`
+	// Remove beans from blocked-by list
+	RemoveBlockedBy []string `json:"removeBlockedBy,omitempty"`
+	// ETag for optimistic concurrency control (optional)
+	IfMatch *string `json:"ifMatch,omitempty"`
 }
 
 // Type of change that occurred to a bean
