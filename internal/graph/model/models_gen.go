@@ -116,12 +116,26 @@ type UpdateBeanInput struct {
 	Type *string `json:"type,omitempty"`
 	// New priority
 	Priority *string `json:"priority,omitempty"`
-	// Replace all tags (nil preserves existing)
+	// Replace all tags (nil preserves existing, mutually exclusive with addTags/removeTags)
 	Tags []string `json:"tags,omitempty"`
+	// Add tags to existing list
+	AddTags []string `json:"addTags,omitempty"`
+	// Remove tags from existing list
+	RemoveTags []string `json:"removeTags,omitempty"`
 	// New body content (full replacement, mutually exclusive with bodyMod)
 	Body *string `json:"body,omitempty"`
 	// Structured body modifications (mutually exclusive with body)
 	BodyMod *BodyModification `json:"bodyMod,omitempty"`
+	// Set parent bean ID (null/empty to clear, validates type hierarchy)
+	Parent *string `json:"parent,omitempty"`
+	// Add beans to blocking list (validates cycles and existence)
+	AddBlocking []string `json:"addBlocking,omitempty"`
+	// Remove beans from blocking list
+	RemoveBlocking []string `json:"removeBlocking,omitempty"`
+	// Add beans to blocked-by list (validates cycles and existence)
+	AddBlockedBy []string `json:"addBlockedBy,omitempty"`
+	// Remove beans from blocked-by list
+	RemoveBlockedBy []string `json:"removeBlockedBy,omitempty"`
 	// ETag for optimistic concurrency control (optional)
 	IfMatch *string `json:"ifMatch,omitempty"`
 }

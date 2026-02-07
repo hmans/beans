@@ -4153,7 +4153,7 @@ func (ec *executionContext) unmarshalInputUpdateBeanInput(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"title", "status", "type", "priority", "tags", "body", "bodyMod", "ifMatch"}
+	fieldsInOrder := [...]string{"title", "status", "type", "priority", "tags", "addTags", "removeTags", "body", "bodyMod", "parent", "addBlocking", "removeBlocking", "addBlockedBy", "removeBlockedBy", "ifMatch"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -4195,6 +4195,20 @@ func (ec *executionContext) unmarshalInputUpdateBeanInput(ctx context.Context, o
 				return it, err
 			}
 			it.Tags = data
+		case "addTags":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("addTags"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AddTags = data
+		case "removeTags":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("removeTags"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RemoveTags = data
 		case "body":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("body"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
@@ -4209,6 +4223,41 @@ func (ec *executionContext) unmarshalInputUpdateBeanInput(ctx context.Context, o
 				return it, err
 			}
 			it.BodyMod = data
+		case "parent":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("parent"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Parent = data
+		case "addBlocking":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("addBlocking"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AddBlocking = data
+		case "removeBlocking":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("removeBlocking"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RemoveBlocking = data
+		case "addBlockedBy":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("addBlockedBy"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.AddBlockedBy = data
+		case "removeBlockedBy":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("removeBlockedBy"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RemoveBlockedBy = data
 		case "ifMatch":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("ifMatch"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)

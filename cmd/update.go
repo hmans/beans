@@ -89,61 +89,13 @@ var updateCmd = &cobra.Command{
 			input.IfMatch = ifMatch
 		}
 
-		// Apply field updates
+		// Apply all updates atomically via single UpdateBean mutation
+		// This includes field updates, body modifications, and relationship changes
 		if hasFieldUpdates(input) {
 			b, err = resolver.Mutation().UpdateBean(ctx, b.ID, input)
 			if err != nil {
 				return mutationError(updateJSON, err)
 			}
-		}
-
-		// Handle parent changes
-		if cmd.Flags().Changed("parent") || updateRemoveParent {
-			var parentID *string
-			if !updateRemoveParent && updateParent != "" {
-				parentID = &updateParent
-			}
-			b, err = resolver.Mutation().SetParent(ctx, b.ID, parentID, ifMatch)
-			if err != nil {
-				return mutationError(updateJSON, err)
-			}
-			changes = append(changes, "parent")
-		}
-
-		// Process blocking additions
-		for _, targetID := range updateBlocking {
-			b, err = resolver.Mutation().AddBlocking(ctx, b.ID, targetID, ifMatch)
-			if err != nil {
-				return mutationError(updateJSON, err)
-			}
-			changes = append(changes, "blocking")
-		}
-
-		// Process blocking removals
-		for _, targetID := range updateRemoveBlocking {
-			b, err = resolver.Mutation().RemoveBlocking(ctx, b.ID, targetID, ifMatch)
-			if err != nil {
-				return mutationError(updateJSON, err)
-			}
-			changes = append(changes, "blocking")
-		}
-
-		// Process blocked-by additions
-		for _, targetID := range updateBlockedBy {
-			b, err = resolver.Mutation().AddBlockedBy(ctx, b.ID, targetID, ifMatch)
-			if err != nil {
-				return mutationError(updateJSON, err)
-			}
-			changes = append(changes, "blocked-by")
-		}
-
-		// Process blocked-by removals
-		for _, targetID := range updateRemoveBlockedBy {
-			b, err = resolver.Mutation().RemoveBlockedBy(ctx, b.ID, targetID, ifMatch)
-			if err != nil {
-				return mutationError(updateJSON, err)
-			}
-			changes = append(changes, "blocked-by")
 		}
 
 		// Require at least one change
@@ -239,9 +191,44 @@ func buildUpdateInput(cmd *cobra.Command, existingTags []string, currentBody str
 		changes = append(changes, "body")
 	}
 
-	if len(updateTag) > 0 || len(updateRemoveTag) > 0 {
-		input.Tags = mergeTags(existingTags, updateTag, updateRemoveTag)
+	// Handle tags using granular add/remove (consistent with relationships)
+	if len(updateTag) > 0 {
+		input.AddTags = updateTag
 		changes = append(changes, "tags")
+	}
+	if len(updateRemoveTag) > 0 {
+		input.RemoveTags = updateRemoveTag
+		changes = append(changes, "tags")
+	}
+
+	// Handle parent relationship
+	if cmd.Flags().Changed("parent") {
+		input.Parent = &updateParent
+		changes = append(changes, "parent")
+	} else if updateRemoveParent {
+		emptyParent := ""
+		input.Parent = &emptyParent
+		changes = append(changes, "parent")
+	}
+
+	// Handle blocking relationships
+	if len(updateBlocking) > 0 {
+		input.AddBlocking = updateBlocking
+		changes = append(changes, "blocking")
+	}
+	if len(updateRemoveBlocking) > 0 {
+		input.RemoveBlocking = updateRemoveBlocking
+		changes = append(changes, "blocking")
+	}
+
+	// Handle blocked-by relationships
+	if len(updateBlockedBy) > 0 {
+		input.AddBlockedBy = updateBlockedBy
+		changes = append(changes, "blocked-by")
+	}
+	if len(updateRemoveBlockedBy) > 0 {
+		input.RemoveBlockedBy = updateRemoveBlockedBy
+		changes = append(changes, "blocked-by")
 	}
 
 	return input, changes, nil
@@ -250,7 +237,10 @@ func buildUpdateInput(cmd *cobra.Command, existingTags []string, currentBody str
 // hasFieldUpdates returns true if any field in the input is set.
 func hasFieldUpdates(input model.UpdateBeanInput) bool {
 	return input.Status != nil || input.Type != nil || input.Priority != nil ||
-		input.Title != nil || input.Body != nil || input.BodyMod != nil || input.Tags != nil
+		input.Title != nil || input.Body != nil || input.BodyMod != nil || input.Tags != nil ||
+		input.AddTags != nil || input.RemoveTags != nil ||
+		input.Parent != nil || input.AddBlocking != nil || input.RemoveBlocking != nil ||
+		input.AddBlockedBy != nil || input.RemoveBlockedBy != nil
 }
 
 // isConflictError returns true if the error is an ETag-related conflict error.

@@ -182,6 +182,11 @@ func (r *mutationResolver) UpdateBean(ctx context.Context, id string, input mode
 		return nil, fmt.Errorf("cannot specify both body and bodyMod")
 	}
 
+	// Validate tags and addTags/removeTags are mutually exclusive
+	if input.Tags != nil && (input.AddTags != nil || input.RemoveTags != nil) {
+		return nil, fmt.Errorf("cannot specify both tags and addTags/removeTags")
+	}
+
 	// Update fields if provided
 	if input.Title != nil {
 		b.Title = *input.Title
@@ -219,8 +224,63 @@ func (r *mutationResolver) UpdateBean(ctx context.Context, id string, input mode
 
 		b.Body = workingBody
 	}
+	// Handle tags
 	if input.Tags != nil {
 		b.Tags = input.Tags
+	} else if input.AddTags != nil || input.RemoveTags != nil {
+		// Build a set of current tags
+		tagSet := make(map[string]bool)
+		for _, tag := range b.Tags {
+			tagSet[tag] = true
+		}
+
+		// Add new tags
+		if input.AddTags != nil {
+			for _, tag := range input.AddTags {
+				tagSet[tag] = true
+			}
+		}
+
+		// Remove tags
+		if input.RemoveTags != nil {
+			for _, tag := range input.RemoveTags {
+				delete(tagSet, tag)
+			}
+		}
+
+		// Convert back to slice
+		newTags := make([]string, 0, len(tagSet))
+		for tag := range tagSet {
+			newTags = append(newTags, tag)
+		}
+		b.Tags = newTags
+	}
+
+	// Handle parent relationship
+	if input.Parent != nil {
+		if err := r.validateAndSetParent(b, *input.Parent); err != nil {
+			return nil, err
+		}
+	}
+
+	// Handle blocking relationships
+	if input.AddBlocking != nil {
+		if err := r.validateAndAddBlocking(b, input.AddBlocking); err != nil {
+			return nil, err
+		}
+	}
+	if input.RemoveBlocking != nil {
+		r.removeBlockingRelationships(b, input.RemoveBlocking)
+	}
+
+	// Handle blocked-by relationships
+	if input.AddBlockedBy != nil {
+		if err := r.validateAndAddBlockedBy(b, input.AddBlockedBy); err != nil {
+			return nil, err
+		}
+	}
+	if input.RemoveBlockedBy != nil {
+		r.removeBlockedByRelationships(b, input.RemoveBlockedBy)
 	}
 
 	// ETag validation now happens inside Update() under write lock
