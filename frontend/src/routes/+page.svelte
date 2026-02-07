@@ -95,7 +95,7 @@
 			<!-- Right pane: Bean detail -->
 			<div class="flex-1 bg-white min-w-0 overflow-hidden">
 				{#if currentBean}
-					<BeanDetail bean={currentBean} />
+					<BeanDetail bean={currentBean} onSelect={selectBean} />
 				{:else}
 					<div class="h-full flex items-center justify-center text-gray-400">
 						<p>Select a bean to view details</p>

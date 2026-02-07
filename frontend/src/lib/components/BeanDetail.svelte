@@ -5,9 +5,10 @@
 
 	interface Props {
 		bean: Bean;
+		onSelect?: (bean: Bean) => void;
 	}
 
-	let { bean }: Props = $props();
+	let { bean, onSelect }: Props = $props();
 
 	// Get parent and children
 	const parent = $derived(bean.parentId ? beansStore.get(bean.parentId) : null);
@@ -19,20 +20,29 @@
 
 	// Status colors
 	const statusColors: Record<string, string> = {
-		todo: 'bg-gray-200 text-gray-800',
-		'in-progress': 'bg-blue-200 text-blue-800',
-		completed: 'bg-green-200 text-green-800',
-		scrapped: 'bg-red-200 text-red-800',
-		draft: 'bg-yellow-200 text-yellow-800'
+		todo: 'bg-gray-200 text-gray-700',
+		'in-progress': 'bg-blue-200 text-blue-700',
+		completed: 'bg-green-200 text-green-700',
+		scrapped: 'bg-red-200 text-red-700',
+		draft: 'bg-yellow-200 text-yellow-700'
 	};
 
-	// Type colors
+	// Type colors (for header badge)
 	const typeColors: Record<string, string> = {
 		milestone: 'bg-purple-100 text-purple-700',
 		epic: 'bg-indigo-100 text-indigo-700',
 		feature: 'bg-cyan-100 text-cyan-700',
 		bug: 'bg-red-100 text-red-700',
 		task: 'bg-gray-100 text-gray-700'
+	};
+
+	// Type border colors (matching BeanItem card style)
+	const typeBorders: Record<string, string> = {
+		milestone: 'border-l-purple-400',
+		epic: 'border-l-indigo-400',
+		feature: 'border-l-cyan-400',
+		bug: 'border-l-red-400',
+		task: 'border-l-gray-300'
 	};
 
 	// Priority colors
@@ -67,6 +77,24 @@
 	}
 </script>
 
+{#snippet beanCard(b: Bean)}
+	<button
+		onclick={() => onSelect?.(b)}
+		class="w-full text-left rounded p-1.5 border-l-2 transition-all cursor-pointer bg-white hover:bg-gray-50
+			{typeBorders[b.type] ?? 'border-l-gray-300'}"
+	>
+		<div class="flex items-center gap-1.5 min-w-0">
+			<code class="text-[9px] text-gray-400 shrink-0">{b.id.slice(-4)}</code>
+			<span class="text-xs text-gray-900 truncate flex-1">{b.title}</span>
+			<span
+				class="text-[9px] px-1 py-0.5 rounded-full shrink-0 {statusColors[b.status] ?? 'bg-gray-200 text-gray-700'}"
+			>
+				{b.status}
+			</span>
+		</div>
+	</button>
+{/snippet}
+
 <div class="h-full overflow-auto p-6">
 	<!-- Header -->
 	<div class="mb-6">
@@ -88,7 +116,7 @@
 			<span class="text-xs px-2 py-0.5 rounded-full {typeColors[bean.type] ?? 'bg-gray-100 text-gray-700'}">
 				{bean.type}
 			</span>
-			<span class="text-xs px-2 py-0.5 rounded-full {statusColors[bean.status] ?? 'bg-gray-200 text-gray-800'}">
+			<span class="text-xs px-2 py-0.5 rounded-full {statusColors[bean.status] ?? 'bg-gray-200 text-gray-700'}">
 				{bean.status}
 			</span>
 			{#if bean.priority && bean.priority !== 'normal'}
@@ -118,49 +146,40 @@
 			{#if parent}
 				<div>
 					<h2 class="text-xs font-semibold text-gray-500 uppercase mb-1">Parent</h2>
-					<div class="text-sm text-gray-700">
-						<span class="font-mono text-gray-400">{parent.id}</span> {parent.title}
-					</div>
+					{@render beanCard(parent)}
 				</div>
 			{/if}
 
 			{#if children.length > 0}
 				<div>
 					<h2 class="text-xs font-semibold text-gray-500 uppercase mb-1">Children ({children.length})</h2>
-					<ul class="text-sm text-gray-700 space-y-0.5">
+					<div class="space-y-0.5">
 						{#each children as child}
-							<li>
-								<span class="font-mono text-gray-400">{child.id}</span> {child.title}
-								<span class="text-xs px-1.5 py-0.5 rounded-full {statusColors[child.status]}">{child.status}</span>
-							</li>
+							{@render beanCard(child)}
 						{/each}
-					</ul>
+					</div>
 				</div>
 			{/if}
 
 			{#if blocking.length > 0}
 				<div>
 					<h2 class="text-xs font-semibold text-gray-500 uppercase mb-1">Blocking ({blocking.length})</h2>
-					<ul class="text-sm text-gray-700 space-y-0.5">
+					<div class="space-y-0.5">
 						{#each blocking as b}
-							<li>
-								<span class="font-mono text-gray-400">{b.id}</span> {b.title}
-							</li>
+							{@render beanCard(b)}
 						{/each}
-					</ul>
+					</div>
 				</div>
 			{/if}
 
 			{#if blockedBy.length > 0}
 				<div>
 					<h2 class="text-xs font-semibold text-gray-500 uppercase mb-1">Blocked By ({blockedBy.length})</h2>
-					<ul class="text-sm text-gray-700 space-y-0.5">
+					<div class="space-y-0.5">
 						{#each blockedBy as b}
-							<li>
-								<span class="font-mono text-gray-400">{b.id}</span> {b.title}
-							</li>
+							{@render beanCard(b)}
 						{/each}
-					</ul>
+					</div>
 				</div>
 			{/if}
 		</div>
