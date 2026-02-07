@@ -3,6 +3,8 @@ import { playwright } from '@vitest/browser-playwright';
 import tailwindcss from '@tailwindcss/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
 
+const backendPort = process.env.BEANS_PORT || '22880';
+
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
 
@@ -10,7 +12,7 @@ export default defineConfig({
 		// Proxy some URL routes to the Go backend process in development.
 		proxy: {
 			'/api': {
-				target: 'http://localhost:22880',
+				target: `http://localhost:${backendPort}`,
 				ws: true,
 				changeOrigin: true
 			}

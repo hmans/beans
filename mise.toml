@@ -91,11 +91,11 @@ echo "To release, run: git push && git push --tags"
 
 
 [tasks."dev:serve"]
-run = "wgo run -exit . serve"
+run = "wgo run -exit . serve --port ${BEANS_PORT:-22880}"
 
 [tasks."dev:frontend"]
 dir = "frontend"
-run = "pnpm dev"
+run = "pnpm dev --port ${VITE_PORT:-5173}"
 
 [tasks.dev]
 description = "Run the development server"

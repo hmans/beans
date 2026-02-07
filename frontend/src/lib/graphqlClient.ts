@@ -3,10 +3,11 @@ import { createClient as createWSClient } from 'graphql-ws';
 
 const url = '/api/graphql';
 
-// For WebSocket, connect directly to backend in dev (Vite proxy doesn't handle WS well with SvelteKit)
-// In production, the backend serves everything so relative URL works
-const isDev = typeof window !== 'undefined' && window.location.port === '5173';
-const wsUrl = isDev ? 'ws://localhost:22880/api/graphql' : `ws://${typeof window !== 'undefined' ? window.location.host : 'localhost'}/api/graphql`;
+// Use the current host for WebSocket connections. In dev, Vite proxies /api
+// (including WebSocket) to the backend. In production, the backend serves everything.
+const wsUrl = typeof window !== 'undefined'
+	? `ws://${window.location.host}/api/graphql`
+	: 'ws://localhost/api/graphql';
 
 const wsClient = createWSClient({
 	url: wsUrl,
