@@ -120,6 +120,18 @@ func showStyledBean(b *bean.Bean) {
 	header.WriteString(ui.ID.Render(b.ID))
 	header.WriteString(" ")
 	header.WriteString(ui.RenderStatusWithColor(b.Status, statusColor, isArchive))
+
+	// Display type
+	if b.Type != "" {
+		typeCfg := cfg.GetType(b.Type)
+		typeColor := "gray"
+		if typeCfg != nil {
+			typeColor = typeCfg.Color
+		}
+		header.WriteString(" ")
+		header.WriteString(ui.RenderTypeWithColor(b.Type, typeColor))
+	}
+
 	if b.Priority != "" {
 		priorityCfg := cfg.GetPriority(b.Priority)
 		priorityColor := "gray"
