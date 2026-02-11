@@ -16,13 +16,14 @@ BEFORE starting any task:
 
 - FIRST: Check if there already is an existing bean about this work. If there isn't, create a bean with `beans create "Title" -t <type> -d "Description..." -s in-progress`
 - THEN: Do the work, and keep the bean's todo items current (check off what has been done, as it happens; `- [ ]` → `- [x]`)
-- FINALLY: ONLY if the bean has no unchecked todo items left, mark it completed with `beans update <bean-id> -s completed`.
+- FINALLY: ONLY if the bean has no unchecked todo items left, mark it completed with `beans complete <bean-id>` (optionally with `-m "summary"`)
 - WHEN COMMITTING: Include both code changes AND bean file(s) in the commit
 
 AFTER finishing any task:
 
-- When COMPLETING a bean, update it with a `## Summary of Changes` section describing what was done.
-- When SCRAPPING a bean, update it with a `## Reasons for Scrapping` section explaining why.
+- When COMPLETING a bean: `beans complete <bean-id> -m "Summary of what was done"`
+- When SCRAPPING a bean: `beans scrap <bean-id> -m "Reason for scrapping"`
+- When STARTING a bean: `beans start <bean-id>` (warns if blocked, use `-f` to force)
 - Offer to create follow-up beans for any non-urgent work that was deferred.
 
 ## Finding Work
@@ -31,7 +32,10 @@ When the user asks what to work on next:
 
 ```bash
 # Find beans ready to start (not blocked, excludes in-progress/completed/scrapped/draft)
-beans list --json --ready
+beans ready --json
+
+# Show the highest-priority bean ready to start
+beans next --json
 
 # View full details of specific beans (supports multiple IDs)
 beans show --json <id> [id...]
@@ -62,6 +66,22 @@ beans update --json <id> --blocked-by <other-id>               # Mark as blocked
 beans update --json <id> --body-replace-old "old" --body-replace-new "new"  # Replace text
 beans update --json <id> --body-append "## Notes"              # Append to body
 beans update --json <id> -s completed --body-replace-old "- [ ] Task" --body-replace-new "- [x] Task"  # Combined
+
+# Workflow commands (preferred over `beans update -s ...`)
+beans start <id>                       # Set status to in-progress (warns if blocked)
+beans start -f <id>                    # Start even if blocked
+beans complete <id>                    # Set status to completed
+beans complete <id> -m "Summary..."    # Complete with a summary of changes
+beans scrap <id> -m "Reason..."        # Set status to scrapped (reason required)
+
+# Finding work
+beans ready --json                     # Beans ready to start (same as list --ready)
+beans next --json                      # Highest-priority bean ready to start
+beans blocked --json                   # Beans blocked by others
+
+# Reporting
+beans milestones                       # Milestone progress with completion percentages
+beans progress                         # Overall project status breakdown
 
 # Archive completed/scrapped beans (only when user requests)
 beans archive

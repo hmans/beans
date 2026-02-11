@@ -44,28 +44,11 @@ var updateCmd = &cobra.Command{
 	Long:    `Updates one or more properties of an existing bean.`,
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := context.Background()
 		resolver := &graph.Resolver{Core: core}
 
-		// Find the bean
-		b, err := resolver.Query().Bean(ctx, args[0])
+		b, wasArchived, err := resolveBean(resolver, args[0], updateJSON)
 		if err != nil {
-			return cmdError(updateJSON, output.ErrNotFound, "failed to find bean: %v", err)
-		}
-
-		// If not found, check the archive and unarchive if present
-		wasArchived := false
-		if b == nil {
-			unarchived, unarchiveErr := core.LoadAndUnarchive(args[0])
-			if unarchiveErr != nil {
-				return cmdError(updateJSON, output.ErrNotFound, "bean not found: %s", args[0])
-			}
-			// Re-query to get the model.Bean
-			b, err = resolver.Query().Bean(ctx, unarchived.ID)
-			if err != nil || b == nil {
-				return cmdError(updateJSON, output.ErrNotFound, "bean not found: %s", args[0])
-			}
-			wasArchived = true
+			return err
 		}
 
 		// Track changes for output
@@ -92,7 +75,7 @@ var updateCmd = &cobra.Command{
 		// Apply all updates atomically via single UpdateBean mutation
 		// This includes field updates, body modifications, and relationship changes
 		if hasFieldUpdates(input) {
-			b, err = resolver.Mutation().UpdateBean(ctx, b.ID, input)
+			b, err = resolver.Mutation().UpdateBean(context.Background(), b.ID, input)
 			if err != nil {
 				return mutationError(updateJSON, err)
 			}
