@@ -10,15 +10,23 @@ import (
 // RegisterCoreCommands adds all core CLI commands to the root command.
 func RegisterCoreCommands(root *cobra.Command) {
 	RegisterArchiveCmd(root)
+	RegisterBlockedCmd(root)
 	RegisterCheckCmd(root)
+	RegisterCompleteCmd(root)
 	RegisterCreateCmd(root)
 	RegisterDeleteCmd(root)
 	RegisterGraphqlCmd(root)
 	RegisterInitCmd(root)
 	RegisterListCmd(root)
+	RegisterMilestonesCmd(root)
+	RegisterNextCmd(root)
 	RegisterPrimeCmd(root)
+	RegisterProgressCmd(root)
+	RegisterReadyCmd(root)
 	RegisterRoadmapCmd(root)
+	RegisterScrapCmd(root)
 	RegisterShowCmd(root)
+	RegisterStartCmd(root)
 	RegisterUpdateCmd(root)
 	RegisterVersionCmd(root)
 

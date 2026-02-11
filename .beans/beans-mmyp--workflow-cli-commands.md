@@ -1,7 +1,7 @@
 ---
 # beans-mmyp
 title: Workflow CLI commands
-status: todo
+status: in-progress
 type: epic
 priority: normal
 created_at: 2025-12-27T21:43:38Z
