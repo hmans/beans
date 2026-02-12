@@ -2,6 +2,25 @@
 
 package model
 
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"strconv"
+
+	"github.com/hmans/beans/internal/bean"
+)
+
+// Represents a change to a bean
+type BeanChangeEvent struct {
+	// Type of change that occurred
+	Type ChangeType `json:"type"`
+	// The bean that changed (null for DELETED events)
+	Bean *bean.Bean `json:"bean,omitempty"`
+	// ID of the bean that changed (always present)
+	BeanID string `json:"beanId"`
+}
+
 // Filter options for querying beans
 type BeanFilter struct {
 	// Full-text search across slug, title, and body using Bleve query syntax.
@@ -106,6 +125,9 @@ type ReplaceOperation struct {
 	New string `json:"new"`
 }
 
+type Subscription struct {
+}
+
 // Input for updating an existing bean
 type UpdateBeanInput struct {
 	// New title
@@ -138,4 +160,68 @@ type UpdateBeanInput struct {
 	RemoveBlockedBy []string `json:"removeBlockedBy,omitempty"`
 	// ETag for optimistic concurrency control (optional)
 	IfMatch *string `json:"ifMatch,omitempty"`
+}
+
+// Type of change that occurred to a bean
+type ChangeType string
+
+const (
+	// Bean existed when subscription started (emitted when includeInitial=true)
+	ChangeTypeInitial ChangeType = "INITIAL"
+	// Signals that all initial beans have been sent (emitted after INITIAL events when includeInitial=true)
+	ChangeTypeInitialSyncComplete ChangeType = "INITIAL_SYNC_COMPLETE"
+	ChangeTypeCreated             ChangeType = "CREATED"
+	ChangeTypeUpdated             ChangeType = "UPDATED"
+	ChangeTypeDeleted             ChangeType = "DELETED"
+)
+
+var AllChangeType = []ChangeType{
+	ChangeTypeInitial,
+	ChangeTypeInitialSyncComplete,
+	ChangeTypeCreated,
+	ChangeTypeUpdated,
+	ChangeTypeDeleted,
+}
+
+func (e ChangeType) IsValid() bool {
+	switch e {
+	case ChangeTypeInitial, ChangeTypeInitialSyncComplete, ChangeTypeCreated, ChangeTypeUpdated, ChangeTypeDeleted:
+		return true
+	}
+	return false
+}
+
+func (e ChangeType) String() string {
+	return string(e)
+}
+
+func (e *ChangeType) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ChangeType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ChangeType", str)
+	}
+	return nil
+}
+
+func (e ChangeType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ChangeType) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ChangeType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }

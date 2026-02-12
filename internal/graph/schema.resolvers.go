@@ -41,7 +41,10 @@ func (r *beanResolver) BlockedBy(ctx context.Context, obj *bean.Bean, filter *mo
 			result = append(result, link.FromBean)
 		}
 	}
-	return ApplyFilter(result, filter, r.Core), nil
+	filtered := ApplyFilter(result, filter, r.Core)
+	cfg := r.Core.Config()
+	bean.SortByStatusPriorityAndType(filtered, cfg.StatusNames(), cfg.PriorityNames(), cfg.TypeNames())
+	return filtered, nil
 }
 
 // Blocking is the resolver for the blocking field.
@@ -53,7 +56,10 @@ func (r *beanResolver) Blocking(ctx context.Context, obj *bean.Bean, filter *mod
 			result = append(result, target)
 		}
 	}
-	return ApplyFilter(result, filter, r.Core), nil
+	filtered := ApplyFilter(result, filter, r.Core)
+	cfg := r.Core.Config()
+	bean.SortByStatusPriorityAndType(filtered, cfg.StatusNames(), cfg.PriorityNames(), cfg.TypeNames())
+	return filtered, nil
 }
 
 // Parent is the resolver for the parent field.
@@ -78,7 +84,10 @@ func (r *beanResolver) Children(ctx context.Context, obj *bean.Bean, filter *mod
 			result = append(result, link.FromBean)
 		}
 	}
-	return ApplyFilter(result, filter, r.Core), nil
+	filtered := ApplyFilter(result, filter, r.Core)
+	cfg := r.Core.Config()
+	bean.SortByStatusPriorityAndType(filtered, cfg.StatusNames(), cfg.PriorityNames(), cfg.TypeNames())
+	return filtered, nil
 }
 
 // CreateBean is the resolver for the createBean field.
@@ -478,7 +487,99 @@ func (r *queryResolver) Beans(ctx context.Context, filter *model.BeanFilter) ([]
 		beans = r.Core.All()
 	}
 
-	return ApplyFilter(beans, filter, r.Core), nil
+	result := ApplyFilter(beans, filter, r.Core)
+
+	// Sort using the same logic as CLI and TUI
+	cfg := r.Core.Config()
+	bean.SortByStatusPriorityAndType(result, cfg.StatusNames(), cfg.PriorityNames(), cfg.TypeNames())
+
+	return result, nil
+}
+
+// BeanChanged is the resolver for the beanChanged field.
+func (r *subscriptionResolver) BeanChanged(ctx context.Context, includeInitial *bool) (<-chan *model.BeanChangeEvent, error) {
+	// Subscribe to bean events from beancore
+	eventCh, unsubscribe := r.Core.Subscribe()
+
+	// Create output channel for GraphQL
+	out := make(chan *model.BeanChangeEvent)
+
+	// Start goroutine to forward events
+	go func() {
+		defer unsubscribe()
+		defer close(out)
+
+		// If includeInitial is true, emit all current beans first (sorted consistently with CLI)
+		if includeInitial != nil && *includeInitial {
+			beans := r.Core.All()
+			cfg := r.Core.Config()
+			bean.SortByStatusPriorityAndType(beans, cfg.StatusNames(), cfg.PriorityNames(), cfg.TypeNames())
+
+			for _, b := range beans {
+				select {
+				case out <- &model.BeanChangeEvent{
+					Type:   model.ChangeTypeInitial,
+					BeanID: b.ID,
+					Bean:   b,
+				}:
+					// Sent successfully
+				case <-ctx.Done():
+					return
+				}
+			}
+
+			// Signal that initial sync is complete
+			select {
+			case out <- &model.BeanChangeEvent{
+				Type:   model.ChangeTypeInitialSyncComplete,
+				BeanID: "",
+			}:
+				// Sent successfully
+			case <-ctx.Done():
+				return
+			}
+		}
+
+		for {
+			select {
+			case <-ctx.Done():
+				// Client disconnected
+				return
+			case events, ok := <-eventCh:
+				if !ok {
+					// Channel closed (watcher stopped)
+					return
+				}
+
+				// Forward each event to the GraphQL subscription
+				for _, event := range events {
+					gqlEvent := &model.BeanChangeEvent{
+						BeanID: event.BeanID,
+						Bean:   event.Bean,
+					}
+
+					// Convert event type
+					switch event.Type {
+					case beancore.EventCreated:
+						gqlEvent.Type = model.ChangeTypeCreated
+					case beancore.EventUpdated:
+						gqlEvent.Type = model.ChangeTypeUpdated
+					case beancore.EventDeleted:
+						gqlEvent.Type = model.ChangeTypeDeleted
+					}
+
+					select {
+					case out <- gqlEvent:
+						// Sent successfully
+					case <-ctx.Done():
+						return
+					}
+				}
+			}
+		}
+	}()
+
+	return out, nil
 }
 
 // Bean returns BeanResolver implementation.
@@ -490,6 +591,10 @@ func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
+// Subscription returns SubscriptionResolver implementation.
+func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
+
 type beanResolver struct{ *Resolver }
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }

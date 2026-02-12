@@ -44,6 +44,7 @@ type ResolverRoot interface {
 	Bean() BeanResolver
 	Mutation() MutationResolver
 	Query() QueryResolver
+	Subscription() SubscriptionResolver
 }
 
 type DirectiveRoot struct {
@@ -72,6 +73,12 @@ type ComplexityRoot struct {
 		UpdatedAt    func(childComplexity int) int
 	}
 
+	BeanChangeEvent struct {
+		Bean   func(childComplexity int) int
+		BeanID func(childComplexity int) int
+		Type   func(childComplexity int) int
+	}
+
 	Mutation struct {
 		AddBlockedBy    func(childComplexity int, id string, targetID string, ifMatch *string) int
 		AddBlocking     func(childComplexity int, id string, targetID string, ifMatch *string) int
@@ -86,6 +93,10 @@ type ComplexityRoot struct {
 	Query struct {
 		Bean  func(childComplexity int, id string) int
 		Beans func(childComplexity int, filter *model.BeanFilter) int
+	}
+
+	Subscription struct {
+		BeanChanged func(childComplexity int, includeInitial *bool) int
 	}
 }
 
@@ -111,6 +122,9 @@ type MutationResolver interface {
 type QueryResolver interface {
 	Bean(ctx context.Context, id string) (*bean.Bean, error)
 	Beans(ctx context.Context, filter *model.BeanFilter) ([]*bean.Bean, error)
+}
+type SubscriptionResolver interface {
+	BeanChanged(ctx context.Context, includeInitial *bool) (<-chan *model.BeanChangeEvent, error)
 }
 
 type executableSchema struct {
@@ -262,6 +276,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Bean.UpdatedAt(childComplexity), true
 
+	case "BeanChangeEvent.bean":
+		if e.complexity.BeanChangeEvent.Bean == nil {
+			break
+		}
+
+		return e.complexity.BeanChangeEvent.Bean(childComplexity), true
+	case "BeanChangeEvent.beanId":
+		if e.complexity.BeanChangeEvent.BeanID == nil {
+			break
+		}
+
+		return e.complexity.BeanChangeEvent.BeanID(childComplexity), true
+	case "BeanChangeEvent.type":
+		if e.complexity.BeanChangeEvent.Type == nil {
+			break
+		}
+
+		return e.complexity.BeanChangeEvent.Type(childComplexity), true
+
 	case "Mutation.addBlockedBy":
 		if e.complexity.Mutation.AddBlockedBy == nil {
 			break
@@ -374,6 +407,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Query.Beans(childComplexity, args["filter"].(*model.BeanFilter)), true
 
+	case "Subscription.beanChanged":
+		if e.complexity.Subscription.BeanChanged == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_beanChanged_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.BeanChanged(childComplexity, args["includeInitial"].(*bool)), true
+
 	}
 	return 0, false
 }
@@ -430,6 +475,23 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			ctx = graphql.WithUnmarshalerMap(ctx, inputUnmarshalMap)
 			data := ec._Mutation(ctx, opCtx.Operation.SelectionSet)
 			var buf bytes.Buffer
+			data.MarshalGQL(&buf)
+
+			return &graphql.Response{
+				Data: buf.Bytes(),
+			}
+		}
+	case ast.Subscription:
+		next := ec._Subscription(ctx, opCtx.Operation.SelectionSet)
+
+		var buf bytes.Buffer
+		return func(ctx context.Context) *graphql.Response {
+			buf.Reset()
+			data := next(ctx)
+
+			if data == nil {
+				return nil
+			}
 			data.MarshalGQL(&buf)
 
 			return &graphql.Response{
@@ -709,6 +771,17 @@ func (ec *executionContext) field_Query_beans_args(ctx context.Context, rawArgs 
 		return nil, err
 	}
 	args["filter"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_beanChanged_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "includeInitial", ec.unmarshalOBoolean2ᚖbool)
+	if err != nil {
+		return nil, err
+	}
+	args["includeInitial"] = arg0
 	return args, nil
 }
 
@@ -1507,6 +1580,133 @@ func (ec *executionContext) fieldContext_Bean_children(ctx context.Context, fiel
 	if fc.Args, err = ec.field_Bean_children_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BeanChangeEvent_type(ctx context.Context, field graphql.CollectedField, obj *model.BeanChangeEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BeanChangeEvent_type,
+		func(ctx context.Context) (any, error) {
+			return obj.Type, nil
+		},
+		nil,
+		ec.marshalNChangeType2githubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐChangeType,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BeanChangeEvent_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BeanChangeEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ChangeType does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BeanChangeEvent_bean(ctx context.Context, field graphql.CollectedField, obj *model.BeanChangeEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BeanChangeEvent_bean,
+		func(ctx context.Context) (any, error) {
+			return obj.Bean, nil
+		},
+		nil,
+		ec.marshalOBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋbeanᚐBean,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_BeanChangeEvent_bean(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BeanChangeEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Bean_id(ctx, field)
+			case "slug":
+				return ec.fieldContext_Bean_slug(ctx, field)
+			case "path":
+				return ec.fieldContext_Bean_path(ctx, field)
+			case "title":
+				return ec.fieldContext_Bean_title(ctx, field)
+			case "status":
+				return ec.fieldContext_Bean_status(ctx, field)
+			case "type":
+				return ec.fieldContext_Bean_type(ctx, field)
+			case "priority":
+				return ec.fieldContext_Bean_priority(ctx, field)
+			case "tags":
+				return ec.fieldContext_Bean_tags(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Bean_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Bean_updatedAt(ctx, field)
+			case "body":
+				return ec.fieldContext_Bean_body(ctx, field)
+			case "etag":
+				return ec.fieldContext_Bean_etag(ctx, field)
+			case "parentId":
+				return ec.fieldContext_Bean_parentId(ctx, field)
+			case "blockingIds":
+				return ec.fieldContext_Bean_blockingIds(ctx, field)
+			case "blockedByIds":
+				return ec.fieldContext_Bean_blockedByIds(ctx, field)
+			case "blockedBy":
+				return ec.fieldContext_Bean_blockedBy(ctx, field)
+			case "blocking":
+				return ec.fieldContext_Bean_blocking(ctx, field)
+			case "parent":
+				return ec.fieldContext_Bean_parent(ctx, field)
+			case "children":
+				return ec.fieldContext_Bean_children(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _BeanChangeEvent_beanId(ctx context.Context, field graphql.CollectedField, obj *model.BeanChangeEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BeanChangeEvent_beanId,
+		func(ctx context.Context) (any, error) {
+			return obj.BeanID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_BeanChangeEvent_beanId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BeanChangeEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
 	}
 	return fc, nil
 }
@@ -2385,6 +2585,55 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 			}
 			return nil, fmt.Errorf("no field named %q was found under type __Schema", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_beanChanged(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Subscription_beanChanged,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Subscription().BeanChanged(ctx, fc.Args["includeInitial"].(*bool))
+		},
+		nil,
+		ec.marshalNBeanChangeEvent2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐBeanChangeEvent,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Subscription_beanChanged(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "type":
+				return ec.fieldContext_BeanChangeEvent_type(ctx, field)
+			case "bean":
+				return ec.fieldContext_BeanChangeEvent_bean(ctx, field)
+			case "beanId":
+				return ec.fieldContext_BeanChangeEvent_beanId(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type BeanChangeEvent", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_beanChanged_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -4616,6 +4865,52 @@ func (ec *executionContext) _Bean(ctx context.Context, sel ast.SelectionSet, obj
 	return out
 }
 
+var beanChangeEventImplementors = []string{"BeanChangeEvent"}
+
+func (ec *executionContext) _BeanChangeEvent(ctx context.Context, sel ast.SelectionSet, obj *model.BeanChangeEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, beanChangeEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BeanChangeEvent")
+		case "type":
+			out.Values[i] = ec._BeanChangeEvent_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "bean":
+			out.Values[i] = ec._BeanChangeEvent_bean(ctx, field, obj)
+		case "beanId":
+			out.Values[i] = ec._BeanChangeEvent_beanId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var mutationImplementors = []string{"Mutation"}
 
 func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
@@ -4803,6 +5098,26 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 	}
 
 	return out
+}
+
+var subscriptionImplementors = []string{"Subscription"}
+
+func (ec *executionContext) _Subscription(ctx context.Context, sel ast.SelectionSet) func(ctx context.Context) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, subscriptionImplementors)
+	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
+		Object: "Subscription",
+	})
+	if len(fields) != 1 {
+		graphql.AddErrorf(ctx, "must subscribe to exactly one stream")
+		return nil
+	}
+
+	switch fields[0].Name {
+	case "beanChanged":
+		return ec._Subscription_beanChanged(ctx, fields[0])
+	default:
+		panic("unknown field " + strconv.Quote(fields[0].Name))
+	}
 }
 
 var __DirectiveImplementors = []string{"__Directive"}
@@ -5198,6 +5513,20 @@ func (ec *executionContext) marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋinter
 	return ec._Bean(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNBeanChangeEvent2githubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐBeanChangeEvent(ctx context.Context, sel ast.SelectionSet, v model.BeanChangeEvent) graphql.Marshaler {
+	return ec._BeanChangeEvent(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNBeanChangeEvent2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐBeanChangeEvent(ctx context.Context, sel ast.SelectionSet, v *model.BeanChangeEvent) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._BeanChangeEvent(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v any) (bool, error) {
 	res, err := graphql.UnmarshalBoolean(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -5212,6 +5541,16 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNChangeType2githubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐChangeType(ctx context.Context, v any) (model.ChangeType, error) {
+	var res model.ChangeType
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNChangeType2githubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐChangeType(ctx context.Context, sel ast.SelectionSet, v model.ChangeType) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) unmarshalNCreateBeanInput2githubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐCreateBeanInput(ctx context.Context, v any) (model.CreateBeanInput, error) {

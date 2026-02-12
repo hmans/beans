@@ -14,6 +14,42 @@ type Query {
   beans(filter: BeanFilter): [Bean!]!
 }
 
+type Subscription {
+  """
+  Subscribe to bean change events (created, updated, deleted).
+
+  When includeInitial is true, all existing beans are emitted first as CREATED
+  events with isInitial=true, followed by real-time changes with isInitial=false.
+  This eliminates race conditions between loading and subscribing.
+  """
+  beanChanged(includeInitial: Boolean = false): BeanChangeEvent!
+}
+
+"""
+Represents a change to a bean
+"""
+type BeanChangeEvent {
+  "Type of change that occurred"
+  type: ChangeType!
+  "The bean that changed (null for DELETED events)"
+  bean: Bean
+  "ID of the bean that changed (always present)"
+  beanId: ID!
+}
+
+"""
+Type of change that occurred to a bean
+"""
+enum ChangeType {
+  "Bean existed when subscription started (emitted when includeInitial=true)"
+  INITIAL
+  "Signals that all initial beans have been sent (emitted after INITIAL events when includeInitial=true)"
+  INITIAL_SYNC_COMPLETE
+  CREATED
+  UPDATED
+  DELETED
+}
+
 type Mutation {
   """
   Create a new bean
