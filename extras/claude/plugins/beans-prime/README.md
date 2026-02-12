@@ -1,3 +1,17 @@
 # beans-prime
 
-This is a **work in progress** plugin for Claude Code that aims at integrating Beans a little easier with the agent (so the user doesn't have to manually edit their settings file). It's currently not ready for prime time use -- for now, please refer to Beans' main README for instructions on how to set up Beans with Claude Code.
+A Claude Code plugin that integrates [Beans](https://github.com/hmans/beans) into your coding sessions. It runs `beans prime` automatically at session start and before context compaction, giving Claude full context about your project's tasks.
+
+## Installation
+
+```
+/plugin marketplace add hmans/beans
+/plugin install beans-prime@beans
+```
+
+## What it does
+
+This plugin registers hooks for the following Claude Code events:
+
+- **SessionStart**: Runs `beans prime` when a new session begins, providing Claude with your project's task context and instructions.
+- **PreCompact**: Runs `beans prime` before context compaction, ensuring task context is preserved when the conversation is compressed.
