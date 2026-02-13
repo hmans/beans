@@ -1,10 +1,11 @@
 ---
 # beans-18db
 title: beans milestones command
-status: todo
+status: completed
 type: task
+priority: normal
 created_at: 2025-12-27T21:44:05Z
-updated_at: 2025-12-27T21:44:05Z
+updated_at: 2026-02-12T00:26:36Z
 parent: beans-mmyp
 ---
 

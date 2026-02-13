@@ -1,13 +1,16 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 
 	"github.com/hmans/beans/internal/bean"
+	"github.com/hmans/beans/internal/graph"
 	"github.com/hmans/beans/internal/output"
+	"github.com/hmans/beans/internal/ui"
 )
 
 // resolveContent returns content from a direct value or file flag.
@@ -92,6 +95,73 @@ func applyBodyReplace(body, old, new string) (string, error) {
 // applyBodyAppend appends text to the body with a newline separator.
 func applyBodyAppend(body, text string) string {
 	return bean.AppendWithSeparator(body, text)
+}
+
+// resolveBean finds a bean by ID, checking the archive if needed.
+// Returns the bean and whether it was unarchived.
+func resolveBean(resolver *graph.Resolver, id string, jsonMode bool) (*bean.Bean, bool, error) {
+	b, err := resolver.Query().Bean(context.Background(), id)
+	if err != nil {
+		return nil, false, cmdError(jsonMode, output.ErrNotFound, "failed to find bean: %v", err)
+	}
+
+	if b == nil {
+		unarchived, unarchiveErr := core.LoadAndUnarchive(id)
+		if unarchiveErr != nil {
+			return nil, false, cmdError(jsonMode, output.ErrNotFound, "bean not found: %s", id)
+		}
+		b, err = resolver.Query().Bean(context.Background(), unarchived.ID)
+		if err != nil || b == nil {
+			return nil, false, cmdError(jsonMode, output.ErrNotFound, "bean not found: %s", id)
+		}
+		return b, true, nil
+	}
+
+	return b, false, nil
+}
+
+// result holds the outcome of a workflow command for a single bean.
+type result struct {
+	bean    *bean.Bean
+	warning string
+}
+
+// outputResults handles JSON and human output for multi-ID workflow commands.
+func outputResults(results []*result, errs []error, jsonMode bool, pastTense, pastTenseCapitalized string) error {
+	beans := make([]*bean.Bean, 0, len(results))
+	var warnings []string
+	for _, r := range results {
+		beans = append(beans, r.bean)
+		if r.warning != "" {
+			warnings = append(warnings, fmt.Sprintf("%s: %s", r.bean.ID, r.warning))
+		}
+	}
+	for _, e := range errs {
+		warnings = append(warnings, e.Error())
+	}
+
+	if jsonMode {
+		if len(beans) == 1 && len(warnings) == 0 {
+			return output.Success(beans[0], "Bean "+pastTense)
+		}
+		resp := output.Response{
+			Success: true,
+			Beans:   beans,
+			Count:   len(beans),
+			Message: fmt.Sprintf("%d bean(s) %s", len(beans), pastTense),
+		}
+		if len(warnings) > 0 {
+			resp.Warnings = warnings
+		}
+		return output.JSON(resp)
+	}
+
+	for _, r := range results {
+		if r.warning == "" {
+			fmt.Println(ui.Success.Render(pastTenseCapitalized+" ") + ui.ID.Render(r.bean.ID))
+		}
+	}
+	return nil
 }
 
 // resolveAppendContent handles --append value, supporting stdin with "-".

@@ -1,10 +1,11 @@
 ---
 # beans-mmyp
 title: Workflow CLI commands
-status: todo
+status: completed
 type: epic
+priority: normal
 created_at: 2025-12-27T21:43:38Z
-updated_at: 2025-12-27T21:43:38Z
+updated_at: 2026-02-12T00:26:36Z
 ---
 
 Add explicit workflow-style CLI commands that provide intuitive shortcuts for common operations. These commands wrap existing functionality with cleaner, more memorable interfaces.
