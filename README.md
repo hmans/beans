@@ -86,7 +86,16 @@ Some agents provide mechanisms to automate this step:
 
 ### Claude Code
 
-An official Beans plugin for Claude is in the works, but for the time being, please manually add the following hooks to your project's `.claude/settings.json` file:
+Install the Beans plugin from the marketplace:
+
+1. Add the marketplace: `/plugin marketplace add hmans/beans`
+2. Install the plugin: `/plugin install beans-prime@beans`
+
+This automatically runs `beans prime` at session start and before context compaction.
+
+<details><summary>Manual setup (without plugin)</summary>
+
+Add the following hooks to your project's `.claude/settings.json` file:
 
 ```json
 {
@@ -100,6 +109,8 @@ An official Beans plugin for Claude is in the works, but for the time being, ple
   }
 }
 ```
+
+</details>
 
 ### OpenCode
 
