@@ -44,6 +44,8 @@ type BeanFilter struct {
 	BlockingID *string `json:"blockingId,omitempty"`
 	// Include only beans that are blocked by others (via incoming blocking links or blocked_by field)
 	IsBlocked *bool `json:"isBlocked,omitempty"`
+	// Include only beans that are transitively blocked (blocked themselves or have a blocked ancestor)
+	IsTransitivelyBlocked *bool `json:"isTransitivelyBlocked,omitempty"`
 	// Include only beans that have explicit blocked-by entries
 	HasBlockedBy *bool `json:"hasBlockedBy,omitempty"`
 	// Include only beans blocked by this specific bean ID (via blocked_by field)

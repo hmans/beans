@@ -514,16 +514,27 @@ func (c *Core) IsBlocked(beanID string) bool {
 // FindActiveBlockers returns all beans that are actively blocking the given bean.
 // A blocker is "active" if its status is NOT "completed" or "scrapped".
 // This includes blockers from both the blocked_by field and incoming blocking links.
+// This only checks direct blockers; use FindTransitiveBlockers for ancestor-aware blocking.
 func (c *Core) FindActiveBlockers(beanID string) []*bean.Bean {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
+	return c.findActiveBlockersLocked(beanID, nil)
+}
+
+// findActiveBlockersLocked is the inner implementation of FindActiveBlockers.
+// It assumes the read lock is already held. The seen map is used to avoid
+// duplicates when called repeatedly (e.g. from FindTransitiveBlockers);
+// pass nil to create a fresh map.
+func (c *Core) findActiveBlockersLocked(beanID string, seen map[string]bool) []*bean.Bean {
 	b, ok := c.beans[beanID]
 	if !ok {
 		return nil
 	}
 
-	seen := make(map[string]bool)
+	if seen == nil {
+		seen = make(map[string]bool)
+	}
 	var blockers []*bean.Bean
 
 	// Check direct blocked_by field
@@ -547,4 +558,39 @@ func (c *Core) FindActiveBlockers(beanID string) []*bean.Bean {
 	}
 
 	return blockers
+}
+
+// IsTransitivelyBlocked returns true if the bean or any of its ancestors
+// are blocked by active (non-completed, non-scrapped) beans.
+func (c *Core) IsTransitivelyBlocked(beanID string) bool {
+	return len(c.FindTransitiveBlockers(beanID)) > 0
+}
+
+// FindTransitiveBlockers returns all beans that are actively blocking the given
+// bean or any of its ancestors through the parent chain.
+// This is a superset of FindActiveBlockers.
+func (c *Core) FindTransitiveBlockers(beanID string) []*bean.Bean {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	seen := make(map[string]bool)
+	visited := make(map[string]bool)
+	var allBlockers []*bean.Bean
+
+	current := beanID
+	for current != "" && !visited[current] {
+		visited[current] = true
+
+		blockers := c.findActiveBlockersLocked(current, seen)
+		allBlockers = append(allBlockers, blockers...)
+
+		// Walk up parent chain
+		if b, ok := c.beans[current]; ok && b.Parent != "" {
+			current = b.Parent
+		} else {
+			break
+		}
+	}
+
+	return allBlockers
 }

@@ -3842,7 +3842,7 @@ func (ec *executionContext) unmarshalInputBeanFilter(ctx context.Context, obj an
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"search", "status", "excludeStatus", "type", "excludeType", "priority", "excludePriority", "tags", "excludeTags", "hasParent", "parentId", "hasBlocking", "blockingId", "isBlocked", "hasBlockedBy", "blockedById", "noParent", "noBlocking", "noBlockedBy"}
+	fieldsInOrder := [...]string{"search", "status", "excludeStatus", "type", "excludeType", "priority", "excludePriority", "tags", "excludeTags", "hasParent", "parentId", "hasBlocking", "blockingId", "isBlocked", "isTransitivelyBlocked", "hasBlockedBy", "blockedById", "noParent", "noBlocking", "noBlockedBy"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -3947,6 +3947,13 @@ func (ec *executionContext) unmarshalInputBeanFilter(ctx context.Context, obj an
 				return it, err
 			}
 			it.IsBlocked = data
+		case "isTransitivelyBlocked":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isTransitivelyBlocked"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IsTransitivelyBlocked = data
 		case "hasBlockedBy":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hasBlockedBy"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)

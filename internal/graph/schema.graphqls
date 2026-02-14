@@ -242,6 +242,8 @@ input BeanFilter {
   blockingId: String
   "Include only beans that are blocked by others (via incoming blocking links or blocked_by field)"
   isBlocked: Boolean
+  "Include only beans that are transitively blocked (blocked themselves or have a blocked ancestor)"
+  isTransitivelyBlocked: Boolean
   "Include only beans that have explicit blocked-by entries"
   hasBlockedBy: Boolean
   "Include only beans blocked by this specific bean ID (via blocked_by field)"
