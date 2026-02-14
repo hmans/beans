@@ -75,6 +75,13 @@ func ApplyFilter(beans []*bean.Bean, filter *model.BeanFilter, core *beancore.Co
 			result = filterByNotBlocked(result, core)
 		}
 	}
+	if filter.IsTransitivelyBlocked != nil {
+		if *filter.IsTransitivelyBlocked {
+			result = filterByTransitivelyBlocked(result, core)
+		} else {
+			result = filterByNotTransitivelyBlocked(result, core)
+		}
+	}
 
 	// Blocked-by filters (for direct blocked_by field)
 	if filter.HasBlockedBy != nil && *filter.HasBlockedBy {
@@ -326,6 +333,29 @@ func filterByNoBlockedBy(beans []*bean.Bean) []*bean.Bean {
 	var result []*bean.Bean
 	for _, b := range beans {
 		if len(b.BlockedBy) == 0 {
+			result = append(result, b)
+		}
+	}
+	return result
+}
+
+// filterByTransitivelyBlocked filters beans that are transitively blocked
+// (blocked themselves or have a blocked ancestor through the parent chain).
+func filterByTransitivelyBlocked(beans []*bean.Bean, core *beancore.Core) []*bean.Bean {
+	var result []*bean.Bean
+	for _, b := range beans {
+		if core.IsTransitivelyBlocked(b.ID) {
+			result = append(result, b)
+		}
+	}
+	return result
+}
+
+// filterByNotTransitivelyBlocked filters beans that are NOT transitively blocked.
+func filterByNotTransitivelyBlocked(beans []*bean.Bean, core *beancore.Core) []*bean.Bean {
+	var result []*bean.Bean
+	for _, b := range beans {
+		if !core.IsTransitivelyBlocked(b.ID) {
 			result = append(result, b)
 		}
 	}
