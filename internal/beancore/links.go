@@ -513,7 +513,8 @@ func (c *Core) IsBlocked(beanID string) bool {
 
 // FindActiveBlockers returns all beans that are actively blocking the given bean.
 // A blocker is "active" if its status is NOT "completed" or "scrapped".
-// This includes blockers from both the blocked_by field and incoming blocking links.
+// This includes blockers from both the blocked_by field, incoming blocking links,
+// and blockers inherited from ancestors through the parent chain.
 func (c *Core) FindActiveBlockers(beanID string) []*bean.Bean {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -544,6 +545,48 @@ func (c *Core) FindActiveBlockers(beanID string) []*bean.Bean {
 				blockers = append(blockers, other)
 			}
 		}
+	}
+
+	// Walk up the parent chain and inherit ancestor blockers.
+	// If any ancestor is blocked, this bean is effectively blocked too.
+	visited := make(map[string]bool)
+	visited[beanID] = true
+	current := b
+	for depth := 0; depth < 100; depth++ {
+		if current.Parent == "" {
+			break
+		}
+		if visited[current.Parent] {
+			break // cycle in parent chain
+		}
+		visited[current.Parent] = true
+
+		ancestor, ok := c.beans[current.Parent]
+		if !ok {
+			break // broken parent link
+		}
+
+		// Check ancestor's direct blocked_by field
+		for _, blockerID := range ancestor.BlockedBy {
+			if blocker, ok := c.beans[blockerID]; ok {
+				if !isResolvedStatus(blocker.Status) && !seen[blockerID] {
+					seen[blockerID] = true
+					blockers = append(blockers, blocker)
+				}
+			}
+		}
+
+		// Check incoming blocking links targeting this ancestor
+		for _, other := range c.beans {
+			for _, blocked := range other.Blocking {
+				if blocked == ancestor.ID && !isResolvedStatus(other.Status) && !seen[other.ID] {
+					seen[other.ID] = true
+					blockers = append(blockers, other)
+				}
+			}
+		}
+
+		current = ancestor
 	}
 
 	return blockers
