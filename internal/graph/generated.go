@@ -3842,7 +3842,7 @@ func (ec *executionContext) unmarshalInputBeanFilter(ctx context.Context, obj an
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"search", "status", "excludeStatus", "type", "excludeType", "priority", "excludePriority", "tags", "excludeTags", "hasParent", "parentId", "hasBlocking", "blockingId", "isBlocked", "hasBlockedBy", "blockedById", "noParent", "noBlocking", "noBlockedBy"}
+	fieldsInOrder := [...]string{"search", "status", "excludeStatus", "type", "excludeType", "priority", "excludePriority", "tags", "excludeTags", "hasParent", "parentId", "hasBlocking", "blockingId", "isBlocked", "hasBlockedBy", "blockedById", "noParent", "noBlocking", "noBlockedBy", "excludeArchived"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -3982,6 +3982,13 @@ func (ec *executionContext) unmarshalInputBeanFilter(ctx context.Context, obj an
 				return it, err
 			}
 			it.NoBlockedBy = data
+		case "excludeArchived":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("excludeArchived"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ExcludeArchived = data
 		}
 	}
 

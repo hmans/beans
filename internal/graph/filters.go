@@ -87,6 +87,11 @@ func ApplyFilter(beans []*bean.Bean, filter *model.BeanFilter, core *beancore.Co
 		result = filterByNoBlockedBy(result)
 	}
 
+	// Archive filter
+	if filter.ExcludeArchived != nil && *filter.ExcludeArchived {
+		result = filterByNotArchived(result, core)
+	}
+
 	return result
 }
 
@@ -326,6 +331,17 @@ func filterByNoBlockedBy(beans []*bean.Bean) []*bean.Bean {
 	var result []*bean.Bean
 	for _, b := range beans {
 		if len(b.BlockedBy) == 0 {
+			result = append(result, b)
+		}
+	}
+	return result
+}
+
+// filterByNotArchived filters beans that are not in the archive directory.
+func filterByNotArchived(beans []*bean.Bean, core *beancore.Core) []*bean.Bean {
+	var result []*bean.Bean
+	for _, b := range beans {
+		if !core.IsArchived(b.ID) {
 			result = append(result, b)
 		}
 	}

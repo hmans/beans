@@ -73,10 +73,16 @@ type PriorityConfig struct {
 // Note: Statuses are no longer stored in config - they are hardcoded like types.
 type Config struct {
 	Beans BeansConfig `yaml:"beans"`
+	TUI   TUIConfig   `yaml:"tui,omitempty"`
 
 	// configDir is the directory containing the config file (not serialized)
 	// Used to resolve relative paths
 	configDir string `yaml:"-"`
+}
+
+// TUIConfig defines settings for the TUI.
+type TUIConfig struct {
+	ExcludeArchived bool `yaml:"exclude_archived,omitempty"`
 }
 
 // BeansConfig defines settings for bean creation.
