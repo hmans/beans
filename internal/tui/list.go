@@ -167,10 +167,16 @@ func (m listModel) Init() tea.Cmd {
 }
 
 func (m listModel) loadBeans() tea.Msg {
-	// Build filter if tag filter is set
+	// Build filter based on active filters
 	var filter *model.BeanFilter
-	if m.tagFilter != "" {
-		filter = &model.BeanFilter{Tags: []string{m.tagFilter}}
+	if m.tagFilter != "" || m.config.TUI.ExcludeArchived {
+		filter = &model.BeanFilter{}
+		if m.tagFilter != "" {
+			filter.Tags = []string{m.tagFilter}
+		}
+		if m.config.TUI.ExcludeArchived {
+			filter.ExcludeArchived = &m.config.TUI.ExcludeArchived
+		}
 	}
 
 	// Query filtered beans
