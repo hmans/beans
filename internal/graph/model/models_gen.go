@@ -90,6 +90,8 @@ type CreateBeanInput struct {
 	BlockedBy []string `json:"blockedBy,omitempty"`
 	// Custom ID prefix (overrides config prefix for this bean)
 	Prefix *string `json:"prefix,omitempty"`
+	// Custom properties (key-value metadata)
+	Properties map[string]any `json:"properties,omitempty"`
 }
 
 type Mutation struct {
@@ -136,6 +138,12 @@ type UpdateBeanInput struct {
 	AddBlockedBy []string `json:"addBlockedBy,omitempty"`
 	// Remove beans from blocked-by list
 	RemoveBlockedBy []string `json:"removeBlockedBy,omitempty"`
+	// Replace all custom properties (mutually exclusive with setProperties/unsetProperties)
+	Properties map[string]any `json:"properties,omitempty"`
+	// Set or update specific custom properties (merge/upsert)
+	SetProperties map[string]any `json:"setProperties,omitempty"`
+	// Remove specific custom property keys
+	UnsetProperties []string `json:"unsetProperties,omitempty"`
 	// ETag for optimistic concurrency control (optional)
 	IfMatch *string `json:"ifMatch,omitempty"`
 }

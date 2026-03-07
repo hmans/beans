@@ -1,6 +1,7 @@
 # Beans GraphQL Schema
 
 scalar Time
+scalar JSON
 
 type Query {
   """
@@ -80,6 +81,8 @@ input CreateBeanInput {
   blockedBy: [String!]
   "Custom ID prefix (overrides config prefix for this bean)"
   prefix: String
+  "Custom properties (key-value metadata)"
+  properties: JSON
 }
 
 """
@@ -116,6 +119,13 @@ input UpdateBeanInput {
   "Remove beans from blocked-by list"
   removeBlockedBy: [String!]
   
+  "Replace all custom properties (mutually exclusive with setProperties/unsetProperties)"
+  properties: JSON
+  "Set or update specific custom properties (merge/upsert)"
+  setProperties: JSON
+  "Remove specific custom property keys"
+  unsetProperties: [String!]
+
   "ETag for optimistic concurrency control (optional)"
   ifMatch: String
 }
@@ -176,6 +186,8 @@ type Bean {
   body: String!
   "Content hash for optimistic concurrency control"
   etag: String!
+  "Custom key-value properties"
+  properties: JSON
 
   # Direct link fields
   "Parent bean ID (optional, type-restricted)"

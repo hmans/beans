@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/glamour"
@@ -156,6 +157,14 @@ func showStyledBean(b *bean.Bean) {
 		header.WriteString(formatRelationships(b))
 	}
 
+	// Display properties
+	if len(b.Properties) > 0 {
+		header.WriteString("\n")
+		header.WriteString(ui.Muted.Render(strings.Repeat("─", 50)))
+		header.WriteString("\n")
+		header.WriteString(formatProperties(b.Properties))
+	}
+
 	header.WriteString("\n")
 	header.WriteString(ui.Muted.Render(strings.Repeat("─", 50)))
 
@@ -202,6 +211,23 @@ func formatRelationships(b *bean.Bean) string {
 		parts = append(parts, fmt.Sprintf("%s %s",
 			ui.Muted.Render("blocking:"),
 			ui.ID.Render(target)))
+	}
+	return strings.Join(parts, "\n")
+}
+
+// formatProperties formats custom properties for display with sorted keys.
+func formatProperties(props map[string]any) string {
+	keys := make([]string, 0, len(props))
+	for k := range props {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var parts []string
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s %v",
+			ui.Muted.Render(k+":"),
+			props[k]))
 	}
 	return strings.Join(parts, "\n")
 }

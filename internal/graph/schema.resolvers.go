@@ -154,6 +154,11 @@ func (r *mutationResolver) CreateBean(ctx context.Context, input model.CreateBea
 		b.BlockedBy = normalizedBlockedBy
 	}
 
+	// Handle properties
+	if len(input.Properties) > 0 {
+		b.Properties = input.Properties
+	}
+
 	// Handle custom prefix - pre-generate ID if prefix is provided
 	if input.Prefix != nil && *input.Prefix != "" {
 		idLength := 4 // default
@@ -185,6 +190,11 @@ func (r *mutationResolver) UpdateBean(ctx context.Context, id string, input mode
 	// Validate tags and addTags/removeTags are mutually exclusive
 	if input.Tags != nil && (input.AddTags != nil || input.RemoveTags != nil) {
 		return nil, fmt.Errorf("cannot specify both tags and addTags/removeTags")
+	}
+
+	// Validate properties and setProperties/unsetProperties are mutually exclusive
+	if input.Properties != nil && (input.SetProperties != nil || input.UnsetProperties != nil) {
+		return nil, fmt.Errorf("cannot specify both properties and setProperties/unsetProperties")
 	}
 
 	// Update fields if provided
@@ -254,6 +264,24 @@ func (r *mutationResolver) UpdateBean(ctx context.Context, id string, input mode
 			newTags = append(newTags, tag)
 		}
 		b.Tags = newTags
+	}
+
+	// Handle properties
+	if input.Properties != nil {
+		// Replace all — normalize empty map to nil
+		if len(input.Properties) == 0 {
+			b.Properties = nil
+		} else {
+			b.Properties = input.Properties
+		}
+	} else if input.SetProperties != nil || input.UnsetProperties != nil {
+		// Granular set/unset
+		for k, v := range input.SetProperties {
+			b.SetProperty(k, v)
+		}
+		for _, k := range input.UnsetProperties {
+			b.UnsetProperty(k)
+		}
 	}
 
 	// Handle parent relationship

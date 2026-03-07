@@ -2,6 +2,7 @@ package bean
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -1673,6 +1674,328 @@ func TestMarshalJSONIncludesETag(t *testing.T) {
 	// Verify it matches the computed ETag
 	if etag != b.ETag() {
 		t.Errorf("JSON etag = %s, want %s", etag, b.ETag())
+	}
+}
+
+func TestParseWithProperties(t *testing.T) {
+	tests := []struct {
+		name               string
+		input              string
+		expectedProperties map[string]any
+	}{
+		{
+			name: "with string properties",
+			input: `---
+title: Test
+status: todo
+properties:
+  author: alice
+  github_issue: "#42"
+---`,
+			expectedProperties: map[string]any{"author": "alice", "github_issue": "#42"},
+		},
+		{
+			name: "with mixed type properties",
+			input: `---
+title: Test
+status: todo
+properties:
+  estimate: 3
+  reviewed: true
+  score: 4.5
+---`,
+			expectedProperties: map[string]any{"estimate": 3, "reviewed": true, "score": 4.5},
+		},
+		{
+			name: "without properties",
+			input: `---
+title: Test
+status: todo
+---`,
+			expectedProperties: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bean, err := Parse(strings.NewReader(tt.input))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if tt.expectedProperties == nil {
+				if bean.Properties != nil {
+					t.Errorf("Properties = %v, want nil", bean.Properties)
+				}
+				return
+			}
+
+			if len(bean.Properties) != len(tt.expectedProperties) {
+				t.Errorf("Properties count = %d, want %d", len(bean.Properties), len(tt.expectedProperties))
+				return
+			}
+
+			for key, expected := range tt.expectedProperties {
+				got, ok := bean.Properties[key]
+				if !ok {
+					t.Errorf("missing property %q", key)
+					continue
+				}
+				if fmt.Sprintf("%v", got) != fmt.Sprintf("%v", expected) {
+					t.Errorf("Properties[%q] = %v (%T), want %v (%T)", key, got, got, expected, expected)
+				}
+			}
+		})
+	}
+}
+
+func TestRenderWithProperties(t *testing.T) {
+	tests := []struct {
+		name     string
+		bean     *Bean
+		contains []string
+	}{
+		{
+			name: "with properties",
+			bean: &Bean{
+				Title:      "Test Bean",
+				Status:     "todo",
+				Properties: map[string]any{"author": "alice", "estimate": 3},
+			},
+			contains: []string{
+				"properties:",
+				"author: alice",
+				"estimate: 3",
+			},
+		},
+		{
+			name: "without properties",
+			bean: &Bean{
+				Title:  "Test Bean",
+				Status: "todo",
+			},
+			contains: []string{
+				"title: Test Bean",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output, err := tt.bean.Render()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			result := string(output)
+			for _, want := range tt.contains {
+				if !strings.Contains(result, want) {
+					t.Errorf("output missing %q\ngot:\n%s", want, result)
+				}
+			}
+
+			if tt.bean.Properties == nil && strings.Contains(result, "properties:") {
+				t.Errorf("output should not contain 'properties:' when no properties\ngot:\n%s", result)
+			}
+		})
+	}
+}
+
+func TestPropertiesRoundtrip(t *testing.T) {
+	tests := []struct {
+		name       string
+		properties map[string]any
+	}{
+		{
+			name:       "string values",
+			properties: map[string]any{"author": "alice", "team": "backend"},
+		},
+		{
+			name:       "numeric values",
+			properties: map[string]any{"estimate": 3, "score": 4.5},
+		},
+		{
+			name:       "boolean values",
+			properties: map[string]any{"reviewed": true, "approved": false},
+		},
+		{
+			name:       "mixed types",
+			properties: map[string]any{"author": "alice", "estimate": 3, "reviewed": true},
+		},
+		{
+			name:       "nil properties",
+			properties: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			original := &Bean{
+				Title:      "Test",
+				Status:     "todo",
+				Properties: tt.properties,
+			}
+
+			rendered, err := original.Render()
+			if err != nil {
+				t.Fatalf("Render error: %v", err)
+			}
+
+			parsed, err := Parse(strings.NewReader(string(rendered)))
+			if err != nil {
+				t.Fatalf("Parse error: %v", err)
+			}
+
+			if tt.properties == nil {
+				if parsed.Properties != nil {
+					t.Errorf("Properties should be nil, got %v", parsed.Properties)
+				}
+				return
+			}
+
+			if len(parsed.Properties) != len(tt.properties) {
+				t.Errorf("Properties count: got %d, want %d", len(parsed.Properties), len(tt.properties))
+				return
+			}
+
+			for key, expected := range tt.properties {
+				got, ok := parsed.Properties[key]
+				if !ok {
+					t.Errorf("missing property %q after roundtrip", key)
+					continue
+				}
+				if fmt.Sprintf("%v", got) != fmt.Sprintf("%v", expected) {
+					t.Errorf("Properties[%q] roundtrip: got %v (%T), want %v (%T)", key, got, got, expected, expected)
+				}
+			}
+		})
+	}
+}
+
+func TestPropertyHelperMethods(t *testing.T) {
+	t.Run("SetProperty", func(t *testing.T) {
+		b := &Bean{Title: "Test", Status: "todo"}
+		b.SetProperty("author", "alice")
+		if v, ok := b.Properties["author"]; !ok || v != "alice" {
+			t.Errorf("SetProperty failed: got %v", b.Properties)
+		}
+
+		// Set on existing map
+		b.SetProperty("estimate", 3)
+		if len(b.Properties) != 2 {
+			t.Errorf("expected 2 properties, got %d", len(b.Properties))
+		}
+	})
+
+	t.Run("UnsetProperty", func(t *testing.T) {
+		b := &Bean{
+			Title:      "Test",
+			Status:     "todo",
+			Properties: map[string]any{"author": "alice", "estimate": 3},
+		}
+
+		b.UnsetProperty("author")
+		if _, ok := b.Properties["estimate"]; !ok {
+			t.Error("UnsetProperty removed wrong key")
+		}
+		if _, ok := b.Properties["author"]; ok {
+			t.Error("UnsetProperty didn't remove key")
+		}
+
+		// Removing last property should nil-ify the map
+		b.UnsetProperty("estimate")
+		if b.Properties != nil {
+			t.Errorf("Properties should be nil after removing all, got %v", b.Properties)
+		}
+	})
+
+	t.Run("UnsetProperty on nil map", func(t *testing.T) {
+		b := &Bean{Title: "Test", Status: "todo"}
+		b.UnsetProperty("nonexistent") // should not panic
+		if b.Properties != nil {
+			t.Errorf("Properties should remain nil, got %v", b.Properties)
+		}
+	})
+
+	t.Run("GetProperty", func(t *testing.T) {
+		b := &Bean{
+			Title:      "Test",
+			Status:     "todo",
+			Properties: map[string]any{"author": "alice"},
+		}
+
+		v, ok := b.GetProperty("author")
+		if !ok || v != "alice" {
+			t.Errorf("GetProperty('author') = %v, %v; want 'alice', true", v, ok)
+		}
+
+		_, ok = b.GetProperty("nonexistent")
+		if ok {
+			t.Error("GetProperty('nonexistent') should return false")
+		}
+	})
+
+	t.Run("GetProperty on nil map", func(t *testing.T) {
+		b := &Bean{Title: "Test", Status: "todo"}
+		_, ok := b.GetProperty("anything")
+		if ok {
+			t.Error("GetProperty on nil map should return false")
+		}
+	})
+}
+
+func TestETagChangesWithProperties(t *testing.T) {
+	b := &Bean{
+		Title:  "Test",
+		Status: "todo",
+	}
+	etag1 := b.ETag()
+
+	b.SetProperty("estimate", 3)
+	etag2 := b.ETag()
+
+	if etag1 == etag2 {
+		t.Error("ETag should change when properties are added")
+	}
+
+	b.SetProperty("estimate", 5)
+	etag3 := b.ETag()
+
+	if etag2 == etag3 {
+		t.Error("ETag should change when property value changes")
+	}
+}
+
+func TestPropertiesJSONSerialization(t *testing.T) {
+	b := &Bean{
+		ID:         "test-123",
+		Title:      "Test",
+		Status:     "todo",
+		Properties: map[string]any{"author": "alice", "estimate": 3},
+	}
+
+	data, err := json.Marshal(b)
+	if err != nil {
+		t.Fatalf("Marshal error: %v", err)
+	}
+
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"properties"`) {
+		t.Errorf("JSON should contain 'properties' field, got: %s", jsonStr)
+	}
+	if !strings.Contains(jsonStr, `"author":"alice"`) {
+		t.Errorf("JSON should contain author property, got: %s", jsonStr)
+	}
+
+	// Verify omitempty works
+	b2 := &Bean{
+		ID:     "test-456",
+		Title:  "Test",
+		Status: "todo",
+	}
+	data2, _ := json.Marshal(b2)
+	if strings.Contains(string(data2), `"properties"`) {
+		t.Errorf("JSON should not contain 'properties' when nil, got: %s", string(data2))
 	}
 }
 

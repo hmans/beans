@@ -2773,3 +2773,176 @@ func TestRemoveBlockingWithETag(t *testing.T) {
 	})
 }
 
+func TestPropertiesResolvers(t *testing.T) {
+	resolver, core := setupTestResolver(t)
+	ctx := context.Background()
+
+	t.Run("create bean with properties", func(t *testing.T) {
+		mr := resolver.Mutation()
+		input := model.CreateBeanInput{
+			Title:      "Bean With Props",
+			Properties: map[string]any{"author": "alice", "estimate": 3},
+		}
+		got, err := mr.CreateBean(ctx, input)
+		if err != nil {
+			t.Fatalf("CreateBean() error = %v", err)
+		}
+		if len(got.Properties) != 2 {
+			t.Errorf("CreateBean().Properties count = %d, want 2", len(got.Properties))
+		}
+		if got.Properties["author"] != "alice" {
+			t.Errorf("Properties['author'] = %v, want 'alice'", got.Properties["author"])
+		}
+	})
+
+	t.Run("update bean replace all properties", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:         "props-replace",
+			Title:      "Test",
+			Status:     "todo",
+			Properties: map[string]any{"old": "value"},
+		}
+		core.Create(b)
+
+		mr := resolver.Mutation()
+		input := model.UpdateBeanInput{
+			Properties: map[string]any{"new": "value", "count": 42},
+		}
+		got, err := mr.UpdateBean(ctx, "props-replace", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() error = %v", err)
+		}
+		if len(got.Properties) != 2 {
+			t.Errorf("Properties count = %d, want 2", len(got.Properties))
+		}
+		if _, ok := got.Properties["old"]; ok {
+			t.Error("Old property should be replaced")
+		}
+		if got.Properties["new"] != "value" {
+			t.Errorf("Properties['new'] = %v, want 'value'", got.Properties["new"])
+		}
+	})
+
+	t.Run("update bean set individual properties", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:         "props-set",
+			Title:      "Test",
+			Status:     "todo",
+			Properties: map[string]any{"existing": "keep", "update": "old"},
+		}
+		core.Create(b)
+
+		mr := resolver.Mutation()
+		input := model.UpdateBeanInput{
+			SetProperties: map[string]any{"update": "new", "added": true},
+		}
+		got, err := mr.UpdateBean(ctx, "props-set", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() error = %v", err)
+		}
+		if got.Properties["existing"] != "keep" {
+			t.Errorf("Properties['existing'] = %v, want 'keep'", got.Properties["existing"])
+		}
+		if got.Properties["update"] != "new" {
+			t.Errorf("Properties['update'] = %v, want 'new'", got.Properties["update"])
+		}
+		if got.Properties["added"] != true {
+			t.Errorf("Properties['added'] = %v, want true", got.Properties["added"])
+		}
+	})
+
+	t.Run("update bean unset properties", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:         "props-unset",
+			Title:      "Test",
+			Status:     "todo",
+			Properties: map[string]any{"keep": "yes", "remove": "bye"},
+		}
+		core.Create(b)
+
+		mr := resolver.Mutation()
+		input := model.UpdateBeanInput{
+			UnsetProperties: []string{"remove"},
+		}
+		got, err := mr.UpdateBean(ctx, "props-unset", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() error = %v", err)
+		}
+		if got.Properties["keep"] != "yes" {
+			t.Errorf("Properties['keep'] = %v, want 'yes'", got.Properties["keep"])
+		}
+		if _, ok := got.Properties["remove"]; ok {
+			t.Error("Property 'remove' should have been unset")
+		}
+	})
+
+	t.Run("unset all properties normalizes to nil", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:         "props-unset-all",
+			Title:      "Test",
+			Status:     "todo",
+			Properties: map[string]any{"only": "one"},
+		}
+		core.Create(b)
+
+		mr := resolver.Mutation()
+		input := model.UpdateBeanInput{
+			UnsetProperties: []string{"only"},
+		}
+		got, err := mr.UpdateBean(ctx, "props-unset-all", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() error = %v", err)
+		}
+		if got.Properties != nil {
+			t.Errorf("Properties should be nil after unsetting all, got %v", got.Properties)
+		}
+	})
+
+	t.Run("properties and setProperties are mutually exclusive", func(t *testing.T) {
+		b := &bean.Bean{ID: "props-mutex", Title: "Test", Status: "todo"}
+		core.Create(b)
+
+		mr := resolver.Mutation()
+		input := model.UpdateBeanInput{
+			Properties:    map[string]any{"full": "replace"},
+			SetProperties: map[string]any{"partial": "set"},
+		}
+		_, err := mr.UpdateBean(ctx, "props-mutex", input)
+		if err == nil {
+			t.Error("UpdateBean() should fail when both properties and setProperties provided")
+		}
+		if !strings.Contains(err.Error(), "cannot specify both") {
+			t.Errorf("Error should mention mutual exclusivity, got: %v", err)
+		}
+	})
+
+	t.Run("set and unset in same operation", func(t *testing.T) {
+		b := &bean.Bean{
+			ID:         "props-set-unset",
+			Title:      "Test",
+			Status:     "todo",
+			Properties: map[string]any{"remove": "bye", "keep": "yes"},
+		}
+		core.Create(b)
+
+		mr := resolver.Mutation()
+		input := model.UpdateBeanInput{
+			SetProperties:   map[string]any{"add": "new"},
+			UnsetProperties: []string{"remove"},
+		}
+		got, err := mr.UpdateBean(ctx, "props-set-unset", input)
+		if err != nil {
+			t.Fatalf("UpdateBean() error = %v", err)
+		}
+		if len(got.Properties) != 2 {
+			t.Errorf("Properties count = %d, want 2", len(got.Properties))
+		}
+		if got.Properties["keep"] != "yes" {
+			t.Errorf("Properties['keep'] = %v, want 'yes'", got.Properties["keep"])
+		}
+		if got.Properties["add"] != "new" {
+			t.Errorf("Properties['add'] = %v, want 'new'", got.Properties["add"])
+		}
+	})
+}
+

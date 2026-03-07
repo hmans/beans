@@ -161,20 +161,24 @@ type Bean struct {
 
 	// BlockedBy is a list of bean IDs that are blocking this bean.
 	BlockedBy []string `yaml:"blocked_by,omitempty" json:"blocked_by,omitempty"`
+
+	// Properties is a map of custom key-value metadata.
+	Properties map[string]any `yaml:"properties,omitempty" json:"properties,omitempty"`
 }
 
 // frontMatter is the subset of Bean that gets serialized to YAML front matter.
 type frontMatter struct {
-	Title     string     `yaml:"title"`
-	Status    string     `yaml:"status"`
-	Type      string     `yaml:"type,omitempty"`
-	Priority  string     `yaml:"priority,omitempty"`
-	Tags      []string   `yaml:"tags,omitempty"`
-	CreatedAt *time.Time `yaml:"created_at,omitempty"`
-	UpdatedAt *time.Time `yaml:"updated_at,omitempty"`
-	Parent    string     `yaml:"parent,omitempty"`
-	Blocking  []string   `yaml:"blocking,omitempty"`
-	BlockedBy []string   `yaml:"blocked_by,omitempty"`
+	Title      string         `yaml:"title"`
+	Status     string         `yaml:"status"`
+	Type       string         `yaml:"type,omitempty"`
+	Priority   string         `yaml:"priority,omitempty"`
+	Tags       []string       `yaml:"tags,omitempty"`
+	CreatedAt  *time.Time     `yaml:"created_at,omitempty"`
+	UpdatedAt  *time.Time     `yaml:"updated_at,omitempty"`
+	Parent     string         `yaml:"parent,omitempty"`
+	Blocking   []string       `yaml:"blocking,omitempty"`
+	BlockedBy  []string       `yaml:"blocked_by,omitempty"`
+	Properties map[string]any `yaml:"properties,omitempty"`
 }
 
 // Parse reads a bean from a reader (markdown with YAML front matter).
@@ -189,47 +193,50 @@ func Parse(r io.Reader) (*Bean, error) {
 	bodyStr := strings.TrimSuffix(string(body), "\n")
 
 	return &Bean{
-		Title:     fm.Title,
-		Status:    fm.Status,
-		Type:      fm.Type,
-		Priority:  fm.Priority,
-		Tags:      fm.Tags,
-		CreatedAt: fm.CreatedAt,
-		UpdatedAt: fm.UpdatedAt,
-		Body:      bodyStr,
-		Parent:    fm.Parent,
-		Blocking:  fm.Blocking,
-		BlockedBy: fm.BlockedBy,
+		Title:      fm.Title,
+		Status:     fm.Status,
+		Type:       fm.Type,
+		Priority:   fm.Priority,
+		Tags:       fm.Tags,
+		CreatedAt:  fm.CreatedAt,
+		UpdatedAt:  fm.UpdatedAt,
+		Body:       bodyStr,
+		Parent:     fm.Parent,
+		Blocking:   fm.Blocking,
+		BlockedBy:  fm.BlockedBy,
+		Properties: fm.Properties,
 	}, nil
 }
 
 // renderFrontMatter is used for YAML output with yaml.v3 (supports custom marshalers).
 type renderFrontMatter struct {
-	Title     string     `yaml:"title"`
-	Status    string     `yaml:"status"`
-	Type      string     `yaml:"type,omitempty"`
-	Priority  string     `yaml:"priority,omitempty"`
-	Tags      []string   `yaml:"tags,omitempty"`
-	CreatedAt *time.Time `yaml:"created_at,omitempty"`
-	UpdatedAt *time.Time `yaml:"updated_at,omitempty"`
-	Parent    string     `yaml:"parent,omitempty"`
-	Blocking  []string   `yaml:"blocking,omitempty"`
-	BlockedBy []string   `yaml:"blocked_by,omitempty"`
+	Title      string         `yaml:"title"`
+	Status     string         `yaml:"status"`
+	Type       string         `yaml:"type,omitempty"`
+	Priority   string         `yaml:"priority,omitempty"`
+	Tags       []string       `yaml:"tags,omitempty"`
+	CreatedAt  *time.Time     `yaml:"created_at,omitempty"`
+	UpdatedAt  *time.Time     `yaml:"updated_at,omitempty"`
+	Parent     string         `yaml:"parent,omitempty"`
+	Blocking   []string       `yaml:"blocking,omitempty"`
+	BlockedBy  []string       `yaml:"blocked_by,omitempty"`
+	Properties map[string]any `yaml:"properties,omitempty"`
 }
 
 // Render serializes the bean back to markdown with YAML front matter.
 func (b *Bean) Render() ([]byte, error) {
 	fm := renderFrontMatter{
-		Title:     b.Title,
-		Status:    b.Status,
-		Type:      b.Type,
-		Priority:  b.Priority,
-		Tags:      b.Tags,
-		CreatedAt: b.CreatedAt,
-		UpdatedAt: b.UpdatedAt,
-		Parent:    b.Parent,
-		Blocking:  b.Blocking,
-		BlockedBy: b.BlockedBy,
+		Title:      b.Title,
+		Status:     b.Status,
+		Type:       b.Type,
+		Priority:   b.Priority,
+		Tags:       b.Tags,
+		CreatedAt:  b.CreatedAt,
+		UpdatedAt:  b.UpdatedAt,
+		Parent:     b.Parent,
+		Blocking:   b.Blocking,
+		BlockedBy:  b.BlockedBy,
+		Properties: b.Properties,
 	}
 
 	fmBytes, err := yaml.Marshal(&fm)
@@ -289,4 +296,30 @@ func (b *Bean) MarshalJSON() ([]byte, error) {
 		BeanAlias: (*BeanAlias)(b),
 		ETag:      b.ETag(),
 	})
+}
+
+// SetProperty sets a custom property on the bean.
+func (b *Bean) SetProperty(key string, value any) {
+	if b.Properties == nil {
+		b.Properties = make(map[string]any)
+	}
+	b.Properties[key] = value
+}
+
+// UnsetProperty removes a custom property from the bean.
+// Normalizes empty maps to nil so omitempty works correctly.
+func (b *Bean) UnsetProperty(key string) {
+	delete(b.Properties, key)
+	if len(b.Properties) == 0 {
+		b.Properties = nil
+	}
+}
+
+// GetProperty returns a custom property value and whether it exists.
+func (b *Bean) GetProperty(key string) (any, bool) {
+	if b.Properties == nil {
+		return nil, false
+	}
+	v, ok := b.Properties[key]
+	return v, ok
 }
