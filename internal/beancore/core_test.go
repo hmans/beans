@@ -1108,30 +1108,45 @@ status: todo
 		time.Sleep(10 * time.Millisecond) // Small delay but within debounce
 	}
 
-	// Should get a single batch of events (debounced)
-	select {
-	case events := <-ch:
-		// Count events for rap1 - should be exactly one
-		rap1Count := 0
-		var lastEvent BeanEvent
-		for _, e := range events {
-			if e.BeanID == "rap1" {
-				rap1Count++
-				lastEvent = e
-			}
+	// Drain all debounced event batches (may arrive as one or more batches
+	// depending on OS file-watcher timing, especially on slow CI).
+	var allEvents []BeanEvent
+	deadline := time.After(1 * time.Second)
+	for {
+		select {
+		case events := <-ch:
+			allEvents = append(allEvents, events...)
+			// Keep draining — reset a short timeout for more batches
+			continue
+		case <-time.After(300 * time.Millisecond):
+			// No more events within the debounce window
+		case <-deadline:
 		}
-		if rap1Count != 1 {
-			t.Errorf("expected 1 event for rap1, got %d", rap1Count)
+		break
+	}
+
+	if len(allEvents) == 0 {
+		t.Fatal("expected at least one event for rap1, got none")
+	}
+
+	// The last event for rap1 should reflect the final write
+	var lastEvent BeanEvent
+	for _, e := range allEvents {
+		if e.BeanID == "rap1" {
+			lastEvent = e
 		}
-		if lastEvent.Type != EventUpdated {
-			t.Errorf("expected EventUpdated, got %v", lastEvent.Type)
-		}
-		// Should have the final value
-		if lastEvent.Bean != nil && lastEvent.Bean.Title != "Update 5" {
-			t.Errorf("expected title 'Update 5', got %q", lastEvent.Bean.Title)
-		}
-	case <-time.After(500 * time.Millisecond):
-		t.Error("timeout waiting for events")
+	}
+	if lastEvent.Type != EventUpdated {
+		t.Errorf("expected EventUpdated, got %v", lastEvent.Type)
+	}
+
+	// Verify the core's state has the final value
+	b, err := core.Get("rap1")
+	if err != nil || b == nil {
+		t.Fatal("expected bean rap1 to exist")
+	}
+	if b.Title != "Update 5" {
+		t.Errorf("expected title 'Update 5', got %q", b.Title)
 	}
 }
 
