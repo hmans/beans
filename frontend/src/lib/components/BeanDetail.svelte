@@ -6,9 +6,10 @@
 	interface Props {
 		bean: Bean;
 		onSelect?: (bean: Bean) => void;
+		onEdit?: (bean: Bean) => void;
 	}
 
-	let { bean, onSelect }: Props = $props();
+	let { bean, onSelect, onEdit }: Props = $props();
 
 	const parent = $derived(bean.parentId ? beansStore.get(bean.parentId) : null);
 	const children = $derived(beansStore.children(bean.id));
@@ -118,7 +119,12 @@
 				</span>
 			{/if}
 		</div>
-		<h1 class="text-2xl font-bold text-base-content">{bean.title}</h1>
+		<div class="flex items-center gap-2">
+			<h1 class="text-2xl font-bold text-base-content flex-1">{bean.title}</h1>
+			{#if onEdit}
+				<button class="btn btn-ghost btn-sm" onclick={() => onEdit(bean)}>Edit</button>
+			{/if}
+		</div>
 	</div>
 
 	<!-- Tags -->

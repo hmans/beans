@@ -127,7 +127,7 @@
 			>
 				{#each beans as bean (bean.id)}
 					<div
-						class="card card-border bg-base-100 shadow-sm border-l-3 transition-all cursor-grab active:cursor-grabbing
+						class="card card-border bg-base-100 shadow-sm border-l-3 transition-all cursor-pointer
 							{typeBorders[bean.type] ?? 'border-l-base-300'}
 							{draggedBeanId === bean.id ? 'opacity-40' : 'hover:shadow-md'}
 							{selectedId === bean.id ? 'ring-1 ring-primary bg-primary/5' : ''}"
@@ -136,7 +136,7 @@
 						ondragend={onDragEnd}
 						role="listitem"
 					>
-						<button class="card-body p-3 text-left" onclick={() => onSelect?.(bean)}>
+						<button class="card-body p-3 text-left cursor-pointer" onclick={() => onSelect?.(bean)}>
 							<div class="flex items-start gap-2 min-w-0">
 								<span class="text-sm text-base-content flex-1 leading-snug">{bean.title}</span>
 								{#if bean.priority && bean.priority !== 'normal' && priorityIndicators[bean.priority]}
