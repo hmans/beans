@@ -10,7 +10,6 @@
 
 	onMount(() => {
 		beansStore.subscribe();
-		// Load saved pane width
 		const saved = localStorage.getItem('beans-pane-width');
 		if (saved) {
 			paneWidth = Math.max(200, Math.min(600, parseInt(saved, 10)));
@@ -59,29 +58,27 @@
 
 <svelte:window onmousemove={onDrag} onmouseup={stopDrag} />
 
-<div class="h-screen flex flex-col bg-gray-100">
+<div class="h-screen flex flex-col bg-base-200">
 	{#if beansStore.error}
-		<div class="m-4 rounded-lg bg-red-100 p-4 text-red-700">
-			Error: {beansStore.error}
+		<div class="m-4">
+			<div role="alert" class="alert alert-error">
+				<span>Error: {beansStore.error}</span>
+			</div>
 		</div>
 	{:else}
 		<!-- Tab bar -->
-		<div class="flex items-center gap-1 px-4 pt-3 pb-0 bg-gray-50 border-b border-gray-200">
+		<div role="tablist" class="tabs tabs-border px-4 pt-2 bg-base-100">
 			<button
-				onclick={() => activeTab = 'backlog'}
-				class="px-4 py-2 text-sm font-medium rounded-t-lg transition-colors
-					{activeTab === 'backlog'
-					? 'bg-white text-gray-900 border border-b-white border-gray-200 -mb-px'
-					: 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}"
+				role="tab"
+				onclick={() => (activeTab = 'backlog')}
+				class="tab {activeTab === 'backlog' ? 'tab-active' : ''}"
 			>
 				Backlog
 			</button>
 			<button
-				onclick={() => activeTab = 'board'}
-				class="px-4 py-2 text-sm font-medium rounded-t-lg transition-colors
-					{activeTab === 'board'
-					? 'bg-white text-gray-900 border border-b-white border-gray-200 -mb-px'
-					: 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}"
+				role="tab"
+				onclick={() => (activeTab = 'board')}
+				class="tab {activeTab === 'board' ? 'tab-active' : ''}"
 			>
 				Board
 			</button>
@@ -91,16 +88,13 @@
 		<div class="flex-1 flex min-h-0">
 			{#if activeTab === 'backlog'}
 				<!-- Left pane: Bean list -->
-				<div
-					class="shrink-0 bg-gray-50 overflow-auto"
-					style="width: {paneWidth}px"
-				>
+				<div class="shrink-0 bg-base-100 overflow-auto" style="width: {paneWidth}px">
 					<div class="p-3 space-y-1">
 						{#each topLevelBeans as bean (bean.id)}
 							<BeanItem {bean} selectedId={currentBean?.id} onSelect={selectBean} />
 						{:else}
 							{#if !beansStore.loading}
-								<p class="text-gray-500 text-center py-8 text-sm">No beans yet</p>
+								<p class="text-base-content/50 text-center py-8 text-sm">No beans yet</p>
 							{/if}
 						{/each}
 					</div>
@@ -109,7 +103,7 @@
 				<!-- Drag handle -->
 				<div
 					class="w-1 cursor-col-resize transition-colors shrink-0
-						{isDragging ? 'bg-gray-400' : 'bg-gray-200 hover:bg-gray-300'}"
+						{isDragging ? 'bg-base-300' : 'bg-base-200 hover:bg-base-300'}"
 					role="slider"
 					aria-orientation="horizontal"
 					aria-valuenow={paneWidth}
@@ -120,18 +114,18 @@
 				></div>
 
 				<!-- Right pane: Bean detail -->
-				<div class="flex-1 bg-white min-w-0 overflow-hidden">
+				<div class="flex-1 bg-base-100 min-w-0 overflow-hidden">
 					{#if currentBean}
 						<BeanDetail bean={currentBean} onSelect={selectBean} />
 					{:else}
-						<div class="h-full flex items-center justify-center text-gray-400">
+						<div class="h-full flex items-center justify-center text-base-content/30">
 							<p>Select a bean to view details</p>
 						</div>
 					{/if}
 				</div>
 			{:else if activeTab === 'board'}
 				<!-- Board view with optional detail pane -->
-				<div class="flex-1 bg-gray-100 min-w-0">
+				<div class="flex-1 bg-base-200 min-w-0">
 					<BoardView onSelect={selectBean} selectedId={currentBean?.id} />
 				</div>
 
@@ -139,7 +133,7 @@
 					<!-- Drag handle -->
 					<div
 						class="w-1 cursor-col-resize transition-colors shrink-0
-							{isDragging ? 'bg-gray-400' : 'bg-gray-200 hover:bg-gray-300'}"
+							{isDragging ? 'bg-base-300' : 'bg-base-200 hover:bg-base-300'}"
 						role="slider"
 						aria-orientation="horizontal"
 						aria-valuenow={paneWidth}
@@ -149,10 +143,7 @@
 						onmousedown={startDrag}
 					></div>
 
-					<div
-						class="shrink-0 bg-white overflow-hidden"
-						style="width: {paneWidth}px"
-					>
+					<div class="shrink-0 bg-base-100 overflow-hidden" style="width: {paneWidth}px">
 						<BeanDetail bean={currentBean} onSelect={selectBean} />
 					</div>
 				{/if}
