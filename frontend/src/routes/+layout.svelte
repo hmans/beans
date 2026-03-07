@@ -7,6 +7,7 @@
 	import { worktreeStore } from '$lib/worktrees.svelte';
 	import { ui } from '$lib/uiState.svelte';
 	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import BeanForm from '$lib/components/BeanForm.svelte';
 
 	preloadHighlighter();
@@ -34,6 +35,15 @@
 	const backlogHref = $derived(`/${beanParam}`);
 	const boardHref = $derived(`/board${beanParam}`);
 
+	async function closeWorktree(e: MouseEvent, beanId: string) {
+		e.preventDefault();
+		e.stopPropagation();
+		if (worktreeId === beanId) {
+			await goto(backlogHref);
+		}
+		worktreeStore.removeWorktree(beanId);
+	}
+
 	let { children } = $props();
 </script>
 
@@ -58,10 +68,17 @@
 					<a
 						href="/worktree/{wt.beanId}{beanParam}"
 						role="tab"
-						class="tab {worktreeId === wt.beanId ? 'tab-active' : ''}"
+						class="tab gap-1 {worktreeId === wt.beanId ? 'tab-active' : ''}"
 						title={wtBean?.title ?? wt.beanId}
 					>
 						{wtBean?.title ?? wt.beanId.slice(-4)}
+						<button
+							class="btn btn-ghost btn-xs btn-circle opacity-50 hover:opacity-100"
+							title="Close worktree"
+							onclick={(e) => closeWorktree(e, wt.beanId)}
+						>
+							&#x2715;
+						</button>
 					</a>
 				{/each}
 			</nav>

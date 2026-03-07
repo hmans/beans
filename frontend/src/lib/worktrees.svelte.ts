@@ -28,6 +28,12 @@ const CREATE_WORKTREE = gql`
 	}
 `;
 
+const REMOVE_WORKTREE = gql`
+	mutation RemoveWorktree($beanId: ID!) {
+		removeWorktree(beanId: $beanId)
+	}
+`;
+
 class WorktreeStore {
 	worktrees = $state<Worktree[]>([]);
 	loading = $state(false);
@@ -69,6 +75,22 @@ class WorktreeStore {
 		this.error = null;
 
 		const result = await client.mutation(CREATE_WORKTREE, { beanId }).toPromise();
+
+		this.loading = false;
+
+		if (result.error) {
+			this.error = result.error.message;
+			return false;
+		}
+
+		return true;
+	}
+
+	async removeWorktree(beanId: string): Promise<boolean> {
+		this.loading = true;
+		this.error = null;
+
+		const result = await client.mutation(REMOVE_WORKTREE, { beanId }).toPromise();
 
 		this.loading = false;
 
