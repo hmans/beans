@@ -200,6 +200,17 @@ export class BeansStore {
 	blockedBy(beanId: string): Bean[] {
 		return this.all.filter((b) => b.blockingIds.includes(beanId));
 	}
+
+	/**
+	 * Optimistically update a bean's fields in the local store.
+	 * The subscription will eventually confirm or overwrite.
+	 */
+	optimisticUpdate(id: string, fields: Partial<Bean>): void {
+		const bean = this.beans.get(id);
+		if (bean) {
+			this.beans.set(id, { ...bean, ...fields });
+		}
+	}
 }
 
 /**

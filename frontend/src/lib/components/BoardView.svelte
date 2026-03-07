@@ -114,9 +114,9 @@
 	 * Ensure all beans in the list have order keys.
 	 * Assigns evenly-spaced keys to any beans missing them,
 	 * preserving the relative positions of beans that already have keys.
-	 * Returns the list with orders filled in (mutates nothing, fires mutations for unordered beans).
+	 * Returns the list with orders filled in. Updates the store optimistically.
 	 */
-	async function ensureOrdered(beans: Bean[]): Promise<Bean[]> {
+	function ensureOrdered(beans: Bean[]): Bean[] {
 		const needsOrder = beans.filter((b) => !b.order);
 		if (needsOrder.length === 0) return beans;
 
@@ -128,7 +128,7 @@
 			if (!result[i].order) {
 				const newOrder = orderBetween(key, nextKey);
 				result[i] = { ...result[i], order: newOrder };
-				// Fire mutation (don't await, let them run in parallel)
+				beansStore.optimisticUpdate(result[i].id, { order: newOrder });
 				client.mutation(UPDATE_BEAN, { id: result[i].id, input: { order: newOrder } }).toPromise();
 			}
 			key = result[i].order;
@@ -165,7 +165,7 @@
 		return orderBetween(filtered[idx - 1].order, filtered[idx].order);
 	}
 
-	async function onDrop(e: DragEvent, targetStatus: string, beans: Bean[]) {
+	function onDrop(e: DragEvent, targetStatus: string, beans: Bean[]) {
 		e.preventDefault();
 		const targetIdx = dropIndex;
 		dropTargetStatus = null;
@@ -180,7 +180,7 @@
 		if (!bean) return;
 
 		// Ensure all beans in the target column have order keys first
-		const orderedBeans = await ensureOrdered(beans);
+		const orderedBeans = ensureOrdered(beans);
 
 		const sameColumn = bean.status === targetStatus;
 		const newOrder = computeOrder(orderedBeans, targetIdx ?? orderedBeans.length, beanId);
@@ -188,16 +188,23 @@
 		// Skip if same column and order hasn't changed
 		if (sameColumn && bean.order === newOrder) return;
 
+		// Optimistic update — move the bean immediately in the local store
+		const optimistic: Partial<Bean> = { order: newOrder };
+		if (!sameColumn) {
+			optimistic.status = targetStatus;
+		}
+		beansStore.optimisticUpdate(beanId, optimistic);
+
+		// Fire mutation in background
 		const input: Record<string, string> = { order: newOrder };
 		if (!sameColumn) {
 			input.status = targetStatus;
 		}
-
-		const result = await client.mutation(UPDATE_BEAN, { id: beanId, input }).toPromise();
-
-		if (result.error) {
-			console.error('Failed to update bean:', result.error);
-		}
+		client.mutation(UPDATE_BEAN, { id: beanId, input }).toPromise().then((result) => {
+			if (result.error) {
+				console.error('Failed to update bean:', result.error);
+			}
+		});
 	}
 </script>
 
@@ -223,16 +230,18 @@
 				ondrop={(e) => onDrop(e, col.status, beans)}
 			>
 				{#each beans as bean, index (bean.id)}
-					<!-- Drop indicator line -->
-					{#if dropTargetStatus === col.status && dropIndex === index && draggedBeanId && draggedBeanId !== bean.id}
-						<div class="h-0.5 bg-primary rounded-full mx-1"></div>
-					{/if}
-
 					<div
 						class="card card-border bg-base-100 shadow-sm border-l-3 transition-all cursor-pointer
 							{typeBorders[bean.type] ?? 'border-l-base-300'}
 							{draggedBeanId === bean.id ? 'opacity-40' : 'hover:shadow-md'}
 							{selectedId === bean.id ? 'ring-1 ring-primary bg-primary/5' : ''}"
+						style={dropTargetStatus === col.status && draggedBeanId && draggedBeanId !== bean.id
+							? dropIndex === index
+								? 'box-shadow: 0 -2px 0 0 var(--color-primary)'
+								: dropIndex === index + 1 && index === beans.length - 1
+									? 'box-shadow: 0 2px 0 0 var(--color-primary)'
+									: ''
+							: ''}
 						draggable="true"
 						ondragstart={(e) => onDragStart(e, bean)}
 						ondragend={onDragEnd}
@@ -260,10 +269,6 @@
 					<div class="text-center text-base-content/30 text-sm py-8">No beans</div>
 				{/each}
 
-				<!-- Drop indicator at end -->
-				{#if dropTargetStatus === col.status && dropIndex === beans.length && draggedBeanId}
-					<div class="h-0.5 bg-primary rounded-full mx-1"></div>
-				{/if}
 			</div>
 		</div>
 	{/each}

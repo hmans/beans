@@ -3,8 +3,10 @@
 title: beans milestones command
 status: todo
 type: task
+priority: normal
 created_at: 2025-12-27T21:44:05Z
-updated_at: 2025-12-27T21:44:05Z
+updated_at: 2026-03-07T23:17:35Z
+order: VVt
 parent: beans-mmyp
 ---
 

@@ -3,8 +3,10 @@
 title: Experiment with integrating agent UI into web UI using ACP
 status: draft
 type: feature
+priority: normal
 created_at: 2025-12-15T18:38:32Z
-updated_at: 2025-12-15T18:38:32Z
+updated_at: 2026-03-07T23:12:13Z
+order: u
 ---
 
 Explore integrating an agent UI into the beans web interface using the Agent Client Protocol (ACP).

@@ -8,7 +8,8 @@ tags:
     - cli
     - visualization
 created_at: 2025-12-07T11:29:37Z
-updated_at: 2025-12-13T14:44:14Z
+updated_at: 2026-03-07T23:12:02Z
+order: k
 parent: beans-f11p
 ---
 

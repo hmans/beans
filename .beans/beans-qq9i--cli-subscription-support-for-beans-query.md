@@ -3,8 +3,10 @@
 title: CLI subscription support for beans query
 status: draft
 type: feature
+priority: normal
 created_at: 2025-12-20T09:54:53Z
-updated_at: 2025-12-20T09:54:53Z
+updated_at: 2026-03-07T23:12:15Z
+order: c
 ---
 
 Add subscription support to the `beans query` command so users can subscribe to bean changes from the CLI.

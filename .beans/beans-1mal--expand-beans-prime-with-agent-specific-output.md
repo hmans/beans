@@ -3,8 +3,10 @@
 title: Expand beans prime with agent-specific output
 status: todo
 type: feature
+priority: normal
 created_at: 2025-12-20T15:53:29Z
-updated_at: 2025-12-20T15:53:29Z
+updated_at: 2026-03-07T23:18:37Z
+order: VN
 ---
 
 Add an optional argument to `beans prime` that allows specifying an agent (e.g., `claude`, `opencode`), which appends agent-specific text to the output.

@@ -3,8 +3,10 @@
 title: Add comments to generated .beans.yml config file
 status: todo
 type: task
+priority: normal
 created_at: 2025-12-20T14:40:52Z
-updated_at: 2025-12-20T14:40:52Z
+updated_at: 2026-03-07T23:09:25Z
+order: VV
 parent: beans-f11p
 ---
 

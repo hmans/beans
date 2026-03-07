@@ -3,10 +3,12 @@
 title: Generate embeddings for beans using OpenAI
 status: draft
 type: feature
+priority: normal
 tags:
     - idea
 created_at: 2025-12-15T17:36:19Z
-updated_at: 2025-12-15T17:36:19Z
+updated_at: 2026-03-07T23:17:33Z
+order: w
 ---
 
 ## Summary

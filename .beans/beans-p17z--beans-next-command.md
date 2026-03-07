@@ -3,8 +3,10 @@
 title: beans next command
 status: todo
 type: task
+priority: normal
 created_at: 2025-12-27T21:44:04Z
-updated_at: 2025-12-27T21:44:04Z
+updated_at: 2026-03-07T23:16:26Z
+order: VVg
 parent: beans-mmyp
 ---
 
