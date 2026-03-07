@@ -162,6 +162,18 @@ type UpdateBeanInput struct {
 	IfMatch *string `json:"ifMatch,omitempty"`
 }
 
+// A git worktree associated with a bean
+type Worktree struct {
+	// The bean ID this worktree is for
+	BeanID string `json:"beanId"`
+	// The associated bean
+	Bean *bean.Bean `json:"bean,omitempty"`
+	// Git branch name
+	Branch string `json:"branch"`
+	// Filesystem path to the worktree
+	Path string `json:"path"`
+}
+
 // Type of change that occurred to a bean
 type ChangeType string
 

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Bean } from '$lib/beans.svelte';
 	import { beansStore } from '$lib/beans.svelte';
+	import { worktreeStore } from '$lib/worktrees.svelte';
 	import { renderMarkdown } from '$lib/markdown';
 
 	interface Props {
@@ -70,6 +71,18 @@
 		copied = true;
 		setTimeout(() => (copied = false), 1500);
 	}
+
+	const canStartWork = $derived(
+		(bean.status === 'todo' || bean.status === 'draft') && !worktreeStore.hasWorktree(bean.id)
+	);
+
+	let startingWork = $state(false);
+
+	async function startWork() {
+		startingWork = true;
+		await worktreeStore.createWorktree(bean.id);
+		startingWork = false;
+	}
 </script>
 
 {#snippet beanCard(b: Bean)}
@@ -121,6 +134,18 @@
 		</div>
 		<div class="flex items-center gap-2">
 			<h1 class="text-2xl font-bold text-base-content flex-1">{bean.title}</h1>
+			{#if canStartWork}
+				<button
+					class="btn btn-success btn-sm"
+					onclick={startWork}
+					disabled={startingWork}
+				>
+					{#if startingWork}
+						<span class="loading loading-spinner loading-sm"></span>
+					{/if}
+					Start Work
+				</button>
+			{/if}
 			{#if onEdit}
 				<button class="btn btn-ghost btn-sm" onclick={() => onEdit(bean)}>Edit</button>
 			{/if}

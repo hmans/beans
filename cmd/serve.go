@@ -19,6 +19,7 @@ import (
 	"github.com/hmans/beans/internal/config"
 	"github.com/hmans/beans/internal/graph"
 	"github.com/hmans/beans/internal/web"
+	"github.com/hmans/beans/internal/worktree"
 )
 
 var (
@@ -69,9 +70,12 @@ func runServer(port int) error {
 		c.Next()
 	})
 
+	// Create worktree manager (uses config dir as repo root)
+	wtManager := worktree.NewManager(cfg.ConfigDir())
+
 	// Create GraphQL server with explicit transports
 	es := graph.NewExecutableSchema(graph.Config{
-		Resolvers: &graph.Resolver{Core: core},
+		Resolvers: &graph.Resolver{Core: core, WorktreeMgr: wtManager},
 	})
 	gqlHandler := handler.New(es)
 

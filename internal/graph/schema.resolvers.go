@@ -463,6 +463,55 @@ func (r *mutationResolver) RemoveBlockedBy(ctx context.Context, id string, targe
 	return b, nil
 }
 
+// CreateWorktree is the resolver for the createWorktree field.
+func (r *mutationResolver) CreateWorktree(ctx context.Context, beanID string) (*model.Worktree, error) {
+	if r.WorktreeMgr == nil {
+		return nil, fmt.Errorf("worktree support not available")
+	}
+
+	// Normalize the bean ID
+	normalizedID, _ := r.Core.NormalizeID(beanID)
+
+	// Verify the bean exists
+	b, err := r.Core.Get(normalizedID)
+	if err != nil {
+		return nil, fmt.Errorf("bean not found: %s", beanID)
+	}
+
+	// Create the worktree
+	wt, err := r.WorktreeMgr.Create(normalizedID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set bean status to in-progress
+	if b.Status != "in-progress" {
+		b.Status = "in-progress"
+		if err := r.Core.Update(b, nil); err != nil {
+			return nil, fmt.Errorf("worktree created but failed to update bean status: %w", err)
+		}
+	}
+
+	return &model.Worktree{
+		BeanID: wt.BeanID,
+		Branch: wt.Branch,
+		Path:   wt.Path,
+	}, nil
+}
+
+// RemoveWorktree is the resolver for the removeWorktree field.
+func (r *mutationResolver) RemoveWorktree(ctx context.Context, beanID string) (bool, error) {
+	if r.WorktreeMgr == nil {
+		return false, fmt.Errorf("worktree support not available")
+	}
+
+	normalizedID, _ := r.Core.NormalizeID(beanID)
+	if err := r.WorktreeMgr.Remove(normalizedID); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // Bean is the resolver for the bean field.
 func (r *queryResolver) Bean(ctx context.Context, id string) (*bean.Bean, error) {
 	b, err := r.Core.Get(id)
@@ -493,6 +542,28 @@ func (r *queryResolver) Beans(ctx context.Context, filter *model.BeanFilter) ([]
 	cfg := r.Core.Config()
 	bean.SortByStatusPriorityAndType(result, cfg.StatusNames(), cfg.PriorityNames(), cfg.TypeNames())
 
+	return result, nil
+}
+
+// Worktrees is the resolver for the worktrees field.
+func (r *queryResolver) Worktrees(ctx context.Context) ([]*model.Worktree, error) {
+	if r.WorktreeMgr == nil {
+		return []*model.Worktree{}, nil
+	}
+
+	wts, err := r.WorktreeMgr.List()
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*model.Worktree, len(wts))
+	for i, wt := range wts {
+		result[i] = &model.Worktree{
+			BeanID: wt.BeanID,
+			Branch: wt.Branch,
+			Path:   wt.Path,
+		}
+	}
 	return result, nil
 }
 
@@ -574,6 +645,71 @@ func (r *subscriptionResolver) BeanChanged(ctx context.Context, includeInitial *
 					case <-ctx.Done():
 						return
 					}
+				}
+			}
+		}
+	}()
+
+	return out, nil
+}
+
+// WorktreesChanged is the resolver for the worktreesChanged field.
+func (r *subscriptionResolver) WorktreesChanged(ctx context.Context) (<-chan []*model.Worktree, error) {
+	if r.WorktreeMgr == nil {
+		out := make(chan []*model.Worktree)
+		close(out)
+		return out, nil
+	}
+
+	ch := r.WorktreeMgr.Subscribe()
+	out := make(chan []*model.Worktree)
+
+	go func() {
+		defer r.WorktreeMgr.Unsubscribe(ch)
+		defer close(out)
+
+		// Emit the current list immediately
+		if wts, err := r.WorktreeMgr.List(); err == nil {
+			result := make([]*model.Worktree, len(wts))
+			for i, wt := range wts {
+				result[i] = &model.Worktree{
+					BeanID: wt.BeanID,
+					Branch: wt.Branch,
+					Path:   wt.Path,
+				}
+			}
+			select {
+			case out <- result:
+			case <-ctx.Done():
+				return
+			}
+		}
+
+		// Then emit on each change
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case _, ok := <-ch:
+				if !ok {
+					return
+				}
+				wts, err := r.WorktreeMgr.List()
+				if err != nil {
+					continue
+				}
+				result := make([]*model.Worktree, len(wts))
+				for i, wt := range wts {
+					result[i] = &model.Worktree{
+						BeanID: wt.BeanID,
+						Branch: wt.Branch,
+						Path:   wt.Path,
+					}
+				}
+				select {
+				case out <- result:
+				case <-ctx.Done():
+					return
 				}
 			}
 		}

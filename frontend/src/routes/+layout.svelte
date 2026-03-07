@@ -4,6 +4,7 @@
 	import { preloadHighlighter } from '$lib/markdown';
 	import { onMount, onDestroy } from 'svelte';
 	import { beansStore } from '$lib/beans.svelte';
+	import { worktreeStore } from '$lib/worktrees.svelte';
 	import { ui } from '$lib/uiState.svelte';
 	import { page } from '$app/state';
 	import BeanForm from '$lib/components/BeanForm.svelte';
@@ -12,16 +13,21 @@
 
 	onMount(() => {
 		beansStore.subscribe();
+		worktreeStore.subscribe();
 		ui.loadPaneWidth();
 		ui.loadFromUrl();
 	});
 
 	onDestroy(() => {
 		beansStore.unsubscribe();
+		worktreeStore.unsubscribe();
 	});
 
 	const isBacklog = $derived(page.url.pathname === '/');
 	const isBoard = $derived(page.url.pathname === '/board');
+	const worktreeId = $derived(
+		page.url.pathname.startsWith('/worktree/') ? page.url.pathname.split('/')[2] : null
+	);
 
 	// Preserve bean selection when navigating between tabs
 	const beanParam = $derived(ui.selectedBeanId ? `?bean=${ui.selectedBeanId}` : '');
@@ -47,6 +53,17 @@
 			<nav role="tablist" class="tabs tabs-border flex-1">
 				<a href={backlogHref} role="tab" class="tab {isBacklog ? 'tab-active' : ''}">Backlog</a>
 				<a href={boardHref} role="tab" class="tab {isBoard ? 'tab-active' : ''}">Board</a>
+				{#each worktreeStore.worktrees as wt}
+					{@const wtBean = beansStore.get(wt.beanId)}
+					<a
+						href="/worktree/{wt.beanId}{beanParam}"
+						role="tab"
+						class="tab {worktreeId === wt.beanId ? 'tab-active' : ''}"
+						title={wtBean?.title ?? wt.beanId}
+					>
+						{wtBean?.title ?? wt.beanId.slice(-4)}
+					</a>
+				{/each}
 			</nav>
 			<button class="btn btn-primary btn-sm" onclick={() => ui.openCreateForm()}>
 				+ New Bean

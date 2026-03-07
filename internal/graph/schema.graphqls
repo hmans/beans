@@ -12,6 +12,11 @@ type Query {
   List beans with optional filtering
   """
   beans(filter: BeanFilter): [Bean!]!
+
+  """
+  List active git worktrees created by beans
+  """
+  worktrees: [Worktree!]!
 }
 
 type Subscription {
@@ -23,6 +28,12 @@ type Subscription {
   This eliminates race conditions between loading and subscribing.
   """
   beanChanged(includeInitial: Boolean = false): BeanChangeEvent!
+
+  """
+  Subscribe to worktree changes. Emits the full list of active worktrees
+  whenever a worktree is created or removed.
+  """
+  worktreesChanged: [Worktree!]!
 }
 
 """
@@ -90,6 +101,16 @@ type Mutation {
   Remove a bean from the blocked-by list
   """
   removeBlockedBy(id: ID!, targetId: ID!, ifMatch: String): Bean!
+
+  """
+  Create a git worktree for a bean. Sets bean status to in-progress.
+  """
+  createWorktree(beanId: ID!): Worktree!
+
+  """
+  Remove a git worktree for a bean.
+  """
+  removeWorktree(beanId: ID!): Boolean!
 }
 
 """
@@ -288,4 +309,18 @@ input BeanFilter {
   noBlocking: Boolean
   "Exclude beans that have explicit blocked-by entries"
   noBlockedBy: Boolean
+}
+
+"""
+A git worktree associated with a bean
+"""
+type Worktree {
+  "The bean ID this worktree is for"
+  beanId: ID!
+  "The associated bean"
+  bean: Bean
+  "Git branch name"
+  branch: String!
+  "Filesystem path to the worktree"
+  path: String!
 }

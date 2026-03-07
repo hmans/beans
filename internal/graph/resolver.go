@@ -5,6 +5,7 @@ import (
 
 	"github.com/hmans/beans/internal/bean"
 	"github.com/hmans/beans/internal/beancore"
+	"github.com/hmans/beans/internal/worktree"
 )
 
 //go:generate go tool gqlgen generate
@@ -12,7 +13,8 @@ import (
 // Resolver is the root resolver for the GraphQL schema.
 // It holds a reference to beancore.Core for data access.
 type Resolver struct {
-	Core *beancore.Core
+	Core       *beancore.Core
+	WorktreeMgr *worktree.Manager
 }
 
 // ETagMismatchError is returned when an ETag validation fails.
