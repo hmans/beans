@@ -173,6 +173,8 @@ input UpdateBeanInput {
   "Remove beans from blocked-by list"
   removeBlockedBy: [String!]
   
+  "Fractional index for manual ordering (used by board drag-and-drop)"
+  order: String
   "ETag for optimistic concurrency control (optional)"
   ifMatch: String
 }
@@ -231,6 +233,8 @@ type Bean {
   updatedAt: Time!
   "Markdown body content"
   body: String!
+  "Fractional index for manual ordering within status groups"
+  order: String!
   "Content hash for optimistic concurrency control"
   etag: String!
 

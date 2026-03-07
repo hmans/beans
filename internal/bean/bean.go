@@ -150,6 +150,9 @@ type Bean struct {
 	CreatedAt *time.Time `yaml:"created_at,omitempty" json:"created_at,omitempty"`
 	UpdatedAt *time.Time `yaml:"updated_at,omitempty" json:"updated_at,omitempty"`
 
+	// Order is a fractional index string for manual sorting.
+	Order string `yaml:"order,omitempty" json:"order,omitempty"`
+
 	// Body is the markdown content after the front matter.
 	Body string `yaml:"-" json:"body,omitempty"`
 
@@ -172,6 +175,7 @@ type frontMatter struct {
 	Tags      []string   `yaml:"tags,omitempty"`
 	CreatedAt *time.Time `yaml:"created_at,omitempty"`
 	UpdatedAt *time.Time `yaml:"updated_at,omitempty"`
+	Order     string     `yaml:"order,omitempty"`
 	Parent    string     `yaml:"parent,omitempty"`
 	Blocking  []string   `yaml:"blocking,omitempty"`
 	BlockedBy []string   `yaml:"blocked_by,omitempty"`
@@ -196,6 +200,7 @@ func Parse(r io.Reader) (*Bean, error) {
 		Tags:      fm.Tags,
 		CreatedAt: fm.CreatedAt,
 		UpdatedAt: fm.UpdatedAt,
+		Order:     fm.Order,
 		Body:      bodyStr,
 		Parent:    fm.Parent,
 		Blocking:  fm.Blocking,
@@ -212,6 +217,7 @@ type renderFrontMatter struct {
 	Tags      []string   `yaml:"tags,omitempty"`
 	CreatedAt *time.Time `yaml:"created_at,omitempty"`
 	UpdatedAt *time.Time `yaml:"updated_at,omitempty"`
+	Order     string     `yaml:"order,omitempty"`
 	Parent    string     `yaml:"parent,omitempty"`
 	Blocking  []string   `yaml:"blocking,omitempty"`
 	BlockedBy []string   `yaml:"blocked_by,omitempty"`
@@ -227,6 +233,7 @@ func (b *Bean) Render() ([]byte, error) {
 		Tags:      b.Tags,
 		CreatedAt: b.CreatedAt,
 		UpdatedAt: b.UpdatedAt,
+		Order:     b.Order,
 		Parent:    b.Parent,
 		Blocking:  b.Blocking,
 		BlockedBy: b.BlockedBy,

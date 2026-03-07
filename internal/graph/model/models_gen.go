@@ -158,6 +158,8 @@ type UpdateBeanInput struct {
 	AddBlockedBy []string `json:"addBlockedBy,omitempty"`
 	// Remove beans from blocked-by list
 	RemoveBlockedBy []string `json:"removeBlockedBy,omitempty"`
+	// Fractional index for manual ordering (used by board drag-and-drop)
+	Order *string `json:"order,omitempty"`
 	// ETag for optimistic concurrency control (optional)
 	IfMatch *string `json:"ifMatch,omitempty"`
 }

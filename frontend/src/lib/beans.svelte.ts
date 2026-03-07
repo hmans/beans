@@ -18,6 +18,7 @@ export interface Bean {
 	createdAt: string;
 	updatedAt: string;
 	body: string;
+	order: string;
 	parentId: string | null;
 	blockingIds: string[];
 }
@@ -56,6 +57,7 @@ const BEAN_CHANGED_SUBSCRIPTION = gql`
 				createdAt
 				updatedAt
 				body
+				order
 				parentId
 				blockingIds
 			}

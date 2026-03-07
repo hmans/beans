@@ -61,6 +61,7 @@ type ComplexityRoot struct {
 		CreatedAt    func(childComplexity int) int
 		ETag         func(childComplexity int) int
 		ID           func(childComplexity int) int
+		Order        func(childComplexity int) int
 		Parent       func(childComplexity int) int
 		ParentID     func(childComplexity int) int
 		Path         func(childComplexity int) int
@@ -230,6 +231,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Bean.ID(childComplexity), true
+	case "Bean.order":
+		if e.complexity.Bean.Order == nil {
+			break
+		}
+
+		return e.complexity.Bean.Order(childComplexity), true
 	case "Bean.parent":
 		if e.complexity.Bean.Parent == nil {
 			break
@@ -1252,6 +1259,35 @@ func (ec *executionContext) fieldContext_Bean_body(_ context.Context, field grap
 	return fc, nil
 }
 
+func (ec *executionContext) _Bean_order(ctx context.Context, field graphql.CollectedField, obj *bean.Bean) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Bean_order,
+		func(ctx context.Context) (any, error) {
+			return obj.Order, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Bean_order(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Bean",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Bean_etag(ctx context.Context, field graphql.CollectedField, obj *bean.Bean) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -1415,6 +1451,8 @@ func (ec *executionContext) fieldContext_Bean_blockedBy(ctx context.Context, fie
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
+			case "order":
+				return ec.fieldContext_Bean_order(ctx, field)
 			case "etag":
 				return ec.fieldContext_Bean_etag(ctx, field)
 			case "parentId":
@@ -1496,6 +1534,8 @@ func (ec *executionContext) fieldContext_Bean_blocking(ctx context.Context, fiel
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
+			case "order":
+				return ec.fieldContext_Bean_order(ctx, field)
 			case "etag":
 				return ec.fieldContext_Bean_etag(ctx, field)
 			case "parentId":
@@ -1576,6 +1616,8 @@ func (ec *executionContext) fieldContext_Bean_parent(_ context.Context, field gr
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
+			case "order":
+				return ec.fieldContext_Bean_order(ctx, field)
 			case "etag":
 				return ec.fieldContext_Bean_etag(ctx, field)
 			case "parentId":
@@ -1646,6 +1688,8 @@ func (ec *executionContext) fieldContext_Bean_children(ctx context.Context, fiel
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
+			case "order":
+				return ec.fieldContext_Bean_order(ctx, field)
 			case "etag":
 				return ec.fieldContext_Bean_etag(ctx, field)
 			case "parentId":
@@ -1755,6 +1799,8 @@ func (ec *executionContext) fieldContext_BeanChangeEvent_bean(_ context.Context,
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
+			case "order":
+				return ec.fieldContext_Bean_order(ctx, field)
 			case "etag":
 				return ec.fieldContext_Bean_etag(ctx, field)
 			case "parentId":
@@ -1854,6 +1900,8 @@ func (ec *executionContext) fieldContext_Mutation_createBean(ctx context.Context
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
+			case "order":
+				return ec.fieldContext_Bean_order(ctx, field)
 			case "etag":
 				return ec.fieldContext_Bean_etag(ctx, field)
 			case "parentId":
@@ -1935,6 +1983,8 @@ func (ec *executionContext) fieldContext_Mutation_updateBean(ctx context.Context
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
+			case "order":
+				return ec.fieldContext_Bean_order(ctx, field)
 			case "etag":
 				return ec.fieldContext_Bean_etag(ctx, field)
 			case "parentId":
@@ -2057,6 +2107,8 @@ func (ec *executionContext) fieldContext_Mutation_setParent(ctx context.Context,
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
+			case "order":
+				return ec.fieldContext_Bean_order(ctx, field)
 			case "etag":
 				return ec.fieldContext_Bean_etag(ctx, field)
 			case "parentId":
@@ -2138,6 +2190,8 @@ func (ec *executionContext) fieldContext_Mutation_addBlocking(ctx context.Contex
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
+			case "order":
+				return ec.fieldContext_Bean_order(ctx, field)
 			case "etag":
 				return ec.fieldContext_Bean_etag(ctx, field)
 			case "parentId":
@@ -2219,6 +2273,8 @@ func (ec *executionContext) fieldContext_Mutation_removeBlocking(ctx context.Con
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
+			case "order":
+				return ec.fieldContext_Bean_order(ctx, field)
 			case "etag":
 				return ec.fieldContext_Bean_etag(ctx, field)
 			case "parentId":
@@ -2300,6 +2356,8 @@ func (ec *executionContext) fieldContext_Mutation_addBlockedBy(ctx context.Conte
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
+			case "order":
+				return ec.fieldContext_Bean_order(ctx, field)
 			case "etag":
 				return ec.fieldContext_Bean_etag(ctx, field)
 			case "parentId":
@@ -2381,6 +2439,8 @@ func (ec *executionContext) fieldContext_Mutation_removeBlockedBy(ctx context.Co
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
+			case "order":
+				return ec.fieldContext_Bean_order(ctx, field)
 			case "etag":
 				return ec.fieldContext_Bean_etag(ctx, field)
 			case "parentId":
@@ -2554,6 +2614,8 @@ func (ec *executionContext) fieldContext_Query_bean(ctx context.Context, field g
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
+			case "order":
+				return ec.fieldContext_Bean_order(ctx, field)
 			case "etag":
 				return ec.fieldContext_Bean_etag(ctx, field)
 			case "parentId":
@@ -2635,6 +2697,8 @@ func (ec *executionContext) fieldContext_Query_beans(ctx context.Context, field 
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
+			case "order":
+				return ec.fieldContext_Bean_order(ctx, field)
 			case "etag":
 				return ec.fieldContext_Bean_etag(ctx, field)
 			case "parentId":
@@ -2979,6 +3043,8 @@ func (ec *executionContext) fieldContext_Worktree_bean(_ context.Context, field 
 				return ec.fieldContext_Bean_updatedAt(ctx, field)
 			case "body":
 				return ec.fieldContext_Bean_body(ctx, field)
+			case "order":
+				return ec.fieldContext_Bean_order(ctx, field)
 			case "etag":
 				return ec.fieldContext_Bean_etag(ctx, field)
 			case "parentId":
@@ -4824,7 +4890,7 @@ func (ec *executionContext) unmarshalInputUpdateBeanInput(ctx context.Context, o
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"title", "status", "type", "priority", "tags", "addTags", "removeTags", "body", "bodyMod", "parent", "addBlocking", "removeBlocking", "addBlockedBy", "removeBlockedBy", "ifMatch"}
+	fieldsInOrder := [...]string{"title", "status", "type", "priority", "tags", "addTags", "removeTags", "body", "bodyMod", "parent", "addBlocking", "removeBlocking", "addBlockedBy", "removeBlockedBy", "order", "ifMatch"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -4929,6 +4995,13 @@ func (ec *executionContext) unmarshalInputUpdateBeanInput(ctx context.Context, o
 				return it, err
 			}
 			it.RemoveBlockedBy = data
+		case "order":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("order"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Order = data
 		case "ifMatch":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("ifMatch"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
@@ -5010,6 +5083,11 @@ func (ec *executionContext) _Bean(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "body":
 			out.Values[i] = ec._Bean_body(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "order":
+			out.Values[i] = ec._Bean_order(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

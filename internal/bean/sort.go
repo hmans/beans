@@ -61,17 +61,27 @@ func SortByStatusPriorityAndType(beans []*Bean, statusNames, priorityNames, type
 		if oi != oj {
 			return oi < oj
 		}
-		// Secondary: priority order
+		// Secondary: manual order (fractional index) — beans with order come first
+		oiHas, ojHas := beans[i].Order != "", beans[j].Order != ""
+		if oiHas && ojHas {
+			if beans[i].Order != beans[j].Order {
+				return beans[i].Order < beans[j].Order
+			}
+		} else if oiHas != ojHas {
+			// Beans with explicit order come before those without
+			return oiHas
+		}
+		// Tertiary: priority order (for beans without manual order, or as tiebreaker)
 		pi, pj := getPriorityOrder(beans[i].Priority), getPriorityOrder(beans[j].Priority)
 		if pi != pj {
 			return pi < pj
 		}
-		// Tertiary: type order
+		// Quaternary: type order
 		ti, tj := getTypeOrder(beans[i].Type), getTypeOrder(beans[j].Type)
 		if ti != tj {
 			return ti < tj
 		}
-		// Quaternary: title (case-insensitive) for stable, user-friendly ordering
+		// Final: title (case-insensitive) for stable, user-friendly ordering
 		return strings.ToLower(beans[i].Title) < strings.ToLower(beans[j].Title)
 	})
 }

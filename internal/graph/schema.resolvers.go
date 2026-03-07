@@ -209,6 +209,9 @@ func (r *mutationResolver) UpdateBean(ctx context.Context, id string, input mode
 	if input.Priority != nil {
 		b.Priority = *input.Priority
 	}
+	if input.Order != nil {
+		b.Order = *input.Order
+	}
 	if input.Body != nil {
 		b.Body = *input.Body
 	} else if input.BodyMod != nil {
