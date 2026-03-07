@@ -15,12 +15,13 @@
 	const columns = [
 		{ status: 'draft', label: 'Draft', color: 'badge-warning' },
 		{ status: 'todo', label: 'Todo', color: 'badge-ghost' },
-		{ status: 'in-progress', label: 'In Progress', color: 'badge-info' }
+		{ status: 'in-progress', label: 'In Progress', color: 'badge-info' },
+		{ status: 'completed', label: 'Completed', color: 'badge-success' }
 	];
 
 	function beansForStatus(status: string): Bean[] {
 		return beansStore.all
-			.filter((b) => b.status === status && b.status !== 'completed' && b.status !== 'scrapped')
+			.filter((b) => b.status === status && b.status !== 'scrapped')
 			.sort((a, b) => {
 				// Beans with order come first, sorted lexicographically
 				if (a.order && b.order) return a.order < b.order ? -1 : a.order > b.order ? 1 : 0;
