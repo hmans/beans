@@ -27,12 +27,19 @@ You already know what beans is. This is the beans repository.
 
 # Testing
 
+- Always write or update tests for the changes you make.
+
 ## Unit Tests
 
-- Always write or update tests for the changes you make.
 - Run all tests: `mise test`
 - Run specific package: `go test ./internal/bean/`
 - Use table-driven tests following Go conventions
+
+## E2E Tests
+
+- Write or update Playwright e2e tests for any web UI changes.
+- Run e2e tests: `mise test:e2e`
+- See `frontend/e2e/` for fixtures, page objects, and specs.
 
 ## Manual CLI Testing
 

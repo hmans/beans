@@ -5,7 +5,23 @@ globs: ["frontend/**"]
 # Frontend
 
 - Use `pnpm` for package management and running scripts. NEVER `npm`.
-- We're using SvelteKit with the `adapter-static` for a fully static frontend.
+- We're using SvelteKit with `adapter-static` for a fully static **SPA**. There are no server load functions, form actions, or remote functions — all data fetching happens client-side via GraphQL.
+
+## Svelte
+
+- Use **Svelte 5** with runes (`$state`, `$derived`, `$props`, `$effect`, etc.). Do not use legacy Svelte 4 patterns (`export let`, `$:`, stores via `writable`/`readable`).
+
+## Styling
+
+- Use **Tailwind CSS v4** utility classes. Avoid plain CSS or `<style>` blocks when Tailwind utilities suffice.
+- Define custom utility classes in the Tailwind theme (`@theme`) when a pattern repeats across components.
+
+## E2E Testing
+
+- Write or update Playwright e2e tests (`frontend/e2e/`) for any web UI changes.
+- Use the page object model (see `e2e/pages/`).
+- Tests run in parallel with per-test server isolation — see `e2e/fixtures.ts`.
+- Run e2e tests: `mise test:e2e` (or `bash frontend/e2e/run.sh`).
 
 ## Bundle Size
 
