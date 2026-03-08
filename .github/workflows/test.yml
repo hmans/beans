@@ -39,6 +39,9 @@ jobs:
           cache-dependency-path: "frontend/pnpm-lock.yaml"
       - name: Install dependencies
         run: mise deps
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
       - name: Build
         run: mise build
       - name: Test
