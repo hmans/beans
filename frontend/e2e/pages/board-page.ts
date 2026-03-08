@@ -4,10 +4,13 @@ import { expect, type Locator, type Page } from '@playwright/test';
  * Page object for the board (kanban) view at /board.
  */
 export class BoardPage {
-	constructor(private page: Page) {}
+	constructor(
+		private page: Page,
+		private baseURL: string
+	) {}
 
 	async goto() {
-		await this.page.goto('/board');
+		await this.page.goto(this.baseURL + '/board');
 		// Wait for columns to render
 		await this.page.waitForSelector('[data-status]', { timeout: 10_000 });
 	}

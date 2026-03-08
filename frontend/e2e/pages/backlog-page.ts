@@ -6,7 +6,10 @@ import { expect, type Locator, type Page } from '@playwright/test';
 export class BacklogPage {
 	readonly beanItems: Locator;
 
-	constructor(private page: Page) {
+	constructor(
+		private page: Page,
+		private baseURL: string
+	) {
 		this.beanItems = page.locator('.bean-item');
 	}
 
@@ -15,14 +18,12 @@ export class BacklogPage {
 	 * @param expectedCount If provided, wait until exactly this many beans are visible.
 	 */
 	async goto(expectedCount?: number) {
-		await this.page.goto('/');
+		await this.page.goto(this.baseURL + '/');
 		if (expectedCount !== undefined && expectedCount > 0) {
 			await expect(this.beanItems).toHaveCount(expectedCount, { timeout: 10_000 });
 		} else if (expectedCount === undefined) {
-			// Just wait for at least one bean
 			await this.page.waitForSelector('.bean-item', { timeout: 10_000 });
 		}
-		// If expectedCount === 0, no waiting needed
 	}
 
 	/** Get all visible bean titles in display order. */
