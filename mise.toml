@@ -2,6 +2,7 @@
 go = "latest"
 node = "latest"
 svu = "latest"
+watchexec = "latest"
 
 [hooks]
 postinstall = "npx corepack enable"
@@ -59,7 +60,8 @@ run = "go run ./cmd/beans"
 
 [tasks.beans-serve]
 description = "Build and run the beans-serve server"
-run = "go run ./cmd/beans-serve"
+run = "go run ./cmd/beans-serve --port ${BEANS_PORT:-22880}"
+sources = ["**/*.go"]
 
 [tasks.beans-tui]
 description = "Build and run the beans-tui terminal UI"
@@ -104,7 +106,7 @@ echo "To release, run: git push && git push --tags"
 """
 
 [tasks."dev:serve"]
-run = "wgo run -exit ./cmd/beans-serve serve --port ${BEANS_PORT:-22880}"
+run = "mise watch beans-serve --restart"
 
 [tasks."dev:frontend"]
 dir = "frontend"
