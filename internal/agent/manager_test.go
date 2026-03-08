@@ -5,7 +5,7 @@ import (
 )
 
 func TestNewManager(t *testing.T) {
-	m := NewManager()
+	m := NewManager("")
 	if m == nil {
 		t.Fatal("NewManager returned nil")
 	}
@@ -15,7 +15,7 @@ func TestNewManager(t *testing.T) {
 }
 
 func TestGetSession_NotFound(t *testing.T) {
-	m := NewManager()
+	m := NewManager("")
 	s := m.GetSession("nonexistent")
 	if s != nil {
 		t.Errorf("expected nil, got %+v", s)
@@ -23,7 +23,7 @@ func TestGetSession_NotFound(t *testing.T) {
 }
 
 func TestGetSession_ReturnsSnapshot(t *testing.T) {
-	m := NewManager()
+	m := NewManager("")
 	m.sessions["test"] = &Session{
 		ID:        "test",
 		AgentType: "claude",
@@ -53,7 +53,7 @@ func TestGetSession_ReturnsSnapshot(t *testing.T) {
 }
 
 func TestSubscribeUnsubscribe(t *testing.T) {
-	m := NewManager()
+	m := NewManager("")
 	ch := m.Subscribe("bean-1")
 
 	// Should have one subscriber
@@ -79,7 +79,7 @@ func TestSubscribeUnsubscribe(t *testing.T) {
 }
 
 func TestNotify(t *testing.T) {
-	m := NewManager()
+	m := NewManager("")
 	ch := m.Subscribe("bean-1")
 	defer m.Unsubscribe("bean-1", ch)
 
@@ -94,7 +94,7 @@ func TestNotify(t *testing.T) {
 }
 
 func TestNotify_NonBlocking(t *testing.T) {
-	m := NewManager()
+	m := NewManager("")
 	ch := m.Subscribe("bean-1")
 	defer m.Unsubscribe("bean-1", ch)
 
@@ -115,7 +115,7 @@ func TestNotify_NonBlocking(t *testing.T) {
 }
 
 func TestAppendAssistantText(t *testing.T) {
-	m := NewManager()
+	m := NewManager("")
 	m.sessions["test"] = &Session{
 		ID: "test",
 		Messages: []Message{
@@ -144,7 +144,7 @@ func TestAppendAssistantText(t *testing.T) {
 }
 
 func TestSetAssistantText(t *testing.T) {
-	m := NewManager()
+	m := NewManager("")
 	m.sessions["test"] = &Session{
 		ID: "test",
 		Messages: []Message{
@@ -170,7 +170,7 @@ func TestSetAssistantText(t *testing.T) {
 }
 
 func TestSetError(t *testing.T) {
-	m := NewManager()
+	m := NewManager("")
 	ch := m.Subscribe("test")
 	defer m.Unsubscribe("test", ch)
 
@@ -198,7 +198,7 @@ func TestSetError(t *testing.T) {
 }
 
 func TestStopSession(t *testing.T) {
-	m := NewManager()
+	m := NewManager("")
 	m.sessions["test"] = &Session{
 		ID:     "test",
 		Status: StatusRunning,
@@ -216,7 +216,7 @@ func TestStopSession(t *testing.T) {
 }
 
 func TestShutdown(t *testing.T) {
-	m := NewManager()
+	m := NewManager("")
 	// Just verify it doesn't panic with no processes
 	m.Shutdown()
 }

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"fmt"
+	"log"
 	"sync"
 )
 
@@ -11,29 +12,71 @@ type Manager struct {
 	mu        sync.RWMutex
 	sessions  map[string]*Session
 	processes map[string]*runningProcess
+	store     *store // JSONL persistence (nil if no beansDir)
 
 	subMu       sync.Mutex
 	subscribers map[string][]chan struct{}
 }
 
 // NewManager creates a new agent session manager.
-func NewManager() *Manager {
-	return &Manager{
+// If beansDir is non-empty, conversations are persisted to .beans/conversations/.
+func NewManager(beansDir string) *Manager {
+	m := &Manager{
 		sessions:    make(map[string]*Session),
 		processes:   make(map[string]*runningProcess),
 		subscribers: make(map[string][]chan struct{}),
 	}
+
+	if beansDir != "" {
+		s, err := newStore(beansDir)
+		if err != nil {
+			log.Printf("[agent] warning: conversation persistence disabled: %v", err)
+		} else {
+			m.store = s
+		}
+	}
+
+	return m
 }
 
 // GetSession returns a snapshot of the session for the given beanID, or nil.
+// If no in-memory session exists but a persisted conversation is found, it is loaded.
 func (m *Manager) GetSession(beanID string) *Session {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
 	s, ok := m.sessions[beanID]
+	m.mu.RUnlock()
+
 	if !ok {
-		return nil
+		// Try loading from disk
+		if m.store == nil {
+			return nil
+		}
+		msgs, sessionID, err := m.store.load(beanID)
+		if err != nil || len(msgs) == 0 {
+			return nil
+		}
+		// Materialize the session in memory
+		m.mu.Lock()
+		// Double-check another goroutine didn't create it
+		if s2, ok2 := m.sessions[beanID]; ok2 {
+			snap := s2.snapshot()
+			m.mu.Unlock()
+			return &snap
+		}
+		s = &Session{
+			ID:        beanID,
+			AgentType: "claude",
+			Status:    StatusIdle,
+			Messages:  msgs,
+			SessionID: sessionID,
+		}
+		m.sessions[beanID] = s
+		m.mu.Unlock()
 	}
+
+	m.mu.RLock()
 	snap := s.snapshot()
+	m.mu.RUnlock()
 	return &snap
 }
 
@@ -45,12 +88,7 @@ func (m *Manager) SendMessage(beanID, workDir, message string) error {
 	// Get or create session
 	session, ok := m.sessions[beanID]
 	if !ok {
-		session = &Session{
-			ID:        beanID,
-			AgentType: "claude",
-			Status:    StatusIdle,
-			WorkDir:   workDir,
-		}
+		session = m.loadOrCreateSession(beanID, workDir)
 		m.sessions[beanID] = session
 	}
 
@@ -61,12 +99,17 @@ func (m *Manager) SendMessage(beanID, workDir, message string) error {
 	}
 
 	// Append user message
-	session.Messages = append(session.Messages, Message{
-		Role:    RoleUser,
-		Content: message,
-	})
+	userMsg := Message{Role: RoleUser, Content: message}
+	session.Messages = append(session.Messages, userMsg)
 	session.Status = StatusRunning
 	session.Error = ""
+
+	// Persist user message
+	if m.store != nil {
+		if err := m.store.appendMessage(beanID, userMsg); err != nil {
+			log.Printf("[agent:%s] failed to persist user message: %v", beanID, err)
+		}
+	}
 
 	// Check if we have a running process
 	proc, hasProc := m.processes[beanID]
@@ -155,4 +198,27 @@ func (m *Manager) Shutdown() {
 	for _, proc := range procs {
 		proc.kill()
 	}
+}
+
+// loadOrCreateSession loads a session from disk if persisted, or creates a new one.
+// Must be called with m.mu held.
+func (m *Manager) loadOrCreateSession(beanID, workDir string) *Session {
+	session := &Session{
+		ID:        beanID,
+		AgentType: "claude",
+		Status:    StatusIdle,
+		WorkDir:   workDir,
+	}
+
+	if m.store != nil {
+		msgs, sessionID, err := m.store.load(beanID)
+		if err != nil {
+			log.Printf("[agent:%s] failed to load conversation: %v", beanID, err)
+		} else if len(msgs) > 0 {
+			session.Messages = msgs
+			session.SessionID = sessionID
+		}
+	}
+
+	return session
 }

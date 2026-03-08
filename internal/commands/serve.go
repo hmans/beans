@@ -74,8 +74,8 @@ func runServer(port int) error {
 	// Create worktree manager (uses config dir as repo root)
 	wtManager := worktree.NewManager(cfg.ConfigDir())
 
-	// Create agent session manager
-	agentMgr := agent.NewManager()
+	// Create agent session manager (with conversation persistence)
+	agentMgr := agent.NewManager(core.Root())
 	defer agentMgr.Shutdown()
 
 	// Create GraphQL server with explicit transports

@@ -167,7 +167,31 @@ func (m *Manager) readOutput(beanID string, stdout io.Reader) {
 					s.SessionID = ev.SessionID
 				}
 				m.mu.Unlock()
+
+				// Persist session ID for --resume
+				if m.store != nil {
+					if err := m.store.saveSessionID(beanID, ev.SessionID); err != nil {
+						log.Printf("[agent:%s] failed to persist session ID: %v", beanID, err)
+					}
+				}
 			}
+
+			// Persist the completed assistant message
+			m.mu.RLock()
+			if s, ok := m.sessions[beanID]; ok && m.store != nil {
+				if n := len(s.Messages); n > 0 && s.Messages[n-1].Role == RoleAssistant {
+					msg := s.Messages[n-1]
+					m.mu.RUnlock()
+					if err := m.store.appendMessage(beanID, msg); err != nil {
+						log.Printf("[agent:%s] failed to persist assistant message: %v", beanID, err)
+					}
+				} else {
+					m.mu.RUnlock()
+				}
+			} else {
+				m.mu.RUnlock()
+			}
+
 			// Result marks the end of a turn — set idle
 			m.mu.Lock()
 			if s, ok := m.sessions[beanID]; ok {
