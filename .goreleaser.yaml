@@ -1,8 +1,3 @@
-# This is an example .goreleaser.yml file with some sensible defaults.
-# Make sure to check the documentation at https://goreleaser.com
-
-# The lines below are called `modelines`. See `:help modeline`
-# Feel free to remove those if you don't want/need to use them.
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 # vim: set ts=2 sw=2 tw=0 fo=cnqoj
 
@@ -14,7 +9,10 @@ before:
     - go generate ./...
 
 builds:
-  - env:
+  - id: beans
+    main: ./cmd/beans
+    binary: beans
+    env:
       - CGO_ENABLED=0
     goos:
       - linux
@@ -22,13 +20,42 @@ builds:
       - darwin
     ldflags:
       - -s -w
-      - -X github.com/hmans/beans/cmd.version={{.Version}}
-      - -X github.com/hmans/beans/cmd.commit={{.ShortCommit}}
-      - -X github.com/hmans/beans/cmd.date={{.Date}}
+      - -X github.com/hmans/beans/internal/version.Version={{.Version}}
+      - -X github.com/hmans/beans/internal/version.Commit={{.ShortCommit}}
+      - -X github.com/hmans/beans/internal/version.Date={{.Date}}
+
+  - id: beans-serve
+    main: ./cmd/beans-serve
+    binary: beans-serve
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    ldflags:
+      - -s -w
+      - -X github.com/hmans/beans/internal/version.Version={{.Version}}
+      - -X github.com/hmans/beans/internal/version.Commit={{.ShortCommit}}
+      - -X github.com/hmans/beans/internal/version.Date={{.Date}}
+
+  - id: beans-tui
+    main: ./cmd/beans-tui
+    binary: beans-tui
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    ldflags:
+      - -s -w
+      - -X github.com/hmans/beans/internal/version.Version={{.Version}}
+      - -X github.com/hmans/beans/internal/version.Commit={{.ShortCommit}}
+      - -X github.com/hmans/beans/internal/version.Date={{.Date}}
 
 archives:
   - formats: [tar.gz]
-    # this name template makes the OS and Arch compatible with the results of `uname`.
     name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
@@ -36,7 +63,6 @@ archives:
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
-    # use zip for windows archives
     format_overrides:
       - goos: windows
         formats: [zip]
@@ -45,8 +71,6 @@ changelog:
   sort: asc
   use: github
   filters:
-    # Only include conventional commits (feat, fix, perf, refactor)
-    # This filters out non-conventional commits from merged branches
     include:
       - "^feat"
       - "^fix"

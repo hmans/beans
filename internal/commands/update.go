@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	"context"
@@ -258,7 +258,7 @@ func mutationError(jsonOutput bool, err error) error {
 	return cmdError(jsonOutput, output.ErrValidation, "%s", err)
 }
 
-func init() {
+func RegisterUpdateCmd(root *cobra.Command) {
 	// Build help text with allowed values from hardcoded config
 	statusNames := make([]string, len(config.DefaultStatuses))
 	for i, s := range config.DefaultStatuses {
@@ -298,5 +298,5 @@ func init() {
 	updateCmd.MarkFlagsMutuallyExclusive("body", "body-file", "body-append")
 	// body-replace-old and body-append can now be used together!
 	updateCmd.MarkFlagsRequiredTogether("body-replace-old", "body-replace-new")
-	rootCmd.AddCommand(updateCmd)
+	root.AddCommand(updateCmd)
 }

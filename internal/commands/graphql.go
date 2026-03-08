@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	"bytes"
@@ -201,10 +201,10 @@ func GetGraphQLSchema() string {
 	return buf.String()
 }
 
-func init() {
+func RegisterGraphqlCmd(root *cobra.Command) {
 	graphqlCmd.Flags().BoolVar(&queryJSON, "json", false, "Output JSON without colors (for piping)")
 	graphqlCmd.Flags().StringVarP(&queryVariables, "variables", "v", "", "Query variables as JSON string")
 	graphqlCmd.Flags().StringVarP(&queryOperation, "operation", "o", "", "Operation name (for multi-operation documents)")
 	graphqlCmd.Flags().BoolVar(&querySchemaOnly, "schema", false, "Print the GraphQL schema and exit")
-	rootCmd.AddCommand(graphqlCmd)
+	root.AddCommand(graphqlCmd)
 }

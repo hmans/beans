@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	"encoding/json"
@@ -196,8 +196,8 @@ Note: Cycles cannot be auto-fixed and require manual intervention.`,
 	},
 }
 
-func init() {
+func RegisterCheckCmd(root *cobra.Command) {
 	checkCmd.Flags().BoolVar(&checkJSON, "json", false, "Output as JSON")
 	checkCmd.Flags().BoolVar(&checkFix, "fix", false, "Automatically fix broken links and self-references")
-	rootCmd.AddCommand(checkCmd)
+	root.AddCommand(checkCmd)
 }

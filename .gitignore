@@ -1,4 +1,6 @@
 /beans
+/beans-serve
+/beans-tui
 /.vscode/settings.json
 /.worktrees/
 # Added by goreleaser init:

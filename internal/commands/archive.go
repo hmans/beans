@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	"fmt"
@@ -63,7 +63,7 @@ Relationships (parent, blocking) are preserved in archived beans.`,
 	},
 }
 
-func init() {
+func RegisterArchiveCmd(root *cobra.Command) {
 	archiveCmd.Flags().BoolVar(&archiveJSON, "json", false, "Output as JSON")
-	rootCmd.AddCommand(archiveCmd)
+	root.AddCommand(archiveCmd)
 }

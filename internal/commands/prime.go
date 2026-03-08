@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	_ "embed"
@@ -56,6 +56,6 @@ var primeCmd = &cobra.Command{
 	},
 }
 
-func init() {
-	rootCmd.AddCommand(primeCmd)
+func RegisterPrimeCmd(root *cobra.Command) {
+	root.AddCommand(primeCmd)
 }

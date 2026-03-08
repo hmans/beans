@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	"bufio"
@@ -142,8 +142,8 @@ func confirmDeleteMultiple(targets []beanWithLinks) bool {
 	return response == "y" || response == "yes"
 }
 
-func init() {
+func RegisterDeleteCmd(root *cobra.Command) {
 	deleteCmd.Flags().BoolVarP(&forceDelete, "force", "f", false, "Skip confirmation and warnings")
 	deleteCmd.Flags().BoolVar(&deleteJSON, "json", false, "Output as JSON (implies --force)")
-	rootCmd.AddCommand(deleteCmd)
+	root.AddCommand(deleteCmd)
 }

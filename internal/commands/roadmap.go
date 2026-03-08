@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	"context"
@@ -433,12 +433,12 @@ func firstParagraph(body string) string {
 	return result
 }
 
-func init() {
+func RegisterRoadmapCmd(root *cobra.Command) {
 	roadmapCmd.Flags().BoolVar(&roadmapJSON, "json", false, "Output as JSON")
 	roadmapCmd.Flags().BoolVar(&roadmapIncludeDone, "include-done", false, "Include completed items")
 	roadmapCmd.Flags().StringArrayVar(&roadmapStatus, "status", nil, "Filter milestones by status (can be repeated)")
 	roadmapCmd.Flags().StringArrayVar(&roadmapNoStatus, "no-status", nil, "Exclude milestones by status (can be repeated)")
 	roadmapCmd.Flags().BoolVar(&roadmapNoLinks, "no-links", false, "Don't render bean IDs as markdown links")
 	roadmapCmd.Flags().StringVar(&roadmapLinkPrefix, "link-prefix", "", "URL prefix for links")
-	rootCmd.AddCommand(roadmapCmd)
+	root.AddCommand(roadmapCmd)
 }

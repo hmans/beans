@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	"github.com/spf13/cobra"
@@ -14,6 +14,6 @@ var tuiCmd = &cobra.Command{
 	},
 }
 
-func init() {
-	rootCmd.AddCommand(tuiCmd)
+func RegisterTuiCmd(root *cobra.Command) {
+	root.AddCommand(tuiCmd)
 }

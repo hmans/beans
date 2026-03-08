@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	"context"
@@ -114,7 +114,7 @@ var createCmd = &cobra.Command{
 	},
 }
 
-func init() {
+func RegisterCreateCmd(root *cobra.Command) {
 	// Build help text with allowed values from hardcoded config
 	statusNames := make([]string, len(config.DefaultStatuses))
 	for i, s := range config.DefaultStatuses {
@@ -141,5 +141,5 @@ func init() {
 	createCmd.Flags().StringVar(&createPrefix, "prefix", "", "Custom ID prefix (overrides config prefix)")
 	createCmd.Flags().BoolVar(&createJSON, "json", false, "Output as JSON")
 	createCmd.MarkFlagsMutuallyExclusive("body", "body-file")
-	rootCmd.AddCommand(createCmd)
+	root.AddCommand(createCmd)
 }

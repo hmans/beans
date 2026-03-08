@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	"context"
@@ -206,11 +206,11 @@ func formatRelationships(b *bean.Bean) string {
 	return strings.Join(parts, "\n")
 }
 
-func init() {
+func RegisterShowCmd(root *cobra.Command) {
 	showCmd.Flags().BoolVar(&showJSON, "json", false, "Output as JSON")
 	showCmd.Flags().BoolVar(&showRaw, "raw", false, "Output raw markdown without styling")
 	showCmd.Flags().BoolVar(&showBodyOnly, "body-only", false, "Output only the body content")
 	showCmd.Flags().BoolVar(&showETagOnly, "etag-only", false, "Output only the etag")
 	showCmd.MarkFlagsMutuallyExclusive("json", "raw", "body-only", "etag-only")
-	rootCmd.AddCommand(showCmd)
+	root.AddCommand(showCmd)
 }

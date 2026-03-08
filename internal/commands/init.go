@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	"fmt"
@@ -77,7 +77,7 @@ var initCmd = &cobra.Command{
 	},
 }
 
-func init() {
+func RegisterInitCmd(root *cobra.Command) {
 	initCmd.Flags().BoolVar(&initJSON, "json", false, "Output as JSON")
-	rootCmd.AddCommand(initCmd)
+	root.AddCommand(initCmd)
 }

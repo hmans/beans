@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	"context"
@@ -148,7 +148,7 @@ func runServer(port int) error {
 	return nil
 }
 
-func init() {
+func RegisterServeCmd(root *cobra.Command) {
 	serveCmd.Flags().IntVarP(&servePort, "port", "p", config.DefaultServerPort, "Port to listen on")
-	rootCmd.AddCommand(serveCmd)
+	root.AddCommand(serveCmd)
 }
