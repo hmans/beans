@@ -2,6 +2,7 @@
 	import { page } from '$app/state';
 	import { beansStore } from '$lib/beans.svelte';
 	import { ui } from '$lib/uiState.svelte';
+	import AgentChat from '$lib/components/AgentChat.svelte';
 	import BeanDetail from '$lib/components/BeanDetail.svelte';
 
 	const beanId = $derived(page.params.id);
@@ -18,15 +19,14 @@
 </script>
 
 <div class="flex flex-1 min-h-0">
-	<!-- Main content area (blank for now) -->
-	<div class="flex-1 flex items-center justify-center text-text-faint">
-		{#if bean}
-			<div class="text-center">
-				<h2 class="text-lg font-semibold text-text-muted">{bean.title}</h2>
-				<p class="text-sm mt-1">Worktree view coming soon</p>
-			</div>
+	<!-- Agent chat -->
+	<div class="flex-1 min-w-0">
+		{#if beanId}
+			<AgentChat beanId={beanId} />
 		{:else}
-			<span>Worktree not found</span>
+			<div class="flex items-center justify-center h-full text-text-faint">
+				<span>Worktree not found</span>
+			</div>
 		{/if}
 	</div>
 

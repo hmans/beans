@@ -17,6 +17,11 @@ type Query {
   List active git worktrees created by beans
   """
   worktrees: [Worktree!]!
+
+  """
+  Get the current agent session for a worktree (null if none)
+  """
+  agentSession(beanId: ID!): AgentSession
 }
 
 type Subscription {
@@ -34,6 +39,12 @@ type Subscription {
   whenever a worktree is created or removed.
   """
   worktreesChanged: [Worktree!]!
+
+  """
+  Subscribe to agent session updates for a worktree.
+  Emits the full session state whenever it changes (new messages, status changes).
+  """
+  agentSessionChanged(beanId: ID!): AgentSession!
 }
 
 """
@@ -111,6 +122,16 @@ type Mutation {
   Remove a git worktree for a bean.
   """
   removeWorktree(beanId: ID!): Boolean!
+
+  """
+  Send a message to the agent in a worktree. Starts a session if none exists.
+  """
+  sendAgentMessage(beanId: ID!, message: String!): Boolean!
+
+  """
+  Stop the running agent in a worktree.
+  """
+  stopAgent(beanId: ID!): Boolean!
 }
 
 """
@@ -327,4 +348,47 @@ type Worktree {
   branch: String!
   "Filesystem path to the worktree"
   path: String!
+}
+
+"""
+An agent chat session within a worktree
+"""
+type AgentSession {
+  "Bean ID (worktree identifier)"
+  beanId: ID!
+  "Agent type (e.g., 'claude')"
+  agentType: String!
+  "Current session status"
+  status: AgentSessionStatus!
+  "Chat messages in chronological order"
+  messages: [AgentMessage!]!
+  "Last error message, if any"
+  error: String
+}
+
+"""
+Status of an agent session
+"""
+enum AgentSessionStatus {
+  IDLE
+  RUNNING
+  ERROR
+}
+
+"""
+A single message in an agent conversation
+"""
+type AgentMessage {
+  "Message role"
+  role: AgentMessageRole!
+  "Text content"
+  content: String!
+}
+
+"""
+Role of an agent message sender
+"""
+enum AgentMessageRole {
+  USER
+  ASSISTANT
 }

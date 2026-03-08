@@ -11,6 +11,28 @@ import (
 	"github.com/hmans/beans/internal/bean"
 )
 
+// A single message in an agent conversation
+type AgentMessage struct {
+	// Message role
+	Role AgentMessageRole `json:"role"`
+	// Text content
+	Content string `json:"content"`
+}
+
+// An agent chat session within a worktree
+type AgentSession struct {
+	// Bean ID (worktree identifier)
+	BeanID string `json:"beanId"`
+	// Agent type (e.g., 'claude')
+	AgentType string `json:"agentType"`
+	// Current session status
+	Status AgentSessionStatus `json:"status"`
+	// Chat messages in chronological order
+	Messages []*AgentMessage `json:"messages"`
+	// Last error message, if any
+	Error *string `json:"error,omitempty"`
+}
+
 // Represents a change to a bean
 type BeanChangeEvent struct {
 	// Type of change that occurred
@@ -174,6 +196,120 @@ type Worktree struct {
 	Branch string `json:"branch"`
 	// Filesystem path to the worktree
 	Path string `json:"path"`
+}
+
+// Role of an agent message sender
+type AgentMessageRole string
+
+const (
+	AgentMessageRoleUser      AgentMessageRole = "USER"
+	AgentMessageRoleAssistant AgentMessageRole = "ASSISTANT"
+)
+
+var AllAgentMessageRole = []AgentMessageRole{
+	AgentMessageRoleUser,
+	AgentMessageRoleAssistant,
+}
+
+func (e AgentMessageRole) IsValid() bool {
+	switch e {
+	case AgentMessageRoleUser, AgentMessageRoleAssistant:
+		return true
+	}
+	return false
+}
+
+func (e AgentMessageRole) String() string {
+	return string(e)
+}
+
+func (e *AgentMessageRole) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AgentMessageRole(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AgentMessageRole", str)
+	}
+	return nil
+}
+
+func (e AgentMessageRole) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AgentMessageRole) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AgentMessageRole) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// Status of an agent session
+type AgentSessionStatus string
+
+const (
+	AgentSessionStatusIdle    AgentSessionStatus = "IDLE"
+	AgentSessionStatusRunning AgentSessionStatus = "RUNNING"
+	AgentSessionStatusError   AgentSessionStatus = "ERROR"
+)
+
+var AllAgentSessionStatus = []AgentSessionStatus{
+	AgentSessionStatusIdle,
+	AgentSessionStatusRunning,
+	AgentSessionStatusError,
+}
+
+func (e AgentSessionStatus) IsValid() bool {
+	switch e {
+	case AgentSessionStatusIdle, AgentSessionStatusRunning, AgentSessionStatusError:
+		return true
+	}
+	return false
+}
+
+func (e AgentSessionStatus) String() string {
+	return string(e)
+}
+
+func (e *AgentSessionStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AgentSessionStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AgentSessionStatus", str)
+	}
+	return nil
+}
+
+func (e AgentSessionStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AgentSessionStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AgentSessionStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }
 
 // Type of change that occurred to a bean

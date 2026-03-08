@@ -3,6 +3,7 @@ package graph
 import (
 	"fmt"
 
+	"github.com/hmans/beans/internal/agent"
 	"github.com/hmans/beans/internal/bean"
 	"github.com/hmans/beans/internal/beancore"
 	"github.com/hmans/beans/internal/worktree"
@@ -13,8 +14,9 @@ import (
 // Resolver is the root resolver for the GraphQL schema.
 // It holds a reference to beancore.Core for data access.
 type Resolver struct {
-	Core       *beancore.Core
+	Core        *beancore.Core
 	WorktreeMgr *worktree.Manager
+	AgentMgr    *agent.Manager
 }
 
 // ETagMismatchError is returned when an ETag validation fails.

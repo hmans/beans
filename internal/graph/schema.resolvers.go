@@ -515,6 +515,35 @@ func (r *mutationResolver) RemoveWorktree(ctx context.Context, beanID string) (b
 	return true, nil
 }
 
+// SendAgentMessage is the resolver for the sendAgentMessage field.
+func (r *mutationResolver) SendAgentMessage(ctx context.Context, beanID string, message string) (bool, error) {
+	if r.AgentMgr == nil {
+		return false, fmt.Errorf("agent manager not available")
+	}
+
+	// Find the worktree path for this bean
+	workDir, err := r.findWorktreePath(beanID)
+	if err != nil {
+		return false, err
+	}
+
+	if err := r.AgentMgr.SendMessage(beanID, workDir, message); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// StopAgent is the resolver for the stopAgent field.
+func (r *mutationResolver) StopAgent(ctx context.Context, beanID string) (bool, error) {
+	if r.AgentMgr == nil {
+		return false, fmt.Errorf("agent manager not available")
+	}
+	if err := r.AgentMgr.StopSession(beanID); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // Bean is the resolver for the bean field.
 func (r *queryResolver) Bean(ctx context.Context, id string) (*bean.Bean, error) {
 	b, err := r.Core.Get(id)
@@ -568,6 +597,18 @@ func (r *queryResolver) Worktrees(ctx context.Context) ([]*model.Worktree, error
 		}
 	}
 	return result, nil
+}
+
+// AgentSession is the resolver for the agentSession field.
+func (r *queryResolver) AgentSession(ctx context.Context, beanID string) (*model.AgentSession, error) {
+	if r.AgentMgr == nil {
+		return nil, nil
+	}
+	s := r.AgentMgr.GetSession(beanID)
+	if s == nil {
+		return nil, nil
+	}
+	return agentSessionToModel(s), nil
 }
 
 // BeanChanged is the resolver for the beanChanged field.
@@ -711,6 +752,55 @@ func (r *subscriptionResolver) WorktreesChanged(ctx context.Context) (<-chan []*
 				}
 				select {
 				case out <- result:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+
+	return out, nil
+}
+
+// AgentSessionChanged is the resolver for the agentSessionChanged field.
+func (r *subscriptionResolver) AgentSessionChanged(ctx context.Context, beanID string) (<-chan *model.AgentSession, error) {
+	if r.AgentMgr == nil {
+		out := make(chan *model.AgentSession)
+		close(out)
+		return out, nil
+	}
+
+	ch := r.AgentMgr.Subscribe(beanID)
+	out := make(chan *model.AgentSession)
+
+	go func() {
+		defer r.AgentMgr.Unsubscribe(beanID, ch)
+		defer close(out)
+
+		// Emit current state immediately (if session exists)
+		if s := r.AgentMgr.GetSession(beanID); s != nil {
+			select {
+			case out <- agentSessionToModel(s):
+			case <-ctx.Done():
+				return
+			}
+		}
+
+		// Then emit on each change
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case _, ok := <-ch:
+				if !ok {
+					return
+				}
+				s := r.AgentMgr.GetSession(beanID)
+				if s == nil {
+					continue
+				}
+				select {
+				case out <- agentSessionToModel(s):
 				case <-ctx.Done():
 					return
 				}

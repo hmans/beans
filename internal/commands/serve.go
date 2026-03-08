@@ -16,6 +16,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/spf13/cobra"
 
+	"github.com/hmans/beans/internal/agent"
 	"github.com/hmans/beans/internal/config"
 	"github.com/hmans/beans/internal/graph"
 	"github.com/hmans/beans/internal/web"
@@ -73,9 +74,13 @@ func runServer(port int) error {
 	// Create worktree manager (uses config dir as repo root)
 	wtManager := worktree.NewManager(cfg.ConfigDir())
 
+	// Create agent session manager
+	agentMgr := agent.NewManager()
+	defer agentMgr.Shutdown()
+
 	// Create GraphQL server with explicit transports
 	es := graph.NewExecutableSchema(graph.Config{
-		Resolvers: &graph.Resolver{Core: core, WorktreeMgr: wtManager},
+		Resolvers: &graph.Resolver{Core: core, WorktreeMgr: wtManager, AgentMgr: agentMgr},
 	})
 	gqlHandler := handler.New(es)
 

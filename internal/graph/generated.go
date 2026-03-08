@@ -51,6 +51,19 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	AgentMessage struct {
+		Content func(childComplexity int) int
+		Role    func(childComplexity int) int
+	}
+
+	AgentSession struct {
+		AgentType func(childComplexity int) int
+		BeanID    func(childComplexity int) int
+		Error     func(childComplexity int) int
+		Messages  func(childComplexity int) int
+		Status    func(childComplexity int) int
+	}
+
 	Bean struct {
 		BlockedBy    func(childComplexity int, filter *model.BeanFilter) int
 		BlockedByIds func(childComplexity int) int
@@ -81,27 +94,31 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		AddBlockedBy    func(childComplexity int, id string, targetID string, ifMatch *string) int
-		AddBlocking     func(childComplexity int, id string, targetID string, ifMatch *string) int
-		CreateBean      func(childComplexity int, input model.CreateBeanInput) int
-		CreateWorktree  func(childComplexity int, beanID string) int
-		DeleteBean      func(childComplexity int, id string) int
-		RemoveBlockedBy func(childComplexity int, id string, targetID string, ifMatch *string) int
-		RemoveBlocking  func(childComplexity int, id string, targetID string, ifMatch *string) int
-		RemoveWorktree  func(childComplexity int, beanID string) int
-		SetParent       func(childComplexity int, id string, parentID *string, ifMatch *string) int
-		UpdateBean      func(childComplexity int, id string, input model.UpdateBeanInput) int
+		AddBlockedBy     func(childComplexity int, id string, targetID string, ifMatch *string) int
+		AddBlocking      func(childComplexity int, id string, targetID string, ifMatch *string) int
+		CreateBean       func(childComplexity int, input model.CreateBeanInput) int
+		CreateWorktree   func(childComplexity int, beanID string) int
+		DeleteBean       func(childComplexity int, id string) int
+		RemoveBlockedBy  func(childComplexity int, id string, targetID string, ifMatch *string) int
+		RemoveBlocking   func(childComplexity int, id string, targetID string, ifMatch *string) int
+		RemoveWorktree   func(childComplexity int, beanID string) int
+		SendAgentMessage func(childComplexity int, beanID string, message string) int
+		SetParent        func(childComplexity int, id string, parentID *string, ifMatch *string) int
+		StopAgent        func(childComplexity int, beanID string) int
+		UpdateBean       func(childComplexity int, id string, input model.UpdateBeanInput) int
 	}
 
 	Query struct {
-		Bean      func(childComplexity int, id string) int
-		Beans     func(childComplexity int, filter *model.BeanFilter) int
-		Worktrees func(childComplexity int) int
+		AgentSession func(childComplexity int, beanID string) int
+		Bean         func(childComplexity int, id string) int
+		Beans        func(childComplexity int, filter *model.BeanFilter) int
+		Worktrees    func(childComplexity int) int
 	}
 
 	Subscription struct {
-		BeanChanged      func(childComplexity int, includeInitial *bool) int
-		WorktreesChanged func(childComplexity int) int
+		AgentSessionChanged func(childComplexity int, beanID string) int
+		BeanChanged         func(childComplexity int, includeInitial *bool) int
+		WorktreesChanged    func(childComplexity int) int
 	}
 
 	Worktree struct {
@@ -132,15 +149,19 @@ type MutationResolver interface {
 	RemoveBlockedBy(ctx context.Context, id string, targetID string, ifMatch *string) (*bean.Bean, error)
 	CreateWorktree(ctx context.Context, beanID string) (*model.Worktree, error)
 	RemoveWorktree(ctx context.Context, beanID string) (bool, error)
+	SendAgentMessage(ctx context.Context, beanID string, message string) (bool, error)
+	StopAgent(ctx context.Context, beanID string) (bool, error)
 }
 type QueryResolver interface {
 	Bean(ctx context.Context, id string) (*bean.Bean, error)
 	Beans(ctx context.Context, filter *model.BeanFilter) ([]*bean.Bean, error)
 	Worktrees(ctx context.Context) ([]*model.Worktree, error)
+	AgentSession(ctx context.Context, beanID string) (*model.AgentSession, error)
 }
 type SubscriptionResolver interface {
 	BeanChanged(ctx context.Context, includeInitial *bool) (<-chan *model.BeanChangeEvent, error)
 	WorktreesChanged(ctx context.Context) (<-chan []*model.Worktree, error)
+	AgentSessionChanged(ctx context.Context, beanID string) (<-chan *model.AgentSession, error)
 }
 
 type executableSchema struct {
@@ -161,6 +182,50 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 	ec := executionContext{nil, e, 0, 0, nil}
 	_ = ec
 	switch typeName + "." + field {
+
+	case "AgentMessage.content":
+		if e.complexity.AgentMessage.Content == nil {
+			break
+		}
+
+		return e.complexity.AgentMessage.Content(childComplexity), true
+	case "AgentMessage.role":
+		if e.complexity.AgentMessage.Role == nil {
+			break
+		}
+
+		return e.complexity.AgentMessage.Role(childComplexity), true
+
+	case "AgentSession.agentType":
+		if e.complexity.AgentSession.AgentType == nil {
+			break
+		}
+
+		return e.complexity.AgentSession.AgentType(childComplexity), true
+	case "AgentSession.beanId":
+		if e.complexity.AgentSession.BeanID == nil {
+			break
+		}
+
+		return e.complexity.AgentSession.BeanID(childComplexity), true
+	case "AgentSession.error":
+		if e.complexity.AgentSession.Error == nil {
+			break
+		}
+
+		return e.complexity.AgentSession.Error(childComplexity), true
+	case "AgentSession.messages":
+		if e.complexity.AgentSession.Messages == nil {
+			break
+		}
+
+		return e.complexity.AgentSession.Messages(childComplexity), true
+	case "AgentSession.status":
+		if e.complexity.AgentSession.Status == nil {
+			break
+		}
+
+		return e.complexity.AgentSession.Status(childComplexity), true
 
 	case "Bean.blockedBy":
 		if e.complexity.Bean.BlockedBy == nil {
@@ -405,6 +470,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.RemoveWorktree(childComplexity, args["beanId"].(string)), true
+	case "Mutation.sendAgentMessage":
+		if e.complexity.Mutation.SendAgentMessage == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_sendAgentMessage_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.SendAgentMessage(childComplexity, args["beanId"].(string), args["message"].(string)), true
 	case "Mutation.setParent":
 		if e.complexity.Mutation.SetParent == nil {
 			break
@@ -416,6 +492,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.SetParent(childComplexity, args["id"].(string), args["parentId"].(*string), args["ifMatch"].(*string)), true
+	case "Mutation.stopAgent":
+		if e.complexity.Mutation.StopAgent == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_stopAgent_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.StopAgent(childComplexity, args["beanId"].(string)), true
 	case "Mutation.updateBean":
 		if e.complexity.Mutation.UpdateBean == nil {
 			break
@@ -428,6 +515,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Mutation.UpdateBean(childComplexity, args["id"].(string), args["input"].(model.UpdateBeanInput)), true
 
+	case "Query.agentSession":
+		if e.complexity.Query.AgentSession == nil {
+			break
+		}
+
+		args, err := ec.field_Query_agentSession_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.AgentSession(childComplexity, args["beanId"].(string)), true
 	case "Query.bean":
 		if e.complexity.Query.Bean == nil {
 			break
@@ -457,6 +555,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Query.Worktrees(childComplexity), true
 
+	case "Subscription.agentSessionChanged":
+		if e.complexity.Subscription.AgentSessionChanged == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_agentSessionChanged_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.AgentSessionChanged(childComplexity, args["beanId"].(string)), true
 	case "Subscription.beanChanged":
 		if e.complexity.Subscription.BeanChanged == nil {
 			break
@@ -807,6 +916,22 @@ func (ec *executionContext) field_Mutation_removeWorktree_args(ctx context.Conte
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_sendAgentMessage_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "beanId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["beanId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "message", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["message"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_setParent_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -825,6 +950,17 @@ func (ec *executionContext) field_Mutation_setParent_args(ctx context.Context, r
 		return nil, err
 	}
 	args["ifMatch"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_stopAgent_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "beanId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["beanId"] = arg0
 	return args, nil
 }
 
@@ -855,6 +991,17 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_agentSession_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "beanId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["beanId"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_bean_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -874,6 +1021,17 @@ func (ec *executionContext) field_Query_beans_args(ctx context.Context, rawArgs 
 		return nil, err
 	}
 	args["filter"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_agentSessionChanged_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "beanId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["beanId"] = arg0
 	return args, nil
 }
 
@@ -939,6 +1097,215 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 // endregion ************************** directives.gotpl **************************
 
 // region    **************************** field.gotpl *****************************
+
+func (ec *executionContext) _AgentMessage_role(ctx context.Context, field graphql.CollectedField, obj *model.AgentMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AgentMessage_role,
+		func(ctx context.Context) (any, error) {
+			return obj.Role, nil
+		},
+		nil,
+		ec.marshalNAgentMessageRole2githubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentMessageRole,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AgentMessage_role(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentMessage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type AgentMessageRole does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AgentMessage_content(ctx context.Context, field graphql.CollectedField, obj *model.AgentMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AgentMessage_content,
+		func(ctx context.Context) (any, error) {
+			return obj.Content, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AgentMessage_content(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentMessage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AgentSession_beanId(ctx context.Context, field graphql.CollectedField, obj *model.AgentSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AgentSession_beanId,
+		func(ctx context.Context) (any, error) {
+			return obj.BeanID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AgentSession_beanId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentSession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AgentSession_agentType(ctx context.Context, field graphql.CollectedField, obj *model.AgentSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AgentSession_agentType,
+		func(ctx context.Context) (any, error) {
+			return obj.AgentType, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AgentSession_agentType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentSession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AgentSession_status(ctx context.Context, field graphql.CollectedField, obj *model.AgentSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AgentSession_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNAgentSessionStatus2githubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentSessionStatus,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AgentSession_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentSession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type AgentSessionStatus does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AgentSession_messages(ctx context.Context, field graphql.CollectedField, obj *model.AgentSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AgentSession_messages,
+		func(ctx context.Context) (any, error) {
+			return obj.Messages, nil
+		},
+		nil,
+		ec.marshalNAgentMessage2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentMessageᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AgentSession_messages(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentSession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "role":
+				return ec.fieldContext_AgentMessage_role(ctx, field)
+			case "content":
+				return ec.fieldContext_AgentMessage_content(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AgentMessage", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AgentSession_error(ctx context.Context, field graphql.CollectedField, obj *model.AgentSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AgentSession_error,
+		func(ctx context.Context) (any, error) {
+			return obj.Error, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_AgentSession_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentSession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
 
 func (ec *executionContext) _Bean_id(ctx context.Context, field graphql.CollectedField, obj *bean.Bean) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
@@ -2567,6 +2934,88 @@ func (ec *executionContext) fieldContext_Mutation_removeWorktree(ctx context.Con
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_sendAgentMessage(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_sendAgentMessage,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().SendAgentMessage(ctx, fc.Args["beanId"].(string), fc.Args["message"].(string))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_sendAgentMessage(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_sendAgentMessage_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_stopAgent(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_stopAgent,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().StopAgent(ctx, fc.Args["beanId"].(string))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_stopAgent(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_stopAgent_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_bean(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -2772,6 +3221,59 @@ func (ec *executionContext) fieldContext_Query_worktrees(_ context.Context, fiel
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_agentSession(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_agentSession,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().AgentSession(ctx, fc.Args["beanId"].(string))
+		},
+		nil,
+		ec.marshalOAgentSession2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentSession,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_agentSession(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "beanId":
+				return ec.fieldContext_AgentSession_beanId(ctx, field)
+			case "agentType":
+				return ec.fieldContext_AgentSession_agentType(ctx, field)
+			case "status":
+				return ec.fieldContext_AgentSession_status(ctx, field)
+			case "messages":
+				return ec.fieldContext_AgentSession_messages(ctx, field)
+			case "error":
+				return ec.fieldContext_AgentSession_error(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AgentSession", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_agentSession_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -2964,6 +3466,59 @@ func (ec *executionContext) fieldContext_Subscription_worktreesChanged(_ context
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Worktree", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_agentSessionChanged(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Subscription_agentSessionChanged,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Subscription().AgentSessionChanged(ctx, fc.Args["beanId"].(string))
+		},
+		nil,
+		ec.marshalNAgentSession2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentSession,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Subscription_agentSessionChanged(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "beanId":
+				return ec.fieldContext_AgentSession_beanId(ctx, field)
+			case "agentType":
+				return ec.fieldContext_AgentSession_agentType(ctx, field)
+			case "status":
+				return ec.fieldContext_AgentSession_status(ctx, field)
+			case "messages":
+				return ec.fieldContext_AgentSession_messages(ctx, field)
+			case "error":
+				return ec.fieldContext_AgentSession_error(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AgentSession", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_agentSessionChanged_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -5023,6 +5578,106 @@ func (ec *executionContext) unmarshalInputUpdateBeanInput(ctx context.Context, o
 
 // region    **************************** object.gotpl ****************************
 
+var agentMessageImplementors = []string{"AgentMessage"}
+
+func (ec *executionContext) _AgentMessage(ctx context.Context, sel ast.SelectionSet, obj *model.AgentMessage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, agentMessageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AgentMessage")
+		case "role":
+			out.Values[i] = ec._AgentMessage_role(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "content":
+			out.Values[i] = ec._AgentMessage_content(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var agentSessionImplementors = []string{"AgentSession"}
+
+func (ec *executionContext) _AgentSession(ctx context.Context, sel ast.SelectionSet, obj *model.AgentSession) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, agentSessionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AgentSession")
+		case "beanId":
+			out.Values[i] = ec._AgentSession_beanId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "agentType":
+			out.Values[i] = ec._AgentSession_agentType(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._AgentSession_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "messages":
+			out.Values[i] = ec._AgentSession_messages(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "error":
+			out.Values[i] = ec._AgentSession_error(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var beanImplementors = []string{"Bean"}
 
 func (ec *executionContext) _Bean(ctx context.Context, sel ast.SelectionSet, obj *bean.Bean) graphql.Marshaler {
@@ -5500,6 +6155,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "sendAgentMessage":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_sendAgentMessage(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "stopAgent":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_stopAgent(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -5605,6 +6274,25 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "agentSession":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_agentSession(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -5653,6 +6341,8 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_beanChanged(ctx, fields[0])
 	case "worktreesChanged":
 		return ec._Subscription_worktreesChanged(ctx, fields[0])
+	case "agentSessionChanged":
+		return ec._Subscription_agentSessionChanged(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
@@ -6043,6 +6733,94 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 // endregion **************************** object.gotpl ****************************
 
 // region    ***************************** type.gotpl *****************************
+
+func (ec *executionContext) marshalNAgentMessage2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentMessageᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AgentMessage) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNAgentMessage2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentMessage(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAgentMessage2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentMessage(ctx context.Context, sel ast.SelectionSet, v *model.AgentMessage) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AgentMessage(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNAgentMessageRole2githubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentMessageRole(ctx context.Context, v any) (model.AgentMessageRole, error) {
+	var res model.AgentMessageRole
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNAgentMessageRole2githubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentMessageRole(ctx context.Context, sel ast.SelectionSet, v model.AgentMessageRole) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNAgentSession2githubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentSession(ctx context.Context, sel ast.SelectionSet, v model.AgentSession) graphql.Marshaler {
+	return ec._AgentSession(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAgentSession2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentSession(ctx context.Context, sel ast.SelectionSet, v *model.AgentSession) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AgentSession(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNAgentSessionStatus2githubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentSessionStatus(ctx context.Context, v any) (model.AgentSessionStatus, error) {
+	var res model.AgentSessionStatus
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNAgentSessionStatus2githubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentSessionStatus(ctx context.Context, sel ast.SelectionSet, v model.AgentSessionStatus) graphql.Marshaler {
+	return v
+}
 
 func (ec *executionContext) marshalNBean2githubᚗcomᚋhmansᚋbeansᚋinternalᚋbeanᚐBean(ctx context.Context, sel ast.SelectionSet, v bean.Bean) graphql.Marshaler {
 	return ec._Bean(ctx, sel, &v)
@@ -6550,6 +7328,13 @@ func (ec *executionContext) marshalN__TypeKind2string(ctx context.Context, sel a
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) marshalOAgentSession2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentSession(ctx context.Context, sel ast.SelectionSet, v *model.AgentSession) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._AgentSession(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋbeanᚐBean(ctx context.Context, sel ast.SelectionSet, v *bean.Bean) graphql.Marshaler {
