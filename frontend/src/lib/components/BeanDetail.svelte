@@ -19,20 +19,20 @@
 	);
 	const blockedBy = $derived(beansStore.blockedBy(bean.id));
 
-	const statusBadge: Record<string, string> = {
-		todo: 'badge-ghost',
-		'in-progress': 'badge-info',
-		completed: 'badge-success',
-		scrapped: 'badge-error',
-		draft: 'badge-warning'
+	const statusColors: Record<string, string> = {
+		todo: 'bg-surface-dim text-text-muted',
+		'in-progress': 'bg-info/15 text-info',
+		completed: 'bg-success/15 text-success',
+		scrapped: 'bg-danger/15 text-danger',
+		draft: 'bg-warning/15 text-warning'
 	};
 
-	const typeBadge: Record<string, string> = {
-		milestone: 'badge-secondary',
-		epic: 'badge-primary',
-		feature: 'badge-accent',
-		bug: 'badge-error',
-		task: 'badge-ghost'
+	const typeColors: Record<string, string> = {
+		milestone: 'bg-purple-100 text-purple-700',
+		epic: 'bg-indigo-100 text-indigo-700',
+		feature: 'bg-cyan-100 text-cyan-700',
+		bug: 'bg-red-100 text-red-700',
+		task: 'bg-surface-dim text-text-muted'
 	};
 
 	const typeBorders: Record<string, string> = {
@@ -40,15 +40,15 @@
 		epic: 'border-l-indigo-400',
 		feature: 'border-l-cyan-400',
 		bug: 'border-l-red-400',
-		task: 'border-l-base-300'
+		task: 'border-l-surface-dim'
 	};
 
-	const priorityBadge: Record<string, string> = {
-		critical: 'badge-error',
-		high: 'badge-warning',
-		normal: 'badge-ghost',
-		low: 'badge-ghost opacity-60',
-		deferred: 'badge-ghost opacity-40'
+	const priorityColors: Record<string, string> = {
+		critical: 'border-danger text-danger',
+		high: 'border-warning text-warning',
+		normal: 'border-border text-text-muted',
+		low: 'border-border text-text-muted opacity-60',
+		deferred: 'border-border text-text-muted opacity-40'
 	};
 
 	let renderedBody = $state('');
@@ -88,13 +88,14 @@
 {#snippet beanCard(b: Bean)}
 	<button
 		onclick={() => onSelect?.(b)}
-		class="w-full text-left rounded-lg p-2 border-l-2 transition-all cursor-pointer bg-base-100 hover:bg-base-200
-			{typeBorders[b.type] ?? 'border-l-base-300'}"
+		class="w-full text-left rounded-lg p-2 border-l-2 transition-all cursor-pointer bg-surface hover:bg-surface-alt
+			{typeBorders[b.type] ?? 'border-l-surface-dim'}"
 	>
 		<div class="flex items-center gap-1.5 min-w-0">
-			<code class="text-[9px] text-base-content/40 shrink-0">{b.id.slice(-4)}</code>
-			<span class="text-xs text-base-content truncate flex-1">{b.title}</span>
-			<span class="badge badge-xs {statusBadge[b.status] ?? 'badge-ghost'} shrink-0">
+			<code class="text-[9px] text-text-faint shrink-0">{b.id.slice(-4)}</code>
+			<span class="text-xs text-text truncate flex-1">{b.title}</span>
+			<span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0
+				{statusColors[b.status] ?? 'bg-surface-dim text-text-muted'}">
 				{b.status}
 			</span>
 		</div>
@@ -107,7 +108,7 @@
 		<div class="flex items-center gap-2 mb-2 flex-wrap">
 			<button
 				onclick={copyId}
-				class="btn btn-ghost btn-xs font-mono gap-1"
+				class="px-2 py-1 text-xs font-mono rounded hover:bg-surface-alt transition-colors flex items-center gap-1"
 				title="Copy ID to clipboard"
 			>
 				{bean.id}
@@ -124,30 +125,30 @@
 					</svg>
 				{/if}
 			</button>
-			<span class="badge badge-sm {typeBadge[bean.type] ?? 'badge-ghost'}">{bean.type}</span>
-			<span class="badge badge-sm {statusBadge[bean.status] ?? 'badge-ghost'}">{bean.status}</span>
+			<span class="text-[11px] px-2 py-0.5 rounded-full font-medium {typeColors[bean.type] ?? 'bg-surface-dim text-text-muted'}">{bean.type}</span>
+			<span class="text-[11px] px-2 py-0.5 rounded-full font-medium {statusColors[bean.status] ?? 'bg-surface-dim text-text-muted'}">{bean.status}</span>
 			{#if bean.priority && bean.priority !== 'normal'}
-				<span class="badge badge-sm badge-outline {priorityBadge[bean.priority] ?? ''}">
+				<span class="text-[11px] px-2 py-0.5 rounded-full font-medium border {priorityColors[bean.priority] ?? ''}">
 					{bean.priority}
 				</span>
 			{/if}
 		</div>
 		<div class="flex items-center gap-2">
-			<h1 class="text-2xl font-bold text-base-content flex-1">{bean.title}</h1>
+			<h1 class="text-2xl font-bold text-text flex-1">{bean.title}</h1>
 			{#if canStartWork}
 				<button
-					class="btn btn-success btn-sm"
+					class="px-3 py-1.5 text-sm font-medium rounded-md bg-success text-white hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
 					onclick={startWork}
 					disabled={startingWork}
 				>
 					{#if startingWork}
-						<span class="loading loading-spinner loading-sm"></span>
+						<span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
 					{/if}
 					Start Work
 				</button>
 			{/if}
 			{#if onEdit}
-				<button class="btn btn-ghost btn-sm" onclick={() => onEdit(bean)}>Edit</button>
+				<button class="px-3 py-1.5 text-sm font-medium rounded-md border border-border text-text-muted hover:bg-surface-alt transition-colors" onclick={() => onEdit(bean)}>Edit</button>
 			{/if}
 		</div>
 	</div>
@@ -155,10 +156,10 @@
 	<!-- Tags -->
 	{#if bean.tags.length > 0}
 		<div class="mb-6">
-			<h2 class="text-xs font-semibold text-base-content/50 uppercase mb-2">Tags</h2>
+			<h2 class="text-xs font-semibold text-text-muted uppercase mb-2">Tags</h2>
 			<div class="flex gap-1 flex-wrap">
 				{#each bean.tags as tag}
-					<span class="badge badge-sm badge-outline">{tag}</span>
+					<span class="text-[11px] px-2 py-0.5 rounded-full border border-border text-text-muted">{tag}</span>
 				{/each}
 			</div>
 		</div>
@@ -169,14 +170,14 @@
 		<div class="mb-6 space-y-3">
 			{#if parent}
 				<div>
-					<h2 class="text-xs font-semibold text-base-content/50 uppercase mb-1">Parent</h2>
+					<h2 class="text-xs font-semibold text-text-muted uppercase mb-1">Parent</h2>
 					{@render beanCard(parent)}
 				</div>
 			{/if}
 
 			{#if children.length > 0}
 				<div>
-					<h2 class="text-xs font-semibold text-base-content/50 uppercase mb-1">
+					<h2 class="text-xs font-semibold text-text-muted uppercase mb-1">
 						Children ({children.length})
 					</h2>
 					<div class="space-y-0.5">
@@ -189,7 +190,7 @@
 
 			{#if blocking.length > 0}
 				<div>
-					<h2 class="text-xs font-semibold text-base-content/50 uppercase mb-1">
+					<h2 class="text-xs font-semibold text-text-muted uppercase mb-1">
 						Blocking ({blocking.length})
 					</h2>
 					<div class="space-y-0.5">
@@ -202,7 +203,7 @@
 
 			{#if blockedBy.length > 0}
 				<div>
-					<h2 class="text-xs font-semibold text-base-content/50 uppercase mb-1">
+					<h2 class="text-xs font-semibold text-text-muted uppercase mb-1">
 						Blocked By ({blockedBy.length})
 					</h2>
 					<div class="space-y-0.5">
@@ -218,7 +219,7 @@
 	<!-- Body -->
 	{#if bean.body}
 		<div class="mb-6">
-			<h2 class="text-xs font-semibold text-base-content/50 uppercase mb-2">Description</h2>
+			<h2 class="text-xs font-semibold text-text-muted uppercase mb-2">Description</h2>
 			<div class="bean-body prose prose-sm max-w-none">
 				{@html renderedBody}
 			</div>
@@ -226,8 +227,8 @@
 	{/if}
 
 	<!-- Metadata -->
-	<div class="divider"></div>
-	<div class="text-xs text-base-content/40 space-y-1">
+	<div class="border-t border-border my-4"></div>
+	<div class="text-xs text-text-faint space-y-1">
 		<div>Created: {new Date(bean.createdAt).toLocaleString()}</div>
 		<div>Updated: {new Date(bean.updatedAt).toLocaleString()}</div>
 		<div>Path: {bean.path}</div>

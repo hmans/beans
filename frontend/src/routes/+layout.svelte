@@ -50,30 +50,38 @@
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
 <svelte:window onmousemove={(e) => ui.onDrag(e)} onmouseup={() => ui.stopDrag()} />
 
-<div class="h-screen flex flex-col bg-base-200">
+<div class="h-screen flex flex-col bg-surface-alt">
 	{#if beansStore.error}
 		<div class="m-4">
-			<div role="alert" class="alert alert-error">
-				<span>Error: {beansStore.error}</span>
+			<div class="rounded-lg border border-danger/30 bg-danger/10 text-danger px-4 py-3 text-sm">
+				Error: {beansStore.error}
 			</div>
 		</div>
 	{:else}
 		<!-- Nav bar -->
-		<div class="flex items-center px-4 pt-2 bg-base-100 border-b border-base-200">
-			<nav role="tablist" class="tabs tabs-border flex-1">
-				<a href={backlogHref} role="tab" class="tab {isBacklog ? 'tab-active' : ''}">Backlog</a>
-				<a href={boardHref} role="tab" class="tab {isBoard ? 'tab-active' : ''}">Board</a>
+		<div class="flex items-center px-4 pt-2 bg-surface border-b border-border">
+			<nav class="flex gap-0 flex-1">
+				<a
+					href={backlogHref}
+					class="px-4 py-2 text-sm font-medium border-b-2 transition-colors
+						{isBacklog ? 'border-accent text-accent' : 'border-transparent text-text-muted hover:text-text hover:border-border'}"
+				>Backlog</a>
+				<a
+					href={boardHref}
+					class="px-4 py-2 text-sm font-medium border-b-2 transition-colors
+						{isBoard ? 'border-accent text-accent' : 'border-transparent text-text-muted hover:text-text hover:border-border'}"
+				>Board</a>
 				{#each worktreeStore.worktrees as wt}
 					{@const wtBean = beansStore.get(wt.beanId)}
 					<a
 						href="/worktree/{wt.beanId}{beanParam}"
-						role="tab"
-						class="tab gap-1 {worktreeId === wt.beanId ? 'tab-active' : ''}"
+						class="px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1
+							{worktreeId === wt.beanId ? 'border-accent text-accent' : 'border-transparent text-text-muted hover:text-text hover:border-border'}"
 						title={wtBean?.title ?? wt.beanId}
 					>
 						{wtBean?.title ?? wt.beanId.slice(-4)}
 						<button
-							class="btn btn-ghost btn-xs btn-circle opacity-50 hover:opacity-100"
+							class="ml-1 w-4 h-4 rounded-full text-[10px] leading-none opacity-50 hover:opacity-100 hover:bg-surface-dim"
 							title="Close worktree"
 							onclick={(e) => closeWorktree(e, wt.beanId)}
 						>
@@ -82,7 +90,10 @@
 					</a>
 				{/each}
 			</nav>
-			<button class="btn btn-primary btn-sm" onclick={() => ui.openCreateForm()}>
+			<button
+				class="px-3 py-1.5 text-sm font-medium bg-accent text-accent-text rounded-md hover:opacity-90 transition-opacity"
+				onclick={() => ui.openCreateForm()}
+			>
 				+ New Bean
 			</button>
 		</div>

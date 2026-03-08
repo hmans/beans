@@ -1,3 +1,18 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/typography';
-@plugin 'daisyui';
+
+@theme {
+	--color-surface: #ffffff;
+	--color-surface-alt: #f8f9fb;
+	--color-surface-dim: #f1f3f5;
+	--color-border: #e2e5e9;
+	--color-text: #1a1d23;
+	--color-text-muted: #6b7280;
+	--color-text-faint: #9ca3af;
+	--color-accent: #4f6df5;
+	--color-accent-text: #ffffff;
+	--color-danger: #dc2626;
+	--color-warning: #d97706;
+	--color-success: #16a34a;
+	--color-info: #2563eb;
+}

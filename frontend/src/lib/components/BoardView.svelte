@@ -13,10 +13,10 @@
 	let { onSelect, selectedId = null }: Props = $props();
 
 	const columns = [
-		{ status: 'draft', label: 'Draft', color: 'badge-warning' },
-		{ status: 'todo', label: 'Todo', color: 'badge-ghost' },
-		{ status: 'in-progress', label: 'In Progress', color: 'badge-info' },
-		{ status: 'completed', label: 'Completed', color: 'badge-success' }
+		{ status: 'draft', label: 'Draft', color: 'bg-warning/15 text-warning' },
+		{ status: 'todo', label: 'Todo', color: 'bg-surface-dim text-text-muted' },
+		{ status: 'in-progress', label: 'In Progress', color: 'bg-info/15 text-info' },
+		{ status: 'completed', label: 'Completed', color: 'bg-success/15 text-success' }
 	];
 
 	function beansForStatus(status: string): Bean[] {
@@ -37,22 +37,22 @@
 		epic: 'border-l-indigo-400',
 		feature: 'border-l-cyan-400',
 		bug: 'border-l-red-400',
-		task: 'border-l-base-300'
+		task: 'border-l-surface-dim'
 	};
 
-	const typeBadge: Record<string, string> = {
-		milestone: 'badge-secondary',
-		epic: 'badge-primary',
-		feature: 'badge-accent',
-		bug: 'badge-error',
-		task: 'badge-ghost'
+	const typeColors: Record<string, string> = {
+		milestone: 'bg-purple-100 text-purple-700',
+		epic: 'bg-indigo-100 text-indigo-700',
+		feature: 'bg-cyan-100 text-cyan-700',
+		bug: 'bg-red-100 text-red-700',
+		task: 'bg-surface-dim text-text-muted'
 	};
 
 	const priorityIndicators: Record<string, string> = {
-		critical: 'text-error',
+		critical: 'text-danger',
 		high: 'text-warning',
-		low: 'text-base-content/40',
-		deferred: 'text-base-content/30'
+		low: 'text-text-faint',
+		deferred: 'text-text-faint opacity-60'
 	};
 
 	// Drag and drop
@@ -215,15 +215,15 @@
 		<div class="flex flex-col min-w-[260px] w-[300px] shrink-0">
 			<!-- Column header -->
 			<div class="flex items-center gap-2 mb-3 px-1">
-				<span class="badge badge-sm {col.color}">{col.label}</span>
-				<span class="text-xs text-base-content/40">{beans.length}</span>
+				<span class="text-[11px] px-2 py-0.5 rounded-full font-medium {col.color}">{col.label}</span>
+				<span class="text-xs text-text-faint">{beans.length}</span>
 			</div>
 
 			<!-- Cards (drop zone) -->
 			<div
 				class="flex-1 overflow-y-auto space-y-2 rounded-xl p-2 transition-colors
 					{dropTargetStatus === col.status && draggedBeanId
-					? 'bg-primary/10 ring-2 ring-primary/30 ring-dashed'
+					? 'bg-accent/10 ring-2 ring-accent/30'
 					: ''}"
 				role="list"
 				ondragover={(e) => onColumnDragOver(e, col.status, beans.length)}
@@ -232,15 +232,15 @@
 			>
 				{#each beans as bean, index (bean.id)}
 					<div
-						class="card card-border bg-base-100 shadow-sm border-l-3 transition-all cursor-pointer
-							{typeBorders[bean.type] ?? 'border-l-base-300'}
+						class="rounded-lg border border-border bg-surface shadow-sm border-l-3 transition-all cursor-pointer
+							{typeBorders[bean.type] ?? 'border-l-surface-dim'}
 							{draggedBeanId === bean.id ? 'opacity-40' : 'hover:shadow-md'}
-							{selectedId === bean.id ? 'ring-1 ring-primary bg-primary/5' : ''}"
+							{selectedId === bean.id ? 'ring-1 ring-accent bg-accent/5' : ''}"
 						style={dropTargetStatus === col.status && draggedBeanId && draggedBeanId !== bean.id
 							? dropIndex === index
-								? 'box-shadow: 0 -2px 0 0 var(--color-primary)'
+								? 'box-shadow: 0 -2px 0 0 var(--color-accent)'
 								: dropIndex === index + 1 && index === beans.length - 1
-									? 'box-shadow: 0 2px 0 0 var(--color-primary)'
+									? 'box-shadow: 0 2px 0 0 var(--color-accent)'
 									: ''
 							: ''}
 						draggable="true"
@@ -249,9 +249,9 @@
 						ondragover={(e) => onCardDragOver(e, col.status, index)}
 						role="listitem"
 					>
-						<button class="card-body p-3 text-left cursor-pointer" onclick={() => onSelect?.(bean)}>
+						<button class="p-3 text-left cursor-pointer w-full" onclick={() => onSelect?.(bean)}>
 							<div class="flex items-start gap-2 min-w-0">
-								<span class="text-sm text-base-content flex-1 leading-snug">{bean.title}</span>
+								<span class="text-sm text-text flex-1 leading-snug">{bean.title}</span>
 								{#if bean.priority && bean.priority !== 'normal' && priorityIndicators[bean.priority]}
 									<span class="text-xs shrink-0 {priorityIndicators[bean.priority]}">
 										{bean.priority}
@@ -259,15 +259,15 @@
 								{/if}
 							</div>
 							<div class="flex items-center gap-2 mt-1">
-								<code class="text-[10px] text-base-content/40">{bean.id.slice(-4)}</code>
-								<span class="badge badge-xs {typeBadge[bean.type] ?? 'badge-ghost'}">
+								<code class="text-[10px] text-text-faint">{bean.id.slice(-4)}</code>
+								<span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium {typeColors[bean.type] ?? 'bg-surface-dim text-text-muted'}">
 									{bean.type}
 								</span>
 							</div>
 						</button>
 					</div>
 				{:else}
-					<div class="text-center text-base-content/30 text-sm py-8">No beans</div>
+					<div class="text-center text-text-faint text-sm py-8">No beans</div>
 				{/each}
 
 			</div>

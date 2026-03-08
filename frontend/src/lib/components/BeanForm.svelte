@@ -133,24 +133,25 @@
 	}
 </script>
 
-<dialog class="modal modal-open">
-	<div class="modal-box w-11/12 max-w-2xl">
-		<h3 class="text-lg font-bold">{isEdit ? 'Edit Bean' : 'New Bean'}</h3>
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<dialog class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 open" open>
+	<div class="bg-surface rounded-xl shadow-xl w-11/12 max-w-2xl p-6">
+		<h3 class="text-lg font-bold text-text">{isEdit ? 'Edit Bean' : 'New Bean'}</h3>
 
 		{#if error}
-			<div role="alert" class="alert alert-error mt-4">
-				<span>{error}</span>
+			<div class="mt-4 rounded-lg border border-danger/30 bg-danger/10 text-danger px-4 py-3 text-sm">
+				{error}
 			</div>
 		{/if}
 
 		<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="mt-4 space-y-4">
 			<!-- Title -->
-			<div class="form-control">
-				<label class="label" for="bean-title">Title</label>
+			<div>
+				<label class="block text-sm font-medium text-text-muted mb-1" for="bean-title">Title</label>
 				<input
 					id="bean-title"
 					type="text"
-					class="input input-bordered w-full"
+					class="w-full px-3 py-2 rounded-md border border-border bg-surface text-text text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent"
 					bind:value={title}
 					placeholder="What needs to be done?"
 				/>
@@ -158,29 +159,29 @@
 
 			<!-- Type / Status / Priority row -->
 			<div class="grid grid-cols-3 gap-3">
-				<div class="form-control">
-					<label class="label" for="bean-type">Type</label>
-					<select id="bean-type" class="select select-bordered w-full" bind:value={type}>
+				<div>
+					<label class="block text-sm font-medium text-text-muted mb-1" for="bean-type">Type</label>
+					<select id="bean-type" class="w-full px-3 py-2 rounded-md border border-border bg-surface text-text text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent" bind:value={type}>
 						{#each types as t}
 							<option value={t}>{t}</option>
 						{/each}
 					</select>
 				</div>
 
-				<div class="form-control">
-					<label class="label" for="bean-status">Status</label>
-					<select id="bean-status" class="select select-bordered w-full" bind:value={status}>
+				<div>
+					<label class="block text-sm font-medium text-text-muted mb-1" for="bean-status">Status</label>
+					<select id="bean-status" class="w-full px-3 py-2 rounded-md border border-border bg-surface text-text text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent" bind:value={status}>
 						{#each statuses as s}
 							<option value={s}>{s}</option>
 						{/each}
 					</select>
 				</div>
 
-				<div class="form-control">
-					<label class="label" for="bean-priority">Priority</label>
+				<div>
+					<label class="block text-sm font-medium text-text-muted mb-1" for="bean-priority">Priority</label>
 					<select
 						id="bean-priority"
-						class="select select-bordered w-full"
+						class="w-full px-3 py-2 rounded-md border border-border bg-surface text-text text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent"
 						bind:value={priority}
 					>
 						{#each priorities as p}
@@ -191,9 +192,9 @@
 			</div>
 
 			<!-- Parent -->
-			<div class="form-control">
-				<label class="label" for="bean-parent">Parent</label>
-				<select id="bean-parent" class="select select-bordered w-full" bind:value={parentId}>
+			<div>
+				<label class="block text-sm font-medium text-text-muted mb-1" for="bean-parent">Parent</label>
+				<select id="bean-parent" class="w-full px-3 py-2 rounded-md border border-border bg-surface text-text text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent" bind:value={parentId}>
 					<option value="">None</option>
 					{#each availableParents as p}
 						<option value={p.id}>{p.title} ({p.type})</option>
@@ -202,41 +203,40 @@
 			</div>
 
 			<!-- Tags -->
-			<div class="form-control">
-				<label class="label" for="bean-tags">Tags</label>
+			<div>
+				<label class="block text-sm font-medium text-text-muted mb-1" for="bean-tags">Tags</label>
 				<input
 					id="bean-tags"
 					type="text"
-					class="input input-bordered w-full"
+					class="w-full px-3 py-2 rounded-md border border-border bg-surface text-text text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent"
 					bind:value={tags}
 					placeholder="Comma-separated tags"
 				/>
 			</div>
 
 			<!-- Body -->
-			<div class="form-control">
-				<label class="label" for="bean-body">Description (Markdown)</label>
+			<div>
+				<label class="block text-sm font-medium text-text-muted mb-1" for="bean-body">Description (Markdown)</label>
 				<textarea
 					id="bean-body"
-					class="textarea textarea-bordered w-full h-40 font-mono text-sm"
+					class="w-full px-3 py-2 rounded-md border border-border bg-surface text-text text-sm font-mono h-40 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent resize-y"
 					bind:value={body}
 					placeholder="Markdown content..."
 				></textarea>
 			</div>
 
 			<!-- Actions -->
-			<div class="modal-action">
-				<button type="button" class="btn" onclick={onClose} disabled={submitting}>Cancel</button>
-				<button type="submit" class="btn btn-primary" disabled={submitting || !title.trim()}>
+			<div class="flex justify-end gap-2 pt-2">
+				<button type="button" class="px-4 py-2 text-sm font-medium rounded-md border border-border text-text-muted hover:bg-surface-alt transition-colors" onclick={onClose} disabled={submitting}>Cancel</button>
+				<button type="submit" class="px-4 py-2 text-sm font-medium rounded-md bg-accent text-accent-text hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2" disabled={submitting || !title.trim()}>
 					{#if submitting}
-						<span class="loading loading-spinner loading-sm"></span>
+						<span class="inline-block w-4 h-4 border-2 border-accent-text/30 border-t-accent-text rounded-full animate-spin"></span>
 					{/if}
 					{isEdit ? 'Save Changes' : 'Create Bean'}
 				</button>
 			</div>
 		</form>
 	</div>
-	<form method="dialog" class="modal-backdrop">
-		<button onclick={onClose}>close</button>
-	</form>
+	<!-- Backdrop -->
+	<button class="fixed inset-0 -z-10" onclick={onClose} tabindex="-1" aria-label="Close"></button>
 </dialog>

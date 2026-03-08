@@ -6,7 +6,7 @@
 
 <div class="flex-1 flex min-h-0">
 	<!-- Board view -->
-	<div class="flex-1 bg-base-200 min-w-0">
+	<div class="flex-1 bg-surface-alt min-w-0">
 		<BoardView onSelect={(b) => ui.selectBean(b)} selectedId={ui.currentBean?.id} />
 	</div>
 
@@ -14,7 +14,7 @@
 		<!-- Drag handle -->
 		<div
 			class="w-1 cursor-col-resize transition-colors shrink-0
-				{ui.isDragging ? 'bg-base-300' : 'bg-base-200 hover:bg-base-300'}"
+				{ui.isDragging ? 'bg-surface-dim' : 'bg-border hover:bg-surface-dim'}"
 			role="slider"
 			aria-orientation="horizontal"
 			aria-valuenow={ui.paneWidth}
@@ -24,7 +24,7 @@
 			onmousedown={(e) => ui.startDrag(e)}
 		></div>
 
-		<div class="shrink-0 bg-base-100 overflow-hidden" style="width: {ui.paneWidth}px">
+		<div class="shrink-0 bg-surface overflow-hidden" style="width: {ui.paneWidth}px">
 			<BeanDetail
 				bean={ui.currentBean}
 				onSelect={(b) => ui.selectBean(b)}
