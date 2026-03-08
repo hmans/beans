@@ -4,7 +4,7 @@ node = "latest"
 svu = "latest"
 
 [hooks]
-postinstall = 'npx corepack enable'
+postinstall = "npx corepack enable"
 
 [tasks.deps]
 description = "Install all dependencies"
@@ -57,6 +57,14 @@ go build -ldflags "$LDFLAGS" -o beans-tui ./cmd/beans-tui
 description = "Build and run the beans CLI"
 run = "go run ./cmd/beans"
 
+[tasks.beans-serve]
+description = "Build and run the beans-serve server"
+run = "go run ./cmd/beans-serve"
+
+[tasks.beans-tui]
+description = "Build and run the beans-tui terminal UI"
+run = "go run ./cmd/beans-tui"
+
 [tasks.install]
 depends = "build"
 run = """
@@ -94,7 +102,6 @@ git tag "$NEW_VERSION"
 echo "Created tag: $NEW_VERSION"
 echo "To release, run: git push && git push --tags"
 """
-
 
 [tasks."dev:serve"]
 run = "wgo run -exit ./cmd/beans-serve serve --port ${BEANS_PORT:-22880}"
