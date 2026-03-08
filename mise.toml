@@ -60,7 +60,7 @@ run = "go run ./cmd/beans"
 
 [tasks.beans-serve]
 description = "Build and run the beans-serve server"
-run = "go run ./cmd/beans-serve --port ${BEANS_PORT:-22880}"
+run = "go build -o /tmp/beans-serve-dev ./cmd/beans-serve && /tmp/beans-serve-dev --port ${BEANS_PORT:-22880}"
 sources = ["**/*.go"]
 
 [tasks.beans-tui]
