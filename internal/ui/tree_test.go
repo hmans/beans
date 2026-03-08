@@ -24,7 +24,7 @@ func TestBuildTree(t *testing.T) {
 	noSort := func(b []*bean.Bean) {}
 
 	t.Run("all beans matched", func(t *testing.T) {
-		tree := BuildTree(allBeans, allBeans, noSort)
+		tree := BuildTree(allBeans, allBeans, noSort, nil)
 
 		// Should have 2 root nodes: milestone1 and task2
 		if len(tree) != 2 {
@@ -68,7 +68,7 @@ func TestBuildTree(t *testing.T) {
 	t.Run("filter leaf only - ancestors included", func(t *testing.T) {
 		// Only task1 matched, but ancestors should be included
 		matchedBeans := []*bean.Bean{task1}
-		tree := BuildTree(matchedBeans, allBeans, noSort)
+		tree := BuildTree(matchedBeans, allBeans, noSort, nil)
 
 		// Should have 1 root: milestone (as ancestor)
 		if len(tree) != 1 {
@@ -105,7 +105,7 @@ func TestBuildTree(t *testing.T) {
 	t.Run("filter middle - ancestors included", func(t *testing.T) {
 		// Only epic1 matched
 		matchedBeans := []*bean.Bean{epic1}
-		tree := BuildTree(matchedBeans, allBeans, noSort)
+		tree := BuildTree(matchedBeans, allBeans, noSort, nil)
 
 		// Should have 1 root: milestone (ancestor)
 		if len(tree) != 1 {
@@ -130,7 +130,7 @@ func TestBuildTree(t *testing.T) {
 
 	t.Run("orphan bean", func(t *testing.T) {
 		matchedBeans := []*bean.Bean{task2}
-		tree := BuildTree(matchedBeans, allBeans, noSort)
+		tree := BuildTree(matchedBeans, allBeans, noSort, nil)
 
 		if len(tree) != 1 {
 			t.Errorf("expected 1 root node, got %d", len(tree))
@@ -149,7 +149,7 @@ func TestBuildTree(t *testing.T) {
 		matchedBeans := []*bean.Bean{brokenBean}
 		allBeansWithBroken := append(allBeans, brokenBean)
 
-		tree := BuildTree(matchedBeans, allBeansWithBroken, noSort)
+		tree := BuildTree(matchedBeans, allBeansWithBroken, noSort, nil)
 
 		// Should be treated as root (parent not found)
 		if len(tree) != 1 {

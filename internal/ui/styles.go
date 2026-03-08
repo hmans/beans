@@ -360,10 +360,11 @@ type BeanRowConfig struct {
 	ShowTags      bool     // Whether to show tags column
 	TagsColWidth  int      // Width of tags column (0 = default)
 	MaxTags       int      // Max tags to show (0 = default of 1)
-	TreePrefix    string   // Tree prefix (e.g., "├─" or "  └─") to prepend to ID
-	Dimmed        bool     // Render row dimmed (for unmatched ancestor beans in tree)
-	IDColWidth    int      // Width of ID column (0 = default of ColWidthID)
-	UseFullNames  bool     // Use full type/status names instead of single-char abbreviations
+	TreePrefix      string   // Tree prefix (e.g., "├─" or "  └─") to prepend to ID
+	Dimmed          bool     // Render row dimmed (for unmatched ancestor beans in tree)
+	IDColWidth      int      // Width of ID column (0 = default of ColWidthID)
+	UseFullNames    bool     // Use full type/status names instead of single-char abbreviations
+	InheritedStatus string   // Terminal status inherited from an ancestor (e.g., "scrapped")
 }
 
 // Base column widths for bean lists (minimum sizes)
@@ -584,6 +585,12 @@ func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string
 		}
 	}
 
+	// Inherited status annotation (muted suffix, only when not dimmed)
+	var inheritedAnnotation string
+	if cfg.InheritedStatus != "" && !cfg.Dimmed {
+		inheritedAnnotation = Muted.Render(" ↑" + cfg.InheritedStatus)
+	}
+
 	if cfg.ShowTags {
 		// Pad title column to fixed width so tags align in a column
 		// Calculate padding needed: titleColWidth - (priority symbol width + title length)
@@ -595,7 +602,7 @@ func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string
 		if titleColWidth > titleLen {
 			padding = strings.Repeat(" ", titleColWidth-titleLen)
 		}
-		return cursor + idCol + " " + typeCol + " " + statusCol + " " + prioritySymbol + titleStyled + padding + " " + tagsCol
+		return cursor + idCol + " " + typeCol + " " + statusCol + " " + prioritySymbol + titleStyled + padding + " " + tagsCol + inheritedAnnotation
 	}
-	return cursor + idCol + " " + typeCol + " " + statusCol + " " + prioritySymbol + titleStyled
+	return cursor + idCol + " " + typeCol + " " + statusCol + " " + prioritySymbol + titleStyled + inheritedAnnotation
 }

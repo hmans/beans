@@ -548,3 +548,47 @@ func (c *Core) FindActiveBlockers(beanID string) []*bean.Bean {
 
 	return blockers
 }
+
+// InheritedStatus walks the parent chain and returns the terminal status
+// (scrapped or completed) of the nearest terminal ancestor, along with
+// that ancestor's ID. Returns empty strings if no terminal ancestor exists.
+// The bean's own status is not considered.
+func (c *Core) InheritedStatus(beanID string) (status, fromID string) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.inheritedStatusLocked(beanID)
+}
+
+// inheritedStatusLocked walks the parent chain without acquiring the lock.
+// Must be called with c.mu held (at least for reading).
+func (c *Core) inheritedStatusLocked(beanID string) (status, fromID string) {
+	b, ok := c.beans[beanID]
+	if !ok {
+		return "", ""
+	}
+
+	seen := make(map[string]bool)
+	seen[beanID] = true
+
+	current := b
+	for current.Parent != "" {
+		if seen[current.Parent] {
+			break // cycle guard
+		}
+		seen[current.Parent] = true
+
+		parent, ok := c.beans[current.Parent]
+		if !ok {
+			break
+		}
+
+		if isResolvedStatus(parent.Status) {
+			return parent.Status, parent.ID
+		}
+
+		current = parent
+	}
+
+	return "", ""
+}

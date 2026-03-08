@@ -87,6 +87,11 @@ func ApplyFilter(beans []*bean.Bean, filter *model.BeanFilter, core *beancore.Co
 		result = filterByNoBlockedBy(result)
 	}
 
+	// Inherited status filter
+	if filter.ExcludeTerminalInherited != nil && *filter.ExcludeTerminalInherited {
+		result = filterByNoTerminalInherited(result, core)
+	}
+
 	return result
 }
 
@@ -326,6 +331,19 @@ func filterByNoBlockedBy(beans []*bean.Bean) []*bean.Bean {
 	var result []*bean.Bean
 	for _, b := range beans {
 		if len(b.BlockedBy) == 0 {
+			result = append(result, b)
+		}
+	}
+	return result
+}
+
+// filterByNoTerminalInherited excludes beans that inherit a terminal status
+// (scrapped or completed) from an ancestor.
+func filterByNoTerminalInherited(beans []*bean.Bean, core *beancore.Core) []*bean.Bean {
+	var result []*bean.Bean
+	for _, b := range beans {
+		status, _ := core.InheritedStatus(b.ID)
+		if status == "" {
 			result = append(result, b)
 		}
 	}

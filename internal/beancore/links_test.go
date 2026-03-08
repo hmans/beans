@@ -616,6 +616,77 @@ func TestFindActiveBlockers(t *testing.T) {
 	})
 }
 
+func TestInheritedStatus(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	// Hierarchy: milestone (scrapped) -> epic (todo) -> task (in-progress)
+	milestone := &bean.Bean{ID: "m001", Title: "Milestone", Status: "scrapped", Type: "milestone"}
+	epic := &bean.Bean{ID: "e001", Title: "Epic", Status: "todo", Type: "epic", Parent: "m001"}
+	task := &bean.Bean{ID: "t001", Title: "Task", Status: "in-progress", Type: "task", Parent: "e001"}
+	orphan := &bean.Bean{ID: "x001", Title: "Orphan", Status: "todo", Type: "task"}
+
+	// completed parent hierarchy: milestone2 (completed) -> task2
+	milestone2 := &bean.Bean{ID: "m002", Title: "Milestone2", Status: "completed", Type: "milestone"}
+	task2 := &bean.Bean{ID: "t002", Title: "Task2", Status: "todo", Type: "task", Parent: "m002"}
+
+	for _, b := range []*bean.Bean{milestone, epic, task, orphan, milestone2, task2} {
+		if err := core.Create(b); err != nil {
+			t.Fatalf("Create error: %v", err)
+		}
+	}
+
+	t.Run("direct scrapped parent", func(t *testing.T) {
+		status, fromID := core.InheritedStatus("e001")
+		if status != "scrapped" {
+			t.Errorf("want status=scrapped, got %q", status)
+		}
+		if fromID != "m001" {
+			t.Errorf("want fromID=m001, got %q", fromID)
+		}
+	})
+
+	t.Run("transitive scrapped grandparent", func(t *testing.T) {
+		status, fromID := core.InheritedStatus("t001")
+		if status != "scrapped" {
+			t.Errorf("want status=scrapped, got %q", status)
+		}
+		if fromID != "m001" {
+			t.Errorf("want fromID=m001, got %q", fromID)
+		}
+	})
+
+	t.Run("no terminal ancestor", func(t *testing.T) {
+		status, fromID := core.InheritedStatus("x001")
+		if status != "" || fromID != "" {
+			t.Errorf("want empty, got status=%q fromID=%q", status, fromID)
+		}
+	})
+
+	t.Run("no parent at all (milestone itself)", func(t *testing.T) {
+		status, fromID := core.InheritedStatus("m001")
+		if status != "" || fromID != "" {
+			t.Errorf("want empty, got status=%q fromID=%q", status, fromID)
+		}
+	})
+
+	t.Run("completed parent", func(t *testing.T) {
+		status, fromID := core.InheritedStatus("t002")
+		if status != "completed" {
+			t.Errorf("want status=completed, got %q", status)
+		}
+		if fromID != "m002" {
+			t.Errorf("want fromID=m002, got %q", fromID)
+		}
+	})
+
+	t.Run("nonexistent bean", func(t *testing.T) {
+		status, fromID := core.InheritedStatus("nope")
+		if status != "" || fromID != "" {
+			t.Errorf("want empty, got status=%q fromID=%q", status, fromID)
+		}
+	})
+}
+
 func TestIsResolvedStatus(t *testing.T) {
 	tests := []struct {
 		status string

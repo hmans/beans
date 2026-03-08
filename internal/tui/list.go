@@ -17,10 +17,11 @@ import (
 
 // beanItem wraps a Bean to implement list.Item, with tree context
 type beanItem struct {
-	bean       *bean.Bean
-	cfg        *config.Config
-	treePrefix string // tree prefix for rendering (e.g., "├─" or "  └─")
-	matched    bool   // true if bean matched filter (vs. ancestor shown for context)
+	bean            *bean.Bean
+	cfg             *config.Config
+	treePrefix      string // tree prefix for rendering (e.g., "├─" or "  └─")
+	matched         bool   // true if bean matched filter (vs. ancestor shown for context)
+	inheritedStatus string // terminal status inherited from an ancestor, if any
 }
 
 func (i beanItem) Title() string       { return i.bean.Title }
@@ -77,23 +78,24 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 		item.bean.Type,
 		item.bean.Title,
 		ui.BeanRowConfig{
-			StatusColor:   colors.StatusColor,
-			TypeColor:     colors.TypeColor,
-			PriorityColor: colors.PriorityColor,
-			Priority:      item.bean.Priority,
-			IsArchive:     colors.IsArchive,
-			MaxTitleWidth: maxTitleWidth,
-			ShowCursor:    true,
-			IsSelected:    index == m.Index(),
-			IsMarked:      isMarked,
-			Tags:          item.bean.Tags,
-			ShowTags:      d.cols.ShowTags,
-			TagsColWidth:  d.cols.Tags,
-			MaxTags:       d.cols.MaxTags,
-			TreePrefix:    item.treePrefix,
-			Dimmed:        !item.matched,
-			IDColWidth:    d.idColWidth,
-			UseFullNames:  d.cols.UseFullTypeStatus,
+			StatusColor:     colors.StatusColor,
+			TypeColor:       colors.TypeColor,
+			PriorityColor:   colors.PriorityColor,
+			Priority:        item.bean.Priority,
+			IsArchive:       colors.IsArchive,
+			MaxTitleWidth:   maxTitleWidth,
+			ShowCursor:      true,
+			IsSelected:      index == m.Index(),
+			IsMarked:        isMarked,
+			Tags:            item.bean.Tags,
+			ShowTags:        d.cols.ShowTags,
+			TagsColWidth:    d.cols.Tags,
+			MaxTags:         d.cols.MaxTags,
+			TreePrefix:      item.treePrefix,
+			Dimmed:          !item.matched,
+			IDColWidth:      d.idColWidth,
+			UseFullNames:    d.cols.UseFullTypeStatus,
+			InheritedStatus: item.inheritedStatus,
 		},
 	)
 
@@ -190,8 +192,16 @@ func (m listModel) loadBeans() tea.Msg {
 		bean.SortByStatusPriorityAndType(beans, m.config.StatusNames(), m.config.PriorityNames(), m.config.TypeNames())
 	}
 
+	// Pre-compute inherited statuses for all beans
+	inheritedStatuses := make(map[string]string, len(allBeans))
+	for _, b := range allBeans {
+		if status, _ := m.resolver.Core.InheritedStatus(b.ID); status != "" {
+			inheritedStatuses[b.ID] = status
+		}
+	}
+
 	// Build tree and flatten it
-	tree := ui.BuildTree(filteredBeans, allBeans, sortFn)
+	tree := ui.BuildTree(filteredBeans, allBeans, sortFn, inheritedStatuses)
 	items := ui.FlattenTree(tree)
 
 	// Calculate ID column width based on max ID length and tree depth
@@ -249,10 +259,11 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 		m.hasTags = false
 		for i, flatItem := range msg.items {
 			items[i] = beanItem{
-				bean:       flatItem.Bean,
-				cfg:        m.config,
-				treePrefix: flatItem.TreePrefix,
-				matched:    flatItem.Matched,
+				bean:            flatItem.Bean,
+				cfg:             m.config,
+				treePrefix:      flatItem.TreePrefix,
+				matched:         flatItem.Matched,
+				inheritedStatus: flatItem.InheritedStatus,
 			}
 			if len(flatItem.Bean.Tags) > 0 {
 				m.hasTags = true

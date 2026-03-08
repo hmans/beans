@@ -101,11 +101,14 @@ Search Syntax (--search/-S):
 			filter.IsBlocked = &listIsBlocked
 		}
 
-		// --ready: beans available to start (not blocked, excludes in-progress/completed/scrapped/draft)
+		// --ready: beans available to start (not blocked, excludes in-progress/completed/scrapped/draft,
+		// and excludes beans with inherited terminal status from a scrapped/completed ancestor)
 		if listReady {
 			isBlocked := false
+			excludeTerminalInherited := true
 			filter.IsBlocked = &isBlocked
 			filter.ExcludeStatus = append(filter.ExcludeStatus, "in-progress", "completed", "scrapped", "draft")
+			filter.ExcludeTerminalInherited = &excludeTerminalInherited
 		}
 
 		// Execute query via GraphQL resolver
@@ -143,13 +146,21 @@ Search Syntax (--search/-S):
 			return fmt.Errorf("querying all beans for tree: %w", err)
 		}
 
+		// Pre-compute inherited statuses for all beans
+		inheritedStatuses := make(map[string]string, len(allBeans))
+		for _, b := range allBeans {
+			if status, _ := core.InheritedStatus(b.ID); status != "" {
+				inheritedStatuses[b.ID] = status
+			}
+		}
+
 		// Create sort function for tree building
 		sortFn := func(b []*bean.Bean) {
 			sortBeans(b, listSort, cfg)
 		}
 
 		// Build tree
-		tree := ui.BuildTree(beans, allBeans, sortFn)
+		tree := ui.BuildTree(beans, allBeans, sortFn, inheritedStatuses)
 
 		if len(tree) == 0 {
 			fmt.Println(ui.Muted.Render("No beans found. Create one with: beans new <title>"))

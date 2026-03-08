@@ -54,6 +54,8 @@ type BeanFilter struct {
 	NoBlocking *bool `json:"noBlocking,omitempty"`
 	// Exclude beans that have explicit blocked-by entries
 	NoBlockedBy *bool `json:"noBlockedBy,omitempty"`
+	// Exclude beans that inherit a terminal status (scrapped or completed) from an ancestor
+	ExcludeTerminalInherited *bool `json:"excludeTerminalInherited,omitempty"`
 }
 
 // Structured body modifications applied atomically.

@@ -120,6 +120,10 @@ func showStyledBean(b *bean.Bean) {
 	header.WriteString(ui.ID.Render(b.ID))
 	header.WriteString(" ")
 	header.WriteString(ui.RenderStatusWithColor(b.Status, statusColor, isArchive))
+	if inheritedStatus, inheritedFrom := core.InheritedStatus(b.ID); inheritedStatus != "" {
+		header.WriteString(" ")
+		header.WriteString(ui.Muted.Render("↑" + inheritedStatus + " (from " + inheritedFrom + ")"))
+	}
 
 	// Display type
 	if b.Type != "" {

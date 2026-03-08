@@ -81,6 +81,24 @@ func (r *beanResolver) Children(ctx context.Context, obj *bean.Bean, filter *mod
 	return ApplyFilter(result, filter, r.Core), nil
 }
 
+// InheritedStatus is the resolver for the inheritedStatus field.
+func (r *beanResolver) InheritedStatus(ctx context.Context, obj *bean.Bean) (*string, error) {
+	status, _ := r.Core.InheritedStatus(obj.ID)
+	if status == "" {
+		return nil, nil
+	}
+	return &status, nil
+}
+
+// InheritedFrom is the resolver for the inheritedFrom field.
+func (r *beanResolver) InheritedFrom(ctx context.Context, obj *bean.Bean) (*string, error) {
+	_, fromID := r.Core.InheritedStatus(obj.ID)
+	if fromID == "" {
+		return nil, nil
+	}
+	return &fromID, nil
+}
+
 // CreateBean is the resolver for the createBean field.
 func (r *mutationResolver) CreateBean(ctx context.Context, input model.CreateBeanInput) (*bean.Bean, error) {
 	b := &bean.Bean{
