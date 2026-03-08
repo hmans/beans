@@ -9,7 +9,6 @@ on:
     tags:
       - "v*"
   pull_request:
-    branches: ["main"]
 
 jobs:
   build:
