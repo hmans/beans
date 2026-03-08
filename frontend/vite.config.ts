@@ -8,6 +8,11 @@ const backendPort = process.env.BEANS_PORT || '22880';
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
 
+	build: {
+		// Shiki wasm + grammars produce large chunks; this is an embedded app, not a public site
+		chunkSizeWarningLimit: 1200
+	},
+
 	server: {
 		// Proxy some URL routes to the Go backend process in development.
 		proxy: {

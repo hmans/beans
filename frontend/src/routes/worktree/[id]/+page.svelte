@@ -44,7 +44,12 @@
 		</div>
 		<div
 			class="w-1 cursor-col-resize hover:bg-accent/30 transition-colors"
-			role="separator"
+			role="slider"
+			aria-orientation="horizontal"
+			aria-valuenow={ui.paneWidth}
+			aria-valuemin={200}
+			aria-valuemax={600}
+			tabindex="0"
 			onmousedown={(e) => ui.startDrag(e)}
 		></div>
 	{/if}

@@ -13,11 +13,13 @@
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
 		"test:unit": "vitest",
-		"test": "npm run test:unit -- --run"
+		"test": "npm run test:unit -- --run",
+		"test:e2e": "bash e2e/run.sh"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^1.4.0",
 		"@eslint/js": "^9.39.1",
+		"@playwright/test": "^1.58.2",
 		"@sveltejs/adapter-static": "^3.0.10",
 		"@sveltejs/kit": "^2.49.1",
 		"@sveltejs/vite-plugin-svelte": "^6.2.1",
@@ -31,7 +33,6 @@
 		"globals": "^16.5.0",
 		"graphql": "^16.12.0",
 		"graphql-ws": "^6.0.6",
-		"playwright": "^1.57.0",
 		"prettier": "^3.7.4",
 		"prettier-plugin-svelte": "^3.4.0",
 		"prettier-plugin-tailwindcss": "^0.7.2",

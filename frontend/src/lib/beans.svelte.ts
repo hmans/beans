@@ -88,9 +88,9 @@ export class BeansStore {
 	/** Subscription teardown function */
 	#unsubscribe: (() => void) | null = null;
 
-	/** All beans as an array (derived) */
+	/** All beans as a sorted array (derived) */
 	get all(): Bean[] {
-		return Array.from(this.beans.values());
+		return sortBeans(Array.from(this.beans.values()));
 	}
 
 	/** Count of beans */
@@ -211,6 +211,50 @@ export class BeansStore {
 			this.beans.set(id, { ...bean, ...fields });
 		}
 	}
+}
+
+/**
+ * Sort order arrays matching the backend's config.DefaultStatuses/Priorities/Types.
+ * These must stay in sync with internal/config/config.go.
+ */
+const STATUS_ORDER = ['in-progress', 'todo', 'draft', 'completed', 'scrapped'];
+const PRIORITY_ORDER = ['critical', 'high', 'normal', 'low', 'deferred'];
+const TYPE_ORDER = ['milestone', 'epic', 'bug', 'feature', 'task'];
+
+function orderOf(value: string, order: string[], defaultTo?: string): number {
+	if (!value && defaultTo) value = defaultTo;
+	const idx = order.indexOf(value);
+	return idx >= 0 ? idx : order.length;
+}
+
+/**
+ * Sort beans by status → priority → type → title, matching the backend's
+ * SortByStatusPriorityAndType from internal/bean/sort.go.
+ */
+export function sortBeans(beans: Bean[]): Bean[] {
+	return beans.toSorted((a, b) => {
+		// Primary: status
+		let d = orderOf(a.status, STATUS_ORDER) - orderOf(b.status, STATUS_ORDER);
+		if (d !== 0) return d;
+
+		// Secondary: manual order (fractional index) — beans with order come first
+		if (a.order && b.order) {
+			if (a.order < b.order) return -1;
+			if (a.order > b.order) return 1;
+		} else if (a.order && !b.order) return -1;
+		else if (!a.order && b.order) return 1;
+
+		// Tertiary: priority (empty = normal)
+		d = orderOf(a.priority, PRIORITY_ORDER, 'normal') - orderOf(b.priority, PRIORITY_ORDER, 'normal');
+		if (d !== 0) return d;
+
+		// Quaternary: type
+		d = orderOf(a.type, TYPE_ORDER) - orderOf(b.type, TYPE_ORDER);
+		if (d !== 0) return d;
+
+		// Final: title (case-insensitive)
+		return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+	});
 }
 
 /**

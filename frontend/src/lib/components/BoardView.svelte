@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Bean } from '$lib/beans.svelte';
-	import { beansStore } from '$lib/beans.svelte';
+	import { beansStore, sortBeans } from '$lib/beans.svelte';
 	import { orderBetween } from '$lib/fractional';
 	import { gql } from 'urql';
 	import { client } from '$lib/graphqlClient';
@@ -20,16 +20,8 @@
 	];
 
 	function beansForStatus(status: string): Bean[] {
-		return beansStore.all
-			.filter((b) => b.status === status && b.status !== 'scrapped')
-			.sort((a, b) => {
-				// Beans with order come first, sorted lexicographically
-				if (a.order && b.order) return a.order < b.order ? -1 : a.order > b.order ? 1 : 0;
-				if (a.order && !b.order) return -1;
-				if (!a.order && b.order) return 1;
-				// Fallback: title
-				return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
-			});
+		// sortBeans already handles order → priority → type → title sorting
+		return sortBeans(beansStore.all.filter((b) => b.status === status && b.status !== 'scrapped'));
 	}
 
 	const typeBorders: Record<string, string> = {
@@ -212,7 +204,7 @@
 <div class="h-full flex gap-4 p-4 overflow-x-auto">
 	{#each columns as col}
 		{@const beans = beansForStatus(col.status)}
-		<div class="flex flex-col min-w-[260px] w-[300px] shrink-0">
+		<div class="flex flex-col min-w-[260px] w-[300px] shrink-0" data-status={col.status}>
 			<!-- Column header -->
 			<div class="flex items-center gap-2 mb-3 px-1">
 				<span class="text-[11px] px-2 py-0.5 rounded-full font-medium {col.color}">{col.label}</span>

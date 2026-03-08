@@ -14,14 +14,23 @@
 
 	const isEdit = $derived(!!bean);
 
-	// Form fields
+	// Form fields — intentionally capture initial prop values for local editing
+	/* eslint-disable svelte/valid-compile */
+	// svelte-ignore state_referenced_locally
 	let title = $state(bean?.title ?? '');
+	// svelte-ignore state_referenced_locally
 	let type = $state(bean?.type ?? 'task');
+	// svelte-ignore state_referenced_locally
 	let status = $state(bean?.status ?? 'todo');
+	// svelte-ignore state_referenced_locally
 	let priority = $state(bean?.priority ?? 'normal');
+	// svelte-ignore state_referenced_locally
 	let tags = $state(bean?.tags.join(', ') ?? '');
+	// svelte-ignore state_referenced_locally
 	let body = $state(bean?.body ?? '');
+	// svelte-ignore state_referenced_locally
 	let parentId = $state(bean?.parentId ?? '');
+	/* eslint-enable svelte/valid-compile */
 
 	let submitting = $state(false);
 	let error = $state<string | null>(null);

@@ -24,7 +24,7 @@ run = "pnpm install"
 run = "go generate ./..."
 
 [tasks.test]
-depends = "codegen"
+depends = ["codegen", "test:e2e"]
 run = "go test ./..."
 
 [tasks."build:frontend"]
@@ -104,6 +104,12 @@ git tag "$NEW_VERSION"
 echo "Created tag: $NEW_VERSION"
 echo "To release, run: git push && git push --tags"
 """
+
+[tasks."test:e2e"]
+description = "Run Playwright e2e tests"
+depends = "build:embed"
+dir = "frontend"
+run = "pnpm test:e2e"
 
 [tasks."dev:serve"]
 run = "mise watch beans-serve --restart"
