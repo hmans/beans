@@ -1,11 +1,11 @@
 ---
 # beans-4zsu
 title: Add comments to generated .beans.yml config file
-status: in-progress
+status: completed
 type: task
 priority: normal
 created_at: 2025-12-20T14:40:52Z
-updated_at: 2026-03-09T20:28:56Z
+updated_at: 2026-03-09T21:00:16Z
 order: VR
 parent: beans-f11p
 ---
@@ -44,6 +44,12 @@ server:
 
 ## Checklist
 
-- [ ] Create a function in `internal/config` that builds a `yaml.Node` tree with comments
-- [ ] Update `Config.Save()` to use the new function
-- [ ] Add tests for comment generation
+- [x] Create a function in `internal/config` that builds a `yaml.Node` tree with comments
+- [x] Update `Config.Save()` to use the new function
+- [x] Add tests for comment generation
+
+## Summary of Changes
+
+- Added `toYAMLNode()` method on `Config` that builds a `yaml.Node` document tree with helpful comments on each field
+- Updated `Save()` to encode via the node tree instead of `yaml.Marshal`
+- Added `TestSaveIncludesComments` and `TestSaveOmitsEmptyServerSection` tests
