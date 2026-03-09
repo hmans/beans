@@ -10,4 +10,6 @@ updated_at: 2026-03-08T11:01:01Z
 
 Restructure the repository to build three separate binaries sharing internal packages. beans for core CLI, beans-serve for GraphQL+web, beans-tui for terminal UI.
 
-## Reasons for Scrapping\n\nDuplicate of beans-unmv.
+## Reasons for Scrapping
+
+Duplicate of beans-unmv.

@@ -31,4 +31,18 @@ Implement bean creation and editing forms.
 - Modal or slide-over for creation
 - Could reuse for inline editing in detail view
 
-## Summary of Changes\n\nImplemented BeanForm component (create + edit) as a DaisyUI modal dialog:\n\n- Title, type, status, priority fields\n- Parent selector with cycle prevention\n- Comma-separated tags input\n- Markdown body textarea\n- Form validation (title required)\n- Create/update via GraphQL mutations\n- Subscription handles reactive updates (no optimistic UI needed)\n- Edit button in BeanDetail header\n- "+ New Bean" button in the tab bar\n\nDeferred: Blocking beans multi-select (would benefit from a proper multi-select component).
+## Summary of Changes
+
+Implemented BeanForm component (create + edit) as a DaisyUI modal dialog:
+
+- Title, type, status, priority fields
+- Parent selector with cycle prevention
+- Comma-separated tags input
+- Markdown body textarea
+- Form validation (title required)
+- Create/update via GraphQL mutations
+- Subscription handles reactive updates (no optimistic UI needed)
+- Edit button in BeanDetail header
+- "+ New Bean" button in the tab bar
+
+Deferred: Blocking beans multi-select (would benefit from a proper multi-select component).

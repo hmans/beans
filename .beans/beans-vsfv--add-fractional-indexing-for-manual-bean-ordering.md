@@ -8,7 +8,18 @@ created_at: 2026-03-07T23:02:43Z
 updated_at: 2026-03-07T23:07:09Z
 ---
 
-Implement fractional indexing so beans can be manually reordered on the board via drag-and-drop. Each bean gets an 'order' field in frontmatter. Moving a bean only writes one file.\n\n## Tasks\n\n- [x] Create internal/bean/fractional.go with fractional indexing\n- [x] Add Order field to Bean struct and frontmatter\n- [x] Update sort to use Order as primary key within status groups\n- [x] Add order field to GraphQL schema\n- [x] Run codegen\n- [x] Update frontend Bean interface and subscription\n- [x] Update BoardView drag-and-drop to compute order from neighbors\n- [x] Tests
+Implement fractional indexing so beans can be manually reordered on the board via drag-and-drop. Each bean gets an 'order' field in frontmatter. Moving a bean only writes one file.
+
+## Tasks
+
+- [x] Create internal/bean/fractional.go with fractional indexing
+- [x] Add Order field to Bean struct and frontmatter
+- [x] Update sort to use Order as primary key within status groups
+- [x] Add order field to GraphQL schema
+- [x] Run codegen
+- [x] Update frontend Bean interface and subscription
+- [x] Update BoardView drag-and-drop to compute order from neighbors
+- [x] Tests
 
 ## Summary of Changes
 

@@ -22,4 +22,12 @@ Implement agent chat within worktree tabs in the web UI. Spawn and manage Claude
 - [x] Write backend unit tests (parsing, manager lifecycle)
 - [x] Verify full stack works end-to-end (build passes)
 
-## JSONL Persistence\n\n- [x] Create `internal/agent/store.go` with JSONL read/write\n- [x] Create `.beans/conversations/` directory with `.gitignore`\n- [x] Persist user messages on send\n- [x] Persist assistant messages on turn completion\n- [x] Persist session ID for --resume\n- [x] Load conversations from disk on server restart\n- [x] Add store tests (`store_test.go`)
+## JSONL Persistence
+
+- [x] Create `internal/agent/store.go` with JSONL read/write
+- [x] Create `.beans/conversations/` directory with `.gitignore`
+- [x] Persist user messages on send
+- [x] Persist assistant messages on turn completion
+- [x] Persist session ID for --resume
+- [x] Load conversations from disk on server restart
+- [x] Add store tests (`store_test.go`)

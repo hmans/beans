@@ -24,7 +24,15 @@ Extract duplicated split layout logic from backlog, board, and worktree views in
 - Removed global `svelte:window` mouse handlers from `+layout.svelte`
 - Fixed resize bug: old code used raw `e.clientX` as width, which only worked for left-side panes
 
-## TODO\n\n- [x] Add planningView state to uiState\n- [x] Create BeanPane.svelte (tabbed detail)\n- [x] Rewrite +page.svelte (single-page layout)\n- [x] Simplify +layout.svelte (remove nav bar)\n- [x] Add worktree indicators to BeanItem and BoardView\n- [x] Delete old routes and constants\n- [x] Update E2E tests
+## TODO
+
+- [x] Add planningView state to uiState
+- [x] Create BeanPane.svelte (tabbed detail)
+- [x] Rewrite +page.svelte (single-page layout)
+- [x] Simplify +layout.svelte (remove nav bar)
+- [x] Add worktree indicators to BeanItem and BoardView
+- [x] Delete old routes and constants
+- [x] Update E2E tests
 
 ## Summary of Changes
 
