@@ -33,14 +33,31 @@ func (r *beanResolver) BlockedByIds(ctx context.Context, obj *bean.Bean) ([]stri
 }
 
 // BlockedBy is the resolver for the blockedBy field.
+// Combines both directions: the bean's own blocked_by field AND incoming
+// blocking links (other beans that list this bean in their blocking field).
 func (r *beanResolver) BlockedBy(ctx context.Context, obj *bean.Bean, filter *model.BeanFilter) ([]*bean.Bean, error) {
-	incoming := r.Core.FindIncomingLinks(obj.ID)
+	seen := make(map[string]bool)
 	var result []*bean.Bean
+
+	// 1. Resolve beans from the direct blocked_by field
+	for _, blockerID := range obj.BlockedBy {
+		if !seen[blockerID] {
+			seen[blockerID] = true
+			if blocker, err := r.Core.Get(blockerID); err == nil {
+				result = append(result, blocker)
+			}
+		}
+	}
+
+	// 2. Resolve beans from incoming blocking links (other beans blocking this one)
+	incoming := r.Core.FindIncomingLinks(obj.ID)
 	for _, link := range incoming {
-		if link.LinkType == "blocking" {
+		if link.LinkType == "blocking" && !seen[link.FromBean.ID] {
+			seen[link.FromBean.ID] = true
 			result = append(result, link.FromBean)
 		}
 	}
+
 	filtered := ApplyFilter(result, filter, r.Core)
 	cfg := r.Core.Config()
 	bean.SortByStatusPriorityAndType(filtered, cfg.StatusNames(), cfg.PriorityNames(), cfg.TypeNames())

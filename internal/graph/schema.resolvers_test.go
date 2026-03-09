@@ -2616,6 +2616,60 @@ func TestMutationAddRemoveBlockedBy(t *testing.T) {
 	})
 }
 
+func TestBlockedByResolverCombinesBothDirections(t *testing.T) {
+	resolver, core := setupTestResolver(t)
+	ctx := context.Background()
+
+	t.Run("blocked_by field is resolved by blockedBy resolver", func(t *testing.T) {
+		blocker := &bean.Bean{ID: "blocker-r1", Title: "Blocker", Status: "todo", Type: "task"}
+		blocked := &bean.Bean{ID: "blocked-r1", Title: "Blocked", Status: "todo", Type: "task", BlockedBy: []string{"blocker-r1"}}
+		core.Create(blocker)
+		core.Create(blocked)
+
+		br := resolver.Bean()
+		result, err := br.BlockedBy(ctx, blocked, nil)
+		if err != nil {
+			t.Fatalf("BlockedBy() error = %v", err)
+		}
+		if len(result) != 1 || result[0].ID != "blocker-r1" {
+			t.Errorf("BlockedBy() = %v, want [blocker-r1]", result)
+		}
+	})
+
+	t.Run("incoming blocking links are resolved by blockedBy resolver", func(t *testing.T) {
+		blocker := &bean.Bean{ID: "blocker-r2", Title: "Blocker", Status: "todo", Type: "task", Blocking: []string{"blocked-r2"}}
+		blocked := &bean.Bean{ID: "blocked-r2", Title: "Blocked", Status: "todo", Type: "task"}
+		core.Create(blocker)
+		core.Create(blocked)
+
+		br := resolver.Bean()
+		result, err := br.BlockedBy(ctx, blocked, nil)
+		if err != nil {
+			t.Fatalf("BlockedBy() error = %v", err)
+		}
+		if len(result) != 1 || result[0].ID != "blocker-r2" {
+			t.Errorf("BlockedBy() = %v, want [blocker-r2]", result)
+		}
+	})
+
+	t.Run("both directions are combined and deduplicated", func(t *testing.T) {
+		// blocker blocks target via both directions
+		blocker := &bean.Bean{ID: "blocker-r3", Title: "Blocker", Status: "todo", Type: "task", Blocking: []string{"blocked-r3"}}
+		blocked := &bean.Bean{ID: "blocked-r3", Title: "Blocked", Status: "todo", Type: "task", BlockedBy: []string{"blocker-r3"}}
+		core.Create(blocker)
+		core.Create(blocked)
+
+		br := resolver.Bean()
+		result, err := br.BlockedBy(ctx, blocked, nil)
+		if err != nil {
+			t.Fatalf("BlockedBy() error = %v", err)
+		}
+		if len(result) != 1 {
+			t.Errorf("BlockedBy() returned %d beans, want 1 (deduplicated)", len(result))
+		}
+	})
+}
+
 func TestUpdateBeanWithETag(t *testing.T) {
 	resolver, core := setupTestResolver(t)
 	ctx := context.Background()
