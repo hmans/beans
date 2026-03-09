@@ -97,6 +97,25 @@ branch refs/heads/beans/beans-foo`,
 			want:   1,
 			beanID: "beans-foo",
 		},
+		{
+			name: "prunable entry is skipped",
+			input: `worktree /home/user/project
+HEAD abc123
+branch refs/heads/main
+
+worktree /home/user/project-beans-stale
+HEAD def456
+branch refs/heads/beans/beans-stale
+prunable gitdir file points to non-existent location
+
+worktree /home/user/project-beans-good
+HEAD ghi789
+branch refs/heads/beans/beans-good
+
+`,
+			want:   1,
+			beanID: "beans-good",
+		},
 	}
 
 	for _, tt := range tests {
@@ -201,6 +220,60 @@ func TestRemove(t *testing.T) {
 	}
 	if len(wts) != 0 {
 		t.Fatalf("expected 0 worktrees after remove, got %d", len(wts))
+	}
+}
+
+func TestRemoveStaleWorktree(t *testing.T) {
+	repoDir := initTestRepo(t)
+	mgr := NewManager(repoDir)
+
+	// Create a worktree, then delete its directory out from under git
+	wt, err := mgr.Create("beans-stale")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if err := os.RemoveAll(wt.Path); err != nil {
+		t.Fatalf("RemoveAll: %v", err)
+	}
+
+	// Remove should handle the stale entry gracefully via prune
+	if err := mgr.Remove("beans-stale"); err != nil {
+		t.Fatalf("Remove (stale): %v", err)
+	}
+
+	// List should be empty after pruning
+	wts, err := mgr.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(wts) != 0 {
+		t.Fatalf("expected 0 worktrees after stale remove, got %d", len(wts))
+	}
+}
+
+func TestCreateReusesExistingBranch(t *testing.T) {
+	repoDir := initTestRepo(t)
+	mgr := NewManager(repoDir)
+
+	// Create and then remove a worktree, leaving the branch behind
+	_, err := mgr.Create("beans-reuse")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if err := mgr.Remove("beans-reuse"); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+
+	// The branch beans/beans-reuse still exists; creating again should succeed
+	wt, err := mgr.Create("beans-reuse")
+	if err != nil {
+		t.Fatalf("Create (reuse): %v", err)
+	}
+	if wt.BeanID != "beans-reuse" {
+		t.Errorf("BeanID = %q, want %q", wt.BeanID, "beans-reuse")
+	}
+	if _, err := os.Stat(wt.Path); err != nil {
+		t.Errorf("worktree directory does not exist: %v", err)
 	}
 }
 

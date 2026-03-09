@@ -80,16 +80,26 @@
 	let removingWorktree = $state(false);
 	let confirmingDestroy = $state(false);
 
+	let worktreeError = $state<string | null>(null);
+
 	async function startWork() {
 		startingWork = true;
-		await worktreeStore.createWorktree(bean.id);
+		worktreeError = null;
+		const ok = await worktreeStore.createWorktree(bean.id);
+		if (!ok) {
+			worktreeError = worktreeStore.error;
+		}
 		startingWork = false;
 	}
 
 	async function destroyWorktree() {
 		confirmingDestroy = false;
 		removingWorktree = true;
-		await worktreeStore.removeWorktree(bean.id);
+		worktreeError = null;
+		const ok = await worktreeStore.removeWorktree(bean.id);
+		if (!ok) {
+			worktreeError = worktreeStore.error;
+		}
 		removingWorktree = false;
 	}
 </script>
@@ -161,6 +171,24 @@
 			{/if}
 		</div>
 	</div>
+
+	<!-- Worktree error -->
+	{#if worktreeError}
+		<div class="mb-6 rounded-lg border border-danger/30 bg-danger/5 p-3">
+			<div class="flex items-center justify-between">
+				<div class="flex items-center gap-2 min-w-0">
+					<span class="text-danger text-xs font-semibold uppercase shrink-0">Worktree Error</span>
+					<span class="text-xs text-danger/80 truncate">{worktreeError}</span>
+				</div>
+				<button
+					class="text-danger/60 hover:text-danger text-xs px-1 cursor-pointer"
+					onclick={() => (worktreeError = null)}
+				>
+					✕
+				</button>
+			</div>
+		</div>
+	{/if}
 
 	<!-- Worktree -->
 	{#if worktree}
