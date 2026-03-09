@@ -145,6 +145,14 @@ func showStyledBean(b *bean.Bean) {
 		header.WriteString("  ")
 		header.WriteString(ui.Muted.Render(strings.Join(b.Tags, ", ")))
 	}
+	if b.CreatedAt != nil {
+		header.WriteString("  ")
+		header.WriteString(ui.Muted.Render("created "+b.CreatedAt.Format("2006-01-02 15:04 UTC")))
+	}
+	if b.UpdatedAt != nil {
+		header.WriteString("  ")
+		header.WriteString(ui.Muted.Render("updated "+b.UpdatedAt.Format("2006-01-02 15:04 UTC")))
+	}
 	header.WriteString("\n")
 	header.WriteString(ui.Title.Render(b.Title))
 
