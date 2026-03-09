@@ -14,10 +14,10 @@
 	let { onSelect, selectedId = null }: Props = $props();
 
 	const columns = [
-		{ status: 'draft', label: 'Draft', color: 'bg-warning/15 text-warning' },
-		{ status: 'todo', label: 'Todo', color: 'bg-surface-dim text-text-muted' },
-		{ status: 'in-progress', label: 'In Progress', color: 'bg-info/15 text-info' },
-		{ status: 'completed', label: 'Completed', color: 'bg-success/15 text-success' }
+		{ status: 'draft', label: 'Draft', color: 'bg-status-draft-bg text-status-draft-text' },
+		{ status: 'todo', label: 'Todo', color: 'bg-status-todo-bg text-status-todo-text' },
+		{ status: 'in-progress', label: 'In Progress', color: 'bg-status-in-progress-bg text-status-in-progress-text' },
+		{ status: 'completed', label: 'Completed', color: 'bg-status-completed-bg text-status-completed-text' }
 	];
 
 	function beansForStatus(status: string): Bean[] {

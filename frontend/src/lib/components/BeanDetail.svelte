@@ -21,11 +21,11 @@
 	const blockedBy = $derived(beansStore.blockedBy(bean.id));
 
 	const statusColors: Record<string, string> = {
-		todo: 'bg-surface-dim text-text-muted',
-		'in-progress': 'bg-info/15 text-info',
-		completed: 'bg-success/15 text-success',
-		scrapped: 'bg-danger/15 text-danger',
-		draft: 'bg-warning/15 text-warning'
+		draft: 'bg-status-draft-bg text-status-draft-text',
+		todo: 'bg-status-todo-bg text-status-todo-text',
+		'in-progress': 'bg-status-in-progress-bg text-status-in-progress-text',
+		completed: 'bg-status-completed-bg text-status-completed-text',
+		scrapped: 'bg-status-scrapped-bg text-status-scrapped-text'
 	};
 
 	const typeColors: Record<string, string> = {
@@ -114,7 +114,7 @@
 			<code class="text-[9px] text-text-faint shrink-0">{b.id.slice(-4)}</code>
 			<span class="text-xs text-text truncate flex-1">{b.title}</span>
 			<span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0
-				{statusColors[b.status] ?? 'bg-surface-dim text-text-muted'}">
+				{statusColors[b.status] ?? 'bg-status-todo-bg text-status-todo-text'}">
 				{b.status}
 			</span>
 		</div>
@@ -145,7 +145,7 @@
 				{/if}
 			</button>
 			<span class="text-[11px] px-2 py-0.5 rounded-full font-medium {typeColors[bean.type] ?? 'bg-surface-dim text-text-muted'}">{bean.type}</span>
-			<span class="text-[11px] px-2 py-0.5 rounded-full font-medium {statusColors[bean.status] ?? 'bg-surface-dim text-text-muted'}">{bean.status}</span>
+			<span class="text-[11px] px-2 py-0.5 rounded-full font-medium {statusColors[bean.status] ?? 'bg-status-todo-bg text-status-todo-text'}">{bean.status}</span>
 			{#if bean.priority && bean.priority !== 'normal'}
 				<span class="text-[11px] px-2 py-0.5 rounded-full font-medium border {priorityColors[bean.priority] ?? ''}">
 					{bean.priority}

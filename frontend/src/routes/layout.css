@@ -26,6 +26,20 @@ a,
 	--th-success: #16a34a;
 	--th-info: #2563eb;
 
+	/* Status colors (bg + text pairs) */
+	--th-status-draft-bg: #fef3c7;
+	--th-status-draft-text: #b45309;
+	--th-status-todo-bg: #f1f3f5;
+	--th-status-todo-text: #6b7280;
+	--th-status-in-progress-bg: #dbeafe;
+	--th-status-in-progress-text: #1d4ed8;
+	--th-status-completed-bg: #dcfce7;
+	--th-status-completed-text: #15803d;
+	--th-status-scrapped-bg: #fee2e2;
+	--th-status-scrapped-text: #b91c1c;
+	--th-status-blocked-bg: #f3e8ff;
+	--th-status-blocked-text: #7c3aed;
+
 	/* Markdown heading colors */
 	--th-md-h1: #1e3a5f;
 	--th-md-h2: #2d5a7b;
@@ -52,6 +66,19 @@ a,
 		--th-success: #22c55e;
 		--th-info: #3b82f6;
 
+		--th-status-draft-bg: #422006;
+		--th-status-draft-text: #fbbf24;
+		--th-status-todo-bg: #27272a;
+		--th-status-todo-text: #a1a1aa;
+		--th-status-in-progress-bg: #172554;
+		--th-status-in-progress-text: #60a5fa;
+		--th-status-completed-bg: #052e16;
+		--th-status-completed-text: #4ade80;
+		--th-status-scrapped-bg: #450a0a;
+		--th-status-scrapped-text: #f87171;
+		--th-status-blocked-bg: #2e1065;
+		--th-status-blocked-text: #c084fc;
+
 		--th-md-h1: #93c5fd;
 		--th-md-h2: #7dd3fc;
 		--th-md-h3: #6ee7b7;
@@ -76,4 +103,17 @@ a,
 	--color-warning: var(--th-warning);
 	--color-success: var(--th-success);
 	--color-info: var(--th-info);
+
+	--color-status-draft-bg: var(--th-status-draft-bg);
+	--color-status-draft-text: var(--th-status-draft-text);
+	--color-status-todo-bg: var(--th-status-todo-bg);
+	--color-status-todo-text: var(--th-status-todo-text);
+	--color-status-in-progress-bg: var(--th-status-in-progress-bg);
+	--color-status-in-progress-text: var(--th-status-in-progress-text);
+	--color-status-completed-bg: var(--th-status-completed-bg);
+	--color-status-completed-text: var(--th-status-completed-text);
+	--color-status-scrapped-bg: var(--th-status-scrapped-bg);
+	--color-status-scrapped-text: var(--th-status-scrapped-text);
+	--color-status-blocked-bg: var(--th-status-blocked-bg);
+	--color-status-blocked-text: var(--th-status-blocked-text);
 }

@@ -18,11 +18,11 @@
 	const hasWorktree = $derived(worktreeStore.hasWorktree(bean.id));
 
 	const statusColors: Record<string, string> = {
-		todo: 'bg-surface-dim text-text-muted',
-		'in-progress': 'bg-info/15 text-info',
-		completed: 'bg-success/15 text-success',
-		scrapped: 'bg-danger/15 text-danger',
-		draft: 'bg-warning/15 text-warning'
+		draft: 'bg-status-draft-bg text-status-draft-text',
+		todo: 'bg-status-todo-bg text-status-todo-text',
+		'in-progress': 'bg-status-in-progress-bg text-status-in-progress-text',
+		completed: 'bg-status-completed-bg text-status-completed-text',
+		scrapped: 'bg-status-scrapped-bg text-status-scrapped-text'
 	};
 
 	const typeBorders: Record<string, string> = {
@@ -58,7 +58,7 @@
 			<code class="text-[10px] text-text-faint shrink-0">{bean.id.slice(-4)}</code>
 			<span class="text-sm text-text truncate flex-1">{bean.title}</span>
 			<span class="text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0
-				{statusColors[bean.status] ?? 'bg-surface-dim text-text-muted'}">
+				{statusColors[bean.status] ?? 'bg-status-todo-bg text-status-todo-text'}">
 				{bean.status}
 			</span>
 			{#if children.length > 0}
