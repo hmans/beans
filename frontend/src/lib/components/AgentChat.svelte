@@ -41,15 +41,12 @@
 		}
 	});
 
-	// Render markdown for assistant messages (only when idle — avoid thrashing during streaming)
+	// Render markdown for assistant messages (including the one being streamed).
+	// The key includes content length, so each new delta triggers a re-render.
 	$effect(() => {
 		for (let i = 0; i < messages.length; i++) {
 			const msg = messages[i];
 			if (msg.role !== 'ASSISTANT') continue;
-
-			// While running, only render completed messages (not the last one being streamed)
-			const isLastMessage = i === messages.length - 1;
-			if (isRunning && isLastMessage) continue;
 
 			const key = `${i}:${msg.content.length}`;
 			if (!renderedMessages.has(key)) {
@@ -83,56 +80,52 @@
 	}
 </script>
 
-<div class="flex flex-col h-full">
+<div class="flex flex-col h-full font-mono text-sm">
 	<!-- Messages area -->
 	<div
 		bind:this={messagesEl}
-		class="flex-1 overflow-y-auto p-4 space-y-4"
+		class="flex-1 overflow-y-auto p-4 space-y-3"
 	>
 		{#if messages.length === 0}
 			<div class="flex items-center justify-center h-full text-text-faint">
-				<p class="text-sm">Send a message to start a conversation with the agent.</p>
+				<p>Send a message to start a conversation with the agent.</p>
 			</div>
 		{:else}
 			{#each messages as msg, i}
 				{#if msg.role === 'USER'}
-					<div class="flex justify-end">
-						<div class="max-w-[80%] rounded-lg px-4 py-2 bg-accent text-accent-text">
-							<p class="text-sm whitespace-pre-wrap">{msg.content}</p>
-						</div>
+					<div class="flex gap-2">
+						<span class="shrink-0 text-accent font-bold select-none">&gt;</span>
+						<p class="whitespace-pre-wrap text-text">{msg.content}</p>
+					</div>
+				{:else if msg.role === 'TOOL'}
+					<div class="flex gap-2 text-text-faint text-xs">
+						<span class="shrink-0 select-none">&middot;</span>
+						<span>{msg.content}</span>
 					</div>
 				{:else if getRenderedContent(i)}
-					<div class="flex justify-start">
-						<div class="max-w-[80%] rounded-lg px-4 py-2 bg-surface-dim prose prose-sm max-w-none text-text">
+					<div class="flex gap-2">
+						<span class="shrink-0 text-text-muted select-none">&middot;</span>
+						<div class="agent-prose prose prose-sm max-w-none text-text min-w-0">
 							{@html getRenderedContent(i)}
 						</div>
 					</div>
 				{:else if msg.content}
-					<div class="flex justify-start">
-						<div class="max-w-[80%] rounded-lg px-4 py-2 bg-surface-dim">
-							<p class="text-sm whitespace-pre-wrap text-text">{msg.content}</p>
-						</div>
+					<div class="flex gap-2">
+						<span class="shrink-0 text-text-muted select-none">&middot;</span>
+						<p class="whitespace-pre-wrap text-text">{msg.content}</p>
 					</div>
 				{:else if isRunning}
-					<div class="flex justify-start">
-						<div class="rounded-lg px-4 py-2 bg-surface-dim">
-							<div class="flex items-center gap-2 text-text-muted">
-								<span class="inline-block w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
-								<span class="text-sm">Thinking...</span>
-							</div>
-						</div>
+					<div class="flex gap-2 text-text-muted">
+						<span class="shrink-0 select-none">&middot;</span>
+						<span class="animate-pulse">thinking...</span>
 					</div>
 				{/if}
 			{/each}
 
 			{#if isRunning && (messages.length === 0 || messages[messages.length - 1].role === 'USER')}
-				<div class="flex justify-start">
-					<div class="rounded-lg px-4 py-2 bg-surface-dim">
-						<div class="flex items-center gap-2 text-text-muted">
-							<span class="inline-block w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
-							<span class="text-sm">Thinking...</span>
-						</div>
-					</div>
+				<div class="flex gap-2 text-text-muted">
+					<span class="shrink-0 select-none">&middot;</span>
+					<span class="animate-pulse">thinking...</span>
 				</div>
 			{/if}
 		{/if}
@@ -140,7 +133,7 @@
 
 	<!-- Error banner -->
 	{#if sessionError || store.error}
-		<div class="px-4 py-2 bg-danger/10 text-danger text-sm border-t border-danger/20">
+		<div class="px-4 py-2 bg-danger/10 text-danger border-t border-danger/20">
 			{sessionError || store.error}
 		</div>
 	{/if}
@@ -150,7 +143,7 @@
 		{#if isRunning}
 			<div class="flex items-center gap-2 px-1 pb-2 text-text-muted">
 				<span class="agent-spinner"></span>
-				<span class="text-xs">Agent is working...</span>
+				<span class="text-xs font-mono">Agent is working...</span>
 			</div>
 		{/if}
 		<div class="flex gap-2 items-end">
@@ -159,7 +152,7 @@
 				onkeydown={handleKeydown}
 				placeholder="Send a message..."
 				rows={1}
-				class="flex-1 resize-none rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm
+				class="flex-1 resize-none rounded border border-border bg-surface-alt px-3 py-2 font-mono text-sm
 					text-text placeholder:text-text-faint
 					focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
 			></textarea>
@@ -167,7 +160,7 @@
 			<button
 				onclick={send}
 				disabled={!inputText.trim()}
-				class="shrink-0 rounded-lg px-4 py-2 text-sm font-medium
+				class="shrink-0 rounded px-3 py-2 text-sm font-mono
 					bg-accent text-accent-text hover:bg-accent/90 transition-colors
 					disabled:opacity-50 disabled:cursor-not-allowed"
 			>
@@ -177,7 +170,7 @@
 			{#if isRunning}
 				<button
 					onclick={() => store.stop(beanId)}
-					class="shrink-0 rounded-lg px-4 py-2 text-sm font-medium
+					class="shrink-0 rounded px-3 py-2 text-sm font-mono
 						bg-danger text-white hover:bg-danger/90 transition-colors"
 				>
 					Stop
@@ -202,5 +195,21 @@
 		to {
 			transform: rotate(360deg);
 		}
+	}
+
+	/* Ensure rendered markdown inherits monospace and uniform font size */
+	.agent-prose :global(*) {
+		font-family: inherit;
+		font-size: inherit;
+	}
+
+	.agent-prose :global(h1),
+	.agent-prose :global(h2),
+	.agent-prose :global(h3),
+	.agent-prose :global(h4),
+	.agent-prose :global(h5),
+	.agent-prose :global(h6) {
+		font-size: inherit;
+		font-weight: bold;
 	}
 </style>

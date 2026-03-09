@@ -204,16 +204,18 @@ type AgentMessageRole string
 const (
 	AgentMessageRoleUser      AgentMessageRole = "USER"
 	AgentMessageRoleAssistant AgentMessageRole = "ASSISTANT"
+	AgentMessageRoleTool      AgentMessageRole = "TOOL"
 )
 
 var AllAgentMessageRole = []AgentMessageRole{
 	AgentMessageRoleUser,
 	AgentMessageRoleAssistant,
+	AgentMessageRoleTool,
 }
 
 func (e AgentMessageRole) IsValid() bool {
 	switch e {
-	case AgentMessageRoleUser, AgentMessageRoleAssistant:
+	case AgentMessageRoleUser, AgentMessageRoleAssistant, AgentMessageRoleTool:
 		return true
 	}
 	return false

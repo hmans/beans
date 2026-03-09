@@ -46,8 +46,9 @@ type messagePayload struct {
 }
 
 type deltaPayload struct {
-	Type string `json:"type"`
-	Text string `json:"text,omitempty"`
+	Type        string `json:"type"`
+	Text        string `json:"text,omitempty"`
+	PartialJSON string `json:"partial_json,omitempty"`
 }
 
 type contentBlockPayload struct {
@@ -64,6 +65,7 @@ type errorPayload struct {
 type parsedEvent struct {
 	Type      parsedEventType
 	Text      string // for TextDelta / AssistantMessage / Result
+	ToolName  string // for ToolUse
 	SessionID string // for Result / AssistantMessage
 	Error     string // for Error
 }
@@ -73,7 +75,10 @@ type parsedEventType int
 const (
 	eventUnknown parsedEventType = iota
 	eventTextDelta
+	eventNewTextBlock // content_block_start with type=text (signals paragraph break needed)
 	eventAssistantMessage
+	eventToolUse
+	eventToolInputDelta // input_json_delta for tool_use — accumulates tool input JSON
 	eventResult
 	eventError
 )
@@ -108,13 +113,23 @@ func parseStreamLine(line []byte) parsedEvent {
 
 	case "content_block_delta":
 		// Direct (non-wrapped) delta — kept for compatibility
-		if ev.Delta != nil && ev.Delta.Type == "text_delta" {
-			return parsedEvent{Type: eventTextDelta, Text: ev.Delta.Text}
+		if ev.Delta != nil {
+			if ev.Delta.Type == "text_delta" {
+				return parsedEvent{Type: eventTextDelta, Text: ev.Delta.Text}
+			}
+			if ev.Delta.Type == "input_json_delta" {
+				return parsedEvent{Type: eventToolInputDelta, Text: ev.Delta.PartialJSON}
+			}
 		}
 
 	case "content_block_start":
-		if ev.ContentBlock != nil && ev.ContentBlock.Type == "text" && ev.ContentBlock.Text != "" {
-			return parsedEvent{Type: eventTextDelta, Text: ev.ContentBlock.Text}
+		if ev.ContentBlock != nil {
+			if ev.ContentBlock.Type == "text" {
+				return parsedEvent{Type: eventNewTextBlock, Text: ev.ContentBlock.Text}
+			}
+			if ev.ContentBlock.Type == "tool_use" && ev.ContentBlock.Name != "" {
+				return parsedEvent{Type: eventToolUse, ToolName: ev.ContentBlock.Name}
+			}
 		}
 
 	case "result":
@@ -142,14 +157,57 @@ func parseInnerEvent(inner *innerEvent) parsedEvent {
 
 	switch inner.Type {
 	case "content_block_delta":
-		if inner.Delta != nil && inner.Delta.Type == "text_delta" {
-			return parsedEvent{Type: eventTextDelta, Text: inner.Delta.Text}
+		if inner.Delta != nil {
+			if inner.Delta.Type == "text_delta" {
+				return parsedEvent{Type: eventTextDelta, Text: inner.Delta.Text}
+			}
+			if inner.Delta.Type == "input_json_delta" {
+				return parsedEvent{Type: eventToolInputDelta, Text: inner.Delta.PartialJSON}
+			}
 		}
 	case "content_block_start":
-		if inner.ContentBlock != nil && inner.ContentBlock.Type == "text" && inner.ContentBlock.Text != "" {
-			return parsedEvent{Type: eventTextDelta, Text: inner.ContentBlock.Text}
+		if inner.ContentBlock != nil {
+			if inner.ContentBlock.Type == "text" {
+				return parsedEvent{Type: eventNewTextBlock, Text: inner.ContentBlock.Text}
+			}
+			if inner.ContentBlock.Type == "tool_use" && inner.ContentBlock.Name != "" {
+				return parsedEvent{Type: eventToolUse, ToolName: inner.ContentBlock.Name}
+			}
 		}
 	}
 
 	return parsedEvent{Type: eventUnknown}
+}
+
+// toolInputSummaryFields are the JSON fields to look for (in order) when
+// extracting a human-readable summary from tool input.
+var toolInputSummaryFields = []string{
+	"description", // Agent, Bash
+	"file_path",   // Read, Edit, Write
+	"pattern",     // Grep, Glob
+	"command",     // Bash (fallback)
+	"query",       // WebSearch, ToolSearch
+	"skill",       // Skill
+	"prompt",      // Agent (fallback — usually long, truncated)
+}
+
+// extractToolSummary tries to extract a short summary from accumulated
+// tool input JSON. Returns empty string if nothing useful is found.
+func extractToolSummary(inputJSON string) string {
+	var obj map[string]interface{}
+	if err := json.Unmarshal([]byte(inputJSON), &obj); err != nil {
+		return ""
+	}
+	for _, field := range toolInputSummaryFields {
+		if v, ok := obj[field]; ok {
+			if s, ok := v.(string); ok && s != "" {
+				// Truncate long values
+				if len(s) > 80 {
+					s = s[:77] + "..."
+				}
+				return s
+			}
+		}
+	}
+	return ""
 }

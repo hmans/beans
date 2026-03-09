@@ -132,6 +132,11 @@ func (m *Manager) readOutput(beanID string, stdout io.Reader) {
 	// Increase buffer for long lines (1MB)
 	scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024)
 
+	// Track tool input accumulation for extracting summaries
+	var toolInputBuf strings.Builder
+	var toolMsgIdx int = -1
+	var toolName string
+
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
@@ -170,6 +175,51 @@ func (m *Manager) readOutput(beanID string, stdout io.Reader) {
 					s.SessionID = ev.SessionID
 				}
 				m.mu.Unlock()
+			}
+
+		case eventToolUse:
+			// Tool use start — show tool name in the conversation
+			toolInputBuf.Reset()
+			toolName = ev.ToolName
+			m.mu.Lock()
+			if s, ok := m.sessions[beanID]; ok {
+				s.Messages = append(s.Messages, Message{Role: RoleTool, Content: ev.ToolName})
+				toolMsgIdx = len(s.Messages) - 1
+			}
+			m.mu.Unlock()
+			m.notify(beanID)
+
+		case eventToolInputDelta:
+			// Accumulate tool input JSON and try to extract a summary
+			toolInputBuf.WriteString(ev.Text)
+			if toolMsgIdx >= 0 {
+				// Try parsing accumulated JSON (may be incomplete — that's fine)
+				summary := extractToolSummary(toolInputBuf.String())
+				if summary != "" {
+					m.mu.Lock()
+					if s, ok := m.sessions[beanID]; ok && toolMsgIdx < len(s.Messages) {
+						s.Messages[toolMsgIdx].Content = toolName + ": " + summary
+					}
+					m.mu.Unlock()
+					m.notify(beanID)
+				}
+			}
+
+		case eventNewTextBlock:
+			// New text content block starting — insert paragraph break if
+			// the current message already has content (e.g. after tool use).
+			m.mu.Lock()
+			if s, ok := m.sessions[beanID]; ok {
+				idx := s.streamingIdx
+				if idx >= 0 && idx < len(s.Messages) &&
+					s.Messages[idx].Role == RoleAssistant && s.Messages[idx].Content != "" {
+					s.Messages[idx].Content += "\n\n"
+				}
+			}
+			m.mu.Unlock()
+			if ev.Text != "" {
+				m.appendAssistantText(beanID, ev.Text)
+				m.notify(beanID)
 			}
 
 		case eventTextDelta:

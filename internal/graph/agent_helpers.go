@@ -17,6 +17,8 @@ func agentSessionToModel(s *agent.Session) *model.AgentSession {
 			role = model.AgentMessageRoleUser
 		case agent.RoleAssistant:
 			role = model.AgentMessageRoleAssistant
+		case agent.RoleTool:
+			role = model.AgentMessageRoleTool
 		}
 		msgs[i] = &model.AgentMessage{
 			Role:    role,

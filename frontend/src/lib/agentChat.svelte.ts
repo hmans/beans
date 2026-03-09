@@ -3,7 +3,7 @@ import { pipe, subscribe } from 'wonka';
 import { client } from './graphqlClient';
 
 export interface AgentMessage {
-	role: 'USER' | 'ASSISTANT';
+	role: 'USER' | 'ASSISTANT' | 'TOOL';
 	content: string;
 }
 

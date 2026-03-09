@@ -7,6 +7,7 @@ type MessageRole string
 const (
 	RoleUser      MessageRole = "user"
 	RoleAssistant MessageRole = "assistant"
+	RoleTool      MessageRole = "tool"
 )
 
 // SessionStatus represents the current state of an agent session.

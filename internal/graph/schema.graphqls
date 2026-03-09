@@ -391,4 +391,5 @@ Role of an agent message sender
 enum AgentMessageRole {
   USER
   ASSISTANT
+  TOOL
 }
