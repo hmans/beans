@@ -588,12 +588,12 @@ func TestFindConfig(t *testing.T) {
 	t.Run("returns empty string when no config found", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		found, err := FindConfig(tmpDir)
+		found, err := FindConfigWithin(tmpDir, tmpDir)
 		if err != nil {
-			t.Fatalf("FindConfig() error = %v", err)
+			t.Fatalf("FindConfigWithin() error = %v", err)
 		}
 		if found != "" {
-			t.Errorf("FindConfig() = %q, want empty string", found)
+			t.Errorf("FindConfigWithin() = %q, want empty string", found)
 		}
 	})
 }
@@ -629,9 +629,9 @@ func TestLoadFromDirectory(t *testing.T) {
 	t.Run("returns default config when no config file exists", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		cfg, err := LoadFromDirectory(tmpDir)
+		cfg, err := LoadFromDirectoryWithin(tmpDir, tmpDir)
 		if err != nil {
-			t.Fatalf("LoadFromDirectory() error = %v", err)
+			t.Fatalf("LoadFromDirectoryWithin() error = %v", err)
 		}
 		if cfg.Beans.Path != DefaultBeansPath {
 			t.Errorf("Beans.Path = %q, want %q", cfg.Beans.Path, DefaultBeansPath)

@@ -25,8 +25,6 @@ var initCmd = &cobra.Command{
 		if beansPath != "" {
 			// Use explicit path for beans directory
 			beansDir = beansPath
-			projectDir = filepath.Dir(beansDir)
-			dirName = filepath.Base(projectDir)
 			// Create the directory using Core.Init to set up .gitignore
 			core := beancore.New(beansDir, nil)
 			if err := core.Init(); err != nil {
@@ -35,6 +33,9 @@ var initCmd = &cobra.Command{
 				}
 				return fmt.Errorf("failed to create directory: %w", err)
 			}
+			// Skip creating .beans.yml when --beans-path is explicit:
+			// the path is already known, and writing a config to the parent
+			// directory could pollute unrelated locations (e.g. /tmp).
 		} else {
 			// Use current working directory
 			dir, err := os.Getwd()
@@ -55,17 +56,17 @@ var initCmd = &cobra.Command{
 			projectDir = dir
 			beansDir = filepath.Join(dir, ".beans")
 			dirName = filepath.Base(dir)
-		}
 
-		// Create default config file with directory name as prefix
-		// Config is saved at project root (not inside .beans/)
-		defaultCfg := config.DefaultWithPrefix(dirName + "-")
-		defaultCfg.SetConfigDir(projectDir)
-		if err := defaultCfg.Save(projectDir); err != nil {
-			if initJSON {
-				return output.Error(output.ErrFileError, err.Error())
+			// Create default config file with directory name as prefix
+			// Config is saved at project root (not inside .beans/)
+			defaultCfg := config.DefaultWithPrefix(dirName + "-")
+			defaultCfg.SetConfigDir(projectDir)
+			if err := defaultCfg.Save(projectDir); err != nil {
+				if initJSON {
+					return output.Error(output.ErrFileError, err.Error())
+				}
+				return fmt.Errorf("failed to create config: %w", err)
 			}
-			return fmt.Errorf("failed to create config: %w", err)
 		}
 
 		if initJSON {
