@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -798,6 +799,89 @@ func TestPriorityDescriptions(t *testing.T) {
 func TestDefaultPrioritiesCount(t *testing.T) {
 	if len(DefaultPriorities) != 5 {
 		t.Errorf("len(DefaultPriorities) = %d, want 5", len(DefaultPriorities))
+	}
+}
+
+func TestSaveIncludesComments(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := DefaultWithPrefix("myapp-")
+	cfg.SetConfigDir(tmpDir)
+
+	if err := cfg.Save(tmpDir); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	configPath := filepath.Join(tmpDir, ConfigFileName)
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("ReadFile error = %v", err)
+	}
+	content := string(data)
+
+	// Verify header comment
+	if !strings.Contains(content, "# Beans configuration") {
+		t.Error("missing header comment 'Beans configuration'")
+	}
+	if !strings.Contains(content, "# See: https://github.com/hmans/beans") {
+		t.Error("missing header comment with URL")
+	}
+
+	// Verify field comments
+	expectedComments := []string{
+		"# Directory where bean files are stored",
+		"# Prefix for bean IDs",
+		"# Length of the random ID suffix",
+		"# Default status for new beans",
+		"# Default type for new beans",
+		"# Port for the web UI",
+	}
+	for _, comment := range expectedComments {
+		if !strings.Contains(content, comment) {
+			t.Errorf("missing comment: %s", comment)
+		}
+	}
+
+	// Verify values are still correct by loading back
+	loaded, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if loaded.Beans.Prefix != "myapp-" {
+		t.Errorf("Prefix = %q, want \"myapp-\"", loaded.Beans.Prefix)
+	}
+	if loaded.Beans.IDLength != 4 {
+		t.Errorf("IDLength = %d, want 4", loaded.Beans.IDLength)
+	}
+	if loaded.Beans.DefaultStatus != "todo" {
+		t.Errorf("DefaultStatus = %q, want \"todo\"", loaded.Beans.DefaultStatus)
+	}
+	if loaded.Beans.DefaultType != "task" {
+		t.Errorf("DefaultType = %q, want \"task\"", loaded.Beans.DefaultType)
+	}
+	if loaded.GetServerPort() != DefaultServerPort {
+		t.Errorf("ServerPort = %d, want %d", loaded.GetServerPort(), DefaultServerPort)
+	}
+}
+
+func TestSaveOmitsEmptyServerSection(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := DefaultWithPrefix("test-")
+	cfg.Server.Port = 0 // zero value = omitted
+	cfg.SetConfigDir(tmpDir)
+
+	if err := cfg.Save(tmpDir); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, ConfigFileName))
+	if err != nil {
+		t.Fatalf("ReadFile error = %v", err)
+	}
+
+	if strings.Contains(string(data), "server:") {
+		t.Error("expected server section to be omitted when port is 0")
 	}
 }
 

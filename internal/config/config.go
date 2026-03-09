@@ -1,6 +1,8 @@
 package config
 
 import (
+	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -248,7 +250,7 @@ func (c *Config) SetConfigDir(dir string) {
 	c.configDir = dir
 }
 
-// Save writes the configuration to the config file.
+// Save writes the configuration to the config file with helpful comments.
 // If configDir is set, saves to that directory; otherwise saves to the given directory.
 func (c *Config) Save(dir string) error {
 	targetDir := c.configDir
@@ -257,12 +259,94 @@ func (c *Config) Save(dir string) error {
 	}
 	path := filepath.Join(targetDir, ConfigFileName)
 
-	data, err := yaml.Marshal(c)
-	if err != nil {
-		return err
+	doc := c.toYAMLNode()
+
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	enc.SetIndent(4)
+	if err := enc.Encode(doc); err != nil {
+		return fmt.Errorf("encoding config: %w", err)
+	}
+	if err := enc.Close(); err != nil {
+		return fmt.Errorf("closing encoder: %w", err)
 	}
 
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, buf.Bytes(), 0644)
+}
+
+// toYAMLNode builds a yaml.Node document tree with inline comments.
+func (c *Config) toYAMLNode() *yaml.Node {
+	// Helper to create a scalar node
+	scalar := func(value string, tag string) *yaml.Node {
+		return &yaml.Node{Kind: yaml.ScalarNode, Value: value, Tag: tag}
+	}
+	strNode := func(value string) *yaml.Node {
+		return scalar(value, "!!str")
+	}
+	intNode := func(value int) *yaml.Node {
+		return scalar(fmt.Sprintf("%d", value), "!!int")
+	}
+
+	// Build the beans mapping
+	beansMapping := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+
+	if c.Beans.Path != "" {
+		key := strNode("path")
+		key.HeadComment = "Directory where bean files are stored"
+		beansMapping.Content = append(beansMapping.Content, key, strNode(c.Beans.Path))
+	}
+
+	prefixKey := strNode("prefix")
+	prefixKey.HeadComment = "Prefix for bean IDs (e.g., \"myproject-abc1\")"
+	beansMapping.Content = append(beansMapping.Content, prefixKey, strNode(c.Beans.Prefix))
+
+	idLenKey := strNode("id_length")
+	idLenKey.HeadComment = "Length of the random ID suffix"
+	beansMapping.Content = append(beansMapping.Content, idLenKey, intNode(c.Beans.IDLength))
+
+	if c.Beans.DefaultStatus != "" {
+		key := strNode("default_status")
+		key.HeadComment = "Default status for new beans"
+		beansMapping.Content = append(beansMapping.Content, key, strNode(c.Beans.DefaultStatus))
+	}
+
+	if c.Beans.DefaultType != "" {
+		key := strNode("default_type")
+		key.HeadComment = "Default type for new beans"
+		beansMapping.Content = append(beansMapping.Content, key, strNode(c.Beans.DefaultType))
+	}
+
+	if c.Beans.RequireIfMatch {
+		key := strNode("require_if_match")
+		key.HeadComment = "Require ETag for updates (optimistic concurrency)"
+		beansMapping.Content = append(beansMapping.Content, key, scalar("true", "!!bool"))
+	}
+
+	// Build the server mapping
+	serverMapping := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+	if c.Server.Port != 0 {
+		portKey := strNode("port")
+		portKey.HeadComment = "Port for the web UI (used by `beans serve`)"
+		serverMapping.Content = append(serverMapping.Content, portKey, intNode(c.Server.Port))
+	}
+
+	// Build the top-level mapping
+	topMapping := &yaml.Node{
+		Kind:        yaml.MappingNode,
+		Tag:         "!!map",
+		HeadComment: "Beans configuration\nSee: https://github.com/hmans/beans",
+	}
+	topMapping.Content = append(topMapping.Content, strNode("beans"), beansMapping)
+
+	if len(serverMapping.Content) > 0 {
+		topMapping.Content = append(topMapping.Content, strNode("server"), serverMapping)
+	}
+
+	// Wrap in a document node
+	return &yaml.Node{
+		Kind:    yaml.DocumentNode,
+		Content: []*yaml.Node{topMapping},
+	}
 }
 
 // IsValidStatus returns true if the status is a valid hardcoded status.
