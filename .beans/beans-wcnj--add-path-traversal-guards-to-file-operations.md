@@ -3,8 +3,10 @@
 title: Add path traversal guards to file operations
 status: todo
 type: task
+priority: normal
 created_at: 2026-03-09T17:01:49Z
-updated_at: 2026-03-09T17:01:49Z
+updated_at: 2026-03-09T20:28:54Z
+order: zzw
 parent: beans-oe8n
 ---
 

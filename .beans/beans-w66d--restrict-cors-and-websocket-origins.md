@@ -5,7 +5,8 @@ status: todo
 type: task
 priority: high
 created_at: 2026-03-09T17:01:38Z
-updated_at: 2026-03-09T17:01:38Z
+updated_at: 2026-03-09T20:28:54Z
+order: zz
 parent: beans-oe8n
 ---
 

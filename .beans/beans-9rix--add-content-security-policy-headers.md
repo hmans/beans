@@ -3,8 +3,10 @@
 title: Add Content Security Policy headers
 status: todo
 type: task
+priority: normal
 created_at: 2026-03-09T17:01:54Z
-updated_at: 2026-03-09T17:01:54Z
+updated_at: 2026-03-09T20:28:54Z
+order: zzs
 parent: beans-oe8n
 ---
 
