@@ -21,7 +21,7 @@ type beanItem struct {
 	cfg             *config.Config
 	treePrefix      string // tree prefix for rendering (e.g., "├─" or "  └─")
 	matched         bool   // true if bean matched filter (vs. ancestor shown for context)
-	inheritedStatus string // terminal status inherited from an ancestor, if any
+	implicitStatus string // implicit terminal status from an ancestor, if any
 }
 
 func (i beanItem) Title() string       { return i.bean.Title }
@@ -95,7 +95,7 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 			Dimmed:          !item.matched,
 			IDColWidth:      d.idColWidth,
 			UseFullNames:    d.cols.UseFullTypeStatus,
-			InheritedStatus: item.inheritedStatus,
+			ImplicitStatus: item.implicitStatus,
 		},
 	)
 
@@ -192,16 +192,16 @@ func (m listModel) loadBeans() tea.Msg {
 		bean.SortByStatusPriorityAndType(beans, m.config.StatusNames(), m.config.PriorityNames(), m.config.TypeNames())
 	}
 
-	// Pre-compute inherited statuses for all beans
-	inheritedStatuses := make(map[string]string, len(allBeans))
+	// Pre-compute implicit statuses for all beans
+	implicitStatuses := make(map[string]string, len(allBeans))
 	for _, b := range allBeans {
-		if status, _ := m.resolver.Core.InheritedStatus(b.ID); status != "" {
-			inheritedStatuses[b.ID] = status
+		if status, _ := m.resolver.Core.ImplicitStatus(b.ID); status != "" {
+			implicitStatuses[b.ID] = status
 		}
 	}
 
 	// Build tree and flatten it
-	tree := ui.BuildTree(filteredBeans, allBeans, sortFn, inheritedStatuses)
+	tree := ui.BuildTree(filteredBeans, allBeans, sortFn, implicitStatuses)
 	items := ui.FlattenTree(tree)
 
 	// Calculate ID column width based on max ID length and tree depth
@@ -263,7 +263,7 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 				cfg:             m.config,
 				treePrefix:      flatItem.TreePrefix,
 				matched:         flatItem.Matched,
-				inheritedStatus: flatItem.InheritedStatus,
+				implicitStatus: flatItem.ImplicitStatus,
 			}
 			if len(flatItem.Bean.Tags) > 0 {
 				m.hasTags = true

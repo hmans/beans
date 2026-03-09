@@ -277,11 +277,11 @@ type Bean {
   "Child beans (beans with this as parent)"
   children(filter: BeanFilter): [Bean!]!
 
-  # Inherited status fields
+  # Implicit status fields
   "Terminal status (scrapped or completed) inherited from the nearest terminal ancestor, if any"
-  inheritedStatus: String
-  "ID of the ancestor bean that provides the inherited status"
-  inheritedFrom: String
+  implicitStatus: String
+  "ID of the ancestor bean that provides the implicit status"
+  implicitStatusFrom: String
 }
 
 """
@@ -328,8 +328,12 @@ input BeanFilter {
   hasBlocking: Boolean
   "Include only beans that are blocking this specific bean ID"
   blockingId: String
-  "Include only beans that are blocked by others (via incoming blocking links or blocked_by field)"
+  "Include beans that are blocked — explicitly (direct blockers) or implicitly (ancestor is blocked)"
   isBlocked: Boolean
+  "Filter beans that are explicitly blocked (have direct active blockers)"
+  isExplicitlyBlocked: Boolean
+  "Filter beans that are implicitly blocked (an ancestor in the parent chain is blocked)"
+  isImplicitlyBlocked: Boolean
   "Include only beans that have explicit blocked-by entries"
   hasBlockedBy: Boolean
   "Include only beans blocked by this specific bean ID (via blocked_by field)"
@@ -341,7 +345,7 @@ input BeanFilter {
   "Exclude beans that have explicit blocked-by entries"
   noBlockedBy: Boolean
   "Exclude beans that inherit a terminal status (scrapped or completed) from an ancestor"
-  excludeTerminalInherited: Boolean
+  excludeImplicitTerminal: Boolean
 }
 
 """

@@ -102,13 +102,13 @@ Search Syntax (--search/-S):
 		}
 
 		// --ready: beans available to start (not blocked, excludes in-progress/completed/scrapped/draft,
-		// and excludes beans with inherited terminal status from a scrapped/completed ancestor)
+		// and excludes beans with implicit terminal status from a scrapped/completed ancestor)
 		if listReady {
 			isBlocked := false
-			excludeTerminalInherited := true
+			excludeImplicitTerminal := true
 			filter.IsBlocked = &isBlocked
 			filter.ExcludeStatus = append(filter.ExcludeStatus, "in-progress", "completed", "scrapped", "draft")
-			filter.ExcludeTerminalInherited = &excludeTerminalInherited
+			filter.ExcludeImplicitTerminal = &excludeImplicitTerminal
 		}
 
 		// Execute query via GraphQL resolver
@@ -146,11 +146,11 @@ Search Syntax (--search/-S):
 			return fmt.Errorf("querying all beans for tree: %w", err)
 		}
 
-		// Pre-compute inherited statuses for all beans
-		inheritedStatuses := make(map[string]string, len(allBeans))
+		// Pre-compute implicit statuses for all beans
+		implicitStatuses := make(map[string]string, len(allBeans))
 		for _, b := range allBeans {
-			if status, _ := core.InheritedStatus(b.ID); status != "" {
-				inheritedStatuses[b.ID] = status
+			if status, _ := core.ImplicitStatus(b.ID); status != "" {
+				implicitStatuses[b.ID] = status
 			}
 		}
 
@@ -160,7 +160,7 @@ Search Syntax (--search/-S):
 		}
 
 		// Build tree
-		tree := ui.BuildTree(beans, allBeans, sortFn, inheritedStatuses)
+		tree := ui.BuildTree(beans, allBeans, sortFn, implicitStatuses)
 
 		if len(tree) == 0 {
 			fmt.Println(ui.Muted.Render("No beans found. Create one with: beans new <title>"))

@@ -51,27 +51,27 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	Bean struct {
-		BlockedBy       func(childComplexity int, filter *model.BeanFilter) int
-		BlockedByIds    func(childComplexity int) int
-		Blocking        func(childComplexity int, filter *model.BeanFilter) int
-		BlockingIds     func(childComplexity int) int
-		Body            func(childComplexity int) int
-		Children        func(childComplexity int, filter *model.BeanFilter) int
-		CreatedAt       func(childComplexity int) int
-		ETag            func(childComplexity int) int
-		ID              func(childComplexity int) int
-		InheritedFrom   func(childComplexity int) int
-		InheritedStatus func(childComplexity int) int
-		Parent          func(childComplexity int) int
-		ParentID        func(childComplexity int) int
-		Path            func(childComplexity int) int
-		Priority        func(childComplexity int) int
-		Slug            func(childComplexity int) int
-		Status          func(childComplexity int) int
-		Tags            func(childComplexity int) int
-		Title           func(childComplexity int) int
-		Type            func(childComplexity int) int
-		UpdatedAt       func(childComplexity int) int
+		BlockedBy          func(childComplexity int, filter *model.BeanFilter) int
+		BlockedByIds       func(childComplexity int) int
+		Blocking           func(childComplexity int, filter *model.BeanFilter) int
+		BlockingIds        func(childComplexity int) int
+		Body               func(childComplexity int) int
+		Children           func(childComplexity int, filter *model.BeanFilter) int
+		CreatedAt          func(childComplexity int) int
+		ETag               func(childComplexity int) int
+		ID                 func(childComplexity int) int
+		ImplicitStatus     func(childComplexity int) int
+		ImplicitStatusFrom func(childComplexity int) int
+		Parent             func(childComplexity int) int
+		ParentID           func(childComplexity int) int
+		Path               func(childComplexity int) int
+		Priority           func(childComplexity int) int
+		Slug               func(childComplexity int) int
+		Status             func(childComplexity int) int
+		Tags               func(childComplexity int) int
+		Title              func(childComplexity int) int
+		Type               func(childComplexity int) int
+		UpdatedAt          func(childComplexity int) int
 	}
 
 	Mutation struct {
@@ -99,8 +99,8 @@ type BeanResolver interface {
 	Blocking(ctx context.Context, obj *bean.Bean, filter *model.BeanFilter) ([]*bean.Bean, error)
 	Parent(ctx context.Context, obj *bean.Bean) (*bean.Bean, error)
 	Children(ctx context.Context, obj *bean.Bean, filter *model.BeanFilter) ([]*bean.Bean, error)
-	InheritedStatus(ctx context.Context, obj *bean.Bean) (*string, error)
-	InheritedFrom(ctx context.Context, obj *bean.Bean) (*string, error)
+	ImplicitStatus(ctx context.Context, obj *bean.Bean) (*string, error)
+	ImplicitStatusFrom(ctx context.Context, obj *bean.Bean) (*string, error)
 }
 type MutationResolver interface {
 	CreateBean(ctx context.Context, input model.CreateBeanInput) (*bean.Bean, error)
@@ -205,18 +205,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Bean.ID(childComplexity), true
-	case "Bean.inheritedFrom":
-		if e.complexity.Bean.InheritedFrom == nil {
+	case "Bean.implicitStatus":
+		if e.complexity.Bean.ImplicitStatus == nil {
 			break
 		}
 
-		return e.complexity.Bean.InheritedFrom(childComplexity), true
-	case "Bean.inheritedStatus":
-		if e.complexity.Bean.InheritedStatus == nil {
+		return e.complexity.Bean.ImplicitStatus(childComplexity), true
+	case "Bean.implicitStatusFrom":
+		if e.complexity.Bean.ImplicitStatusFrom == nil {
 			break
 		}
 
-		return e.complexity.Bean.InheritedStatus(childComplexity), true
+		return e.complexity.Bean.ImplicitStatusFrom(childComplexity), true
 	case "Bean.parent":
 		if e.complexity.Bean.Parent == nil {
 			break
@@ -1278,10 +1278,10 @@ func (ec *executionContext) fieldContext_Bean_blockedBy(ctx context.Context, fie
 				return ec.fieldContext_Bean_parent(ctx, field)
 			case "children":
 				return ec.fieldContext_Bean_children(ctx, field)
-			case "inheritedStatus":
-				return ec.fieldContext_Bean_inheritedStatus(ctx, field)
-			case "inheritedFrom":
-				return ec.fieldContext_Bean_inheritedFrom(ctx, field)
+			case "implicitStatus":
+				return ec.fieldContext_Bean_implicitStatus(ctx, field)
+			case "implicitStatusFrom":
+				return ec.fieldContext_Bean_implicitStatusFrom(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
 		},
@@ -1363,10 +1363,10 @@ func (ec *executionContext) fieldContext_Bean_blocking(ctx context.Context, fiel
 				return ec.fieldContext_Bean_parent(ctx, field)
 			case "children":
 				return ec.fieldContext_Bean_children(ctx, field)
-			case "inheritedStatus":
-				return ec.fieldContext_Bean_inheritedStatus(ctx, field)
-			case "inheritedFrom":
-				return ec.fieldContext_Bean_inheritedFrom(ctx, field)
+			case "implicitStatus":
+				return ec.fieldContext_Bean_implicitStatus(ctx, field)
+			case "implicitStatusFrom":
+				return ec.fieldContext_Bean_implicitStatusFrom(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
 		},
@@ -1447,10 +1447,10 @@ func (ec *executionContext) fieldContext_Bean_parent(_ context.Context, field gr
 				return ec.fieldContext_Bean_parent(ctx, field)
 			case "children":
 				return ec.fieldContext_Bean_children(ctx, field)
-			case "inheritedStatus":
-				return ec.fieldContext_Bean_inheritedStatus(ctx, field)
-			case "inheritedFrom":
-				return ec.fieldContext_Bean_inheritedFrom(ctx, field)
+			case "implicitStatus":
+				return ec.fieldContext_Bean_implicitStatus(ctx, field)
+			case "implicitStatusFrom":
+				return ec.fieldContext_Bean_implicitStatusFrom(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
 		},
@@ -1521,10 +1521,10 @@ func (ec *executionContext) fieldContext_Bean_children(ctx context.Context, fiel
 				return ec.fieldContext_Bean_parent(ctx, field)
 			case "children":
 				return ec.fieldContext_Bean_children(ctx, field)
-			case "inheritedStatus":
-				return ec.fieldContext_Bean_inheritedStatus(ctx, field)
-			case "inheritedFrom":
-				return ec.fieldContext_Bean_inheritedFrom(ctx, field)
+			case "implicitStatus":
+				return ec.fieldContext_Bean_implicitStatus(ctx, field)
+			case "implicitStatusFrom":
+				return ec.fieldContext_Bean_implicitStatusFrom(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
 		},
@@ -1543,14 +1543,14 @@ func (ec *executionContext) fieldContext_Bean_children(ctx context.Context, fiel
 	return fc, nil
 }
 
-func (ec *executionContext) _Bean_inheritedStatus(ctx context.Context, field graphql.CollectedField, obj *bean.Bean) (ret graphql.Marshaler) {
+func (ec *executionContext) _Bean_implicitStatus(ctx context.Context, field graphql.CollectedField, obj *bean.Bean) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_Bean_inheritedStatus,
+		ec.fieldContext_Bean_implicitStatus,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Bean().InheritedStatus(ctx, obj)
+			return ec.resolvers.Bean().ImplicitStatus(ctx, obj)
 		},
 		nil,
 		ec.marshalOString2ᚖstring,
@@ -1559,7 +1559,7 @@ func (ec *executionContext) _Bean_inheritedStatus(ctx context.Context, field gra
 	)
 }
 
-func (ec *executionContext) fieldContext_Bean_inheritedStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Bean_implicitStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Bean",
 		Field:      field,
@@ -1572,14 +1572,14 @@ func (ec *executionContext) fieldContext_Bean_inheritedStatus(_ context.Context,
 	return fc, nil
 }
 
-func (ec *executionContext) _Bean_inheritedFrom(ctx context.Context, field graphql.CollectedField, obj *bean.Bean) (ret graphql.Marshaler) {
+func (ec *executionContext) _Bean_implicitStatusFrom(ctx context.Context, field graphql.CollectedField, obj *bean.Bean) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_Bean_inheritedFrom,
+		ec.fieldContext_Bean_implicitStatusFrom,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Bean().InheritedFrom(ctx, obj)
+			return ec.resolvers.Bean().ImplicitStatusFrom(ctx, obj)
 		},
 		nil,
 		ec.marshalOString2ᚖstring,
@@ -1588,7 +1588,7 @@ func (ec *executionContext) _Bean_inheritedFrom(ctx context.Context, field graph
 	)
 }
 
-func (ec *executionContext) fieldContext_Bean_inheritedFrom(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Bean_implicitStatusFrom(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Bean",
 		Field:      field,
@@ -1664,10 +1664,10 @@ func (ec *executionContext) fieldContext_Mutation_createBean(ctx context.Context
 				return ec.fieldContext_Bean_parent(ctx, field)
 			case "children":
 				return ec.fieldContext_Bean_children(ctx, field)
-			case "inheritedStatus":
-				return ec.fieldContext_Bean_inheritedStatus(ctx, field)
-			case "inheritedFrom":
-				return ec.fieldContext_Bean_inheritedFrom(ctx, field)
+			case "implicitStatus":
+				return ec.fieldContext_Bean_implicitStatus(ctx, field)
+			case "implicitStatusFrom":
+				return ec.fieldContext_Bean_implicitStatusFrom(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
 		},
@@ -1749,10 +1749,10 @@ func (ec *executionContext) fieldContext_Mutation_updateBean(ctx context.Context
 				return ec.fieldContext_Bean_parent(ctx, field)
 			case "children":
 				return ec.fieldContext_Bean_children(ctx, field)
-			case "inheritedStatus":
-				return ec.fieldContext_Bean_inheritedStatus(ctx, field)
-			case "inheritedFrom":
-				return ec.fieldContext_Bean_inheritedFrom(ctx, field)
+			case "implicitStatus":
+				return ec.fieldContext_Bean_implicitStatus(ctx, field)
+			case "implicitStatusFrom":
+				return ec.fieldContext_Bean_implicitStatusFrom(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
 		},
@@ -1875,10 +1875,10 @@ func (ec *executionContext) fieldContext_Mutation_setParent(ctx context.Context,
 				return ec.fieldContext_Bean_parent(ctx, field)
 			case "children":
 				return ec.fieldContext_Bean_children(ctx, field)
-			case "inheritedStatus":
-				return ec.fieldContext_Bean_inheritedStatus(ctx, field)
-			case "inheritedFrom":
-				return ec.fieldContext_Bean_inheritedFrom(ctx, field)
+			case "implicitStatus":
+				return ec.fieldContext_Bean_implicitStatus(ctx, field)
+			case "implicitStatusFrom":
+				return ec.fieldContext_Bean_implicitStatusFrom(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
 		},
@@ -1960,10 +1960,10 @@ func (ec *executionContext) fieldContext_Mutation_addBlocking(ctx context.Contex
 				return ec.fieldContext_Bean_parent(ctx, field)
 			case "children":
 				return ec.fieldContext_Bean_children(ctx, field)
-			case "inheritedStatus":
-				return ec.fieldContext_Bean_inheritedStatus(ctx, field)
-			case "inheritedFrom":
-				return ec.fieldContext_Bean_inheritedFrom(ctx, field)
+			case "implicitStatus":
+				return ec.fieldContext_Bean_implicitStatus(ctx, field)
+			case "implicitStatusFrom":
+				return ec.fieldContext_Bean_implicitStatusFrom(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
 		},
@@ -2045,10 +2045,10 @@ func (ec *executionContext) fieldContext_Mutation_removeBlocking(ctx context.Con
 				return ec.fieldContext_Bean_parent(ctx, field)
 			case "children":
 				return ec.fieldContext_Bean_children(ctx, field)
-			case "inheritedStatus":
-				return ec.fieldContext_Bean_inheritedStatus(ctx, field)
-			case "inheritedFrom":
-				return ec.fieldContext_Bean_inheritedFrom(ctx, field)
+			case "implicitStatus":
+				return ec.fieldContext_Bean_implicitStatus(ctx, field)
+			case "implicitStatusFrom":
+				return ec.fieldContext_Bean_implicitStatusFrom(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
 		},
@@ -2130,10 +2130,10 @@ func (ec *executionContext) fieldContext_Mutation_addBlockedBy(ctx context.Conte
 				return ec.fieldContext_Bean_parent(ctx, field)
 			case "children":
 				return ec.fieldContext_Bean_children(ctx, field)
-			case "inheritedStatus":
-				return ec.fieldContext_Bean_inheritedStatus(ctx, field)
-			case "inheritedFrom":
-				return ec.fieldContext_Bean_inheritedFrom(ctx, field)
+			case "implicitStatus":
+				return ec.fieldContext_Bean_implicitStatus(ctx, field)
+			case "implicitStatusFrom":
+				return ec.fieldContext_Bean_implicitStatusFrom(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
 		},
@@ -2215,10 +2215,10 @@ func (ec *executionContext) fieldContext_Mutation_removeBlockedBy(ctx context.Co
 				return ec.fieldContext_Bean_parent(ctx, field)
 			case "children":
 				return ec.fieldContext_Bean_children(ctx, field)
-			case "inheritedStatus":
-				return ec.fieldContext_Bean_inheritedStatus(ctx, field)
-			case "inheritedFrom":
-				return ec.fieldContext_Bean_inheritedFrom(ctx, field)
+			case "implicitStatus":
+				return ec.fieldContext_Bean_implicitStatus(ctx, field)
+			case "implicitStatusFrom":
+				return ec.fieldContext_Bean_implicitStatusFrom(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
 		},
@@ -2300,10 +2300,10 @@ func (ec *executionContext) fieldContext_Query_bean(ctx context.Context, field g
 				return ec.fieldContext_Bean_parent(ctx, field)
 			case "children":
 				return ec.fieldContext_Bean_children(ctx, field)
-			case "inheritedStatus":
-				return ec.fieldContext_Bean_inheritedStatus(ctx, field)
-			case "inheritedFrom":
-				return ec.fieldContext_Bean_inheritedFrom(ctx, field)
+			case "implicitStatus":
+				return ec.fieldContext_Bean_implicitStatus(ctx, field)
+			case "implicitStatusFrom":
+				return ec.fieldContext_Bean_implicitStatusFrom(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
 		},
@@ -2385,10 +2385,10 @@ func (ec *executionContext) fieldContext_Query_beans(ctx context.Context, field 
 				return ec.fieldContext_Bean_parent(ctx, field)
 			case "children":
 				return ec.fieldContext_Bean_children(ctx, field)
-			case "inheritedStatus":
-				return ec.fieldContext_Bean_inheritedStatus(ctx, field)
-			case "inheritedFrom":
-				return ec.fieldContext_Bean_inheritedFrom(ctx, field)
+			case "implicitStatus":
+				return ec.fieldContext_Bean_implicitStatus(ctx, field)
+			case "implicitStatusFrom":
+				return ec.fieldContext_Bean_implicitStatusFrom(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
 		},
@@ -3968,7 +3968,7 @@ func (ec *executionContext) unmarshalInputBeanFilter(ctx context.Context, obj an
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"search", "status", "excludeStatus", "type", "excludeType", "priority", "excludePriority", "tags", "excludeTags", "hasParent", "parentId", "hasBlocking", "blockingId", "isBlocked", "hasBlockedBy", "blockedById", "noParent", "noBlocking", "noBlockedBy", "excludeTerminalInherited"}
+	fieldsInOrder := [...]string{"search", "status", "excludeStatus", "type", "excludeType", "priority", "excludePriority", "tags", "excludeTags", "hasParent", "parentId", "hasBlocking", "blockingId", "isBlocked", "isExplicitlyBlocked", "isImplicitlyBlocked", "hasBlockedBy", "blockedById", "noParent", "noBlocking", "noBlockedBy", "excludeImplicitTerminal"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -4073,6 +4073,20 @@ func (ec *executionContext) unmarshalInputBeanFilter(ctx context.Context, obj an
 				return it, err
 			}
 			it.IsBlocked = data
+		case "isExplicitlyBlocked":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isExplicitlyBlocked"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IsExplicitlyBlocked = data
+		case "isImplicitlyBlocked":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isImplicitlyBlocked"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IsImplicitlyBlocked = data
 		case "hasBlockedBy":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hasBlockedBy"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -4108,13 +4122,13 @@ func (ec *executionContext) unmarshalInputBeanFilter(ctx context.Context, obj an
 				return it, err
 			}
 			it.NoBlockedBy = data
-		case "excludeTerminalInherited":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("excludeTerminalInherited"))
+		case "excludeImplicitTerminal":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("excludeImplicitTerminal"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.ExcludeTerminalInherited = data
+			it.ExcludeImplicitTerminal = data
 		}
 	}
 
@@ -4726,7 +4740,7 @@ func (ec *executionContext) _Bean(ctx context.Context, sel ast.SelectionSet, obj
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-		case "inheritedStatus":
+		case "implicitStatus":
 			field := field
 
 			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
@@ -4735,7 +4749,7 @@ func (ec *executionContext) _Bean(ctx context.Context, sel ast.SelectionSet, obj
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Bean_inheritedStatus(ctx, field, obj)
+				res = ec._Bean_implicitStatus(ctx, field, obj)
 				return res
 			}
 
@@ -4759,7 +4773,7 @@ func (ec *executionContext) _Bean(ctx context.Context, sel ast.SelectionSet, obj
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-		case "inheritedFrom":
+		case "implicitStatusFrom":
 			field := field
 
 			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
@@ -4768,7 +4782,7 @@ func (ec *executionContext) _Bean(ctx context.Context, sel ast.SelectionSet, obj
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Bean_inheritedFrom(ctx, field, obj)
+				res = ec._Bean_implicitStatusFrom(ctx, field, obj)
 				return res
 			}
 

@@ -13,7 +13,7 @@ type TreeNode struct {
 	Bean            *bean.Bean
 	Children        []*TreeNode
 	Matched         bool   // true if this bean matched the filter (vs. shown for context)
-	InheritedStatus string // terminal status inherited from an ancestor, if any
+	ImplicitStatus string // implicit terminal status from an ancestor, if any
 }
 
 // TreeNodeJSON is the JSON-serializable version of TreeNode.
@@ -60,8 +60,8 @@ func (n *TreeNode) ToJSON(includeFull bool) *TreeNodeJSON {
 // matchedBeans: beans that matched the filter
 // allBeans: all beans (needed to find ancestors)
 // sortFn: function to sort beans at each level
-// inheritedStatuses: optional map of beanID -> inherited terminal status (may be nil)
-func BuildTree(matchedBeans []*bean.Bean, allBeans []*bean.Bean, sortFn func([]*bean.Bean), inheritedStatuses map[string]string) []*TreeNode {
+// implicitStatuses: optional map of beanID -> implicit terminal status (may be nil)
+func BuildTree(matchedBeans []*bean.Bean, allBeans []*bean.Bean, sortFn func([]*bean.Bean), implicitStatuses map[string]string) []*TreeNode {
 	// Build index of all beans by ID
 	beanByID := make(map[string]*bean.Bean)
 	for _, b := range allBeans {
@@ -117,7 +117,7 @@ func BuildTree(matchedBeans []*bean.Bean, allBeans []*bean.Bean, sortFn func([]*
 	sortFn(roots)
 
 	// Build tree nodes recursively
-	return buildNodes(roots, children, matchedSet, inheritedStatuses)
+	return buildNodes(roots, children, matchedSet, implicitStatuses)
 }
 
 // addAncestors recursively adds all ancestors of a bean to the needed set.
@@ -137,14 +137,14 @@ func addAncestors(b *bean.Bean, beanByID map[string]*bean.Bean, needed map[strin
 }
 
 // buildNodes recursively builds TreeNodes from beans.
-func buildNodes(beans []*bean.Bean, children map[string][]*bean.Bean, matchedSet map[string]bool, inheritedStatuses map[string]string) []*TreeNode {
+func buildNodes(beans []*bean.Bean, children map[string][]*bean.Bean, matchedSet map[string]bool, implicitStatuses map[string]string) []*TreeNode {
 	nodes := make([]*TreeNode, len(beans))
 	for i, b := range beans {
 		nodes[i] = &TreeNode{
 			Bean:            b,
 			Matched:         matchedSet[b.ID],
-			Children:        buildNodes(children[b.ID], children, matchedSet, inheritedStatuses),
-			InheritedStatus: inheritedStatuses[b.ID],
+			Children:        buildNodes(children[b.ID], children, matchedSet, implicitStatuses),
+			ImplicitStatus: implicitStatuses[b.ID],
 		}
 	}
 	return nodes
@@ -299,7 +299,7 @@ func renderNode(sb *strings.Builder, node *TreeNode, depth int, isLast bool, anc
 		TreePrefix:      prefix,
 		Dimmed:          !node.Matched,
 		IDColWidth:      renderCfg.treeColWidth,
-		InheritedStatus: node.InheritedStatus,
+		ImplicitStatus: node.ImplicitStatus,
 	})
 
 	sb.WriteString(row)
@@ -314,7 +314,7 @@ type FlatItem struct {
 	IsLast          bool   // last child at this level
 	Matched         bool   // true if bean matched filter (vs. shown for context)
 	TreePrefix      string // pre-computed tree prefix (e.g., "  └─")
-	InheritedStatus string // terminal status inherited from an ancestor, if any
+	ImplicitStatus string // implicit terminal status from an ancestor, if any
 }
 
 // FlattenTree converts a tree into a flat slice with tree context preserved.
@@ -356,7 +356,7 @@ func flattenNodes(nodes []*TreeNode, depth int, ancestry []bool, items *[]FlatIt
 			IsLast:          isLast,
 			Matched:         node.Matched,
 			TreePrefix:      prefix,
-			InheritedStatus: node.InheritedStatus,
+			ImplicitStatus: node.ImplicitStatus,
 		})
 
 		// Recurse into children, passing updated ancestry

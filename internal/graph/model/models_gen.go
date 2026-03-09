@@ -83,8 +83,12 @@ type BeanFilter struct {
 	HasBlocking *bool `json:"hasBlocking,omitempty"`
 	// Include only beans that are blocking this specific bean ID
 	BlockingID *string `json:"blockingId,omitempty"`
-	// Include only beans that are blocked by others (via incoming blocking links or blocked_by field)
+	// Include beans that are blocked — explicitly (direct blockers) or implicitly (ancestor is blocked)
 	IsBlocked *bool `json:"isBlocked,omitempty"`
+	// Filter beans that are explicitly blocked (have direct active blockers)
+	IsExplicitlyBlocked *bool `json:"isExplicitlyBlocked,omitempty"`
+	// Filter beans that are implicitly blocked (an ancestor in the parent chain is blocked)
+	IsImplicitlyBlocked *bool `json:"isImplicitlyBlocked,omitempty"`
 	// Include only beans that have explicit blocked-by entries
 	HasBlockedBy *bool `json:"hasBlockedBy,omitempty"`
 	// Include only beans blocked by this specific bean ID (via blocked_by field)
@@ -96,7 +100,7 @@ type BeanFilter struct {
 	// Exclude beans that have explicit blocked-by entries
 	NoBlockedBy *bool `json:"noBlockedBy,omitempty"`
 	// Exclude beans that inherit a terminal status (scrapped or completed) from an ancestor
-	ExcludeTerminalInherited *bool `json:"excludeTerminalInherited,omitempty"`
+	ExcludeImplicitTerminal *bool `json:"excludeImplicitTerminal,omitempty"`
 }
 
 // Structured body modifications applied atomically.

@@ -616,7 +616,7 @@ func TestFindActiveBlockers(t *testing.T) {
 	})
 }
 
-func TestInheritedStatus(t *testing.T) {
+func TestImplicitStatus(t *testing.T) {
 	core, _ := setupTestCore(t)
 
 	// Hierarchy: milestone (scrapped) -> epic (todo) -> task (in-progress)
@@ -636,7 +636,7 @@ func TestInheritedStatus(t *testing.T) {
 	}
 
 	t.Run("direct scrapped parent", func(t *testing.T) {
-		status, fromID := core.InheritedStatus("e001")
+		status, fromID := core.ImplicitStatus("e001")
 		if status != "scrapped" {
 			t.Errorf("want status=scrapped, got %q", status)
 		}
@@ -646,7 +646,7 @@ func TestInheritedStatus(t *testing.T) {
 	})
 
 	t.Run("transitive scrapped grandparent", func(t *testing.T) {
-		status, fromID := core.InheritedStatus("t001")
+		status, fromID := core.ImplicitStatus("t001")
 		if status != "scrapped" {
 			t.Errorf("want status=scrapped, got %q", status)
 		}
@@ -656,21 +656,21 @@ func TestInheritedStatus(t *testing.T) {
 	})
 
 	t.Run("no terminal ancestor", func(t *testing.T) {
-		status, fromID := core.InheritedStatus("x001")
+		status, fromID := core.ImplicitStatus("x001")
 		if status != "" || fromID != "" {
 			t.Errorf("want empty, got status=%q fromID=%q", status, fromID)
 		}
 	})
 
 	t.Run("no parent at all (milestone itself)", func(t *testing.T) {
-		status, fromID := core.InheritedStatus("m001")
+		status, fromID := core.ImplicitStatus("m001")
 		if status != "" || fromID != "" {
 			t.Errorf("want empty, got status=%q fromID=%q", status, fromID)
 		}
 	})
 
 	t.Run("completed parent", func(t *testing.T) {
-		status, fromID := core.InheritedStatus("t002")
+		status, fromID := core.ImplicitStatus("t002")
 		if status != "completed" {
 			t.Errorf("want status=completed, got %q", status)
 		}
@@ -680,9 +680,153 @@ func TestInheritedStatus(t *testing.T) {
 	})
 
 	t.Run("nonexistent bean", func(t *testing.T) {
-		status, fromID := core.InheritedStatus("nope")
+		status, fromID := core.ImplicitStatus("nope")
 		if status != "" || fromID != "" {
 			t.Errorf("want empty, got status=%q fromID=%q", status, fromID)
+		}
+	})
+}
+
+func TestImplicitBlocking(t *testing.T) {
+	t.Run("IsBlocked includes implicit blocking", func(t *testing.T) {
+		core, _ := setupTestCore(t)
+
+		blocker := &bean.Bean{ID: "blocker", Title: "Blocker", Status: "todo", Type: "epic", Blocking: []string{"epic-b"}}
+		epicB := &bean.Bean{ID: "epic-b", Title: "Epic B", Status: "todo", Type: "epic"}
+		child := &bean.Bean{ID: "child", Title: "Child", Status: "todo", Type: "feature", Parent: "epic-b"}
+
+		for _, b := range []*bean.Bean{blocker, epicB, child} {
+			if err := core.Create(b); err != nil {
+				t.Fatalf("Create error: %v", err)
+			}
+		}
+
+		// child is not explicitly blocked, but parent epic-b is
+		if !core.IsBlocked("child") {
+			t.Error("child should be blocked (parent epic-b is blocked by blocker)")
+		}
+		if !core.IsBlocked("epic-b") {
+			t.Error("epic-b should be blocked (directly by blocker)")
+		}
+	})
+
+	t.Run("IsExplicitlyBlocked only checks direct blockers", func(t *testing.T) {
+		core, _ := setupTestCore(t)
+
+		blocker := &bean.Bean{ID: "blocker", Title: "Blocker", Status: "todo", Type: "epic", Blocking: []string{"epic-b"}}
+		epicB := &bean.Bean{ID: "epic-b", Title: "Epic B", Status: "todo", Type: "epic"}
+		child := &bean.Bean{ID: "child", Title: "Child", Status: "todo", Type: "feature", Parent: "epic-b"}
+
+		for _, b := range []*bean.Bean{blocker, epicB, child} {
+			if err := core.Create(b); err != nil {
+				t.Fatalf("Create error: %v", err)
+			}
+		}
+
+		if core.IsExplicitlyBlocked("child") {
+			t.Error("child should NOT be explicitly blocked (no direct blockers)")
+		}
+		if !core.IsExplicitlyBlocked("epic-b") {
+			t.Error("epic-b should be explicitly blocked")
+		}
+	})
+
+	t.Run("IsImplicitlyBlocked only checks ancestor blockers", func(t *testing.T) {
+		core, _ := setupTestCore(t)
+
+		blocker := &bean.Bean{ID: "blocker", Title: "Blocker", Status: "todo", Type: "epic", Blocking: []string{"epic-b"}}
+		epicB := &bean.Bean{ID: "epic-b", Title: "Epic B", Status: "todo", Type: "epic"}
+		child := &bean.Bean{ID: "child", Title: "Child", Status: "todo", Type: "feature", Parent: "epic-b"}
+
+		for _, b := range []*bean.Bean{blocker, epicB, child} {
+			if err := core.Create(b); err != nil {
+				t.Fatalf("Create error: %v", err)
+			}
+		}
+
+		if !core.IsImplicitlyBlocked("child") {
+			t.Error("child should be implicitly blocked (parent epic-b is blocked)")
+		}
+		if core.IsImplicitlyBlocked("epic-b") {
+			t.Error("epic-b should NOT be implicitly blocked (it's directly blocked, no blocked ancestor)")
+		}
+	})
+
+	t.Run("grandchild is implicitly blocked", func(t *testing.T) {
+		core, _ := setupTestCore(t)
+
+		blocker := &bean.Bean{ID: "blocker", Title: "Blocker", Status: "todo", Type: "milestone", Blocking: []string{"ms"}}
+		ms := &bean.Bean{ID: "ms", Title: "Milestone", Status: "todo", Type: "milestone"}
+		epic := &bean.Bean{ID: "epic", Title: "Epic", Status: "todo", Type: "epic", Parent: "ms"}
+		task := &bean.Bean{ID: "task", Title: "Task", Status: "todo", Type: "task", Parent: "epic"}
+
+		for _, b := range []*bean.Bean{blocker, ms, epic, task} {
+			if err := core.Create(b); err != nil {
+				t.Fatalf("Create error: %v", err)
+			}
+		}
+
+		if !core.IsBlocked("task") {
+			t.Error("task should be blocked (grandparent ms is blocked)")
+		}
+		if !core.IsImplicitlyBlocked("task") {
+			t.Error("task should be implicitly blocked")
+		}
+	})
+
+	t.Run("resolved blocker means not blocked", func(t *testing.T) {
+		core, _ := setupTestCore(t)
+
+		blocker := &bean.Bean{ID: "blocker", Title: "Blocker", Status: "completed", Type: "epic", Blocking: []string{"epic-b"}}
+		epicB := &bean.Bean{ID: "epic-b", Title: "Epic B", Status: "todo", Type: "epic"}
+		child := &bean.Bean{ID: "child", Title: "Child", Status: "todo", Type: "feature", Parent: "epic-b"}
+
+		for _, b := range []*bean.Bean{blocker, epicB, child} {
+			if err := core.Create(b); err != nil {
+				t.Fatalf("Create error: %v", err)
+			}
+		}
+
+		if core.IsBlocked("child") {
+			t.Error("child should NOT be blocked (blocker is completed)")
+		}
+	})
+
+	t.Run("bean with no parent is not implicitly blocked", func(t *testing.T) {
+		core, _ := setupTestCore(t)
+
+		task := &bean.Bean{ID: "task", Title: "Task", Status: "todo", Type: "task"}
+		if err := core.Create(task); err != nil {
+			t.Fatalf("Create error: %v", err)
+		}
+
+		if core.IsImplicitlyBlocked("task") {
+			t.Error("task with no parent should not be implicitly blocked")
+		}
+	})
+
+	t.Run("FindAllBlockers returns both direct and ancestor blockers", func(t *testing.T) {
+		core, _ := setupTestCore(t)
+
+		ancestorBlocker := &bean.Bean{ID: "anc-blocker", Title: "Ancestor Blocker", Status: "todo", Type: "milestone", Blocking: []string{"ms"}}
+		ms := &bean.Bean{ID: "ms", Title: "Milestone", Status: "todo", Type: "milestone"}
+		directBlocker := &bean.Bean{ID: "dir-blocker", Title: "Direct Blocker", Status: "todo", Type: "task", Blocking: []string{"task"}}
+		task := &bean.Bean{ID: "task", Title: "Task", Status: "todo", Type: "task", Parent: "ms"}
+
+		for _, b := range []*bean.Bean{ancestorBlocker, ms, directBlocker, task} {
+			if err := core.Create(b); err != nil {
+				t.Fatalf("Create error: %v", err)
+			}
+		}
+
+		allBlockers := core.FindAllBlockers("task")
+		if len(allBlockers) != 2 {
+			t.Errorf("want 2 blockers (direct + ancestor), got %d", len(allBlockers))
+		}
+
+		directBlockers := core.FindActiveBlockers("task")
+		if len(directBlockers) != 1 {
+			t.Errorf("want 1 direct blocker, got %d", len(directBlockers))
 		}
 	})
 }

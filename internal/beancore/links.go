@@ -505,25 +505,77 @@ func isResolvedStatus(status string) bool {
 	return status == "completed" || status == "scrapped"
 }
 
-// IsBlocked returns true if the bean with the given ID is blocked by any
-// active (non-completed, non-scrapped) beans.
+// IsBlocked returns true if the bean is blocked, either explicitly (direct
+// blockers) or implicitly (an ancestor in the parent chain is blocked).
 func (c *Core) IsBlocked(beanID string) bool {
+	return len(c.FindAllBlockers(beanID)) > 0
+}
+
+// IsExplicitlyBlocked returns true if the bean has direct active blockers
+// (via blocked_by field or incoming blocking links).
+func (c *Core) IsExplicitlyBlocked(beanID string) bool {
 	return len(c.FindActiveBlockers(beanID)) > 0
 }
 
-// FindActiveBlockers returns all beans that are actively blocking the given bean.
-// A blocker is "active" if its status is NOT "completed" or "scrapped".
+// IsImplicitlyBlocked returns true if an ancestor of the bean (via the parent
+// chain) has active blockers, making this bean implicitly blocked.
+func (c *Core) IsImplicitlyBlocked(beanID string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	b, ok := c.beans[beanID]
+	if !ok || b.Parent == "" {
+		return false
+	}
+
+	found := false
+	c.walkParentChain(b.Parent, func(ancestor *bean.Bean) {
+		if !found && len(c.findActiveBlockersLocked(ancestor.ID, nil)) > 0 {
+			found = true
+		}
+	})
+	return found
+}
+
+// FindActiveBlockers returns all beans that are explicitly (directly) blocking
+// the given bean. A blocker is "active" if its status is NOT completed/scrapped.
 // This includes blockers from both the blocked_by field and incoming blocking links.
 func (c *Core) FindActiveBlockers(beanID string) []*bean.Bean {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
+	return c.findActiveBlockersLocked(beanID, nil)
+}
+
+// FindAllBlockers returns all beans blocking the given bean, both explicitly
+// (direct blockers) and implicitly (blockers on ancestors in the parent chain).
+func (c *Core) FindAllBlockers(beanID string) []*bean.Bean {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	seen := make(map[string]bool)
+	var allBlockers []*bean.Bean
+
+	c.walkParentChain(beanID, func(b *bean.Bean) {
+		blockers := c.findActiveBlockersLocked(b.ID, seen)
+		allBlockers = append(allBlockers, blockers...)
+	})
+
+	return allBlockers
+}
+
+// findActiveBlockersLocked finds direct active blockers without acquiring the lock.
+// seen deduplicates results across repeated calls; pass nil to create a fresh map.
+// Must be called with c.mu held.
+func (c *Core) findActiveBlockersLocked(beanID string, seen map[string]bool) []*bean.Bean {
 	b, ok := c.beans[beanID]
 	if !ok {
 		return nil
 	}
 
-	seen := make(map[string]bool)
+	if seen == nil {
+		seen = make(map[string]bool)
+	}
 	var blockers []*bean.Bean
 
 	// Check direct blocked_by field
@@ -549,46 +601,54 @@ func (c *Core) FindActiveBlockers(beanID string) []*bean.Bean {
 	return blockers
 }
 
-// InheritedStatus walks the parent chain and returns the terminal status
+// walkParentChain calls visitor for the bean and each ancestor in the parent
+// chain, stopping at cycles or missing beans. Must be called with c.mu held.
+func (c *Core) walkParentChain(beanID string, visitor func(b *bean.Bean)) {
+	seen := make(map[string]bool)
+	current := beanID
+	for current != "" && !seen[current] {
+		seen[current] = true
+		b, ok := c.beans[current]
+		if !ok {
+			break
+		}
+		visitor(b)
+		current = b.Parent
+	}
+}
+
+// ImplicitStatus walks the parent chain and returns the terminal status
 // (scrapped or completed) of the nearest terminal ancestor, along with
 // that ancestor's ID. Returns empty strings if no terminal ancestor exists.
 // The bean's own status is not considered.
-func (c *Core) InheritedStatus(beanID string) (status, fromID string) {
+func (c *Core) ImplicitStatus(beanID string) (status, fromID string) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	return c.inheritedStatusLocked(beanID)
+	return c.implicitStatusLocked(beanID)
 }
 
-// inheritedStatusLocked walks the parent chain without acquiring the lock.
+// implicitStatusLocked walks the parent chain without acquiring the lock.
 // Must be called with c.mu held (at least for reading).
-func (c *Core) inheritedStatusLocked(beanID string) (status, fromID string) {
+func (c *Core) implicitStatusLocked(beanID string) (status, fromID string) {
 	b, ok := c.beans[beanID]
 	if !ok {
 		return "", ""
 	}
 
-	seen := make(map[string]bool)
-	seen[beanID] = true
-
-	current := b
-	for current.Parent != "" {
-		if seen[current.Parent] {
-			break // cycle guard
-		}
-		seen[current.Parent] = true
-
-		parent, ok := c.beans[current.Parent]
-		if !ok {
-			break
-		}
-
-		if isResolvedStatus(parent.Status) {
-			return parent.Status, parent.ID
-		}
-
-		current = parent
+	// Skip the bean itself; walk ancestors only
+	if b.Parent == "" {
+		return "", ""
 	}
 
-	return "", ""
+	var result struct{ status, fromID string }
+	c.walkParentChain(b.Parent, func(ancestor *bean.Bean) {
+		if result.status == "" && isResolvedStatus(ancestor.Status) {
+			result.status = ancestor.Status
+			result.fromID = ancestor.ID
+		}
+	})
+
+	return result.status, result.fromID
 }
+

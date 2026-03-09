@@ -364,7 +364,7 @@ type BeanRowConfig struct {
 	Dimmed          bool     // Render row dimmed (for unmatched ancestor beans in tree)
 	IDColWidth      int      // Width of ID column (0 = default of ColWidthID)
 	UseFullNames    bool     // Use full type/status names instead of single-char abbreviations
-	InheritedStatus string   // Terminal status inherited from an ancestor (e.g., "scrapped")
+	ImplicitStatus string   // Implicit terminal status from an ancestor (e.g., "scrapped")
 }
 
 // Base column widths for bean lists (minimum sizes)
@@ -585,10 +585,10 @@ func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string
 		}
 	}
 
-	// Inherited status annotation (muted suffix, only when not dimmed)
-	var inheritedAnnotation string
-	if cfg.InheritedStatus != "" && !cfg.Dimmed {
-		inheritedAnnotation = Muted.Render(" ↑" + cfg.InheritedStatus)
+	// Implicit status annotation (muted suffix, only when not dimmed)
+	var implicitAnnotation string
+	if cfg.ImplicitStatus != "" && !cfg.Dimmed {
+		implicitAnnotation = Muted.Render(" ↑" + cfg.ImplicitStatus)
 	}
 
 	if cfg.ShowTags {
@@ -602,7 +602,7 @@ func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string
 		if titleColWidth > titleLen {
 			padding = strings.Repeat(" ", titleColWidth-titleLen)
 		}
-		return cursor + idCol + " " + typeCol + " " + statusCol + " " + prioritySymbol + titleStyled + padding + " " + tagsCol + inheritedAnnotation
+		return cursor + idCol + " " + typeCol + " " + statusCol + " " + prioritySymbol + titleStyled + padding + " " + tagsCol + implicitAnnotation
 	}
-	return cursor + idCol + " " + typeCol + " " + statusCol + " " + prioritySymbol + titleStyled + inheritedAnnotation
+	return cursor + idCol + " " + typeCol + " " + statusCol + " " + prioritySymbol + titleStyled + implicitAnnotation
 }
