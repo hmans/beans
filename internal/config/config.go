@@ -125,15 +125,35 @@ func DefaultWithPrefix(prefix string) *Config {
 // FindConfig searches upward from the given directory for a .beans.yml config file.
 // Returns the absolute path to the config file, or empty string if not found.
 func FindConfig(startDir string) (string, error) {
+	return FindConfigWithin(startDir, "")
+}
+
+// FindConfigWithin searches upward from startDir for a .beans.yml config file,
+// stopping at rootDir (inclusive). If rootDir is empty, searches up to the
+// filesystem root.
+func FindConfigWithin(startDir, rootDir string) (string, error) {
 	dir, err := filepath.Abs(startDir)
 	if err != nil {
 		return "", err
+	}
+
+	var absRoot string
+	if rootDir != "" {
+		absRoot, err = filepath.Abs(rootDir)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	for {
 		configPath := filepath.Join(dir, ConfigFileName)
 		if _, err := os.Stat(configPath); err == nil {
 			return configPath, nil
+		}
+
+		// Stop if we've reached the root boundary
+		if absRoot != "" && dir == absRoot {
+			return "", nil
 		}
 
 		parent := filepath.Dir(dir)
@@ -184,7 +204,13 @@ func Load(configPath string) (*Config, error) {
 // LoadFromDirectory finds and loads the config file by searching upward from the given directory.
 // If no config file is found, returns a default config anchored at the given directory.
 func LoadFromDirectory(startDir string) (*Config, error) {
-	configPath, err := FindConfig(startDir)
+	return LoadFromDirectoryWithin(startDir, "")
+}
+
+// LoadFromDirectoryWithin is like LoadFromDirectory but limits the search to
+// within rootDir (see FindConfigWithin).
+func LoadFromDirectoryWithin(startDir, rootDir string) (*Config, error) {
+	configPath, err := FindConfigWithin(startDir, rootDir)
 	if err != nil {
 		return nil, err
 	}
