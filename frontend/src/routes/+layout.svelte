@@ -13,10 +13,12 @@
 	let { data, children } = $props();
 
 	// Initialize UI state from load function data (runs before first render)
-	ui.planningView = data.planningView;
-	if (data.selectedBeanId) {
-		ui.selectedBeanId = data.selectedBeanId;
-	}
+	$effect.pre(() => {
+		ui.planningView = data.planningView;
+		if (data.selectedBeanId) {
+			ui.selectedBeanId = data.selectedBeanId;
+		}
+	});
 
 	onMount(() => {
 		beansStore.subscribe();

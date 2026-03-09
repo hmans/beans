@@ -10,6 +10,7 @@ globs: ["frontend/**"]
 ## Svelte
 
 - Use **Svelte 5** with runes (`$state`, `$derived`, `$props`, `$effect`, etc.). Do not use legacy Svelte 4 patterns (`export let`, `$:`, stores via `writable`/`readable`).
+- **Prefer `$derived` over `$effect`** for computing values from reactive state. Only use `$effect` for true side effects (DOM manipulation, external state, subscriptions). If a value can be expressed as a derivation, use `$derived` or `$derived.by`.
 
 ## SvelteKit SSR/Prerender Pitfalls
 

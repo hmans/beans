@@ -13,22 +13,22 @@
 
 	let { bean, onSelect, onEdit, onClose }: Props = $props();
 
-	let activeTab = $state<'bean' | 'chat'>('bean');
 	const hasWorktree = $derived(worktreeStore.hasWorktree(bean.id));
 
-	// Reset to bean tab when selected bean changes or worktree is removed
-	let prevBeanId = $state(bean.id);
-	$effect(() => {
-		if (bean.id !== prevBeanId) {
-			prevBeanId = bean.id;
-			activeTab = 'bean';
+	// Track explicit tab selection per bean; activeTab derives from it
+	let tabSelection = $state<{ beanId: string; tab: 'bean' | 'chat' } | null>(null);
+	const activeTab = $derived.by(() => {
+		if (tabSelection?.beanId === bean.id) {
+			// Fall back to 'bean' if chat tab selected but worktree was removed
+			if (tabSelection.tab === 'chat' && !hasWorktree) return 'bean';
+			return tabSelection.tab;
 		}
+		return 'bean';
 	});
-	$effect(() => {
-		if (activeTab === 'chat' && !hasWorktree) {
-			activeTab = 'bean';
-		}
-	});
+
+	function setTab(tab: 'bean' | 'chat') {
+		tabSelection = { beanId: bean.id, tab };
+	}
 </script>
 
 <div class="flex flex-col h-full bg-surface">
@@ -36,7 +36,7 @@
 	<div class="flex items-center px-4 h-10 border-b border-border shrink-0">
 		<div class="flex">
 			<button
-				onclick={() => (activeTab = 'bean')}
+				onclick={() => setTab('bean')}
 				class="px-3 py-1 text-sm font-medium border transition-colors
 					{hasWorktree ? 'rounded-l-md' : 'rounded-md'}
 					{activeTab === 'bean'
@@ -47,7 +47,7 @@
 			</button>
 			{#if hasWorktree}
 				<button
-					onclick={() => (activeTab = 'chat')}
+					onclick={() => setTab('chat')}
 					class="px-3 py-1 text-sm font-medium rounded-r-md border border-l-0 transition-colors
 						{activeTab === 'chat'
 						? 'bg-accent text-accent-text border-accent'
