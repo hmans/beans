@@ -3,8 +3,7 @@
 
 button,
 a,
-[role='button'],
-[role='slider'] {
+[role='button'] {
 	cursor: pointer;
 }
 

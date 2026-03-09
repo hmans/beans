@@ -1,11 +1,11 @@
 ---
 # beans-2cak
 title: Agent chat in worktree tabs
-status: in-progress
+status: completed
 type: feature
 priority: normal
 created_at: 2026-03-08T15:58:35Z
-updated_at: 2026-03-09T14:40:56Z
+updated_at: 2026-03-09T14:51:35Z
 order: V1u
 ---
 

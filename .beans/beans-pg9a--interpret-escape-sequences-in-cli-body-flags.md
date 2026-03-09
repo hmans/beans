@@ -1,11 +1,11 @@
 ---
 # beans-pg9a
 title: Interpret escape sequences in CLI body flags
-status: in-progress
+status: completed
 type: bug
 priority: normal
 created_at: 2026-03-09T12:19:01Z
-updated_at: 2026-03-09T14:40:58Z
+updated_at: 2026-03-09T14:51:34Z
 order: V1Q
 ---
 
