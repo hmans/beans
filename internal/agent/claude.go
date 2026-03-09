@@ -142,10 +142,27 @@ func (m *Manager) readOutput(beanID string, stdout io.Reader) {
 
 		switch ev.Type {
 		case eventAssistantMessage:
-			// Full assistant message — set the complete text
+			// Full assistant message — arrives after stream_event deltas.
+			// Only use the text as fallback if deltas didn't already build it,
+			// to avoid replacing streamed content with the same text (visual flash).
 			if ev.Text != "" {
-				m.setAssistantText(beanID, ev.Text)
-				m.notify(beanID)
+				m.mu.Lock()
+				if s, ok := m.sessions[beanID]; ok {
+					idx := s.streamingIdx
+					hasStreamedContent := idx >= 0 && idx < len(s.Messages) &&
+						s.Messages[idx].Role == RoleAssistant && s.Messages[idx].Content != ""
+					if !hasStreamedContent {
+						// No delta-built content — use the full message
+						s.Messages = append(s.Messages, Message{Role: RoleAssistant, Content: ev.Text})
+						s.streamingIdx = len(s.Messages) - 1
+						m.mu.Unlock()
+						m.notify(beanID)
+					} else {
+						m.mu.Unlock()
+					}
+				} else {
+					m.mu.Unlock()
+				}
 			}
 			if ev.SessionID != "" {
 				m.mu.Lock()
@@ -176,25 +193,20 @@ func (m *Manager) readOutput(beanID string, stdout io.Reader) {
 				}
 			}
 
-			// Persist the completed assistant message
-			m.mu.RLock()
-			if s, ok := m.sessions[beanID]; ok && m.store != nil {
-				if n := len(s.Messages); n > 0 && s.Messages[n-1].Role == RoleAssistant {
-					msg := s.Messages[n-1]
-					m.mu.RUnlock()
+			// Persist the completed assistant message and reset streaming target
+			m.mu.Lock()
+			if s, ok := m.sessions[beanID]; ok {
+				idx := s.streamingIdx
+				if m.store != nil && idx >= 0 && idx < len(s.Messages) && s.Messages[idx].Role == RoleAssistant {
+					msg := s.Messages[idx]
+					m.mu.Unlock()
 					if err := m.store.appendMessage(beanID, msg); err != nil {
 						log.Printf("[agent:%s] failed to persist assistant message: %v", beanID, err)
 					}
-				} else {
-					m.mu.RUnlock()
+					m.mu.Lock()
 				}
-			} else {
-				m.mu.RUnlock()
-			}
-
-			// Result marks the end of a turn — set idle
-			m.mu.Lock()
-			if s, ok := m.sessions[beanID]; ok {
+				// Reset streaming target so next turn creates a new message
+				s.streamingIdx = -1
 				s.Status = StatusIdle
 			}
 			m.mu.Unlock()
@@ -206,8 +218,9 @@ func (m *Manager) readOutput(beanID string, stdout io.Reader) {
 	}
 }
 
-// appendAssistantText appends text to the current assistant message,
-// creating one if the last message isn't from the assistant.
+// appendAssistantText appends text to the current streaming assistant message.
+// Uses streamingIdx to ensure deltas from an ongoing turn always go to the
+// correct message, even if user messages are interleaved mid-turn.
 func (m *Manager) appendAssistantText(beanID, text string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -215,28 +228,16 @@ func (m *Manager) appendAssistantText(beanID, text string) {
 	if !ok {
 		return
 	}
-	n := len(s.Messages)
-	if n == 0 || s.Messages[n-1].Role != RoleAssistant {
-		s.Messages = append(s.Messages, Message{Role: RoleAssistant})
-		n = len(s.Messages)
-	}
-	s.Messages[n-1].Content += text
-}
 
-// setAssistantText replaces the content of the current assistant message.
-func (m *Manager) setAssistantText(beanID, text string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	s, ok := m.sessions[beanID]
-	if !ok {
-		return
-	}
-	n := len(s.Messages)
-	if n == 0 || s.Messages[n-1].Role != RoleAssistant {
+	idx := s.streamingIdx
+	if idx < 0 || idx >= len(s.Messages) || s.Messages[idx].Role != RoleAssistant {
+		// No valid streaming target — create a new assistant message
 		s.Messages = append(s.Messages, Message{Role: RoleAssistant})
-		n = len(s.Messages)
+		idx = len(s.Messages) - 1
+		s.streamingIdx = idx
 	}
-	s.Messages[n-1].Content = text
+
+	s.Messages[idx].Content += text
 }
 
 // setError sets the session to error state and notifies subscribers.

@@ -117,7 +117,8 @@ func TestNotify_NonBlocking(t *testing.T) {
 func TestAppendAssistantText(t *testing.T) {
 	m := NewManager("")
 	m.sessions["test"] = &Session{
-		ID: "test",
+		ID:           "test",
+		streamingIdx: -1,
 		Messages: []Message{
 			{Role: RoleUser, Content: "hello"},
 		},
@@ -143,29 +144,48 @@ func TestAppendAssistantText(t *testing.T) {
 	}
 }
 
-func TestSetAssistantText(t *testing.T) {
+func TestAppendAssistantText_InterleavedUserMessage(t *testing.T) {
 	m := NewManager("")
 	m.sessions["test"] = &Session{
-		ID: "test",
+		ID:           "test",
+		streamingIdx: -1,
 		Messages: []Message{
 			{Role: RoleUser, Content: "hello"},
 		},
 	}
 
-	// Creates assistant message and sets content
-	m.setAssistantText("test", "Final answer")
+	// Start streaming first response
+	m.appendAssistantText("test", "First response")
 	s := m.sessions["test"]
 	if len(s.Messages) != 2 {
 		t.Fatalf("expected 2 messages, got %d", len(s.Messages))
 	}
-	if s.Messages[1].Content != "Final answer" {
-		t.Errorf("content = %q, want %q", s.Messages[1].Content, "Final answer")
+
+	// User sends another message mid-turn (interleaved)
+	s.Messages = append(s.Messages, Message{Role: RoleUser, Content: "follow-up"})
+
+	// More deltas from the FIRST response should still go to message[1]
+	m.appendAssistantText("test", " continued")
+	if s.Messages[1].Content != "First response continued" {
+		t.Errorf("content = %q, want %q", s.Messages[1].Content, "First response continued")
+	}
+	if len(s.Messages) != 3 {
+		t.Errorf("expected 3 messages (no spurious assistant), got %d", len(s.Messages))
 	}
 
-	// Replaces existing content
-	m.setAssistantText("test", "Updated answer")
-	if s.Messages[1].Content != "Updated answer" {
-		t.Errorf("content = %q, want %q", s.Messages[1].Content, "Updated answer")
+	// Reset streamingIdx (simulates eventResult)
+	s.streamingIdx = -1
+
+	// New deltas for the SECOND response should create a new assistant message
+	m.appendAssistantText("test", "Second response")
+	if len(s.Messages) != 4 {
+		t.Fatalf("expected 4 messages, got %d", len(s.Messages))
+	}
+	if s.Messages[3].Role != RoleAssistant {
+		t.Errorf("msg[3] role = %q, want assistant", s.Messages[3].Role)
+	}
+	if s.Messages[3].Content != "Second response" {
+		t.Errorf("msg[3] content = %q, want %q", s.Messages[3].Content, "Second response")
 	}
 }
 

@@ -41,11 +41,15 @@
 		}
 	});
 
-	// Render markdown for assistant messages
+	// Render markdown for assistant messages (only when idle — avoid thrashing during streaming)
 	$effect(() => {
 		for (let i = 0; i < messages.length; i++) {
 			const msg = messages[i];
 			if (msg.role !== 'ASSISTANT') continue;
+
+			// While running, only render completed messages (not the last one being streamed)
+			const isLastMessage = i === messages.length - 1;
+			if (isRunning && isLastMessage) continue;
 
 			const key = `${i}:${msg.content.length}`;
 			if (!renderedMessages.has(key)) {
@@ -65,7 +69,7 @@
 
 	async function send() {
 		const text = inputText.trim();
-		if (!text || isRunning) return;
+		if (!text) return;
 
 		inputText = '';
 		await store.sendMessage(beanId, text);
@@ -143,18 +147,32 @@
 
 	<!-- Composer -->
 	<div class="border-t border-border p-3 bg-surface">
+		{#if isRunning}
+			<div class="flex items-center gap-2 px-1 pb-2 text-text-muted">
+				<span class="agent-spinner"></span>
+				<span class="text-xs">Agent is working...</span>
+			</div>
+		{/if}
 		<div class="flex gap-2 items-end">
 			<textarea
 				bind:value={inputText}
 				onkeydown={handleKeydown}
-				placeholder={isRunning ? 'Agent is working...' : 'Send a message...'}
-				disabled={isRunning}
+				placeholder="Send a message..."
 				rows={1}
 				class="flex-1 resize-none rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm
 					text-text placeholder:text-text-faint
-					focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent
-					disabled:opacity-50 disabled:cursor-not-allowed"
+					focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
 			></textarea>
+
+			<button
+				onclick={send}
+				disabled={!inputText.trim()}
+				class="shrink-0 rounded-lg px-4 py-2 text-sm font-medium
+					bg-accent text-accent-text hover:bg-accent/90 transition-colors
+					disabled:opacity-50 disabled:cursor-not-allowed"
+			>
+				Send
+			</button>
 
 			{#if isRunning}
 				<button
@@ -164,17 +182,25 @@
 				>
 					Stop
 				</button>
-			{:else}
-				<button
-					onclick={send}
-					disabled={!inputText.trim()}
-					class="shrink-0 rounded-lg px-4 py-2 text-sm font-medium
-						bg-accent text-accent-text hover:bg-accent/90 transition-colors
-						disabled:opacity-50 disabled:cursor-not-allowed"
-				>
-					Send
-				</button>
 			{/if}
 		</div>
 	</div>
 </div>
+
+<style>
+	.agent-spinner {
+		display: inline-block;
+		width: 12px;
+		height: 12px;
+		border: 2px solid currentColor;
+		border-right-color: transparent;
+		border-radius: 50%;
+		animation: spin 0.8s linear infinite;
+	}
+
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+</style>

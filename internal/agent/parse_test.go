@@ -19,17 +19,42 @@ func TestParseStreamLine(t *testing.T) {
 			want:  parsedEvent{Type: eventAssistantMessage, Text: "Hello world", SessionID: "abc-123"},
 		},
 		{
-			name:  "text delta",
+			name:  "stream_event with content_block_delta",
+			input: `{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}},"session_id":"abc"}`,
+			want:  parsedEvent{Type: eventTextDelta, Text: "Hello"},
+		},
+		{
+			name:  "stream_event with content_block_start text",
+			input: `{"type":"stream_event","event":{"type":"content_block_start","index":0,"content_block":{"type":"text","text":"Hi"}},"session_id":"abc"}`,
+			want:  parsedEvent{Type: eventTextDelta, Text: "Hi"},
+		},
+		{
+			name:  "stream_event with content_block_start empty text",
+			input: `{"type":"stream_event","event":{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}},"session_id":"abc"}`,
+			want:  parsedEvent{Type: eventUnknown},
+		},
+		{
+			name:  "stream_event with message_start (ignored)",
+			input: `{"type":"stream_event","event":{"type":"message_start","message":{"model":"claude"}},"session_id":"abc"}`,
+			want:  parsedEvent{Type: eventUnknown},
+		},
+		{
+			name:  "stream_event with tool use (ignored)",
+			input: `{"type":"stream_event","event":{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","name":"Read"}},"session_id":"abc"}`,
+			want:  parsedEvent{Type: eventUnknown},
+		},
+		{
+			name:  "direct text delta (legacy)",
 			input: `{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}`,
 			want:  parsedEvent{Type: eventTextDelta, Text: "Hello"},
 		},
 		{
-			name:  "content block start with text",
+			name:  "direct content block start with text (legacy)",
 			input: `{"type":"content_block_start","index":0,"content_block":{"type":"text","text":"Hi"}}`,
 			want:  parsedEvent{Type: eventTextDelta, Text: "Hi"},
 		},
 		{
-			name:  "content block start tool use (ignored)",
+			name:  "direct content block start tool use (ignored)",
 			input: `{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","name":"Read"}}`,
 			want:  parsedEvent{Type: eventUnknown},
 		},

@@ -11,10 +11,13 @@ type streamEvent struct {
 	// For "assistant" events — contains the full message
 	Message *messagePayload `json:"message,omitempty"`
 
-	// For "content_block_delta" events (streaming with --include-partial-messages)
+	// For "stream_event" — wraps Anthropic API events (content_block_delta, etc.)
+	Event *innerEvent `json:"event,omitempty"`
+
+	// For top-level "content_block_delta" events (legacy/direct)
 	Delta *deltaPayload `json:"delta,omitempty"`
 
-	// For "content_block_start" events
+	// For top-level "content_block_start" events (legacy/direct)
 	ContentBlock *contentBlockPayload `json:"content_block,omitempty"`
 
 	// For "result" events
@@ -25,6 +28,13 @@ type streamEvent struct {
 
 	// For error events
 	Error *errorPayload `json:"error,omitempty"`
+}
+
+// innerEvent is the Anthropic API event nested inside a "stream_event" wrapper.
+type innerEvent struct {
+	Type         string               `json:"type"`
+	Delta        *deltaPayload        `json:"delta,omitempty"`
+	ContentBlock *contentBlockPayload `json:"content_block,omitempty"`
 }
 
 type messagePayload struct {
@@ -76,6 +86,10 @@ func parseStreamLine(line []byte) parsedEvent {
 	}
 
 	switch ev.Type {
+	case "stream_event":
+		// Unwrap the nested Anthropic API event
+		return parseInnerEvent(ev.Event)
+
 	case "assistant":
 		// Full assistant message — extract text from content blocks
 		if ev.Message != nil {
@@ -93,7 +107,7 @@ func parseStreamLine(line []byte) parsedEvent {
 		}
 
 	case "content_block_delta":
-		// Streaming text delta (with --include-partial-messages)
+		// Direct (non-wrapped) delta — kept for compatibility
 		if ev.Delta != nil && ev.Delta.Type == "text_delta" {
 			return parsedEvent{Type: eventTextDelta, Text: ev.Delta.Text}
 		}
@@ -115,6 +129,26 @@ func parseStreamLine(line []byte) parsedEvent {
 			msg = ev.Error.Message
 		}
 		return parsedEvent{Type: eventError, Error: msg}
+	}
+
+	return parsedEvent{Type: eventUnknown}
+}
+
+// parseInnerEvent extracts text deltas from the Anthropic API event nested in stream_event.
+func parseInnerEvent(inner *innerEvent) parsedEvent {
+	if inner == nil {
+		return parsedEvent{Type: eventUnknown}
+	}
+
+	switch inner.Type {
+	case "content_block_delta":
+		if inner.Delta != nil && inner.Delta.Type == "text_delta" {
+			return parsedEvent{Type: eventTextDelta, Text: inner.Delta.Text}
+		}
+	case "content_block_start":
+		if inner.ContentBlock != nil && inner.ContentBlock.Type == "text" && inner.ContentBlock.Text != "" {
+			return parsedEvent{Type: eventTextDelta, Text: inner.ContentBlock.Text}
+		}
 	}
 
 	return parsedEvent{Type: eventUnknown}

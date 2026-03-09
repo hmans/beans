@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"fmt"
 	"log"
 	"sync"
 )
@@ -64,11 +63,12 @@ func (m *Manager) GetSession(beanID string) *Session {
 			return &snap
 		}
 		s = &Session{
-			ID:        beanID,
-			AgentType: "claude",
-			Status:    StatusIdle,
-			Messages:  msgs,
-			SessionID: sessionID,
+			ID:           beanID,
+			AgentType:    "claude",
+			Status:       StatusIdle,
+			Messages:     msgs,
+			SessionID:    sessionID,
+			streamingIdx: -1,
 		}
 		m.sessions[beanID] = s
 		m.mu.Unlock()
@@ -92,16 +92,14 @@ func (m *Manager) SendMessage(beanID, workDir, message string) error {
 		m.sessions[beanID] = session
 	}
 
-	// Don't allow sending while already running
-	if session.Status == StatusRunning {
-		m.mu.Unlock()
-		return fmt.Errorf("agent is busy")
+	// Ensure WorkDir is set (may be empty if loaded from disk by GetSession)
+	if session.WorkDir == "" && workDir != "" {
+		session.WorkDir = workDir
 	}
 
 	// Append user message
 	userMsg := Message{Role: RoleUser, Content: message}
 	session.Messages = append(session.Messages, userMsg)
-	session.Status = StatusRunning
 	session.Error = ""
 
 	// Persist user message
@@ -113,13 +111,15 @@ func (m *Manager) SendMessage(beanID, workDir, message string) error {
 
 	// Check if we have a running process
 	proc, hasProc := m.processes[beanID]
+	session.Status = StatusRunning
 	m.mu.Unlock()
 
 	// Notify subscribers that we have a new user message + running status
 	m.notify(beanID)
 
 	if hasProc && proc != nil {
-		// Send message to existing process via stdin
+		// Send message to existing process via stdin — Claude Code's stream-json
+		// protocol handles interleaving even if the agent is mid-turn
 		return m.sendToProcess(proc, message)
 	}
 
@@ -204,10 +204,11 @@ func (m *Manager) Shutdown() {
 // Must be called with m.mu held.
 func (m *Manager) loadOrCreateSession(beanID, workDir string) *Session {
 	session := &Session{
-		ID:        beanID,
-		AgentType: "claude",
-		Status:    StatusIdle,
-		WorkDir:   workDir,
+		ID:           beanID,
+		AgentType:    "claude",
+		Status:       StatusIdle,
+		WorkDir:      workDir,
+		streamingIdx: -1,
 	}
 
 	if m.store != nil {

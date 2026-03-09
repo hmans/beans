@@ -33,6 +33,12 @@ type Session struct {
 	Messages  []Message
 	Error     string // last error message, if status == error
 	WorkDir   string // worktree filesystem path
+
+	// streamingIdx tracks the message index currently being streamed to.
+	// This ensures deltas from an ongoing turn go to the correct assistant
+	// message even if user messages are interleaved mid-turn. -1 means
+	// no active streaming target.
+	streamingIdx int
 }
 
 // snapshot returns a deep copy of the session for safe concurrent reads.
