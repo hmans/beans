@@ -22,6 +22,34 @@ func ReplaceOnce(text, old, new string) (string, error) {
 	return strings.Replace(text, old, new, 1), nil
 }
 
+// UnescapeBody interprets common escape sequences in body content.
+// This makes CLI flags agent-friendly: --body-append "line1\nline2" produces real newlines.
+// Handles: \n → newline, \t → tab, \\ → backslash.
+func UnescapeBody(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) {
+			switch s[i+1] {
+			case 'n':
+				b.WriteByte('\n')
+				i++
+			case 't':
+				b.WriteByte('\t')
+				i++
+			case '\\':
+				b.WriteByte('\\')
+				i++
+			default:
+				b.WriteByte(s[i])
+			}
+		} else {
+			b.WriteByte(s[i])
+		}
+	}
+	return b.String()
+}
+
 // AppendWithSeparator appends addition to text with a blank line separator.
 // If text is empty, returns addition without separator.
 // If addition is empty, returns text unchanged (no-op).

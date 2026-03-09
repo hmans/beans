@@ -26,7 +26,7 @@ func resolveContent(value, file string) (string, error) {
 	}
 
 	if value != "" {
-		return value, nil
+		return bean.UnescapeBody(value), nil
 	}
 
 	if file != "" {
@@ -103,5 +103,5 @@ func resolveAppendContent(value string) (string, error) {
 		}
 		return strings.TrimRight(string(data), "\n"), nil
 	}
-	return value, nil
+	return bean.UnescapeBody(value), nil
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hmans/beans/internal/bean"
 	"github.com/hmans/beans/internal/beancore"
 	"github.com/hmans/beans/internal/config"
 	"github.com/hmans/beans/internal/graph"
@@ -173,8 +174,8 @@ func buildUpdateInput(cmd *cobra.Command, existingTags []string, currentBody str
 			// --body-replace-old requires --body-replace-new (enforced by MarkFlagsRequiredTogether)
 			bodyMod.Replace = []*model.ReplaceOperation{
 				{
-					Old: updateBodyReplaceOld,
-					New: updateBodyReplaceNew,
+					Old: bean.UnescapeBody(updateBodyReplaceOld),
+					New: bean.UnescapeBody(updateBodyReplaceNew),
 				},
 			}
 		}

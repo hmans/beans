@@ -4,6 +4,74 @@ import (
 	"testing"
 )
 
+func TestUnescapeBody(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "no escape sequences",
+			input: "hello world",
+			want:  "hello world",
+		},
+		{
+			name:  "newline escape",
+			input: `line1\nline2`,
+			want:  "line1\nline2",
+		},
+		{
+			name:  "tab escape",
+			input: `col1\tcol2`,
+			want:  "col1\tcol2",
+		},
+		{
+			name:  "escaped backslash",
+			input: `path\\to\\file`,
+			want:  `path\to\file`,
+		},
+		{
+			name:  "multiple newlines",
+			input: `## Title\n\n- item 1\n- item 2`,
+			want:  "## Title\n\n- item 1\n- item 2",
+		},
+		{
+			name:  "mixed escapes",
+			input: `line1\n\tindented\n\\literal`,
+			want:  "line1\n\tindented\n\\literal",
+		},
+		{
+			name:  "unknown escape passes through",
+			input: `hello\rworld`,
+			want:  `hello\rworld`,
+		},
+		{
+			name:  "trailing backslash",
+			input: `hello\`,
+			want:  `hello\`,
+		},
+		{
+			name:  "empty string",
+			input: "",
+			want:  "",
+		},
+		{
+			name:  "already real newlines unchanged",
+			input: "line1\nline2",
+			want:  "line1\nline2",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := UnescapeBody(tt.input)
+			if got != tt.want {
+				t.Errorf("UnescapeBody() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestReplaceOnce(t *testing.T) {
 	tests := []struct {
 		name    string
