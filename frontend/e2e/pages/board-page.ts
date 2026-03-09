@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
 /**
- * Page object for the board (kanban) view at /board.
+ * Page object for the board (kanban) view, accessible via the Board toggle on /.
  */
 export class BoardPage {
 	constructor(
@@ -10,7 +10,9 @@ export class BoardPage {
 	) {}
 
 	async goto() {
-		await this.page.goto(this.baseURL + '/board');
+		await this.page.goto(this.baseURL + '/');
+		// Click the Board toggle button
+		await this.page.getByRole('button', { name: 'Board' }).click();
 		// Wait for columns to render
 		await this.page.waitForSelector('[data-status]', { timeout: 10_000 });
 	}

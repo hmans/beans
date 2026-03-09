@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -80,7 +81,12 @@ func runServer(port int) error {
 
 	// Create GraphQL server with explicit transports
 	es := graph.NewExecutableSchema(graph.Config{
-		Resolvers: &graph.Resolver{Core: core, WorktreeMgr: wtManager, AgentMgr: agentMgr},
+		Resolvers: &graph.Resolver{
+			Core:        core,
+			WorktreeMgr: wtManager,
+			AgentMgr:    agentMgr,
+			ProjectRoot: filepath.Dir(core.Root()),
+		},
 	})
 	gqlHandler := handler.New(es)
 

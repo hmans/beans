@@ -1,11 +1,11 @@
 ---
 # beans-o4g9
 title: 'Build web UI: Bean list view'
-status: completed
+status: in-progress
 type: task
 priority: normal
 created_at: 2025-12-18T16:45:29Z
-updated_at: 2025-12-20T12:40:08Z
+updated_at: 2026-03-09T10:17:20Z
 parent: beans-lbjp
 ---
 

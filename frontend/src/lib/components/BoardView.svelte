@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Bean } from '$lib/beans.svelte';
 	import { beansStore, sortBeans } from '$lib/beans.svelte';
+	import { worktreeStore } from '$lib/worktrees.svelte';
 	import { orderBetween } from '$lib/fractional';
 	import { gql } from 'urql';
 	import { client } from '$lib/graphqlClient';
@@ -232,7 +233,7 @@
 
 					<div
 						class="rounded-lg border border-border bg-surface shadow-sm border-l-3 transition-all cursor-pointer
-							{typeBorders[bean.type] ?? 'border-l-surface-dim'}
+							{worktreeStore.hasWorktree(bean.id) ? 'border-l-success' : typeBorders[bean.type] ?? 'border-l-surface-dim'}
 							{draggedBeanId === bean.id ? 'opacity-40' : 'hover:shadow-md'}
 							{selectedId === bean.id ? 'ring-1 ring-accent bg-accent/5' : ''}"
 						draggable="true"

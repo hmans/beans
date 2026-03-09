@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Bean } from '$lib/beans.svelte';
 	import { beansStore } from '$lib/beans.svelte';
+	import { worktreeStore } from '$lib/worktrees.svelte';
 	import BeanItem from './BeanItem.svelte';
 
 	interface Props {
@@ -14,6 +15,7 @@
 
 	const children = $derived(beansStore.children(bean.id));
 	const isSelected = $derived(selectedId === bean.id);
+	const hasWorktree = $derived(worktreeStore.hasWorktree(bean.id));
 
 	const statusColors: Record<string, string> = {
 		todo: 'bg-surface-dim text-text-muted',
@@ -49,7 +51,7 @@
 		onclick={handleClick}
 		onkeydown={handleKeydown}
 		class="w-full text-left rounded-lg p-2 border-l-3 transition-all cursor-pointer
-			{typeBorders[bean.type] ?? 'border-l-surface-dim'}
+			{hasWorktree ? 'border-l-success' : typeBorders[bean.type] ?? 'border-l-surface-dim'}
 			{isSelected ? 'bg-accent/10 ring-1 ring-accent' : 'bg-surface hover:bg-surface-alt'}"
 	>
 		<div class="flex items-center gap-2 min-w-0">

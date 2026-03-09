@@ -40,33 +40,8 @@ class UIState {
 		}
 	}
 
-	// Draggable pane
-	paneWidth = $state(350);
-	isDragging = $state(false);
-
-	startDrag(e: MouseEvent) {
-		this.isDragging = true;
-		e.preventDefault();
-	}
-
-	onDrag(e: MouseEvent) {
-		if (!this.isDragging) return;
-		this.paneWidth = Math.max(200, Math.min(600, e.clientX));
-	}
-
-	stopDrag() {
-		if (this.isDragging) {
-			this.isDragging = false;
-			localStorage.setItem('beans-pane-width', this.paneWidth.toString());
-		}
-	}
-
-	loadPaneWidth() {
-		const saved = localStorage.getItem('beans-pane-width');
-		if (saved) {
-			this.paneWidth = Math.max(200, Math.min(600, parseInt(saved, 10)));
-		}
-	}
+	// Planning view toggle
+	planningView = $state<'backlog' | 'board'>('backlog');
 
 	// Form modal
 	showForm = $state(false);

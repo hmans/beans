@@ -72,9 +72,7 @@
 		setTimeout(() => (copied = false), 1500);
 	}
 
-	const canStartWork = $derived(
-		(bean.status === 'todo' || bean.status === 'draft') && !worktreeStore.hasWorktree(bean.id)
-	);
+	const canStartWork = $derived(!worktreeStore.hasWorktree(bean.id));
 
 	let startingWork = $state(false);
 

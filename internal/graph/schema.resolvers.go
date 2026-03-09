@@ -521,10 +521,17 @@ func (r *mutationResolver) SendAgentMessage(ctx context.Context, beanID string, 
 		return false, fmt.Errorf("agent manager not available")
 	}
 
-	// Find the worktree path for this bean
-	workDir, err := r.findWorktreePath(beanID)
-	if err != nil {
-		return false, err
+	var workDir string
+	if beanID == CentralSessionID {
+		// Central agent chat runs in the project root
+		workDir = r.ProjectRoot
+	} else {
+		// Find the worktree path for this bean
+		var err error
+		workDir, err = r.findWorktreePath(beanID)
+		if err != nil {
+			return false, err
+		}
 	}
 
 	if err := r.AgentMgr.SendMessage(beanID, workDir, message); err != nil {
