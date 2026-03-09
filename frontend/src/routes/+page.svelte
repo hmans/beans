@@ -7,9 +7,23 @@
 	import SplitPane from '$lib/components/SplitPane.svelte';
 
 	const topLevelBeans = $derived(beansStore.all.filter((b) => !b.parentId));
+
+	function handleKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape' && ui.currentBean && !ui.showForm) {
+			ui.clearSelection();
+		}
+	}
+
+	function handlePlanningClick(e: MouseEvent) {
+		if (e.target === e.currentTarget) {
+			ui.clearSelection();
+		}
+	}
 </script>
 
-<SplitPane direction="horizontal" side="end" persistKey="detail-width" initialSize={480}>
+<svelte:window onkeydown={handleKeydown} />
+
+<SplitPane direction="horizontal" side="end" persistKey="detail-width" initialSize={480} collapsed={!ui.currentBean}>
 	{#snippet children()}
 		<div class="flex flex-col h-full">
 			<!-- Toggle bar -->
@@ -44,8 +58,10 @@
 			</div>
 
 			{#if ui.planningView === 'backlog'}
-				<div class="flex-1 overflow-auto bg-surface">
-					<div class="p-3 space-y-1">
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div class="flex-1 overflow-auto bg-surface" onclick={handlePlanningClick}>
+					<div class="p-3 space-y-1" onclick={handlePlanningClick}>
 						{#each topLevelBeans as bean (bean.id)}
 							<BeanItem
 								{bean}
@@ -76,11 +92,8 @@
 				bean={ui.currentBean}
 				onSelect={(b) => ui.selectBean(b)}
 				onEdit={(b) => ui.openEditForm(b)}
+				onClose={() => ui.clearSelection()}
 			/>
-		{:else}
-			<div class="h-full flex items-center justify-center text-text-faint bg-surface">
-				<p>Select a bean to view details</p>
-			</div>
 		{/if}
 	{/snippet}
 </SplitPane>

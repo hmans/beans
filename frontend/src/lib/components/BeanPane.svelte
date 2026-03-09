@@ -8,9 +8,10 @@
 		bean: Bean;
 		onSelect?: (bean: Bean) => void;
 		onEdit?: (bean: Bean) => void;
+		onClose?: () => void;
 	}
 
-	let { bean, onSelect, onEdit }: Props = $props();
+	let { bean, onSelect, onEdit, onClose }: Props = $props();
 
 	let activeTab = $state<'bean' | 'chat'>('bean');
 	const hasWorktree = $derived(worktreeStore.hasWorktree(bean.id));
@@ -56,6 +57,16 @@
 				</button>
 			{/if}
 		</div>
+		{#if onClose}
+			<div class="flex-1"></div>
+			<button
+				onclick={onClose}
+				class="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-text hover:bg-surface-alt transition-colors"
+				title="Close"
+			>
+				&#x2715;
+			</button>
+		{/if}
 	</div>
 
 	<!-- Tab content -->

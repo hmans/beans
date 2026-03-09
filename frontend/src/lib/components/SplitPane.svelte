@@ -6,6 +6,7 @@
 		side?: 'start' | 'end';
 		initialSize?: number;
 		persistKey?: string;
+		collapsed?: boolean;
 		children: Snippet;
 		aside: Snippet;
 	}
@@ -15,6 +16,7 @@
 		side = 'end',
 		initialSize = 350,
 		persistKey,
+		collapsed = false,
 		children,
 		aside
 	}: Props = $props();
@@ -40,6 +42,7 @@
 	});
 
 	function startDrag(e: MouseEvent) {
+		if (collapsed) return;
 		isDragging = true;
 		e.preventDefault();
 	}
@@ -74,6 +77,7 @@
 	}
 
 	const isHorizontal = $derived(direction === 'horizontal');
+	const displaySize = $derived(collapsed ? 0 : size);
 </script>
 
 <svelte:window onmousemove={onDrag} onmouseup={stopDrag} />
@@ -85,25 +89,27 @@
 	{#if side === 'start'}
 		<!-- Fixed-size pane (start) -->
 		<div
-			class="shrink-0 flex flex-col {isHorizontal ? '' : ''}"
-			style="{isHorizontal ? 'width' : 'height'}: {size}px"
+			class="shrink-0 flex flex-col overflow-hidden"
+			style="{isHorizontal ? 'width' : 'height'}: {displaySize}px"
 		>
 			{@render aside()}
 		</div>
 
 		<!-- Resize handle -->
-		<div
-			class="shrink-0 transition-colors
-				{isHorizontal ? 'w-1 cursor-col-resize' : 'h-1 cursor-row-resize'}
-				{isDragging ? 'bg-surface-dim' : 'bg-border hover:bg-surface-dim'}"
-			role="slider"
-			aria-orientation={isHorizontal ? 'horizontal' : 'vertical'}
-			aria-valuenow={size}
-			aria-valuemin={MIN_SIZE}
-			aria-valuemax={999}
-			tabindex="0"
-			onmousedown={startDrag}
-		></div>
+		{#if !collapsed}
+			<div
+				class="shrink-0 transition-colors
+					{isHorizontal ? 'w-1 cursor-col-resize' : 'h-1 cursor-row-resize'}
+					{isDragging ? 'bg-surface-dim' : 'bg-border hover:bg-surface-dim'}"
+				role="slider"
+				aria-orientation={isHorizontal ? 'horizontal' : 'vertical'}
+				aria-valuenow={size}
+				aria-valuemin={MIN_SIZE}
+				aria-valuemax={999}
+				tabindex="0"
+				onmousedown={startDrag}
+			></div>
+		{/if}
 
 		<!-- Flexible pane -->
 		<div class="flex-1 min-w-0 min-h-0 flex flex-col">
@@ -116,23 +122,25 @@
 		</div>
 
 		<!-- Resize handle -->
-		<div
-			class="shrink-0 transition-colors
-				{isHorizontal ? 'w-1 cursor-col-resize' : 'h-1 cursor-row-resize'}
-				{isDragging ? 'bg-surface-dim' : 'bg-border hover:bg-surface-dim'}"
-			role="slider"
-			aria-orientation={isHorizontal ? 'horizontal' : 'vertical'}
-			aria-valuenow={size}
-			aria-valuemin={MIN_SIZE}
-			aria-valuemax={999}
-			tabindex="0"
-			onmousedown={startDrag}
-		></div>
+		{#if !collapsed}
+			<div
+				class="shrink-0 transition-colors
+					{isHorizontal ? 'w-1 cursor-col-resize' : 'h-1 cursor-row-resize'}
+					{isDragging ? 'bg-surface-dim' : 'bg-border hover:bg-surface-dim'}"
+				role="slider"
+				aria-orientation={isHorizontal ? 'horizontal' : 'vertical'}
+				aria-valuenow={size}
+				aria-valuemin={MIN_SIZE}
+				aria-valuemax={999}
+				tabindex="0"
+				onmousedown={startDrag}
+			></div>
+		{/if}
 
 		<!-- Fixed-size pane (end) -->
 		<div
-			class="shrink-0 flex flex-col"
-			style="{isHorizontal ? 'width' : 'height'}: {size}px"
+			class="shrink-0 flex flex-col overflow-hidden"
+			style="{isHorizontal ? 'width' : 'height'}: {displaySize}px"
 		>
 			{@render aside()}
 		</div>
