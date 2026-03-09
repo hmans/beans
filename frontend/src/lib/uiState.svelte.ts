@@ -31,17 +31,13 @@ class UIState {
 		window.history.replaceState(window.history.state, '', url);
 	}
 
-	/** Read initial selection from URL on page load */
-	loadFromUrl() {
-		const params = new URLSearchParams(window.location.search);
-		const beanId = params.get('bean');
-		if (beanId) {
-			this.selectedBeanId = beanId;
-		}
-	}
-
-	// Planning view toggle
+	// Planning view toggle (persisted to localStorage, initialized from layout load)
 	planningView = $state<'backlog' | 'board'>('backlog');
+
+	setPlanningView(view: 'backlog' | 'board') {
+		this.planningView = view;
+		localStorage.setItem('beans-planning-view', view);
+	}
 
 	// Form modal
 	showForm = $state(false);

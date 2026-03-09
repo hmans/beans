@@ -1,6 +1,13 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/typography';
 
+button,
+a,
+[role='button'],
+[role='slider'] {
+	cursor: pointer;
+}
+
 @theme {
 	--color-surface: #ffffff;
 	--color-surface-alt: #f8f9fb;

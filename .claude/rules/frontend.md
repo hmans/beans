@@ -11,10 +11,17 @@ globs: ["frontend/**"]
 
 - Use **Svelte 5** with runes (`$state`, `$derived`, `$props`, `$effect`, etc.). Do not use legacy Svelte 4 patterns (`export let`, `$:`, stores via `writable`/`readable`).
 
+## SvelteKit SSR/Prerender Pitfalls
+
+- `localStorage`, `window`, and other browser APIs are **not available** during SSR or prerendering. Never access them in module scope, `$state` initializers, or universal load functions without a `browser` guard.
+- To initialize client-side state from `localStorage` without a flash of incorrect content, use a **load function** in `+layout.ts` / `+page.ts` with `export const ssr = false`. The load function runs client-side before the component renders, so the component gets the correct initial values. Do **not** try to read localStorage in `onMount` — that fires after the first paint, causing a visible flash.
+- This app uses `ssr = false` in the root `+layout.ts`, so all load functions run client-side only.
+
 ## Styling
 
 - Use **Tailwind CSS v4** utility classes. Avoid plain CSS or `<style>` blocks when Tailwind utilities suffice.
 - Define custom utility classes in the Tailwind theme (`@theme`) when a pattern repeats across components.
+- **All** interactive elements (`<button>`, `<a>`, clickable `<div>`s, etc.) must have `cursor-pointer`.
 
 ## E2E Testing
 

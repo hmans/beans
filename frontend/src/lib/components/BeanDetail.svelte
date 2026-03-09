@@ -3,6 +3,7 @@
 	import { beansStore } from '$lib/beans.svelte';
 	import { worktreeStore } from '$lib/worktrees.svelte';
 	import { renderMarkdown } from '$lib/markdown';
+	import ConfirmModal from './ConfirmModal.svelte';
 
 	interface Props {
 		bean: Bean;
@@ -72,21 +73,31 @@
 		setTimeout(() => (copied = false), 1500);
 	}
 
-	const canStartWork = $derived(!worktreeStore.hasWorktree(bean.id));
+	const worktree = $derived(worktreeStore.worktrees.find((wt) => wt.beanId === bean.id));
+	const canStartWork = $derived(!worktree);
 
 	let startingWork = $state(false);
+	let removingWorktree = $state(false);
+	let confirmingDestroy = $state(false);
 
 	async function startWork() {
 		startingWork = true;
 		await worktreeStore.createWorktree(bean.id);
 		startingWork = false;
 	}
+
+	async function destroyWorktree() {
+		confirmingDestroy = false;
+		removingWorktree = true;
+		await worktreeStore.removeWorktree(bean.id);
+		removingWorktree = false;
+	}
 </script>
 
 {#snippet beanCard(b: Bean)}
 	<button
 		onclick={() => onSelect?.(b)}
-		class="w-full text-left rounded-lg p-2 border-l-2 transition-all cursor-pointer bg-surface hover:bg-surface-alt
+		class="w-full text-left rounded-lg p-2 border-l-2 transition-all bg-surface hover:bg-surface-alt
 			{typeBorders[b.type] ?? 'border-l-surface-dim'}"
 	>
 		<div class="flex items-center gap-1.5 min-w-0">
@@ -150,6 +161,36 @@
 			{/if}
 		</div>
 	</div>
+
+	<!-- Worktree -->
+	{#if worktree}
+		<div class="mb-6 rounded-lg border border-success/30 bg-success/5 p-3">
+			<div class="flex items-center justify-between mb-2">
+				<h2 class="text-xs font-semibold text-success uppercase">Active Worktree</h2>
+				<button
+					class="px-2 py-1 text-xs font-medium rounded-md border border-danger/30 text-danger hover:bg-danger/10 transition-colors disabled:opacity-50"
+					onclick={() => (confirmingDestroy = true)}
+					disabled={removingWorktree}
+				>
+					{#if removingWorktree}
+						Removing…
+					{:else}
+						Destroy Worktree
+					{/if}
+				</button>
+			</div>
+			<div class="text-xs text-text-muted space-y-1">
+				<div class="flex gap-2">
+					<span class="text-text-faint w-12 shrink-0">Branch</span>
+					<code class="text-text truncate">{worktree.branch}</code>
+				</div>
+				<div class="flex gap-2">
+					<span class="text-text-faint w-12 shrink-0">Path</span>
+					<code class="text-text truncate">{worktree.path}</code>
+				</div>
+			</div>
+		</div>
+	{/if}
 
 	<!-- Tags -->
 	{#if bean.tags.length > 0}
@@ -232,6 +273,17 @@
 		<div>Path: {bean.path}</div>
 	</div>
 </div>
+
+{#if confirmingDestroy}
+	<ConfirmModal
+		title="Destroy Worktree"
+		message="This will delete the worktree branch and working directory. Any uncommitted changes will be lost."
+		confirmLabel="Destroy"
+		danger
+		onConfirm={destroyWorktree}
+		onCancel={() => (confirmingDestroy = false)}
+	/>
+{/if}
 
 <style>
 	.bean-body :global(h1) {

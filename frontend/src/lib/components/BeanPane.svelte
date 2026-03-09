@@ -32,27 +32,30 @@
 
 <div class="flex flex-col h-full bg-surface">
 	<!-- Tab bar -->
-	<div class="flex border-b border-border px-2 pt-1 shrink-0">
-		<button
-			onclick={() => (activeTab = 'bean')}
-			class="px-3 py-1.5 text-xs font-medium border-b-2 transition-colors
-				{activeTab === 'bean'
-				? 'border-accent text-accent'
-				: 'border-transparent text-text-muted hover:text-text'}"
-		>
-			Bean
-		</button>
-		{#if hasWorktree}
+	<div class="flex items-center px-4 h-10 border-b border-border shrink-0">
+		<div class="flex">
 			<button
-				onclick={() => (activeTab = 'chat')}
-				class="px-3 py-1.5 text-xs font-medium border-b-2 transition-colors
-					{activeTab === 'chat'
-					? 'border-accent text-accent'
-					: 'border-transparent text-text-muted hover:text-text'}"
+				onclick={() => (activeTab = 'bean')}
+				class="px-3 py-1 text-sm font-medium border transition-colors
+					{hasWorktree ? 'rounded-l-md' : 'rounded-md'}
+					{activeTab === 'bean'
+					? 'bg-accent text-accent-text border-accent'
+					: 'bg-surface border-border text-text-muted hover:bg-surface-alt'}"
 			>
-				Chat
+				Bean
 			</button>
-		{/if}
+			{#if hasWorktree}
+				<button
+					onclick={() => (activeTab = 'chat')}
+					class="px-3 py-1 text-sm font-medium rounded-r-md border border-l-0 transition-colors
+						{activeTab === 'chat'
+						? 'bg-accent text-accent-text border-accent'
+						: 'bg-surface border-border text-text-muted hover:bg-surface-alt'}"
+				>
+					Chat
+				</button>
+			{/if}
+		</div>
 	</div>
 
 	<!-- Tab content -->

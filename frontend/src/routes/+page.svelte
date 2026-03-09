@@ -13,10 +13,10 @@
 	{#snippet children()}
 		<div class="flex flex-col h-full">
 			<!-- Toggle bar -->
-			<div class="flex items-center px-4 py-2 border-b border-border bg-surface shrink-0">
+			<div class="flex items-center px-4 h-10 border-b border-border bg-surface shrink-0">
 				<div class="flex">
 					<button
-						onclick={() => (ui.planningView = 'backlog')}
+						onclick={() => ui.setPlanningView('backlog')}
 						class="px-3 py-1 text-sm font-medium rounded-l-md border transition-colors
 							{ui.planningView === 'backlog'
 							? 'bg-accent text-accent-text border-accent'
@@ -25,7 +25,7 @@
 						Backlog
 					</button>
 					<button
-						onclick={() => (ui.planningView = 'board')}
+						onclick={() => ui.setPlanningView('board')}
 						class="px-3 py-1 text-sm font-medium rounded-r-md border border-l-0 transition-colors
 							{ui.planningView === 'board'
 							? 'bg-accent text-accent-text border-accent'
@@ -43,7 +43,6 @@
 				</button>
 			</div>
 
-			<!-- View content -->
 			{#if ui.planningView === 'backlog'}
 				<div class="flex-1 overflow-auto bg-surface">
 					<div class="p-3 space-y-1">

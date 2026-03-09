@@ -50,7 +50,7 @@
 	<button
 		onclick={handleClick}
 		onkeydown={handleKeydown}
-		class="w-full text-left rounded-lg p-2 border-l-3 transition-all cursor-pointer
+		class="w-full text-left rounded-lg p-2 border-l-3 transition-all
 			{hasWorktree ? 'border-l-success' : typeBorders[bean.type] ?? 'border-l-surface-dim'}
 			{isSelected ? 'bg-accent/10 ring-1 ring-accent' : 'bg-surface hover:bg-surface-alt'}"
 	>

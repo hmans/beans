@@ -10,18 +10,23 @@
 
 	preloadHighlighter();
 
+	let { data, children } = $props();
+
+	// Initialize UI state from load function data (runs before first render)
+	ui.planningView = data.planningView;
+	if (data.selectedBeanId) {
+		ui.selectedBeanId = data.selectedBeanId;
+	}
+
 	onMount(() => {
 		beansStore.subscribe();
 		worktreeStore.subscribe();
-		ui.loadFromUrl();
 	});
 
 	onDestroy(() => {
 		beansStore.unsubscribe();
 		worktreeStore.unsubscribe();
 	});
-
-	let { children } = $props();
 </script>
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
