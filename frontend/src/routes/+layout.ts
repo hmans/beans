@@ -23,7 +23,7 @@ export function load() {
 
     filterText = localStorage.getItem('beans-filter-text') ?? '';
 
-    activeView = localStorage.getItem('beans-active-view') ?? 'planning';
+    activeView = localStorage.getItem('beans-active-view') || 'planning';
   }
 
   return { planningView, selectedBeanId, showPlanningChat, filterText, activeView };

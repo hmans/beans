@@ -36,7 +36,10 @@
     if (persistKey) {
       const saved = localStorage.getItem(`beans-split-${persistKey}`);
       if (saved) {
-        size = Math.max(MIN_SIZE, parseInt(saved, 10));
+        const parsed = parseInt(saved, 10);
+        if (!Number.isNaN(parsed)) {
+          size = Math.max(MIN_SIZE, parsed);
+        }
       }
     }
   });
