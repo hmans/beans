@@ -72,6 +72,7 @@ homebrew_casks:
   - repository:
       owner: hmans
       name: homebrew-beans
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: "https://github.com/hmans/beans"
     description: "Agentic-first issue tracker"
     license: "Apache-2.0"
