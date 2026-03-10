@@ -19,15 +19,26 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/hmans/beans/internal/agent"
-	"github.com/hmans/beans/pkg/config"
 	"github.com/hmans/beans/internal/graph"
 	"github.com/hmans/beans/internal/web"
 	"github.com/hmans/beans/internal/worktree"
+	"github.com/hmans/beans/pkg/config"
 )
 
 var (
 	servePort int
 )
+
+const centralAgentPrompt = `You are the planning agent for this project. Your primary role is to help manage and organize work through beans (issues).
+
+Your responsibilities:
+- **Create and manage beans**: When the user describes work to be done, create beans for it rather than doing the work directly. Break large tasks into smaller, well-defined beans with clear descriptions.
+- **Organize work**: Help prioritize, categorize, and structure beans. Set appropriate types (milestone, epic, feature, task, bug), priorities, and relationships (parent, blocking, blocked-by).
+- **Start work on beans**: When the user wants to begin working on a specific bean, use the GraphQL startWork mutation to create a worktree for it: mutation { startWork(beanId: "<id>") { path } }
+- **Nudge towards beans**: If the user asks you to implement something directly, suggest creating a bean for it instead. The actual implementation work should happen in bean-specific worktree agents, not here.
+- **Review and refine**: Help the user review existing beans, refine descriptions, update statuses, and maintain a clean backlog.
+
+You have access to the beans CLI and can use GraphQL queries to inspect and modify beans. Focus on planning and coordination — leave implementation to the worktree agents.`
 
 var serveCmd = &cobra.Command{
 	Use:     "serve",
@@ -78,6 +89,12 @@ func runServer(port int) error {
 
 	// Create agent session manager (with conversation persistence)
 	agentMgr := agent.NewManager(core.Root(), func(beanID string) string {
+		// Central/planning agent gets a planning-focused prompt
+		if beanID == graph.CentralSessionID {
+			return centralAgentPrompt
+		}
+
+		// Bean-specific agents get context about the bean they're working on
 		b, err := core.Get(beanID)
 		if err != nil {
 			return ""
