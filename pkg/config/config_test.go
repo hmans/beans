@@ -1026,6 +1026,92 @@ func TestSaveOmitsEmptyServerSection(t *testing.T) {
 	}
 }
 
+func TestGetWorktreeBaseRef(t *testing.T) {
+	t.Run("returns default when not configured", func(t *testing.T) {
+		cfg := Default()
+		if cfg.GetWorktreeBaseRef() != DefaultWorktreeBaseRef {
+			t.Errorf("GetWorktreeBaseRef() = %q, want %q", cfg.GetWorktreeBaseRef(), DefaultWorktreeBaseRef)
+		}
+	})
+
+	t.Run("returns configured base ref", func(t *testing.T) {
+		cfg := Default()
+		cfg.Worktree.BaseRef = "origin/develop"
+		if cfg.GetWorktreeBaseRef() != "origin/develop" {
+			t.Errorf("GetWorktreeBaseRef() = %q, want \"origin/develop\"", cfg.GetWorktreeBaseRef())
+		}
+	})
+
+	t.Run("loads from config file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		configPath := filepath.Join(tmpDir, ConfigFileName)
+
+		configContent := `beans:
+  prefix: test-
+worktree:
+  base_ref: origin/develop
+`
+		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+			t.Fatalf("WriteFile error = %v", err)
+		}
+
+		cfg, err := Load(configPath)
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		if cfg.GetWorktreeBaseRef() != "origin/develop" {
+			t.Errorf("GetWorktreeBaseRef() = %q, want \"origin/develop\"", cfg.GetWorktreeBaseRef())
+		}
+	})
+}
+
+func TestSaveIncludesWorktreeSection(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := DefaultWithPrefix("test-")
+	cfg.Worktree.BaseRef = "origin/develop"
+	cfg.SetConfigDir(tmpDir)
+
+	if err := cfg.Save(tmpDir); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, ConfigFileName))
+	if err != nil {
+		t.Fatalf("ReadFile error = %v", err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "worktree:") {
+		t.Error("expected worktree section in saved config")
+	}
+	if !strings.Contains(content, "base_ref: origin/develop") {
+		t.Error("expected base_ref: origin/develop in saved config")
+	}
+}
+
+func TestSaveOmitsEmptyWorktreeSection(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := DefaultWithPrefix("test-")
+	cfg.Worktree.BaseRef = "" // explicitly clear
+	cfg.SetConfigDir(tmpDir)
+
+	if err := cfg.Save(tmpDir); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, ConfigFileName))
+	if err != nil {
+		t.Fatalf("ReadFile error = %v", err)
+	}
+
+	if strings.Contains(string(data), "worktree:") {
+		t.Error("expected worktree section to be omitted when not configured")
+	}
+}
+
 func TestGetServerPort(t *testing.T) {
 	t.Run("returns default when not configured", func(t *testing.T) {
 		cfg := Default()

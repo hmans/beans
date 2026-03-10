@@ -82,6 +82,13 @@ const (
 	PermissionModePlan PermissionMode = "plan"
 )
 
+// WorktreeConfig defines settings for git worktree management.
+type WorktreeConfig struct {
+	// BaseRef is the git ref to use as the starting point for new worktree branches.
+	// Default: "origin/main"
+	BaseRef string `yaml:"base_ref,omitempty"`
+}
+
 // AgentConfig defines settings for agent sessions.
 type AgentConfig struct {
 	// DefaultPermissionMode is the default permission mode for new agent sessions.
@@ -99,9 +106,10 @@ type ServerConfig struct {
 // Config holds the beans configuration.
 // Note: Statuses are no longer stored in config - they are hardcoded like types.
 type Config struct {
-	Beans  BeansConfig  `yaml:"beans"`
-	Agent  AgentConfig  `yaml:"agent,omitempty"`
-	Server ServerConfig `yaml:"server,omitempty"`
+	Beans    BeansConfig    `yaml:"beans"`
+	Worktree WorktreeConfig `yaml:"worktree,omitempty"`
+	Agent    AgentConfig    `yaml:"agent,omitempty"`
+	Server   ServerConfig   `yaml:"server,omitempty"`
 
 	// configDir is the directory containing the config file (not serialized)
 	// Used to resolve relative paths
@@ -343,6 +351,14 @@ func (c *Config) toYAMLNode() *yaml.Node {
 		beansMapping.Content = append(beansMapping.Content, key, scalar("true", "!!bool"))
 	}
 
+	// Build the worktree mapping
+	worktreeMapping := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+	if c.Worktree.BaseRef != "" {
+		key := strNode("base_ref")
+		key.HeadComment = "Git ref to use as the base for new worktree branches (default: origin/main)"
+		worktreeMapping.Content = append(worktreeMapping.Content, key, strNode(c.Worktree.BaseRef))
+	}
+
 	// Build the agent mapping
 	agentMapping := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 	if c.Agent.DefaultPermissionMode != "" {
@@ -366,6 +382,10 @@ func (c *Config) toYAMLNode() *yaml.Node {
 		HeadComment: "Beans configuration\nSee: https://github.com/hmans/beans",
 	}
 	topMapping.Content = append(topMapping.Content, strNode("beans"), beansMapping)
+
+	if len(worktreeMapping.Content) > 0 {
+		topMapping.Content = append(topMapping.Content, strNode("worktree"), worktreeMapping)
+	}
 
 	if len(agentMapping.Content) > 0 {
 		topMapping.Content = append(topMapping.Content, strNode("agent"), agentMapping)
@@ -558,6 +578,18 @@ func (c *Config) PriorityList() string {
 		names[i] = p.Name
 	}
 	return strings.Join(names, ", ")
+}
+
+// DefaultWorktreeBaseRef is the default base ref for new worktree branches.
+const DefaultWorktreeBaseRef = "origin/main"
+
+// GetWorktreeBaseRef returns the configured base ref for new worktree branches.
+// Returns "origin/main" if not set.
+func (c *Config) GetWorktreeBaseRef() string {
+	if c.Worktree.BaseRef == "" {
+		return DefaultWorktreeBaseRef
+	}
+	return c.Worktree.BaseRef
 }
 
 // GetDefaultPermissionMode returns the configured default permission mode for agent sessions.

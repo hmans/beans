@@ -74,7 +74,7 @@ func runServer(port int) error {
 	})
 
 	// Create worktree manager (worktrees stored inside .beans/worktrees/)
-	wtManager := worktree.NewManager(cfg.ConfigDir(), core.Root())
+	wtManager := worktree.NewManager(cfg.ConfigDir(), core.Root(), cfg.GetWorktreeBaseRef())
 
 	// Create agent session manager (with conversation persistence)
 	agentMgr := agent.NewManager(core.Root(), func(beanID string) string {

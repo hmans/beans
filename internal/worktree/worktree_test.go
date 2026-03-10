@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -139,7 +140,7 @@ branch refs/heads/beans/beans-good
 
 func TestCreateAndList(t *testing.T) {
 	repoDir, beansDir := initTestRepo(t)
-	mgr := NewManager(repoDir, beansDir)
+	mgr := NewManager(repoDir, beansDir, "")
 
 	// List should be empty initially
 	wts, err := mgr.List()
@@ -188,7 +189,7 @@ func TestCreateAndList(t *testing.T) {
 
 func TestCreateDuplicate(t *testing.T) {
 	repoDir, beansDir := initTestRepo(t)
-	mgr := NewManager(repoDir, beansDir)
+	mgr := NewManager(repoDir, beansDir, "")
 
 	_, err := mgr.Create("beans-dup")
 	if err != nil {
@@ -203,7 +204,7 @@ func TestCreateDuplicate(t *testing.T) {
 
 func TestRemove(t *testing.T) {
 	repoDir, beansDir := initTestRepo(t)
-	mgr := NewManager(repoDir, beansDir)
+	mgr := NewManager(repoDir, beansDir, "")
 
 	wt, err := mgr.Create("beans-rm")
 	if err != nil {
@@ -231,7 +232,7 @@ func TestRemove(t *testing.T) {
 
 func TestRemoveStaleWorktree(t *testing.T) {
 	repoDir, beansDir := initTestRepo(t)
-	mgr := NewManager(repoDir, beansDir)
+	mgr := NewManager(repoDir, beansDir, "")
 
 	// Create a worktree, then delete its directory out from under git
 	wt, err := mgr.Create("beans-stale")
@@ -259,7 +260,7 @@ func TestRemoveStaleWorktree(t *testing.T) {
 
 func TestCreateReusesExistingBranch(t *testing.T) {
 	repoDir, beansDir := initTestRepo(t)
-	mgr := NewManager(repoDir, beansDir)
+	mgr := NewManager(repoDir, beansDir, "")
 
 	// Create and then remove a worktree, leaving the branch behind
 	_, err := mgr.Create("beans-reuse")
@@ -283,9 +284,56 @@ func TestCreateReusesExistingBranch(t *testing.T) {
 	}
 }
 
+func TestCreateUsesBaseRef(t *testing.T) {
+	repoDir, beansDir := initTestRepo(t)
+
+	// Create a second commit on a new branch so we have a distinct ref to branch from
+	commands := [][]string{
+		{"git", "checkout", "-b", "other"},
+		{"git", "commit", "--allow-empty", "-m", "other commit"},
+		{"git", "checkout", "main"},
+	}
+	for _, args := range commands {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = repoDir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v failed: %s: %v", args, out, err)
+		}
+	}
+
+	// Get the commit SHA of the "other" branch
+	otherSHA := exec.Command("git", "rev-parse", "other")
+	otherSHA.Dir = repoDir
+	otherOut, err := otherSHA.Output()
+	if err != nil {
+		t.Fatalf("rev-parse other: %v", err)
+	}
+	otherCommit := strings.TrimSpace(string(otherOut))
+
+	// Create a worktree manager with baseRef pointing to "other"
+	mgr := NewManager(repoDir, beansDir, "other")
+	wt, err := mgr.Create("beans-baseref")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	// The worktree's HEAD should match the "other" branch commit, not main
+	headCmd := exec.Command("git", "rev-parse", "HEAD")
+	headCmd.Dir = wt.Path
+	headOut, err := headCmd.Output()
+	if err != nil {
+		t.Fatalf("rev-parse HEAD in worktree: %v", err)
+	}
+	wtCommit := strings.TrimSpace(string(headOut))
+
+	if wtCommit != otherCommit {
+		t.Errorf("worktree HEAD = %s, want %s (from base ref 'other')", wtCommit, otherCommit)
+	}
+}
+
 func TestSubscription(t *testing.T) {
 	repoDir, beansDir := initTestRepo(t)
-	mgr := NewManager(repoDir, beansDir)
+	mgr := NewManager(repoDir, beansDir, "")
 
 	ch := mgr.Subscribe()
 	defer mgr.Unsubscribe(ch)

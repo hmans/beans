@@ -25,6 +25,7 @@ type Worktree struct {
 type Manager struct {
 	repoRoot string
 	beansDir string
+	baseRef  string
 	mu       sync.RWMutex
 
 	// subscribers for worktree change events
@@ -34,8 +35,9 @@ type Manager struct {
 
 // NewManager creates a new worktree manager for the given repository root.
 // beansDir is the path to the .beans directory where worktrees are stored.
-func NewManager(repoRoot, beansDir string) *Manager {
-	return &Manager{repoRoot: repoRoot, beansDir: beansDir}
+// baseRef is the git ref to use as the starting point for new branches (e.g. "origin/main").
+func NewManager(repoRoot, beansDir, baseRef string) *Manager {
+	return &Manager{repoRoot: repoRoot, beansDir: beansDir, baseRef: baseRef}
 }
 
 // Subscribe returns a channel that receives a signal whenever worktrees change.
@@ -137,9 +139,9 @@ func parsePorcelain(output string) []Worktree {
 }
 
 // Create creates a new git worktree for the given bean ID.
-// The worktree is placed as a sibling of the repo root, named <dirname>-<beanID>.
+// The worktree is placed inside .beans/.worktrees/<beanID>.
 // If the branch beans/<beanID> already exists, it is reused; otherwise a new branch
-// is created from the current HEAD.
+// is created from the configured base ref (default: origin/main).
 func (m *Manager) Create(beanID string) (*Worktree, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -155,7 +157,11 @@ func (m *Manager) Create(beanID string) (*Worktree, error) {
 
 	// Try creating with a new branch first; if the branch already exists
 	// (e.g. from a previously removed worktree), reuse it.
-	cmd := exec.Command("git", "worktree", "add", worktreePath, "-b", branch)
+	args := []string{"worktree", "add", worktreePath, "-b", branch}
+	if m.baseRef != "" {
+		args = append(args, m.baseRef)
+	}
+	cmd := exec.Command("git", args...)
 	cmd.Dir = m.repoRoot
 	if out, err := cmd.CombinedOutput(); err != nil {
 		if !strings.Contains(string(out), "already exists") {
