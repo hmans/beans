@@ -7,7 +7,7 @@ const url = '/api/graphql';
 // (including WebSocket) to the backend. In production, the backend serves everything.
 const wsUrl =
   typeof window !== 'undefined'
-    ? `ws://${window.location.host}/api/graphql`
+    ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/graphql`
     : 'ws://localhost/api/graphql';
 
 const wsClient = createWSClient({
