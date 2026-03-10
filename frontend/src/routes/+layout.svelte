@@ -18,8 +18,16 @@
 		ui.planningView = data.planningView;
 		ui.showPlanningChat = data.showPlanningChat;
 		ui.filterText = data.filterText;
+		ui.activeView = data.activeView;
 		if (data.selectedBeanId) {
 			ui.selectedBeanId = data.selectedBeanId;
+		}
+	});
+
+	// Fall back to planning view if the active workspace's worktree is removed
+	$effect(() => {
+		if (!ui.isPlanning && !worktreeStore.hasWorktree(ui.activeView)) {
+			ui.setActiveView('planning');
 		}
 	});
 

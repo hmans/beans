@@ -8,6 +8,7 @@ export function load() {
 	let selectedBeanId: string | null = null;
 	let showPlanningChat = false;
 	let filterText = '';
+	let activeView: 'planning' | string = 'planning';
 
 	if (browser) {
 		const saved = localStorage.getItem('beans-planning-view');
@@ -21,7 +22,9 @@ export function load() {
 		showPlanningChat = localStorage.getItem('beans-planning-chat') === 'true';
 
 		filterText = localStorage.getItem('beans-filter-text') ?? '';
+
+		activeView = localStorage.getItem('beans-active-view') ?? 'planning';
 	}
 
-	return { planningView, selectedBeanId, showPlanningChat, filterText };
+	return { planningView, selectedBeanId, showPlanningChat, filterText, activeView };
 }

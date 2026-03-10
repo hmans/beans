@@ -2,6 +2,18 @@ import type { Bean } from '$lib/beans.svelte';
 import { beansStore } from '$lib/beans.svelte';
 
 class UIState {
+	// Active view: 'planning' or a beanId for workspace view
+	activeView = $state<'planning' | string>('planning');
+
+	get isPlanning(): boolean {
+		return this.activeView === 'planning';
+	}
+
+	setActiveView(view: 'planning' | string) {
+		this.activeView = view;
+		localStorage.setItem('beans-active-view', view);
+	}
+
 	// Selected bean ID (source of truth)
 	selectedBeanId = $state<string | null>(null);
 
