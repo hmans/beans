@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/hmans/beans/internal/bean"
+	"github.com/hmans/beans/bean"
 	"github.com/hmans/beans/internal/output"
 )
 

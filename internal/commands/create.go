@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hmans/beans/internal/config"
+	"github.com/hmans/beans/config"
 	"github.com/hmans/beans/internal/graph"
 	"github.com/hmans/beans/internal/graph/model"
 	"github.com/hmans/beans/internal/output"

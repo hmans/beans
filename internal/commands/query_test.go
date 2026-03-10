@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hmans/beans/internal/bean"
-	"github.com/hmans/beans/internal/beancore"
-	"github.com/hmans/beans/internal/config"
+	"github.com/hmans/beans/bean"
+	"github.com/hmans/beans/beancore"
+	"github.com/hmans/beans/config"
 )
 
 func setupQueryTestCore(t *testing.T) (*beancore.Core, func()) {

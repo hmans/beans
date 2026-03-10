@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/hmans/beans/internal/bean"
+	"github.com/hmans/beans/bean"
 	"github.com/hmans/beans/internal/ui"
 )
 

@@ -4,8 +4,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/hmans/beans/internal/bean"
-	"github.com/hmans/beans/internal/config"
+	"github.com/hmans/beans/bean"
+	"github.com/hmans/beans/config"
 )
 
 // TreeNode represents a node in the bean tree hierarchy.

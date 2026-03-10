@@ -9,8 +9,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hmans/beans/internal/bean"
-	"github.com/hmans/beans/internal/beancore"
+	"github.com/hmans/beans/bean"
+	"github.com/hmans/beans/beancore"
 	"github.com/hmans/beans/internal/graph/model"
 )
 

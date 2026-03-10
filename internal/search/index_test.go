@@ -3,7 +3,7 @@ package search
 import (
 	"testing"
 
-	"github.com/hmans/beans/internal/bean"
+	"github.com/hmans/beans/bean"
 )
 
 func setupTestIndex(t *testing.T) *Index {

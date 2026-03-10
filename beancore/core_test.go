@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/hmans/beans/internal/bean"
-	"github.com/hmans/beans/internal/config"
+	"github.com/hmans/beans/bean"
+	"github.com/hmans/beans/config"
 )
 
 func setupTestCore(t *testing.T) (*Core, string) {

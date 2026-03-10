@@ -8,7 +8,7 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/hmans/beans/internal/bean"
+	"github.com/hmans/beans/bean"
 )
 
 // Lightweight status for tracking which beans have running agents

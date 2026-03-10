@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hmans/beans/internal/config"
+	"github.com/hmans/beans/config"
 )
 
 func TestResolveBeansPath(t *testing.T) {

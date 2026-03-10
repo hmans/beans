@@ -3,7 +3,7 @@ package commands
 import (
 	"testing"
 
-	"github.com/hmans/beans/internal/bean"
+	"github.com/hmans/beans/bean"
 )
 
 func TestApplyTags(t *testing.T) {

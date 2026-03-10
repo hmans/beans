@@ -12,7 +12,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/hmans/beans/internal/bean"
+	"github.com/hmans/beans/bean"
 	"github.com/hmans/beans/internal/graph"
 	"github.com/spf13/cobra"
 )
