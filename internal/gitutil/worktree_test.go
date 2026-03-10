@@ -72,6 +72,46 @@ func TestMainWorktreeRoot_SecondaryWorktree(t *testing.T) {
 	}
 }
 
+func TestDefaultRemoteBranch_WithRemote(t *testing.T) {
+	// Create a "remote" repo
+	remoteDir := initTestRepo(t)
+
+	// Clone it so we have an origin
+	cloneDir := filepath.Join(t.TempDir(), "clone")
+	cmd := exec.Command("git", "clone", remoteDir, cloneDir)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git clone failed: %s: %v", out, err)
+	}
+
+	ref, ok := DefaultRemoteBranch(cloneDir, "origin")
+	if !ok {
+		t.Fatal("expected to detect remote default branch, got ok=false")
+	}
+	// Default branch from git init is typically "main" (or "master" on older git)
+	if ref != "origin/main" && ref != "origin/master" {
+		t.Errorf("DefaultRemoteBranch() = %q, want origin/main or origin/master", ref)
+	}
+}
+
+func TestDefaultRemoteBranch_NoRemote(t *testing.T) {
+	// A plain repo with no remote
+	repoDir := initTestRepo(t)
+
+	_, ok := DefaultRemoteBranch(repoDir, "origin")
+	if ok {
+		t.Error("expected ok=false for repo with no remote")
+	}
+}
+
+func TestDefaultRemoteBranch_NotGitRepo(t *testing.T) {
+	dir := t.TempDir()
+
+	_, ok := DefaultRemoteBranch(dir, "origin")
+	if ok {
+		t.Error("expected ok=false for non-git directory")
+	}
+}
+
 func TestMainWorktreeRoot_NotGitRepo(t *testing.T) {
 	dir := t.TempDir()
 

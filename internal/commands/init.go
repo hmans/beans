@@ -6,9 +6,10 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
+	"github.com/hmans/beans/internal/gitutil"
+	"github.com/hmans/beans/internal/output"
 	"github.com/hmans/beans/pkg/beancore"
 	"github.com/hmans/beans/pkg/config"
-	"github.com/hmans/beans/internal/output"
 )
 
 var initJSON bool
@@ -61,6 +62,11 @@ var initCmd = &cobra.Command{
 			// Config is saved at project root (not inside .beans/)
 			defaultCfg := config.DefaultWithPrefix(dirName + "-")
 			defaultCfg.SetConfigDir(projectDir)
+
+			// Auto-detect the remote's default branch if we're in a git repo
+			if baseRef, ok := gitutil.DefaultRemoteBranch(projectDir, "origin"); ok {
+				defaultCfg.Worktree.BaseRef = baseRef
+			}
 			if err := defaultCfg.Save(projectDir); err != nil {
 				if initJSON {
 					return output.Error(output.ErrFileError, err.Error())

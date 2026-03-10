@@ -11,6 +11,9 @@ beans:
     default_status: todo
     # Default type for new beans
     default_type: task
+worktree:
+    # Git ref to use as the base for new worktree branches (default: origin/main)
+    base_ref: origin/main
 agent:
     # Default permission mode for agent sessions (yolo, act, plan)
     default_permission_mode: yolo

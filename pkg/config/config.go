@@ -137,6 +137,9 @@ func Default() *Config {
 			DefaultStatus: "todo",
 			DefaultType:   "task",
 		},
+		Worktree: WorktreeConfig{
+			BaseRef: DefaultWorktreeBaseRef,
+		},
 		Agent: AgentConfig{
 			DefaultPermissionMode: PermissionModeYolo,
 		},

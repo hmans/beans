@@ -44,6 +44,19 @@ func resolveGitPath(base, p string) string {
 	return filepath.Join(base, p)
 }
 
+// DefaultRemoteBranch returns the default branch ref for the given remote
+// (e.g. "origin/main" or "origin/master"). It uses `git symbolic-ref` to
+// read the remote's HEAD. Returns ("", false) if not in a git repo, the
+// remote doesn't exist, or the remote HEAD hasn't been fetched yet.
+func DefaultRemoteBranch(dir, remote string) (string, bool) {
+	cmd := exec.Command("git", "-C", dir, "symbolic-ref", "--short", "refs/remotes/"+remote+"/HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", false
+	}
+	return strings.TrimSpace(string(out)), true
+}
+
 func gitRevParse(dir, flag string) (string, error) {
 	cmd := exec.Command("git", "-C", dir, "rev-parse", flag)
 	out, err := cmd.Output()
