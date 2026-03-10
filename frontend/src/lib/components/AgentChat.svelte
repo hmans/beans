@@ -79,6 +79,44 @@
 		}
 	}
 
+	function allowPermission() {
+		store.resolvePermission(beanId, true);
+	}
+
+	function alwaysAllowPermission() {
+		store.resolvePermission(beanId, true, true);
+	}
+
+	function denyPermission() {
+		store.resolvePermission(beanId, false);
+	}
+
+	function formatToolInput(toolName: string | null, toolInput: string | null): string {
+		if (!toolInput) return '';
+		try {
+			const input = JSON.parse(toolInput);
+			switch (toolName) {
+				case 'Bash':
+					return input.command ?? '';
+				case 'Write':
+				case 'Read':
+					return input.file_path ?? '';
+				case 'Edit':
+					return input.file_path
+						? `${input.file_path}\n${input.old_string ?? ''} → ${input.new_string ?? ''}`
+						: '';
+				case 'Grep':
+					return input.pattern ? `/${input.pattern}/ ${input.path ?? ''}`.trim() : '';
+				case 'Glob':
+					return input.pattern ?? '';
+				default:
+					return JSON.stringify(input, null, 2);
+			}
+		} catch {
+			return toolInput;
+		}
+	}
+
 	// Auto-scroll to bottom when messages change
 	$effect(() => {
 		messages.length;
@@ -200,7 +238,7 @@
 	{/if}
 
 	<!-- Pending interaction approval -->
-	{#if pendingInteraction && pendingInteraction.type !== 'ASK_USER'}
+	{#if pendingInteraction && pendingInteraction.type !== 'ASK_USER' && pendingInteraction.type !== 'PERMISSION_REQUEST'}
 		<div class={[
 			'border-t p-3',
 			pendingInteraction.type === 'EXIT_PLAN'
@@ -248,6 +286,40 @@
 					class="rounded px-3 py-1 text-xs font-mono cursor-pointer border border-border text-text-muted hover:bg-surface-alt transition-colors"
 				>
 					Reject
+				</button>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Permission request approval -->
+	{#if pendingInteraction?.type === 'PERMISSION_REQUEST'}
+		<div class="border-t border-warning/30 bg-warning/5 p-3">
+			<p class="text-xs font-mono text-warning font-bold mb-1">
+				Permission Request: {pendingInteraction.toolName ?? 'Unknown Tool'}
+			</p>
+
+			{#if formatToolInput(pendingInteraction.toolName, pendingInteraction.toolInput)}
+				<pre class="mb-3 max-h-32 overflow-y-auto rounded border border-border bg-surface p-2 text-xs text-text-muted whitespace-pre-wrap break-all">{formatToolInput(pendingInteraction.toolName, pendingInteraction.toolInput)}</pre>
+			{/if}
+
+			<div class="flex gap-2">
+				<button
+					onclick={allowPermission}
+					class="rounded px-3 py-1 text-xs font-mono cursor-pointer bg-status-in-progress-text text-white hover:opacity-90 transition-colors"
+				>
+					Allow
+				</button>
+				<button
+					onclick={alwaysAllowPermission}
+					class="rounded px-3 py-1 text-xs font-mono cursor-pointer bg-accent text-accent-text hover:opacity-90 transition-colors"
+				>
+					Always Allow
+				</button>
+				<button
+					onclick={denyPermission}
+					class="rounded px-3 py-1 text-xs font-mono cursor-pointer border border-border text-text-muted hover:bg-surface-alt transition-colors"
+				>
+					Deny
 				</button>
 			</div>
 		</div>

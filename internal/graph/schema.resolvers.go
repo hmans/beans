@@ -619,6 +619,17 @@ func (r *mutationResolver) ClearAgentSession(ctx context.Context, beanID string)
 	return true, nil
 }
 
+// ResolvePermission is the resolver for the resolvePermission field.
+func (r *mutationResolver) ResolvePermission(ctx context.Context, beanID string, allow bool, always *bool) (bool, error) {
+	if r.AgentMgr == nil {
+		return false, fmt.Errorf("agent manager not available")
+	}
+	if err := r.AgentMgr.ResolvePermission(beanID, allow); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // Bean is the resolver for the bean field.
 func (r *queryResolver) Bean(ctx context.Context, id string) (*bean.Bean, error) {
 	b, err := r.Core.Get(id)

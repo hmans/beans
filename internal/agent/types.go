@@ -35,17 +35,26 @@ type ToolInvocation struct {
 type InteractionType string
 
 const (
-	InteractionExitPlan  InteractionType = "exit_plan"
-	InteractionEnterPlan InteractionType = "enter_plan"
-	InteractionAskUser   InteractionType = "ask_user"
+	InteractionExitPlan   InteractionType = "exit_plan"
+	InteractionEnterPlan  InteractionType = "enter_plan"
+	InteractionAskUser    InteractionType = "ask_user"
+	InteractionPermission InteractionType = "permission_request"
 )
 
+// PermissionDenial represents a tool call that Claude Code auto-denied.
+// Parsed from the permission_denials field in result events.
+type PermissionDenial struct {
+	ToolName  string         `json:"tool_name"`
+	ToolInput map[string]any `json:"tool_input"`
+}
+
 // PendingInteraction represents a blocking tool call that requires user input.
-// When set, the agent process has been killed and is waiting for the user to respond
-// before resuming with --resume.
+// For plan/mode interactions, the process has been killed and will resume with --resume.
+// For permission denials, the turn completed and the user must approve tools before retrying.
 type PendingInteraction struct {
-	Type        InteractionType
-	PlanContent string // plan file content (for exit_plan only)
+	Type              InteractionType
+	PlanContent       string             // plan file content (for exit_plan only)
+	PermissionDenials []PermissionDenial // denied tools (for permission_request only)
 }
 
 // Session represents an active or idle agent conversation for a worktree.
@@ -64,6 +73,10 @@ type Session struct {
 	// ToolInvocations tracks structured tool calls in the current turn.
 	// Reset on each new user message. Used to find plan files, etc.
 	ToolInvocations []ToolInvocation
+
+	// AllowedTools accumulates tool patterns approved by the user (e.g. "Read", "Bash(ls)").
+	// Passed as --allowedTools on next process spawn.
+	AllowedTools []string
 
 	// PendingInteraction is set when the agent calls a blocking tool
 	// (ExitPlanMode, EnterPlanMode) and is waiting for user approval.

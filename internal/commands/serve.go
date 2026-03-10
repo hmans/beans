@@ -163,3 +163,4 @@ func RegisterServeCmd(root *cobra.Command) {
 	serveCmd.Flags().IntVarP(&servePort, "port", "p", config.DefaultServerPort, "Port to listen on")
 	root.AddCommand(serveCmd)
 }
+

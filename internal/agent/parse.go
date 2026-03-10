@@ -21,10 +21,11 @@ type streamEvent struct {
 	ContentBlock *contentBlockPayload `json:"content_block,omitempty"`
 
 	// For "result" events
-	SessionID string  `json:"session_id,omitempty"`
-	Result    string  `json:"result,omitempty"`
-	IsError   bool    `json:"is_error,omitempty"`
-	CostUSD   float64 `json:"total_cost_usd,omitempty"`
+	SessionID          string              `json:"session_id,omitempty"`
+	Result             string              `json:"result,omitempty"`
+	IsError            bool                `json:"is_error,omitempty"`
+	CostUSD            float64             `json:"total_cost_usd,omitempty"`
+	PermissionDenials  []PermissionDenial  `json:"permission_denials,omitempty"`
 
 	// For error events
 	Error *errorPayload `json:"error,omitempty"`
@@ -66,11 +67,12 @@ type errorPayload struct {
 
 // parsedEvent is the normalized result of parsing a stream-json line.
 type parsedEvent struct {
-	Type      parsedEventType
-	Text      string // for TextDelta / AssistantMessage / Result
-	ToolName  string // for ToolUse
-	SessionID string // for Result / AssistantMessage
-	Error     string // for Error
+	Type              parsedEventType
+	Text              string             // for TextDelta / AssistantMessage / Result
+	ToolName          string             // for ToolUse
+	SessionID         string             // for Result / AssistantMessage
+	Error             string             // for Error
+	PermissionDenials []PermissionDenial // for Result — tools that were auto-denied
 }
 
 type parsedEventType int
@@ -140,7 +142,7 @@ func parseStreamLine(line []byte) parsedEvent {
 		if ev.IsError {
 			return parsedEvent{Type: eventError, Error: ev.Result, SessionID: ev.SessionID}
 		}
-		return parsedEvent{Type: eventResult, Text: ev.Result, SessionID: ev.SessionID}
+		return parsedEvent{Type: eventResult, Text: ev.Result, SessionID: ev.SessionID, PermissionDenials: ev.PermissionDenials}
 
 	case "error":
 		msg := "unknown error"

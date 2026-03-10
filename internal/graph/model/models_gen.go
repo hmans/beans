@@ -156,6 +156,10 @@ type PendingInteraction struct {
 	Type InteractionType `json:"type"`
 	// Plan file content (for EXIT_PLAN only)
 	PlanContent *string `json:"planContent,omitempty"`
+	// Tool name requesting permission (for PERMISSION_REQUEST only)
+	ToolName *string `json:"toolName,omitempty"`
+	// Tool input as JSON string (for PERMISSION_REQUEST only)
+	ToolInput *string `json:"toolInput,omitempty"`
 }
 
 type Query struct {
@@ -404,20 +408,22 @@ func (e ChangeType) MarshalJSON() ([]byte, error) {
 type InteractionType string
 
 const (
-	InteractionTypeExitPlan  InteractionType = "EXIT_PLAN"
-	InteractionTypeEnterPlan InteractionType = "ENTER_PLAN"
-	InteractionTypeAskUser   InteractionType = "ASK_USER"
+	InteractionTypeExitPlan          InteractionType = "EXIT_PLAN"
+	InteractionTypeEnterPlan         InteractionType = "ENTER_PLAN"
+	InteractionTypeAskUser           InteractionType = "ASK_USER"
+	InteractionTypePermissionRequest InteractionType = "PERMISSION_REQUEST"
 )
 
 var AllInteractionType = []InteractionType{
 	InteractionTypeExitPlan,
 	InteractionTypeEnterPlan,
 	InteractionTypeAskUser,
+	InteractionTypePermissionRequest,
 }
 
 func (e InteractionType) IsValid() bool {
 	switch e {
-	case InteractionTypeExitPlan, InteractionTypeEnterPlan, InteractionTypeAskUser:
+	case InteractionTypeExitPlan, InteractionTypeEnterPlan, InteractionTypeAskUser, InteractionTypePermissionRequest:
 		return true
 	}
 	return false

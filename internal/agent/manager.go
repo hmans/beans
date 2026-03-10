@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"fmt"
 	"log"
 	"sync"
 )
@@ -268,6 +269,66 @@ func (m *Manager) SetYoloMode(beanID string, yoloMode bool) error {
 
 	m.notify(beanID)
 	return nil
+}
+
+// ResolvePermission handles the user's response to a permission denial.
+// If allow is true, the denied tool patterns are added to AllowedTools,
+// the process is killed (so it respawns with --allowedTools), and a
+// continuation message is sent. If deny, the interaction is simply cleared.
+func (m *Manager) ResolvePermission(beanID string, allow bool) error {
+	m.mu.Lock()
+	s, ok := m.sessions[beanID]
+	if !ok {
+		m.mu.Unlock()
+		return fmt.Errorf("no session for bean %s", beanID)
+	}
+	pending := s.PendingInteraction
+	if pending == nil || pending.Type != InteractionPermission {
+		m.mu.Unlock()
+		return fmt.Errorf("no pending permission request for bean %s", beanID)
+	}
+
+	if allow {
+		// Add denied tool names to the allowed list for future spawns
+		for _, d := range pending.PermissionDenials {
+			s.AllowedTools = appendUnique(s.AllowedTools, d.ToolName)
+		}
+	}
+
+	s.PendingInteraction = nil
+
+	// Kill the running process so it respawns with updated --allowedTools
+	proc, hasProc := m.processes[beanID]
+	if hasProc {
+		delete(m.processes, beanID)
+		s.Status = StatusIdle
+	}
+	m.mu.Unlock()
+
+	if hasProc && proc != nil {
+		proc.kill()
+	}
+
+	m.notify(beanID)
+
+	if allow {
+		// Re-send "yes, proceed" to trigger respawn with --allowedTools + --resume
+		go func() {
+			_ = m.SendMessage(beanID, s.WorkDir, "yes, proceed")
+		}()
+	}
+
+	return nil
+}
+
+// appendUnique adds a string to a slice if not already present.
+func appendUnique(slice []string, val string) []string {
+	for _, s := range slice {
+		if s == val {
+			return slice
+		}
+	}
+	return append(slice, val)
 }
 
 // ClearSession stops any running process, removes the session from memory,

@@ -383,6 +383,16 @@ func (m *Manager) readOutput(beanID string, stdout io.Reader) {
 				s.streamingIdx = -1
 				s.Status = StatusIdle
 				s.SystemStatus = ""
+
+				// If there were permission denials, set a pending interaction
+				// so the UI can show the approval dialog
+				if len(ev.PermissionDenials) > 0 {
+					s.PendingInteraction = &PendingInteraction{
+						Type:              InteractionPermission,
+						PermissionDenials: ev.PermissionDenials,
+					}
+					log.Printf("[agent:%s] %d permission denial(s)", beanID, len(ev.PermissionDenials))
+				}
 			}
 			m.mu.Unlock()
 			m.notify(beanID)
@@ -536,6 +546,11 @@ func buildClaudeArgs(session *Session) []string {
 		args = append(args, "--dangerously-skip-permissions")
 	} else if session.PlanMode {
 		args = append(args, "--permission-mode", "plan")
+	}
+	// In act mode (not plan, not yolo), pass any user-approved tool patterns.
+	// These accumulate as the user approves permission denials during the session.
+	for _, tool := range session.AllowedTools {
+		args = append(args, "--allowedTools", tool)
 	}
 	if session.SessionID != "" {
 		args = append(args, "--resume", session.SessionID)

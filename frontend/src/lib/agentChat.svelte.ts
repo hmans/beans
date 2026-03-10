@@ -7,11 +7,13 @@ export interface AgentMessage {
 	content: string;
 }
 
-export type InteractionType = 'EXIT_PLAN' | 'ENTER_PLAN' | 'ASK_USER';
+export type InteractionType = 'EXIT_PLAN' | 'ENTER_PLAN' | 'ASK_USER' | 'PERMISSION_REQUEST';
 
 export interface PendingInteraction {
 	type: InteractionType;
 	planContent: string | null;
+	toolName: string | null;
+	toolInput: string | null;
 }
 
 export interface AgentSession {
@@ -43,6 +45,8 @@ const AGENT_SESSION_SUBSCRIPTION = gql`
 			pendingInteraction {
 				type
 				planContent
+				toolName
+				toolInput
 			}
 		}
 	}
@@ -75,6 +79,12 @@ const SET_AGENT_YOLO_MODE = gql`
 const CLEAR_AGENT_SESSION = gql`
 	mutation ClearAgentSession($beanId: ID!) {
 		clearAgentSession(beanId: $beanId)
+	}
+`;
+
+const RESOLVE_PERMISSION = gql`
+	mutation ResolvePermission($beanId: ID!, $allow: Boolean!, $always: Boolean) {
+		resolvePermission(beanId: $beanId, allow: $allow, always: $always)
 	}
 `;
 
@@ -196,6 +206,19 @@ export class AgentChatStore {
 	async setYoloMode(beanId: string, yoloMode: boolean): Promise<boolean> {
 		const result = await client
 			.mutation(SET_AGENT_YOLO_MODE, { beanId, yoloMode })
+			.toPromise();
+
+		if (result.error) {
+			this.error = result.error.message;
+			return false;
+		}
+
+		return true;
+	}
+
+	async resolvePermission(beanId: string, allow: boolean, always?: boolean): Promise<boolean> {
+		const result = await client
+			.mutation(RESOLVE_PERMISSION, { beanId, allow, always: always ?? null })
 			.toPromise();
 
 		if (result.error) {

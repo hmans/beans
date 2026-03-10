@@ -151,6 +151,12 @@ type Mutation {
   session from memory, and deletes persisted conversation history.
   """
   clearAgentSession(beanId: ID!): Boolean!
+
+  """
+  Resolve a pending permission request. When allow is true, the tool call proceeds.
+  When always is true, Claude Code remembers the permission for the session.
+  """
+  resolvePermission(beanId: ID!, allow: Boolean!, always: Boolean): Boolean!
 }
 
 """
@@ -413,6 +419,10 @@ type PendingInteraction {
   type: InteractionType!
   "Plan file content (for EXIT_PLAN only)"
   planContent: String
+  "Tool name requesting permission (for PERMISSION_REQUEST only)"
+  toolName: String
+  "Tool input as JSON string (for PERMISSION_REQUEST only)"
+  toolInput: String
 }
 
 """
@@ -422,6 +432,7 @@ enum InteractionType {
   EXIT_PLAN
   ENTER_PLAN
   ASK_USER
+  PERMISSION_REQUEST
 }
 
 """

@@ -722,6 +722,138 @@ func TestBuildClaudeArgs_YoloOverridesPlan(t *testing.T) {
 	}
 }
 
+func TestResolvePermission_Allow(t *testing.T) {
+	m := NewManager("")
+	ch := m.Subscribe("test")
+	defer m.Unsubscribe("test", ch)
+
+	m.sessions["test"] = &Session{
+		ID:      "test",
+		Status:  StatusRunning,
+		WorkDir: "/tmp/test",
+		PendingInteraction: &PendingInteraction{
+			Type: InteractionPermission,
+			PermissionDenials: []PermissionDenial{
+				{ToolName: "Write", ToolInput: map[string]any{"file_path": "/tmp/test.txt"}},
+			},
+		},
+	}
+
+	// Drain any notification
+	select {
+	case <-ch:
+	default:
+	}
+
+	err := m.ResolvePermission("test", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// PendingInteraction should be cleared
+	s := m.sessions["test"]
+	if s.PendingInteraction != nil {
+		t.Error("expected PendingInteraction to be cleared")
+	}
+
+	// AllowedTools should contain the denied tool
+	found := false
+	for _, tool := range s.AllowedTools {
+		if tool == "Write" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected Write in AllowedTools, got %v", s.AllowedTools)
+	}
+
+	// Should have notified
+	select {
+	case <-ch:
+	default:
+		t.Error("expected notification")
+	}
+}
+
+func TestResolvePermission_Deny(t *testing.T) {
+	m := NewManager("")
+
+	m.sessions["test"] = &Session{
+		ID:     "test",
+		Status: StatusRunning,
+		PendingInteraction: &PendingInteraction{
+			Type: InteractionPermission,
+			PermissionDenials: []PermissionDenial{
+				{ToolName: "Bash"},
+			},
+		},
+	}
+
+	err := m.ResolvePermission("test", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	s := m.sessions["test"]
+	if s.PendingInteraction != nil {
+		t.Error("expected PendingInteraction to be cleared")
+	}
+	// AllowedTools should NOT contain the denied tool
+	if len(s.AllowedTools) > 0 {
+		t.Errorf("expected empty AllowedTools on deny, got %v", s.AllowedTools)
+	}
+}
+
+func TestResolvePermission_NoSession(t *testing.T) {
+	m := NewManager("")
+	err := m.ResolvePermission("nonexistent", true)
+	if err == nil {
+		t.Error("expected error for nonexistent session")
+	}
+}
+
+func TestResolvePermission_NoPending(t *testing.T) {
+	m := NewManager("")
+	m.sessions["test"] = &Session{
+		ID:     "test",
+		Status: StatusIdle,
+	}
+	err := m.ResolvePermission("test", true)
+	if err == nil {
+		t.Error("expected error when no pending permission")
+	}
+}
+
+func TestBuildClaudeArgs_ActMode(t *testing.T) {
+	// Act mode: not plan, not yolo — should have no special permission flags
+	args := buildClaudeArgs(&Session{ID: "bean-123"})
+	for _, a := range args {
+		if a == "--dangerously-skip-permissions" {
+			t.Errorf("unexpected --dangerously-skip-permissions in act mode")
+		}
+		if a == "--permission-mode" {
+			t.Errorf("unexpected --permission-mode in act mode")
+		}
+	}
+}
+
+func TestBuildClaudeArgs_AllowedTools(t *testing.T) {
+	args := buildClaudeArgs(&Session{
+		ID:           "bean-123",
+		AllowedTools: []string{"Read", "Bash"},
+	})
+	// Should have --allowedTools for each tool
+	count := 0
+	for i, a := range args {
+		if a == "--allowedTools" && i+1 < len(args) {
+			count++
+		}
+	}
+	if count != 2 {
+		t.Errorf("expected 2 --allowedTools flags, got %d in %v", count, args)
+	}
+}
+
 func TestShutdown(t *testing.T) {
 	m := NewManager("")
 	// Just verify it doesn't panic with no processes
