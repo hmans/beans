@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestNewStore_CreatesDirectoryAndGitignore(t *testing.T) {
+func TestNewStore_CreatesDirectory(t *testing.T) {
 	dir := t.TempDir()
 	beansDir := filepath.Join(dir, ".beans")
 	if err := os.MkdirAll(beansDir, 0o755); err != nil {
@@ -22,29 +22,6 @@ func TestNewStore_CreatesDirectoryAndGitignore(t *testing.T) {
 	convDir := filepath.Join(beansDir, ".conversations")
 	if info, err := os.Stat(convDir); err != nil || !info.IsDir() {
 		t.Fatalf(".conversations dir not created")
-	}
-
-	// .gitignore should exist with correct content
-	gitignore := filepath.Join(convDir, ".gitignore")
-	data, err := os.ReadFile(gitignore)
-	if err != nil {
-		t.Fatalf("read .gitignore: %v", err)
-	}
-	if string(data) != "*\n!.gitignore\n" {
-		t.Errorf(".gitignore content = %q, want %q", string(data), "*\n!.gitignore\n")
-	}
-
-	// Second call should not overwrite .gitignore
-	if err := os.WriteFile(gitignore, []byte("custom\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	_, err = newStore(beansDir)
-	if err != nil {
-		t.Fatalf("second newStore: %v", err)
-	}
-	data, _ = os.ReadFile(gitignore)
-	if string(data) != "custom\n" {
-		t.Error("newStore overwrote existing .gitignore")
 	}
 
 	_ = s // used

@@ -22,19 +22,11 @@ type entry struct {
 	SessionID string `json:"session_id,omitempty"` // for meta
 }
 
-// newStore creates the conversations directory and .gitignore if needed.
+// newStore creates the conversations directory if needed.
 func newStore(beansDir string) (*store, error) {
 	dir := filepath.Join(beansDir, ".conversations")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("create conversations dir: %w", err)
-	}
-
-	// Write .gitignore to exclude all conversation files
-	gitignore := filepath.Join(dir, ".gitignore")
-	if _, err := os.Stat(gitignore); os.IsNotExist(err) {
-		if err := os.WriteFile(gitignore, []byte("*\n!.gitignore\n"), 0o644); err != nil {
-			return nil, fmt.Errorf("create .gitignore: %w", err)
-		}
 	}
 
 	return &store{dir: dir}, nil

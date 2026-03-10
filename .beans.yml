@@ -11,6 +11,9 @@ beans:
     default_status: todo
     # Default type for new beans
     default_type: task
+agent:
+    # Default permission mode for agent sessions (yolo, act, plan)
+    default_permission_mode: yolo
 server:
-    # Port for the web UI (used by `beans serve`)
+    # Port for the web UI (used by `beans-serve`)
     port: 8080
