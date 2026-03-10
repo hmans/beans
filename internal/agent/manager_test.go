@@ -601,6 +601,17 @@ func TestBuildClaudeArgs_NoPlanMode(t *testing.T) {
 	}
 }
 
+func TestLoadOrCreateSession_DefaultsToYoloMode(t *testing.T) {
+	m := NewManager("")
+	m.mu.Lock()
+	s := m.loadOrCreateSession("test", "/tmp/test")
+	m.mu.Unlock()
+
+	if !s.YoloMode {
+		t.Error("expected new sessions to default to YoloMode=true")
+	}
+}
+
 func TestSetYoloMode_CreatesSession(t *testing.T) {
 	m := NewManager("")
 
@@ -626,18 +637,18 @@ func TestSetYoloMode_TogglesExisting(t *testing.T) {
 	m.sessions["test"] = &Session{
 		ID:        "test",
 		Status:    StatusIdle,
-		YoloMode:  false,
+		YoloMode:  true,
 		SessionID: "sess-123",
 	}
 
-	err := m.SetYoloMode("test", true)
+	err := m.SetYoloMode("test", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	s := m.sessions["test"]
-	if !s.YoloMode {
-		t.Error("expected YoloMode to be true")
+	if s.YoloMode {
+		t.Error("expected YoloMode to be false")
 	}
 	if s.SessionID != "sess-123" {
 		t.Errorf("expected SessionID to be preserved, got %q", s.SessionID)

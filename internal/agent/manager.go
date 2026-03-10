@@ -69,6 +69,7 @@ func (m *Manager) GetSession(beanID string) *Session {
 			Status:       StatusIdle,
 			Messages:     msgs,
 			SessionID:    sessionID,
+			YoloMode:     true,
 			streamingIdx: -1,
 		}
 		m.sessions[beanID] = s
@@ -383,6 +384,7 @@ func (m *Manager) loadOrCreateSession(beanID, workDir string) *Session {
 		AgentType:    "claude",
 		Status:       StatusIdle,
 		WorkDir:      workDir,
+		YoloMode:     true,
 		streamingIdx: -1,
 	}
 
