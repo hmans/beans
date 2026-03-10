@@ -1,5 +1,5 @@
 @import 'tailwindcss';
-@plugin "@iconify/tailwind4";
+@plugin '@iconify/tailwind4';
 
 button,
 a,
@@ -37,7 +37,7 @@ button:disabled {
 }
 
 .btn-tab-sm {
-	@apply inline-flex items-center gap-1 h-6 border px-2 text-xs font-medium transition-colors;
+	@apply inline-flex h-6 items-center gap-1 border px-2 text-xs font-medium transition-colors;
 }
 
 .btn-tab-sm-inactive {
@@ -134,12 +134,14 @@ button:disabled {
 		linear-gradient(to right, var(--th-md-code-bg) 1rem, transparent),
 		/* right cover (scrolls with content) */
 		linear-gradient(to left, var(--th-md-code-bg) 1rem, transparent),
-		/* left shadow (fixed) */
-		linear-gradient(to right, var(--code-scroll-shadow), transparent),
-		/* right shadow (fixed) */
-		linear-gradient(to left, var(--code-scroll-shadow), transparent);
+		/* left shadow (fixed) */ linear-gradient(to right, var(--code-scroll-shadow), transparent),
+		/* right shadow (fixed) */ linear-gradient(to left, var(--code-scroll-shadow), transparent);
 	background-position: left, right, left, right;
-	background-size: 3rem 100%, 3rem 100%, 2rem 100%, 2rem 100%;
+	background-size:
+		3rem 100%,
+		3rem 100%,
+		2rem 100%,
+		2rem 100%;
 	background-attachment: local, local, scroll, scroll;
 	background-repeat: no-repeat;
 }
@@ -248,24 +250,24 @@ button:disabled {
 		--th-surface: var(--color-zinc-900);
 		--th-surface-alt: var(--color-zinc-800);
 		--th-surface-dim: var(--color-zinc-700);
-		--th-border: var(--color-zinc-600);
+		--th-border: var(--color-zinc-700);
 		--th-text: var(--color-zinc-300);
 		--th-text-muted: var(--color-zinc-400);
 		--th-text-faint: var(--color-zinc-500);
-		--th-accent: var(--color-blue-400);
+		--th-accent: var(--color-zinc-300);
 		--th-accent-text: var(--color-zinc-900);
 		--th-danger: var(--color-red-500);
 		--th-warning: var(--color-amber-500);
 		--th-success: var(--color-green-500);
 		--th-info: var(--color-blue-400);
 
-		--th-status-draft-bg: var(--color-zinc-800);
+		--th-status-draft-bg: var(--color-zinc-700);
 		--th-status-draft-text: var(--color-zinc-400);
-		--th-status-todo-bg: var(--color-green-950);
+		--th-status-todo-bg: var(--color-green-900);
 		--th-status-todo-text: var(--color-green-400);
-		--th-status-in-progress-bg: var(--color-blue-950);
+		--th-status-in-progress-bg: var(--color-sky-900);
 		--th-status-in-progress-text: var(--color-blue-300);
-		--th-status-completed-bg: var(--color-purple-950);
+		--th-status-completed-bg: var(--color-purple-900);
 		--th-status-completed-text: var(--color-purple-300);
 		--th-status-scrapped-bg: var(--color-red-950);
 		--th-status-scrapped-text: var(--color-red-300);
@@ -281,7 +283,7 @@ button:disabled {
 		--th-type-feature-bg: var(--color-cyan-950);
 		--th-type-feature-text: var(--color-cyan-300);
 		--th-type-feature-border: var(--color-cyan-600);
-		--th-type-bug-bg: var(--color-red-950);
+		--th-type-bug-bg: var(--color-red-900);
 		--th-type-bug-text: var(--color-red-300);
 		--th-type-bug-border: var(--color-red-500);
 		--th-type-task-bg: var(--color-zinc-800);
