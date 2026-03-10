@@ -31,8 +31,8 @@
 	});
 
 	function handleKeydown(e: KeyboardEvent) {
-		// Cmd/Ctrl+F to focus filter input
-		if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+		// Cmd/Ctrl+F or Cmd/Ctrl+/ to focus filter input
+		if ((e.metaKey || e.ctrlKey) && (e.key === 'f' || e.key === '/')) {
 			e.preventDefault();
 			filterInput?.focus();
 			return;
