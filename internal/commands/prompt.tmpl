@@ -16,12 +16,12 @@ BEFORE starting any task:
 
 - FIRST: Check if there already is an existing bean about this work. If there isn't, create a bean with `beans create "Title" -t <type> -d "Description..." -s in-progress`
 - THEN: Do the work, and keep the bean's todo items current (check off what has been done, as it happens; `- [ ]` → `- [x]`)
-- WHEN COMMITTING: Always update the bean BEFORE committing so that the bean file changes are included in the same commit as the code changes. Include both code changes AND bean file(s) in every commit.
+- FINALLY: ONLY if the bean has no unchecked todo items left, mark it completed with `beans update <bean-id> -s completed`.
+- WHEN COMMITTING: Include both code changes AND bean file(s) in the commit
 
 AFTER finishing any task:
 
-- **Mark the bean completed/scrapped BEFORE making the final commit**, so the status change is included in the commit.
-- When COMPLETING a bean (ONLY if it has no unchecked todo items left), mark it completed with `beans update <bean-id> -s completed` and add a `## Summary of Changes` section describing what was done.
+- When COMPLETING a bean, update it with a `## Summary of Changes` section describing what was done.
 - When SCRAPPING a bean, update it with a `## Reasons for Scrapping` section explaining why.
 - Offer to create follow-up beans for any non-urgent work that was deferred.
 
