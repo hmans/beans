@@ -592,10 +592,11 @@ func TestBuildClaudeArgs_PlanMode(t *testing.T) {
 }
 
 func TestBuildClaudeArgs_NoPlanMode(t *testing.T) {
+	// When not in plan mode, should use acceptEdits (not plan)
 	args := buildClaudeArgs(&Session{PlanMode: false})
-	for _, a := range args {
-		if a == "--permission-mode" {
-			t.Errorf("unexpected --permission-mode in args: %v", args)
+	for i, a := range args {
+		if a == "--permission-mode" && i+1 < len(args) && args[i+1] == "plan" {
+			t.Errorf("unexpected --permission-mode plan in non-plan args: %v", args)
 		}
 	}
 }
@@ -825,15 +826,32 @@ func TestResolvePermission_NoPending(t *testing.T) {
 }
 
 func TestBuildClaudeArgs_ActMode(t *testing.T) {
-	// Act mode: not plan, not yolo — should have no special permission flags
+	// Act mode: not plan, not yolo — should use acceptEdits and allow beans CLI
 	args := buildClaudeArgs(&Session{ID: "bean-123"})
 	for _, a := range args {
 		if a == "--dangerously-skip-permissions" {
 			t.Errorf("unexpected --dangerously-skip-permissions in act mode")
 		}
-		if a == "--permission-mode" {
-			t.Errorf("unexpected --permission-mode in act mode")
+	}
+	// Should have --permission-mode acceptEdits
+	foundAcceptEdits := false
+	for i, a := range args {
+		if a == "--permission-mode" && i+1 < len(args) && args[i+1] == "acceptEdits" {
+			foundAcceptEdits = true
 		}
+	}
+	if !foundAcceptEdits {
+		t.Errorf("expected --permission-mode acceptEdits in act mode, got %v", args)
+	}
+	// Should have --allowedTools Bash(beans:*)
+	foundBeans := false
+	for i, a := range args {
+		if a == "--allowedTools" && i+1 < len(args) && args[i+1] == "Bash(beans:*)" {
+			foundBeans = true
+		}
+	}
+	if !foundBeans {
+		t.Errorf("expected --allowedTools Bash(beans:*) in act mode, got %v", args)
 	}
 }
 
@@ -842,15 +860,15 @@ func TestBuildClaudeArgs_AllowedTools(t *testing.T) {
 		ID:           "bean-123",
 		AllowedTools: []string{"Read", "Bash"},
 	})
-	// Should have --allowedTools for each tool
+	// Should have --allowedTools for each user tool + the default Bash(beans:*)
 	count := 0
 	for i, a := range args {
 		if a == "--allowedTools" && i+1 < len(args) {
 			count++
 		}
 	}
-	if count != 2 {
-		t.Errorf("expected 2 --allowedTools flags, got %d in %v", count, args)
+	if count != 3 {
+		t.Errorf("expected 3 --allowedTools flags (1 default + 2 user), got %d in %v", count, args)
 	}
 }
 
