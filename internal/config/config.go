@@ -326,7 +326,7 @@ func (c *Config) toYAMLNode() *yaml.Node {
 	serverMapping := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 	if c.Server.Port != 0 {
 		portKey := strNode("port")
-		portKey.HeadComment = "Port for the web UI (used by `beans serve`)"
+		portKey.HeadComment = "Port for the web UI (used by `beans-serve`)"
 		serverMapping.Content = append(serverMapping.Content, portKey, intNode(c.Server.Port))
 	}
 
