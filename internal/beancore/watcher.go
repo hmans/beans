@@ -131,9 +131,13 @@ func (c *Core) Watch(onChange func()) error {
 	}
 
 	// Watch all subdirectories (best effort - don't fail if any can't be watched)
+	// Skip dot-prefixed subdirectories (e.g. .worktrees/, .conversations/)
 	_ = filepath.WalkDir(c.root, func(path string, d os.DirEntry, err error) error {
 		if err != nil || !d.IsDir() || path == c.root {
 			return nil
+		}
+		if strings.HasPrefix(d.Name(), ".") {
+			return filepath.SkipDir
 		}
 		_ = watcher.Add(path)
 		return nil
@@ -208,6 +212,11 @@ func (c *Core) watchLoop(watcher *fsnotify.Watcher) {
 			// Verify the file is within the .beans directory
 			relPath, err := filepath.Rel(c.root, event.Name)
 			if err != nil || strings.HasPrefix(relPath, "..") {
+				continue
+			}
+
+			// Skip events from dot-prefixed subdirectories (e.g. .worktrees/, .conversations/)
+			if topDir, _, ok := strings.Cut(relPath, string(filepath.Separator)); ok && strings.HasPrefix(topDir, ".") {
 				continue
 			}
 

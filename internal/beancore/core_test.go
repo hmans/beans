@@ -2105,3 +2105,39 @@ func TestUpdateWithETagDebug(t *testing.T) {
 		t.Logf("Update failed: %v", err)
 	}
 }
+
+func TestLoadSkipsDotPrefixedSubdirectories(t *testing.T) {
+	core, beansDir := setupTestCore(t)
+
+	// Create a real bean
+	createTestBean(t, core, "test-real", "Real Bean", "todo")
+
+	// Create .md files inside dot-prefixed subdirs that should be ignored
+	for _, subdir := range []string{".worktrees/some-branch", ".conversations", ".other"} {
+		dir := filepath.Join(beansDir, subdir)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("mkdir %s: %v", dir, err)
+		}
+		content := "---\ntitle: Bogus\nstatus: todo\ntype: task\n---\nShould not load\n"
+		if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte(content), 0644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+
+	// Reload and verify only the real bean is loaded
+	if err := core.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	all := core.All()
+	if len(all) != 1 {
+		names := make([]string, len(all))
+		for i, b := range all {
+			names[i] = fmt.Sprintf("%s (path=%s)", b.ID, b.Path)
+		}
+		t.Fatalf("expected 1 bean, got %d: %v", len(all), names)
+	}
+	if all[0].ID != "test-real" {
+		t.Fatalf("expected bean id test-real, got %s", all[0].ID)
+	}
+}

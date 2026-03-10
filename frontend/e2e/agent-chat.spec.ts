@@ -7,7 +7,7 @@ test.describe('Agent chat', () => {
 		// Seed a conversation file directly — the agent manager loads from disk
 		// when a subscription connects with no in-memory session, so no Claude
 		// process is needed.
-		const convDir = join(beans.beansPath, 'conversations');
+		const convDir = join(beans.beansPath, '.conversations');
 		mkdirSync(convDir, { recursive: true });
 		writeFileSync(
 			join(convDir, '__central__.jsonl'),

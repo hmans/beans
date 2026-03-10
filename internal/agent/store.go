@@ -9,9 +9,9 @@ import (
 )
 
 // store handles JSONL persistence for agent conversations.
-// Each bean gets a file at <beansDir>/conversations/<beanID>.jsonl.
+// Each bean gets a file at <beansDir>/.conversations/<beanID>.jsonl.
 type store struct {
-	dir string // .beans/conversations/
+	dir string // .beans/.conversations/
 }
 
 // entry is a single line in the JSONL file.
@@ -24,7 +24,7 @@ type entry struct {
 
 // newStore creates the conversations directory and .gitignore if needed.
 func newStore(beansDir string) (*store, error) {
-	dir := filepath.Join(beansDir, "conversations")
+	dir := filepath.Join(beansDir, ".conversations")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("create conversations dir: %w", err)
 	}

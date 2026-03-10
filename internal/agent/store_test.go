@@ -19,9 +19,9 @@ func TestNewStore_CreatesDirectoryAndGitignore(t *testing.T) {
 	}
 
 	// Conversations dir should exist
-	convDir := filepath.Join(beansDir, "conversations")
+	convDir := filepath.Join(beansDir, ".conversations")
 	if info, err := os.Stat(convDir); err != nil || !info.IsDir() {
-		t.Fatalf("conversations dir not created")
+		t.Fatalf(".conversations dir not created")
 	}
 
 	// .gitignore should exist with correct content

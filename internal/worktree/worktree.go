@@ -260,7 +260,7 @@ func (m *Manager) findWorktreePath(beanID string) (string, error) {
 }
 
 // worktreePath returns the path for a worktree associated with a bean.
-// Worktrees are stored inside the .beans/worktrees/ directory.
+// Worktrees are stored inside the .beans/.worktrees/ directory.
 func (m *Manager) worktreePath(beanID string) string {
-	return filepath.Join(m.beansDir, "worktrees", beanID)
+	return filepath.Join(m.beansDir, ".worktrees", beanID)
 }

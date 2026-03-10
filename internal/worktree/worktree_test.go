@@ -163,7 +163,7 @@ func TestCreateAndList(t *testing.T) {
 		t.Errorf("Branch = %q, want %q", wt.Branch, "beans/beans-test1")
 	}
 
-	expectedPath := filepath.Join(beansDir, "worktrees", "beans-test1")
+	expectedPath := filepath.Join(beansDir, ".worktrees", "beans-test1")
 	if wt.Path != expectedPath {
 		t.Errorf("Path = %q, want %q", wt.Path, expectedPath)
 	}
