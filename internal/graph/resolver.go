@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/hmans/beans/internal/agent"
-	"github.com/hmans/beans/bean"
-	"github.com/hmans/beans/beancore"
+	"github.com/hmans/beans/pkg/bean"
+	"github.com/hmans/beans/pkg/beancore"
 	"github.com/hmans/beans/internal/worktree"
 )
 

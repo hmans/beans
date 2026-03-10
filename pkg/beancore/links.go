@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hmans/beans/bean"
+	"github.com/hmans/beans/pkg/bean"
 )
 
 // IncomingLink represents a link from another bean to a target bean.

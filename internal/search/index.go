@@ -4,7 +4,7 @@ package search
 import (
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/mapping"
-	"github.com/hmans/beans/bean"
+	"github.com/hmans/beans/pkg/bean"
 )
 
 // Index wraps a Bleve in-memory index for searching beans.

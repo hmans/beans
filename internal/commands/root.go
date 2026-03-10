@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/hmans/beans/beancore"
-	"github.com/hmans/beans/config"
+	"github.com/hmans/beans/pkg/beancore"
+	"github.com/hmans/beans/pkg/config"
 	"github.com/hmans/beans/internal/gitutil"
 	"github.com/spf13/cobra"
 )

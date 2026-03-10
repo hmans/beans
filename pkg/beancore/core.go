@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hmans/beans/bean"
-	"github.com/hmans/beans/config"
+	"github.com/hmans/beans/pkg/bean"
+	"github.com/hmans/beans/pkg/config"
 	"github.com/hmans/beans/internal/search"
 )
 

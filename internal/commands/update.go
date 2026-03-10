@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hmans/beans/bean"
-	"github.com/hmans/beans/beancore"
-	"github.com/hmans/beans/config"
+	"github.com/hmans/beans/pkg/bean"
+	"github.com/hmans/beans/pkg/beancore"
+	"github.com/hmans/beans/pkg/config"
 	"github.com/hmans/beans/internal/graph"
 	"github.com/hmans/beans/internal/graph/model"
 	"github.com/hmans/beans/internal/output"

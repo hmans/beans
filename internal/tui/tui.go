@@ -12,8 +12,8 @@ import (
 	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/hmans/beans/beancore"
-	"github.com/hmans/beans/config"
+	"github.com/hmans/beans/pkg/beancore"
+	"github.com/hmans/beans/pkg/config"
 	"github.com/hmans/beans/internal/graph"
 	"github.com/hmans/beans/internal/graph/model"
 )

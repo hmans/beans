@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hmans/beans/bean"
-	"github.com/hmans/beans/config"
+	"github.com/hmans/beans/pkg/bean"
+	"github.com/hmans/beans/pkg/config"
 )
 
 func TestSortBeans(t *testing.T) {

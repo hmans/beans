@@ -19,12 +19,12 @@ resolver:
 
 # Autobind to existing types
 autobind:
-  - github.com/hmans/beans/bean
+  - github.com/hmans/beans/pkg/bean
 
 models:
   # Use existing Bean type from bean package
   Bean:
-    model: github.com/hmans/beans/bean.Bean
+    model: github.com/hmans/beans/pkg/bean.Bean
   # Map ID scalar to string
   ID:
     model:

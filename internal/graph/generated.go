@@ -15,8 +15,8 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
-	"github.com/hmans/beans/bean"
 	"github.com/hmans/beans/internal/graph/model"
+	"github.com/hmans/beans/pkg/bean"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 )
@@ -2208,7 +2208,7 @@ func (ec *executionContext) _Bean_blockedBy(ctx context.Context, field graphql.C
 			return ec.resolvers.Bean().BlockedBy(ctx, obj, fc.Args["filter"].(*model.BeanFilter))
 		},
 		nil,
-		ec.marshalNBean2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋbeanᚐBeanᚄ,
+		ec.marshalNBean2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeanᚐBeanᚄ,
 		true,
 		true,
 	)
@@ -2295,7 +2295,7 @@ func (ec *executionContext) _Bean_blocking(ctx context.Context, field graphql.Co
 			return ec.resolvers.Bean().Blocking(ctx, obj, fc.Args["filter"].(*model.BeanFilter))
 		},
 		nil,
-		ec.marshalNBean2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋbeanᚐBeanᚄ,
+		ec.marshalNBean2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeanᚐBeanᚄ,
 		true,
 		true,
 	)
@@ -2381,7 +2381,7 @@ func (ec *executionContext) _Bean_parent(ctx context.Context, field graphql.Coll
 			return ec.resolvers.Bean().Parent(ctx, obj)
 		},
 		nil,
-		ec.marshalOBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋbeanᚐBean,
+		ec.marshalOBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeanᚐBean,
 		true,
 		false,
 	)
@@ -2457,7 +2457,7 @@ func (ec *executionContext) _Bean_children(ctx context.Context, field graphql.Co
 			return ec.resolvers.Bean().Children(ctx, obj, fc.Args["filter"].(*model.BeanFilter))
 		},
 		nil,
-		ec.marshalNBean2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋbeanᚐBeanᚄ,
+		ec.marshalNBean2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeanᚐBeanᚄ,
 		true,
 		true,
 	)
@@ -2630,7 +2630,7 @@ func (ec *executionContext) _BeanChangeEvent_bean(ctx context.Context, field gra
 			return obj.Bean, nil
 		},
 		nil,
-		ec.marshalOBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋbeanᚐBean,
+		ec.marshalOBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeanᚐBean,
 		true,
 		false,
 	)
@@ -2735,7 +2735,7 @@ func (ec *executionContext) _Mutation_createBean(ctx context.Context, field grap
 			return ec.resolvers.Mutation().CreateBean(ctx, fc.Args["input"].(model.CreateBeanInput))
 		},
 		nil,
-		ec.marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋbeanᚐBean,
+		ec.marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeanᚐBean,
 		true,
 		true,
 	)
@@ -2822,7 +2822,7 @@ func (ec *executionContext) _Mutation_updateBean(ctx context.Context, field grap
 			return ec.resolvers.Mutation().UpdateBean(ctx, fc.Args["id"].(string), fc.Args["input"].(model.UpdateBeanInput))
 		},
 		nil,
-		ec.marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋbeanᚐBean,
+		ec.marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeanᚐBean,
 		true,
 		true,
 	)
@@ -2950,7 +2950,7 @@ func (ec *executionContext) _Mutation_setParent(ctx context.Context, field graph
 			return ec.resolvers.Mutation().SetParent(ctx, fc.Args["id"].(string), fc.Args["parentId"].(*string), fc.Args["ifMatch"].(*string))
 		},
 		nil,
-		ec.marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋbeanᚐBean,
+		ec.marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeanᚐBean,
 		true,
 		true,
 	)
@@ -3037,7 +3037,7 @@ func (ec *executionContext) _Mutation_addBlocking(ctx context.Context, field gra
 			return ec.resolvers.Mutation().AddBlocking(ctx, fc.Args["id"].(string), fc.Args["targetId"].(string), fc.Args["ifMatch"].(*string))
 		},
 		nil,
-		ec.marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋbeanᚐBean,
+		ec.marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeanᚐBean,
 		true,
 		true,
 	)
@@ -3124,7 +3124,7 @@ func (ec *executionContext) _Mutation_removeBlocking(ctx context.Context, field 
 			return ec.resolvers.Mutation().RemoveBlocking(ctx, fc.Args["id"].(string), fc.Args["targetId"].(string), fc.Args["ifMatch"].(*string))
 		},
 		nil,
-		ec.marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋbeanᚐBean,
+		ec.marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeanᚐBean,
 		true,
 		true,
 	)
@@ -3211,7 +3211,7 @@ func (ec *executionContext) _Mutation_addBlockedBy(ctx context.Context, field gr
 			return ec.resolvers.Mutation().AddBlockedBy(ctx, fc.Args["id"].(string), fc.Args["targetId"].(string), fc.Args["ifMatch"].(*string))
 		},
 		nil,
-		ec.marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋbeanᚐBean,
+		ec.marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeanᚐBean,
 		true,
 		true,
 	)
@@ -3298,7 +3298,7 @@ func (ec *executionContext) _Mutation_removeBlockedBy(ctx context.Context, field
 			return ec.resolvers.Mutation().RemoveBlockedBy(ctx, fc.Args["id"].(string), fc.Args["targetId"].(string), fc.Args["ifMatch"].(*string))
 		},
 		nil,
-		ec.marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋbeanᚐBean,
+		ec.marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeanᚐBean,
 		true,
 		true,
 	)
@@ -3880,7 +3880,7 @@ func (ec *executionContext) _Query_bean(ctx context.Context, field graphql.Colle
 			return ec.resolvers.Query().Bean(ctx, fc.Args["id"].(string))
 		},
 		nil,
-		ec.marshalOBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋbeanᚐBean,
+		ec.marshalOBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeanᚐBean,
 		true,
 		false,
 	)
@@ -3967,7 +3967,7 @@ func (ec *executionContext) _Query_beans(ctx context.Context, field graphql.Coll
 			return ec.resolvers.Query().Beans(ctx, fc.Args["filter"].(*model.BeanFilter))
 		},
 		nil,
-		ec.marshalNBean2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋbeanᚐBeanᚄ,
+		ec.marshalNBean2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeanᚐBeanᚄ,
 		true,
 		true,
 	)
@@ -4474,7 +4474,7 @@ func (ec *executionContext) _Worktree_bean(ctx context.Context, field graphql.Co
 			return obj.Bean, nil
 		},
 		nil,
-		ec.marshalOBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋbeanᚐBean,
+		ec.marshalOBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeanᚐBean,
 		true,
 		false,
 	)
@@ -8019,11 +8019,11 @@ func (ec *executionContext) marshalNAgentSessionStatus2githubᚗcomᚋhmansᚋbe
 	return v
 }
 
-func (ec *executionContext) marshalNBean2githubᚗcomᚋhmansᚋbeansᚋbeanᚐBean(ctx context.Context, sel ast.SelectionSet, v bean.Bean) graphql.Marshaler {
+func (ec *executionContext) marshalNBean2githubᚗcomᚋhmansᚋbeansᚋpkgᚋbeanᚐBean(ctx context.Context, sel ast.SelectionSet, v bean.Bean) graphql.Marshaler {
 	return ec._Bean(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNBean2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋbeanᚐBeanᚄ(ctx context.Context, sel ast.SelectionSet, v []*bean.Bean) graphql.Marshaler {
+func (ec *executionContext) marshalNBean2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeanᚐBeanᚄ(ctx context.Context, sel ast.SelectionSet, v []*bean.Bean) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -8047,7 +8047,7 @@ func (ec *executionContext) marshalNBean2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋbe
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋbeanᚐBean(ctx, sel, v[i])
+			ret[i] = ec.marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeanᚐBean(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -8067,7 +8067,7 @@ func (ec *executionContext) marshalNBean2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋbe
 	return ret
 }
 
-func (ec *executionContext) marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋbeanᚐBean(ctx context.Context, sel ast.SelectionSet, v *bean.Bean) graphql.Marshaler {
+func (ec *executionContext) marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeanᚐBean(ctx context.Context, sel ast.SelectionSet, v *bean.Bean) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -8544,7 +8544,7 @@ func (ec *executionContext) marshalOAgentSession2ᚖgithubᚗcomᚋhmansᚋbeans
 	return ec._AgentSession(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋbeanᚐBean(ctx context.Context, sel ast.SelectionSet, v *bean.Bean) graphql.Marshaler {
+func (ec *executionContext) marshalOBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeanᚐBean(ctx context.Context, sel ast.SelectionSet, v *bean.Bean) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

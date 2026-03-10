@@ -9,9 +9,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hmans/beans/bean"
-	"github.com/hmans/beans/beancore"
 	"github.com/hmans/beans/internal/graph/model"
+	"github.com/hmans/beans/pkg/bean"
+	"github.com/hmans/beans/pkg/beancore"
 )
 
 // ParentID is the resolver for the parentId field.

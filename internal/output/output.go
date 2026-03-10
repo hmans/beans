@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/hmans/beans/bean"
+	"github.com/hmans/beans/pkg/bean"
 )
 
 // Error codes for JSON responses

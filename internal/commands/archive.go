@@ -3,7 +3,7 @@ package commands
 import (
 	"fmt"
 
-	"github.com/hmans/beans/bean"
+	"github.com/hmans/beans/pkg/bean"
 	"github.com/hmans/beans/internal/output"
 	"github.com/spf13/cobra"
 )

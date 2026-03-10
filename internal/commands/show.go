@@ -7,7 +7,7 @@ import (
 
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/hmans/beans/bean"
+	"github.com/hmans/beans/pkg/bean"
 	"github.com/hmans/beans/internal/graph"
 	"github.com/hmans/beans/internal/output"
 	"github.com/hmans/beans/internal/ui"

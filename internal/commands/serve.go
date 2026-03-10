@@ -19,7 +19,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/hmans/beans/internal/agent"
-	"github.com/hmans/beans/config"
+	"github.com/hmans/beans/pkg/config"
 	"github.com/hmans/beans/internal/graph"
 	"github.com/hmans/beans/internal/web"
 	"github.com/hmans/beans/internal/worktree"
