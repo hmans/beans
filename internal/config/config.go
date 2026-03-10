@@ -73,6 +73,23 @@ type PriorityConfig struct {
 	Description string `yaml:"description,omitempty"`
 }
 
+// PermissionMode represents the default agent permission mode.
+type PermissionMode string
+
+const (
+	PermissionModeYolo PermissionMode = "yolo"
+	PermissionModeAct  PermissionMode = "act"
+	PermissionModePlan PermissionMode = "plan"
+)
+
+// AgentConfig defines settings for agent sessions.
+type AgentConfig struct {
+	// DefaultPermissionMode is the default permission mode for new agent sessions.
+	// Valid values: "yolo" (fully autonomous), "act" (auto-approve edits), "plan" (read-only).
+	// Default: "yolo"
+	DefaultPermissionMode PermissionMode `yaml:"default_permission_mode,omitempty"`
+}
+
 // ServerConfig defines settings for the web server.
 type ServerConfig struct {
 	// Port is the port to listen on (default: 8080)
@@ -83,6 +100,7 @@ type ServerConfig struct {
 // Note: Statuses are no longer stored in config - they are hardcoded like types.
 type Config struct {
 	Beans  BeansConfig  `yaml:"beans"`
+	Agent  AgentConfig  `yaml:"agent,omitempty"`
 	Server ServerConfig `yaml:"server,omitempty"`
 
 	// configDir is the directory containing the config file (not serialized)
@@ -110,6 +128,9 @@ func Default() *Config {
 			IDLength:      4,
 			DefaultStatus: "todo",
 			DefaultType:   "task",
+		},
+		Agent: AgentConfig{
+			DefaultPermissionMode: PermissionModeYolo,
 		},
 		Server: ServerConfig{
 			Port: DefaultServerPort,
@@ -322,6 +343,14 @@ func (c *Config) toYAMLNode() *yaml.Node {
 		beansMapping.Content = append(beansMapping.Content, key, scalar("true", "!!bool"))
 	}
 
+	// Build the agent mapping
+	agentMapping := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+	if c.Agent.DefaultPermissionMode != "" {
+		key := strNode("default_permission_mode")
+		key.HeadComment = "Default permission mode for agent sessions (yolo, act, plan)"
+		agentMapping.Content = append(agentMapping.Content, key, strNode(string(c.Agent.DefaultPermissionMode)))
+	}
+
 	// Build the server mapping
 	serverMapping := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 	if c.Server.Port != 0 {
@@ -337,6 +366,10 @@ func (c *Config) toYAMLNode() *yaml.Node {
 		HeadComment: "Beans configuration\nSee: https://github.com/hmans/beans",
 	}
 	topMapping.Content = append(topMapping.Content, strNode("beans"), beansMapping)
+
+	if len(agentMapping.Content) > 0 {
+		topMapping.Content = append(topMapping.Content, strNode("agent"), agentMapping)
+	}
 
 	if len(serverMapping.Content) > 0 {
 		topMapping.Content = append(topMapping.Content, strNode("server"), serverMapping)
@@ -525,6 +558,27 @@ func (c *Config) PriorityList() string {
 		names[i] = p.Name
 	}
 	return strings.Join(names, ", ")
+}
+
+// GetDefaultPermissionMode returns the configured default permission mode for agent sessions.
+// Returns "yolo" if not set or invalid.
+func (c *Config) GetDefaultPermissionMode() PermissionMode {
+	switch c.Agent.DefaultPermissionMode {
+	case PermissionModeYolo, PermissionModeAct, PermissionModePlan:
+		return c.Agent.DefaultPermissionMode
+	default:
+		return PermissionModeYolo
+	}
+}
+
+// IsValidPermissionMode returns true if the mode is a valid permission mode.
+func IsValidPermissionMode(mode string) bool {
+	switch PermissionMode(mode) {
+	case PermissionModeYolo, PermissionModeAct, PermissionModePlan:
+		return true
+	default:
+		return false
+	}
 }
 
 // GetServerPort returns the configured server port, or the default if not set.

@@ -612,6 +612,48 @@ func TestLoadOrCreateSession_DefaultsToYoloMode(t *testing.T) {
 	}
 }
 
+func TestNewManager_ActMode(t *testing.T) {
+	m := NewManager("", nil, DefaultModeAct)
+	m.mu.Lock()
+	s := m.loadOrCreateSession("test", "/tmp/test")
+	m.mu.Unlock()
+
+	if s.YoloMode {
+		t.Error("expected YoloMode=false in act mode")
+	}
+	if s.PlanMode {
+		t.Error("expected PlanMode=false in act mode")
+	}
+}
+
+func TestNewManager_PlanMode(t *testing.T) {
+	m := NewManager("", nil, DefaultModePlan)
+	m.mu.Lock()
+	s := m.loadOrCreateSession("test", "/tmp/test")
+	m.mu.Unlock()
+
+	if s.YoloMode {
+		t.Error("expected YoloMode=false in plan mode")
+	}
+	if !s.PlanMode {
+		t.Error("expected PlanMode=true in plan mode")
+	}
+}
+
+func TestNewManager_ExplicitYoloMode(t *testing.T) {
+	m := NewManager("", nil, DefaultModeYolo)
+	m.mu.Lock()
+	s := m.loadOrCreateSession("test", "/tmp/test")
+	m.mu.Unlock()
+
+	if !s.YoloMode {
+		t.Error("expected YoloMode=true")
+	}
+	if s.PlanMode {
+		t.Error("expected PlanMode=false")
+	}
+}
+
 func TestSetYoloMode_CreatesSession(t *testing.T) {
 	m := NewManager("", nil)
 

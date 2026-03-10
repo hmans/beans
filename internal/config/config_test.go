@@ -864,6 +864,147 @@ func TestSaveIncludesComments(t *testing.T) {
 	}
 }
 
+func TestGetDefaultPermissionMode(t *testing.T) {
+	tests := []struct {
+		name     string
+		mode     PermissionMode
+		expected PermissionMode
+	}{
+		{"empty defaults to yolo", "", PermissionModeYolo},
+		{"yolo", PermissionModeYolo, PermissionModeYolo},
+		{"act", PermissionModeAct, PermissionModeAct},
+		{"plan", PermissionModePlan, PermissionModePlan},
+		{"invalid defaults to yolo", PermissionMode("invalid"), PermissionModeYolo},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Default()
+			cfg.Agent.DefaultPermissionMode = tt.mode
+			got := cfg.GetDefaultPermissionMode()
+			if got != tt.expected {
+				t.Errorf("GetDefaultPermissionMode() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsValidPermissionMode(t *testing.T) {
+	tests := []struct {
+		mode string
+		want bool
+	}{
+		{"yolo", true},
+		{"act", true},
+		{"plan", true},
+		{"", false},
+		{"invalid", false},
+		{"YOLO", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.mode, func(t *testing.T) {
+			got := IsValidPermissionMode(tt.mode)
+			if got != tt.want {
+				t.Errorf("IsValidPermissionMode(%q) = %v, want %v", tt.mode, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadAgentPermissionMode(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, ConfigFileName)
+
+	configYAML := `beans:
+  prefix: test-
+agent:
+  default_permission_mode: plan
+`
+	if err := os.WriteFile(configPath, []byte(configYAML), 0644); err != nil {
+		t.Fatalf("WriteFile error = %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.GetDefaultPermissionMode() != PermissionModePlan {
+		t.Errorf("GetDefaultPermissionMode() = %q, want %q", cfg.GetDefaultPermissionMode(), PermissionModePlan)
+	}
+}
+
+func TestSaveIncludesAgentSection(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := DefaultWithPrefix("test-")
+	cfg.Agent.DefaultPermissionMode = PermissionModeAct
+	cfg.SetConfigDir(tmpDir)
+
+	if err := cfg.Save(tmpDir); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, ConfigFileName))
+	if err != nil {
+		t.Fatalf("ReadFile error = %v", err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "agent:") {
+		t.Error("expected agent section in saved config")
+	}
+	if !strings.Contains(content, "default_permission_mode: act") {
+		t.Error("expected default_permission_mode: act in saved config")
+	}
+}
+
+func TestSaveOmitsEmptyAgentSection(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := DefaultWithPrefix("test-")
+	cfg.Agent.DefaultPermissionMode = "" // explicitly clear
+	cfg.SetConfigDir(tmpDir)
+
+	if err := cfg.Save(tmpDir); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, ConfigFileName))
+	if err != nil {
+		t.Fatalf("ReadFile error = %v", err)
+	}
+
+	if strings.Contains(string(data), "agent:") {
+		t.Error("expected agent section to be omitted when not configured")
+	}
+}
+
+func TestDefaultIncludesAgentSection(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := DefaultWithPrefix("test-")
+	cfg.SetConfigDir(tmpDir)
+
+	if err := cfg.Save(tmpDir); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, ConfigFileName))
+	if err != nil {
+		t.Fatalf("ReadFile error = %v", err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "agent:") {
+		t.Error("expected default config to include agent section")
+	}
+	if !strings.Contains(content, "default_permission_mode: yolo") {
+		t.Error("expected default config to include default_permission_mode: yolo")
+	}
+}
+
 func TestSaveOmitsEmptyServerSection(t *testing.T) {
 	tmpDir := t.TempDir()
 

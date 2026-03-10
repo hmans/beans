@@ -10,14 +10,24 @@ import (
 // for the given beanID. Return "" to skip injection.
 type ContextProvider func(beanID string) string
 
+// DefaultPermissionMode controls the initial permission mode for new agent sessions.
+type DefaultPermissionMode string
+
+const (
+	DefaultModeYolo DefaultPermissionMode = "yolo"
+	DefaultModeAct  DefaultPermissionMode = "act"
+	DefaultModePlan DefaultPermissionMode = "plan"
+)
+
 // Manager manages agent sessions — one per worktree (keyed by beanID).
 // It holds sessions in memory and provides pub/sub for session updates.
 type Manager struct {
-	mu              sync.RWMutex
-	sessions        map[string]*Session
-	processes       map[string]*runningProcess
-	store           *store // JSONL persistence (nil if no beansDir)
-	contextProvider ContextProvider
+	mu                    sync.RWMutex
+	sessions              map[string]*Session
+	processes             map[string]*runningProcess
+	store                 *store // JSONL persistence (nil if no beansDir)
+	contextProvider       ContextProvider
+	defaultPermissionMode DefaultPermissionMode
 
 	subMu       sync.Mutex
 	subscribers map[string][]chan struct{}
@@ -28,12 +38,19 @@ type Manager struct {
 
 // NewManager creates a new agent session manager.
 // If beansDir is non-empty, conversations are persisted to .beans/conversations/.
-func NewManager(beansDir string, contextProvider ContextProvider) *Manager {
+// permissionMode controls the default mode for new sessions ("yolo", "act", "plan").
+// If empty, defaults to "yolo".
+func NewManager(beansDir string, contextProvider ContextProvider, permissionMode ...DefaultPermissionMode) *Manager {
+	mode := DefaultModeYolo
+	if len(permissionMode) > 0 && permissionMode[0] != "" {
+		mode = permissionMode[0]
+	}
 	m := &Manager{
-		sessions:        make(map[string]*Session),
-		processes:       make(map[string]*runningProcess),
-		subscribers:     make(map[string][]chan struct{}),
-		contextProvider: contextProvider,
+		sessions:              make(map[string]*Session),
+		processes:             make(map[string]*runningProcess),
+		subscribers:           make(map[string][]chan struct{}),
+		contextProvider:       contextProvider,
+		defaultPermissionMode: mode,
 	}
 
 	if beansDir != "" {
@@ -78,9 +95,9 @@ func (m *Manager) GetSession(beanID string) *Session {
 			Status:       StatusIdle,
 			Messages:     msgs,
 			SessionID:    sessionID,
-			YoloMode:     true,
 			streamingIdx: -1,
 		}
+		m.applyDefaultMode(s)
 		m.sessions[beanID] = s
 		m.mu.Unlock()
 	}
@@ -431,6 +448,21 @@ func (m *Manager) Shutdown() {
 	}
 }
 
+// applyDefaultMode sets YoloMode and PlanMode on a session based on the manager's default.
+func (m *Manager) applyDefaultMode(s *Session) {
+	switch m.defaultPermissionMode {
+	case DefaultModePlan:
+		s.PlanMode = true
+		s.YoloMode = false
+	case DefaultModeAct:
+		s.PlanMode = false
+		s.YoloMode = false
+	default: // yolo
+		s.PlanMode = false
+		s.YoloMode = true
+	}
+}
+
 // loadOrCreateSession loads a session from disk if persisted, or creates a new one.
 // Must be called with m.mu held.
 func (m *Manager) loadOrCreateSession(beanID, workDir string) *Session {
@@ -439,9 +471,9 @@ func (m *Manager) loadOrCreateSession(beanID, workDir string) *Session {
 		AgentType:    "claude",
 		Status:       StatusIdle,
 		WorkDir:      workDir,
-		YoloMode:     true,
 		streamingIdx: -1,
 	}
+	m.applyDefaultMode(session)
 
 	if m.store != nil {
 		msgs, sessionID, err := m.store.load(beanID)
