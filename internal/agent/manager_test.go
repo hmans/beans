@@ -883,6 +883,78 @@ func TestBuildClaudeArgs_AllowedTools(t *testing.T) {
 	}
 }
 
+func TestGlobalSubscribeUnsubscribe(t *testing.T) {
+	m := NewManager("", nil)
+	ch := m.SubscribeGlobal()
+
+	m.globalSubMu.Lock()
+	if len(m.globalSubscribers) != 1 {
+		t.Errorf("expected 1 global subscriber, got %d", len(m.globalSubscribers))
+	}
+	m.globalSubMu.Unlock()
+
+	m.UnsubscribeGlobal(ch)
+
+	_, ok := <-ch
+	if ok {
+		t.Error("expected channel to be closed")
+	}
+
+	m.globalSubMu.Lock()
+	if len(m.globalSubscribers) != 0 {
+		t.Errorf("expected 0 global subscribers, got %d", len(m.globalSubscribers))
+	}
+	m.globalSubMu.Unlock()
+}
+
+func TestNotify_GlobalSubscribers(t *testing.T) {
+	m := NewManager("", nil)
+	globalCh := m.SubscribeGlobal()
+	defer m.UnsubscribeGlobal(globalCh)
+
+	// Notifying any bean should also notify global subscribers
+	m.notify("some-bean")
+
+	select {
+	case <-globalCh:
+		// Good — received global notification
+	default:
+		t.Error("expected global notification")
+	}
+}
+
+func TestListRunningSessions_Empty(t *testing.T) {
+	m := NewManager("", nil)
+	result := m.ListRunningSessions()
+	if len(result) != 0 {
+		t.Errorf("expected empty list, got %d items", len(result))
+	}
+}
+
+func TestListRunningSessions_FiltersRunning(t *testing.T) {
+	m := NewManager("", nil)
+	m.sessions["running-1"] = &Session{ID: "running-1", Status: StatusRunning}
+	m.sessions["idle-1"] = &Session{ID: "idle-1", Status: StatusIdle}
+	m.sessions["running-2"] = &Session{ID: "running-2", Status: StatusRunning}
+	m.sessions["error-1"] = &Session{ID: "error-1", Status: StatusError}
+
+	result := m.ListRunningSessions()
+	if len(result) != 2 {
+		t.Fatalf("expected 2 running sessions, got %d", len(result))
+	}
+
+	ids := make(map[string]bool)
+	for _, a := range result {
+		ids[a.BeanID] = true
+		if a.Status != StatusRunning {
+			t.Errorf("expected StatusRunning, got %q for %s", a.Status, a.BeanID)
+		}
+	}
+	if !ids["running-1"] || !ids["running-2"] {
+		t.Errorf("expected running-1 and running-2, got %v", ids)
+	}
+}
+
 func TestShutdown(t *testing.T) {
 	m := NewManager("", nil)
 	// Just verify it doesn't panic with no processes

@@ -2,6 +2,7 @@
 	import type { Bean } from '$lib/beans.svelte';
 	import { beansStore } from '$lib/beans.svelte';
 	import { worktreeStore } from '$lib/worktrees.svelte';
+	import { agentStatusesStore } from '$lib/agentStatuses.svelte';
 	import { statusColors, typeColors, typeBorders, priorityIndicators } from '$lib/styles';
 
 	interface Props {
@@ -15,6 +16,7 @@
 
 	const childCount = $derived(variant === 'list' ? beansStore.children(bean.id).length : 0);
 	const hasWorktree = $derived(variant !== 'compact' && worktreeStore.hasWorktree(bean.id));
+	const agentRunning = $derived(hasWorktree && agentStatusesStore.isRunning(bean.id));
 </script>
 
 <button
@@ -35,7 +37,10 @@
 >
 	{#if hasWorktree}
 		<div
-			class="absolute top-0 right-0 size-4 bg-success"
+			class={[
+				'absolute top-0 right-0 size-4 bg-success',
+				agentRunning && 'bean-card-agent-pulse'
+			]}
 			style="clip-path: polygon(0 0, 100% 0, 100% 100%)"
 		></div>
 	{/if}
@@ -85,3 +90,19 @@
 		</div>
 	{/if}
 </button>
+
+<style>
+	.bean-card-agent-pulse {
+		animation: agent-pulse 2s ease-in-out infinite;
+	}
+
+	@keyframes agent-pulse {
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.3;
+		}
+	}
+</style>

@@ -91,6 +91,27 @@ func agentSessionToModel(s *agent.Session) *model.AgentSession {
 	}
 }
 
+// activeAgentsToModel converts a slice of agent.ActiveAgent to the GraphQL model type.
+func activeAgentsToModel(agents []agent.ActiveAgent) []*model.ActiveAgentStatus {
+	result := make([]*model.ActiveAgentStatus, len(agents))
+	for i, a := range agents {
+		var status model.AgentSessionStatus
+		switch a.Status {
+		case agent.StatusIdle:
+			status = model.AgentSessionStatusIdle
+		case agent.StatusRunning:
+			status = model.AgentSessionStatusRunning
+		case agent.StatusError:
+			status = model.AgentSessionStatusError
+		}
+		result[i] = &model.ActiveAgentStatus{
+			BeanID: a.BeanID,
+			Status: status,
+		}
+	}
+	return result
+}
+
 // findWorktreePath looks up the worktree filesystem path for a bean.
 func (r *Resolver) findWorktreePath(beanID string) (string, error) {
 	if r.WorktreeMgr == nil {

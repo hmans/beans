@@ -45,6 +45,22 @@ type Subscription {
   Emits the full session state whenever it changes (new messages, status changes).
   """
   agentSessionChanged(beanId: ID!): AgentSession!
+
+  """
+  Subscribe to active agent status changes across all sessions.
+  Emits the list of currently running agents whenever any session status changes.
+  """
+  activeAgentStatuses: [ActiveAgentStatus!]!
+}
+
+"""
+Lightweight status for tracking which beans have running agents
+"""
+type ActiveAgentStatus {
+  "Bean ID with an active agent"
+  beanId: ID!
+  "Current agent status"
+  status: AgentSessionStatus!
 }
 
 """

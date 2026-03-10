@@ -51,6 +51,11 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	ActiveAgentStatus struct {
+		BeanID func(childComplexity int) int
+		Status func(childComplexity int) int
+	}
+
 	AgentMessage struct {
 		Content func(childComplexity int) int
 		Role    func(childComplexity int) int
@@ -133,6 +138,7 @@ type ComplexityRoot struct {
 	}
 
 	Subscription struct {
+		ActiveAgentStatuses func(childComplexity int) int
 		AgentSessionChanged func(childComplexity int, beanID string) int
 		BeanChanged         func(childComplexity int, includeInitial *bool) int
 		WorktreesChanged    func(childComplexity int) int
@@ -185,6 +191,7 @@ type SubscriptionResolver interface {
 	BeanChanged(ctx context.Context, includeInitial *bool) (<-chan *model.BeanChangeEvent, error)
 	WorktreesChanged(ctx context.Context) (<-chan []*model.Worktree, error)
 	AgentSessionChanged(ctx context.Context, beanID string) (<-chan *model.AgentSession, error)
+	ActiveAgentStatuses(ctx context.Context) (<-chan []*model.ActiveAgentStatus, error)
 }
 
 type executableSchema struct {
@@ -205,6 +212,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 	ec := executionContext{nil, e, 0, 0, nil}
 	_ = ec
 	switch typeName + "." + field {
+
+	case "ActiveAgentStatus.beanId":
+		if e.complexity.ActiveAgentStatus.BeanID == nil {
+			break
+		}
+
+		return e.complexity.ActiveAgentStatus.BeanID(childComplexity), true
+	case "ActiveAgentStatus.status":
+		if e.complexity.ActiveAgentStatus.Status == nil {
+			break
+		}
+
+		return e.complexity.ActiveAgentStatus.Status(childComplexity), true
 
 	case "AgentMessage.content":
 		if e.complexity.AgentMessage.Content == nil {
@@ -683,6 +703,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Query.Worktrees(childComplexity), true
 
+	case "Subscription.activeAgentStatuses":
+		if e.complexity.Subscription.ActiveAgentStatuses == nil {
+			break
+		}
+
+		return e.complexity.Subscription.ActiveAgentStatuses(childComplexity), true
 	case "Subscription.agentSessionChanged":
 		if e.complexity.Subscription.AgentSessionChanged == nil {
 			break
@@ -1289,6 +1315,64 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 // endregion ************************** directives.gotpl **************************
 
 // region    **************************** field.gotpl *****************************
+
+func (ec *executionContext) _ActiveAgentStatus_beanId(ctx context.Context, field graphql.CollectedField, obj *model.ActiveAgentStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ActiveAgentStatus_beanId,
+		func(ctx context.Context) (any, error) {
+			return obj.BeanID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ActiveAgentStatus_beanId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ActiveAgentStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ActiveAgentStatus_status(ctx context.Context, field graphql.CollectedField, obj *model.ActiveAgentStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ActiveAgentStatus_status,
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		ec.marshalNAgentSessionStatus2githubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentSessionStatus,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ActiveAgentStatus_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ActiveAgentStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type AgentSessionStatus does not have child fields")
+		},
+	}
+	return fc, nil
+}
 
 func (ec *executionContext) _AgentMessage_role(ctx context.Context, field graphql.CollectedField, obj *model.AgentMessage) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
@@ -4251,6 +4335,41 @@ func (ec *executionContext) fieldContext_Subscription_agentSessionChanged(ctx co
 	return fc, nil
 }
 
+func (ec *executionContext) _Subscription_activeAgentStatuses(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Subscription_activeAgentStatuses,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Subscription().ActiveAgentStatuses(ctx)
+		},
+		nil,
+		ec.marshalNActiveAgentStatus2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐActiveAgentStatusᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Subscription_activeAgentStatuses(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "beanId":
+				return ec.fieldContext_ActiveAgentStatus_beanId(ctx, field)
+			case "status":
+				return ec.fieldContext_ActiveAgentStatus_status(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ActiveAgentStatus", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Worktree_beanId(ctx context.Context, field graphql.CollectedField, obj *model.Worktree) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -6331,6 +6450,50 @@ func (ec *executionContext) unmarshalInputUpdateBeanInput(ctx context.Context, o
 
 // region    **************************** object.gotpl ****************************
 
+var activeAgentStatusImplementors = []string{"ActiveAgentStatus"}
+
+func (ec *executionContext) _ActiveAgentStatus(ctx context.Context, sel ast.SelectionSet, obj *model.ActiveAgentStatus) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, activeAgentStatusImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ActiveAgentStatus")
+		case "beanId":
+			out.Values[i] = ec._ActiveAgentStatus_beanId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._ActiveAgentStatus_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var agentMessageImplementors = []string{"AgentMessage"}
 
 func (ec *executionContext) _AgentMessage(ctx context.Context, sel ast.SelectionSet, obj *model.AgentMessage) graphql.Marshaler {
@@ -7249,6 +7412,8 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_worktreesChanged(ctx, fields[0])
 	case "agentSessionChanged":
 		return ec._Subscription_agentSessionChanged(ctx, fields[0])
+	case "activeAgentStatuses":
+		return ec._Subscription_activeAgentStatuses(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
@@ -7639,6 +7804,60 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 // endregion **************************** object.gotpl ****************************
 
 // region    ***************************** type.gotpl *****************************
+
+func (ec *executionContext) marshalNActiveAgentStatus2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐActiveAgentStatusᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ActiveAgentStatus) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNActiveAgentStatus2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐActiveAgentStatus(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNActiveAgentStatus2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐActiveAgentStatus(ctx context.Context, sel ast.SelectionSet, v *model.ActiveAgentStatus) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ActiveAgentStatus(ctx, sel, v)
+}
 
 func (ec *executionContext) marshalNAgentMessage2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentMessageᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AgentMessage) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))

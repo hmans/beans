@@ -21,6 +21,9 @@ type Manager struct {
 
 	subMu       sync.Mutex
 	subscribers map[string][]chan struct{}
+
+	globalSubMu       sync.Mutex
+	globalSubscribers []chan struct{}
 }
 
 // NewManager creates a new agent session manager.
@@ -183,16 +186,62 @@ func (m *Manager) Unsubscribe(beanID string, ch chan struct{}) {
 	}
 }
 
-// notify sends a signal to all subscribers for the given beanID.
+// SubscribeGlobal returns a channel that receives a signal whenever any
+// agent session changes. Call UnsubscribeGlobal when done.
+func (m *Manager) SubscribeGlobal() chan struct{} {
+	m.globalSubMu.Lock()
+	defer m.globalSubMu.Unlock()
+	ch := make(chan struct{}, 1)
+	m.globalSubscribers = append(m.globalSubscribers, ch)
+	return ch
+}
+
+// UnsubscribeGlobal removes a global subscription channel.
+func (m *Manager) UnsubscribeGlobal(ch chan struct{}) {
+	m.globalSubMu.Lock()
+	defer m.globalSubMu.Unlock()
+	for i, sub := range m.globalSubscribers {
+		if sub == ch {
+			m.globalSubscribers = append(m.globalSubscribers[:i], m.globalSubscribers[i+1:]...)
+			close(ch)
+			return
+		}
+	}
+}
+
+// ListRunningSessions returns the bean IDs and statuses of all in-memory sessions.
+func (m *Manager) ListRunningSessions() []ActiveAgent {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var result []ActiveAgent
+	for id, s := range m.sessions {
+		if s.Status == StatusRunning {
+			result = append(result, ActiveAgent{BeanID: id, Status: s.Status})
+		}
+	}
+	return result
+}
+
+// notify sends a signal to all subscribers for the given beanID,
+// and also notifies global subscribers.
 func (m *Manager) notify(beanID string) {
 	m.subMu.Lock()
-	defer m.subMu.Unlock()
 	for _, ch := range m.subscribers[beanID] {
 		select {
 		case ch <- struct{}{}:
 		default:
 		}
 	}
+	m.subMu.Unlock()
+
+	m.globalSubMu.Lock()
+	for _, ch := range m.globalSubscribers {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	}
+	m.globalSubMu.Unlock()
 }
 
 // SetPlanMode toggles plan mode for a session, killing any running process

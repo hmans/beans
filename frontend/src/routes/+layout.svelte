@@ -5,6 +5,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { beansStore } from '$lib/beans.svelte';
 	import { worktreeStore } from '$lib/worktrees.svelte';
+	import { agentStatusesStore } from '$lib/agentStatuses.svelte';
 	import { ui } from '$lib/uiState.svelte';
 	import BeanForm from '$lib/components/BeanForm.svelte';
 
@@ -25,11 +26,13 @@
 	onMount(() => {
 		beansStore.subscribe();
 		worktreeStore.subscribe();
+		agentStatusesStore.subscribe();
 	});
 
 	onDestroy(() => {
 		beansStore.unsubscribe();
 		worktreeStore.unsubscribe();
+		agentStatusesStore.unsubscribe();
 	});
 </script>
 

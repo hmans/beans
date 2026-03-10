@@ -19,6 +19,12 @@ const (
 	StatusError   SessionStatus = "error"
 )
 
+// ActiveAgent is a lightweight struct for reporting which beans have active agents.
+type ActiveAgent struct {
+	BeanID string
+	Status SessionStatus
+}
+
 // Message represents a single chat message in an agent conversation.
 type Message struct {
 	Role    MessageRole

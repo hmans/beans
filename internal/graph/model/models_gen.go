@@ -11,6 +11,14 @@ import (
 	"github.com/hmans/beans/internal/bean"
 )
 
+// Lightweight status for tracking which beans have running agents
+type ActiveAgentStatus struct {
+	// Bean ID with an active agent
+	BeanID string `json:"beanId"`
+	// Current agent status
+	Status AgentSessionStatus `json:"status"`
+}
+
 // A single message in an agent conversation
 type AgentMessage struct {
 	// Message role

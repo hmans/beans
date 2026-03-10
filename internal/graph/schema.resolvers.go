@@ -908,6 +908,49 @@ func (r *subscriptionResolver) AgentSessionChanged(ctx context.Context, beanID s
 	return out, nil
 }
 
+// ActiveAgentStatuses is the resolver for the activeAgentStatuses field.
+func (r *subscriptionResolver) ActiveAgentStatuses(ctx context.Context) (<-chan []*model.ActiveAgentStatus, error) {
+	if r.AgentMgr == nil {
+		out := make(chan []*model.ActiveAgentStatus)
+		close(out)
+		return out, nil
+	}
+
+	ch := r.AgentMgr.SubscribeGlobal()
+	out := make(chan []*model.ActiveAgentStatus)
+
+	go func() {
+		defer r.AgentMgr.UnsubscribeGlobal(ch)
+		defer close(out)
+
+		// Emit current state immediately
+		select {
+		case out <- activeAgentsToModel(r.AgentMgr.ListRunningSessions()):
+		case <-ctx.Done():
+			return
+		}
+
+		// Then emit on each change
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case _, ok := <-ch:
+				if !ok {
+					return
+				}
+				select {
+				case out <- activeAgentsToModel(r.AgentMgr.ListRunningSessions()):
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+
+	return out, nil
+}
+
 // Bean returns BeanResolver implementation.
 func (r *Resolver) Bean() BeanResolver { return &beanResolver{r} }
 
