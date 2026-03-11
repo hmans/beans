@@ -100,6 +100,11 @@ type AgentConfig struct {
 type ServerConfig struct {
 	// Port is the port to listen on (default: 8080)
 	Port int `yaml:"port,omitempty"`
+	// CORSOrigins is the list of allowed origins for CORS and WebSocket.
+	// Supports exact origins and port wildcards (e.g. "http://localhost:*").
+	// Use "*" to allow all origins (not recommended for production).
+	// Default: ["http://localhost:*", "http://127.0.0.1:*"]
+	CORSOrigins []string `yaml:"cors_origins,omitempty"`
 }
 
 // Config holds the beans configuration.
@@ -623,4 +628,12 @@ func (c *Config) GetServerPort() int {
 		return DefaultServerPort
 	}
 	return c.Server.Port
+}
+
+// GetCORSOrigins returns the configured CORS origins, or the defaults if not set.
+func (c *Config) GetCORSOrigins() []string {
+	if len(c.Server.CORSOrigins) > 0 {
+		return c.Server.CORSOrigins
+	}
+	return []string{"http://localhost:*", "http://127.0.0.1:*"}
 }

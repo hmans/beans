@@ -19,6 +19,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/hmans/beans/internal/agent"
+	"github.com/hmans/beans/internal/cors"
 	"github.com/hmans/beans/internal/graph"
 	"github.com/hmans/beans/internal/web"
 	"github.com/hmans/beans/internal/worktree"
@@ -26,7 +27,8 @@ import (
 )
 
 var (
-	servePort int
+	servePort    int
+	corsOrigins  []string
 )
 
 const centralAgentPrompt = `You are the planning agent for this project. Your primary role is to help manage and organize work through beans (issues).
@@ -48,19 +50,28 @@ var serveCmd = &cobra.Command{
 		// Determine the port: CLI flag > config > default
 		port := servePort
 		if !cmd.Flags().Changed("port") {
-			// Flag not explicitly set, use config value
 			port = cfg.GetServerPort()
 		}
-		return runServer(port)
+
+		// Determine CORS origins: CLI flag > config > default
+		origins := corsOrigins
+		if !cmd.Flags().Changed("cors-origin") {
+			origins = cfg.GetCORSOrigins()
+		}
+
+		return runServer(port, origins)
 	},
 }
 
-func runServer(port int) error {
+func runServer(port int, origins []string) error {
 	// Start file watcher for subscriptions
 	if err := core.StartWatching(); err != nil {
 		return fmt.Errorf("failed to start file watcher: %w", err)
 	}
 	defer core.Unwatch()
+
+	// Set up origin checker for CORS and WebSocket
+	checker := cors.NewChecker(origins)
 
 	// Set Gin to release mode for cleaner output
 	gin.SetMode(gin.ReleaseMode)
@@ -72,11 +83,17 @@ func runServer(port int) error {
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
 
-	// CORS middleware for development
+	// CORS middleware
 	router.Use(func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
+		origin := c.GetHeader("Origin")
+		if allowed := checker.CORSOrigin(origin); allowed != "" {
+			c.Header("Access-Control-Allow-Origin", allowed)
+			if allowed != "*" {
+				c.Header("Vary", "Origin")
+			}
+		}
 		c.Header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		c.Header("Access-Control-Allow-Headers", "Content-Type")
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return
@@ -128,7 +145,7 @@ func runServer(port int) error {
 	gqlHandler.AddTransport(transport.Websocket{
 		KeepAlivePingInterval: 10 * time.Second,
 		Upgrader: websocket.Upgrader{
-			CheckOrigin:  func(r *http.Request) bool { return true },
+			CheckOrigin:  checker.CheckOriginFunc(),
 			Subprotocols: []string{"graphql-transport-ws"},
 		},
 	})
@@ -166,6 +183,7 @@ func runServer(port int) error {
 	go func() {
 		fmt.Printf("[beans] Starting server at http://localhost:%d/\n", port)
 		fmt.Printf("[beans] GraphQL Playground: http://localhost:%d/playground\n", port)
+		fmt.Printf("[beans] Allowed origins: %s\n", strings.Join(origins, ", "))
 		serverErr <- server.ListenAndServe()
 	}()
 
@@ -195,6 +213,7 @@ func runServer(port int) error {
 
 func RegisterServeCmd(root *cobra.Command) {
 	serveCmd.Flags().IntVarP(&servePort, "port", "p", config.DefaultServerPort, "Port to listen on")
+	serveCmd.Flags().StringSliceVar(&corsOrigins, "cors-origin", cors.DefaultOrigins, "Allowed CORS origins (use * to allow all)")
 	root.AddCommand(serveCmd)
 }
 

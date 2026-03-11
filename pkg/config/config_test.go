@@ -1151,3 +1151,57 @@ server:
 		}
 	})
 }
+
+func TestGetCORSOrigins(t *testing.T) {
+	t.Run("returns defaults when not configured", func(t *testing.T) {
+		cfg := Default()
+		origins := cfg.GetCORSOrigins()
+		if len(origins) != 2 {
+			t.Fatalf("GetCORSOrigins() returned %d origins, want 2", len(origins))
+		}
+		if origins[0] != "http://localhost:*" {
+			t.Errorf("origins[0] = %q, want %q", origins[0], "http://localhost:*")
+		}
+		if origins[1] != "http://127.0.0.1:*" {
+			t.Errorf("origins[1] = %q, want %q", origins[1], "http://127.0.0.1:*")
+		}
+	})
+
+	t.Run("returns configured origins", func(t *testing.T) {
+		cfg := Default()
+		cfg.Server.CORSOrigins = []string{"https://example.com"}
+		origins := cfg.GetCORSOrigins()
+		if len(origins) != 1 || origins[0] != "https://example.com" {
+			t.Errorf("GetCORSOrigins() = %v, want [https://example.com]", origins)
+		}
+	})
+
+	t.Run("loads from config file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		configPath := filepath.Join(tmpDir, ConfigFileName)
+
+		configContent := `beans:
+  prefix: test-
+server:
+  cors_origins:
+    - "https://app.example.com"
+    - "http://localhost:*"
+`
+		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+			t.Fatalf("WriteFile error = %v", err)
+		}
+
+		cfg, err := Load(configPath)
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		origins := cfg.GetCORSOrigins()
+		if len(origins) != 2 {
+			t.Fatalf("GetCORSOrigins() returned %d origins, want 2", len(origins))
+		}
+		if origins[0] != "https://app.example.com" {
+			t.Errorf("origins[0] = %q, want %q", origins[0], "https://app.example.com")
+		}
+	})
+}
