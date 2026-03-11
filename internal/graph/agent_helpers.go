@@ -218,17 +218,15 @@ func commitPrompt(ctx actionContext) string {
 	}
 
 	allBeans := true
-	var paths []string
 	for _, c := range changes {
-		paths = append(paths, c.Path)
 		if !strings.HasPrefix(c.Path, ".beans/") {
 			allBeans = false
+			break
 		}
 	}
 
 	if allBeans {
-		return fmt.Sprintf("Create a commit. The only uncommitted changes are bean files:\n%s\n\nCommit them with an appropriate message describing the bean updates (e.g. status changes, new beans, updated descriptions).",
-			strings.Join(paths, "\n"))
+		return "Create a commit. The only uncommitted changes are bean files. Examine them and commit with an appropriate message describing the bean updates (e.g. status changes, new beans, archived beans)."
 	}
 
 	return "Create a commit. Make sure there is an associated bean that is up to date, and possibly even marked as completed if you are done with the change. Then only commit changes related to that change."
