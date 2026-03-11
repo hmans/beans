@@ -449,6 +449,22 @@ type AgentSession {
   pendingInteraction: PendingInteraction
   "Working directory / worktree path for this session"
   workDir: String
+  "Currently running subagent activities (one per concurrent Agent tool call)"
+  subagentActivities: [SubagentActivity!]!
+}
+
+"""
+Tracks real-time activity of a running subagent (Agent tool invocation)
+"""
+type SubagentActivity {
+  "Unique task identifier for this subagent"
+  taskId: String!
+  "Sequential index (1-based) for display"
+  index: Int!
+  "What the subagent is currently doing"
+  description: String!
+  "Tool currently being used by the subagent (empty string when idle)"
+  currentTool: String!
 }
 
 """

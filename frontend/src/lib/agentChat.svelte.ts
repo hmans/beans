@@ -14,6 +14,13 @@ export interface PendingInteraction {
   planContent: string | null;
 }
 
+export interface SubagentActivity {
+  taskId: string;
+  index: number;
+  description: string;
+  currentTool: string;
+}
+
 export interface AgentSession {
   beanId: string;
   agentType: string;
@@ -25,6 +32,7 @@ export interface AgentSession {
   systemStatus: string | null;
   pendingInteraction: PendingInteraction | null;
   workDir: string | null;
+  subagentActivities: SubagentActivity[];
 }
 
 const AGENT_SESSION_SUBSCRIPTION = gql`
@@ -46,6 +54,12 @@ const AGENT_SESSION_SUBSCRIPTION = gql`
         planContent
       }
       workDir
+      subagentActivities {
+        taskId
+        index
+        description
+        currentTool
+      }
     }
   }
 `;

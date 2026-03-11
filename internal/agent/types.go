@@ -37,6 +37,15 @@ type ToolInvocation struct {
 	Input string // summary of tool input (e.g. file path, command)
 }
 
+// SubagentActivity tracks the current state of a running subagent (Agent tool).
+// This is transient — set while a subagent is active, cleared when it completes.
+type SubagentActivity struct {
+	TaskID      string // unique task ID from task_progress events
+	Index       int    // sequential index (1-based) for display
+	Description string // what the subagent is currently doing (from task_progress)
+	CurrentTool string // tool currently being used by the subagent (empty when none)
+}
+
 // InteractionType identifies the kind of blocking interaction the agent is requesting.
 type InteractionType string
 
@@ -74,6 +83,11 @@ type Session struct {
 	// (ExitPlanMode, EnterPlanMode) and is waiting for user approval.
 	PendingInteraction *PendingInteraction
 
+	// SubagentActivities tracks what running subagents are doing.
+	// Non-empty only while Agent tool calls are actively running.
+	// Keyed by task_id from task_progress events.
+	SubagentActivities []*SubagentActivity
+
 	// streamingIdx tracks the message index currently being streamed to.
 	// This ensures deltas from an ongoing turn go to the correct assistant
 	// message even if user messages are interleaved mid-turn. -1 means
@@ -97,5 +111,12 @@ func (s *Session) snapshot() Session {
 		PendingInteraction: s.PendingInteraction,
 	}
 	copy(snap.Messages, s.Messages)
+	if len(s.SubagentActivities) > 0 {
+		snap.SubagentActivities = make([]*SubagentActivity, len(s.SubagentActivities))
+		for i, sa := range s.SubagentActivities {
+			copy := *sa
+			snap.SubagentActivities[i] = &copy
+		}
+	}
 	return snap
 }

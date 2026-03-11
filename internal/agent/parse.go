@@ -34,6 +34,11 @@ type streamEvent struct {
 
 	// For "system" status events (e.g. compacting)
 	Status string `json:"status,omitempty"`
+
+	// For "system" task_progress events (subagent activity)
+	TaskID       string `json:"task_id,omitempty"`
+	Description  string `json:"description,omitempty"`
+	LastToolName string `json:"last_tool_name,omitempty"`
 }
 
 // innerEvent is the Anthropic API event nested inside a "stream_event" wrapper.
@@ -55,6 +60,7 @@ type deltaPayload struct {
 	Type        string `json:"type"`
 	Text        string `json:"text,omitempty"`
 	PartialJSON string `json:"partial_json,omitempty"`
+	Thinking    string `json:"thinking,omitempty"` // for thinking_delta from subagents
 }
 
 type contentBlockPayload struct {
@@ -70,8 +76,9 @@ type errorPayload struct {
 // parsedEvent is the normalized result of parsing a stream-json line.
 type parsedEvent struct {
 	Type      parsedEventType
-	Text      string // for TextDelta / AssistantMessage / Result
-	ToolName  string // for ToolUse
+	Text      string // for TextDelta / AssistantMessage / Result / TaskProgress (description)
+	ToolName  string // for ToolUse / TaskProgress (last_tool_name)
+	TaskID    string // for TaskProgress — unique subagent task identifier
 	SessionID string // for Result / AssistantMessage
 	Error     string // for Error
 }
@@ -88,7 +95,9 @@ const (
 	eventToolInputDelta // input_json_delta for tool_use — accumulates tool input JSON
 	eventResult
 	eventError
-	eventSystemStatus // system status change (e.g. "compacting")
+	eventSystemStatus  // system status change (e.g. "compacting")
+	eventTaskProgress  // system task_progress — subagent activity update
+	eventToolResult    // "user" event — tool result returned (signals subagent completion)
 )
 
 // parseStreamLine parses a single JSON line from Claude Code's stream-json output.
@@ -100,8 +109,13 @@ func parseStreamLine(line []byte) parsedEvent {
 
 	switch ev.Type {
 	case "stream_event":
-		// Unwrap the nested Anthropic API event
-		return parseInnerEvent(ev.Event)
+		// Unwrap the nested Anthropic API event, preserving the session_id
+		// from the wrapper so callers can distinguish subagent events.
+		pe := parseInnerEvent(ev.Event)
+		if ev.SessionID != "" {
+			pe.SessionID = ev.SessionID
+		}
+		return pe
 
 	case "assistant":
 		// Full assistant message — extract text from content blocks
@@ -157,10 +171,19 @@ func parseStreamLine(line []byte) parsedEvent {
 		if ev.Subtype == "status" && ev.Status != "" {
 			return parsedEvent{Type: eventSystemStatus, Text: ev.Status}
 		}
+		if ev.Subtype == "task_progress" {
+			return parsedEvent{
+				Type:     eventTaskProgress,
+				Text:     ev.Description,
+				ToolName: ev.LastToolName,
+				TaskID:   ev.TaskID,
+			}
+		}
 
 	case "user":
-		// Tool result / user message events — no action needed
-		return parsedEvent{Type: eventIgnored}
+		// Tool result / user message events — no UI action needed, but used
+		// as a boundary signal to detect when subagent execution has completed.
+		return parsedEvent{Type: eventToolResult}
 	}
 
 	return parsedEvent{Type: eventUnknown}
@@ -181,6 +204,10 @@ func parseInnerEvent(inner *innerEvent) parsedEvent {
 			if inner.Delta.Type == "input_json_delta" {
 				return parsedEvent{Type: eventToolInputDelta, Text: inner.Delta.PartialJSON}
 			}
+			if inner.Delta.Type == "thinking_delta" || inner.Delta.Type == "signature_delta" {
+				// Thinking/signature deltas (from subagents) — no actionable content
+				return parsedEvent{Type: eventIgnored}
+			}
 		}
 	case "content_block_start":
 		if inner.ContentBlock != nil {
@@ -191,7 +218,7 @@ func parseInnerEvent(inner *innerEvent) parsedEvent {
 				return parsedEvent{Type: eventToolUse, ToolName: inner.ContentBlock.Name}
 			}
 		}
-	case "content_block_stop", "message_start", "message_delta", "message_stop":
+	case "content_block_stop", "message_start", "message_delta", "message_stop", "ping":
 		// Benign lifecycle events — no actionable content
 		return parsedEvent{Type: eventIgnored}
 	}

@@ -43,6 +43,7 @@
   }
   const activityLabel = $derived(systemStatus ? `${systemStatus}...` : 'thinking...');
   const pendingInteraction = $derived(store.session?.pendingInteraction ?? null);
+  const subagentActivities = $derived(store.session?.subagentActivities ?? []);
 
   // Render plan content as markdown when available
   let renderedPlanContent = $state<string | null>(null);
@@ -196,12 +197,22 @@
           {/if}
         {/each}
 
-        {#if isRunning && (messages.length === 0 || messages[messages.length - 1].role === 'USER')}
+        {#if isRunning && subagentActivities.length === 0 && (messages.length === 0 || messages[messages.length - 1].role === 'USER')}
           <div class="flex gap-2 text-text-muted">
             <span class="shrink-0 select-none">&middot;</span>
             <span class="animate-pulse">{activityLabel}</span>
           </div>
         {/if}
+
+        {#each subagentActivities as activity (activity.taskId)}
+          <div class="flex gap-2 text-xs text-text-faint">
+            <span class="shrink-0 select-none">&middot;</span>
+            <span class="animate-pulse">
+              <span class="text-text-muted">#{activity.index}</span>
+              {activity.description || 'Subagent'}{activity.currentTool ? ` — ${activity.currentTool}` : ''}
+            </span>
+          </div>
+        {/each}
       {/if}
     </div>
 
@@ -297,9 +308,15 @@
     {#if isRunning}
       <div class="flex items-center gap-2 px-1 pb-2 text-text-muted">
         <span class="agent-spinner"></span>
-        <span class="font-mono text-xs"
-          >{systemStatus ? `Agent is ${systemStatus}...` : 'Agent is working...'}</span
-        >
+        <span class="font-mono text-xs">
+          {#if subagentActivities.length > 0}
+            {subagentActivities.length} subagent{subagentActivities.length > 1 ? 's' : ''} working...
+          {:else if systemStatus}
+            Agent is {systemStatus}...
+          {:else}
+            Agent is working...
+          {/if}
+        </span>
       </div>
     {/if}
     <div class="flex items-end gap-2">

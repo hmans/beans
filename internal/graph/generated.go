@@ -70,6 +70,7 @@ type ComplexityRoot struct {
 		PendingInteraction func(childComplexity int) int
 		PlanMode           func(childComplexity int) int
 		Status             func(childComplexity int) int
+		SubagentActivities func(childComplexity int) int
 		SystemStatus       func(childComplexity int) int
 		WorkDir            func(childComplexity int) int
 	}
@@ -143,6 +144,13 @@ type ComplexityRoot struct {
 		Beans        func(childComplexity int, filter *model.BeanFilter) int
 		FileChanges  func(childComplexity int, path *string) int
 		Worktrees    func(childComplexity int) int
+	}
+
+	SubagentActivity struct {
+		CurrentTool func(childComplexity int) int
+		Description func(childComplexity int) int
+		Index       func(childComplexity int) int
+		TaskID      func(childComplexity int) int
 	}
 
 	Subscription struct {
@@ -296,6 +304,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.AgentSession.Status(childComplexity), true
+	case "AgentSession.subagentActivities":
+		if e.complexity.AgentSession.SubagentActivities == nil {
+			break
+		}
+
+		return e.complexity.AgentSession.SubagentActivities(childComplexity), true
 	case "AgentSession.systemStatus":
 		if e.complexity.AgentSession.SystemStatus == nil {
 			break
@@ -747,6 +761,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.Worktrees(childComplexity), true
+
+	case "SubagentActivity.currentTool":
+		if e.complexity.SubagentActivity.CurrentTool == nil {
+			break
+		}
+
+		return e.complexity.SubagentActivity.CurrentTool(childComplexity), true
+	case "SubagentActivity.description":
+		if e.complexity.SubagentActivity.Description == nil {
+			break
+		}
+
+		return e.complexity.SubagentActivity.Description(childComplexity), true
+	case "SubagentActivity.index":
+		if e.complexity.SubagentActivity.Index == nil {
+			break
+		}
+
+		return e.complexity.SubagentActivity.Index(childComplexity), true
+	case "SubagentActivity.taskId":
+		if e.complexity.SubagentActivity.TaskID == nil {
+			break
+		}
+
+		return e.complexity.SubagentActivity.TaskID(childComplexity), true
 
 	case "Subscription.activeAgentStatuses":
 		if e.complexity.Subscription.ActiveAgentStatuses == nil {
@@ -1775,6 +1814,45 @@ func (ec *executionContext) fieldContext_AgentSession_workDir(_ context.Context,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AgentSession_subagentActivities(ctx context.Context, field graphql.CollectedField, obj *model.AgentSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AgentSession_subagentActivities,
+		func(ctx context.Context) (any, error) {
+			return obj.SubagentActivities, nil
+		},
+		nil,
+		ec.marshalNSubagentActivity2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐSubagentActivityᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AgentSession_subagentActivities(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentSession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "taskId":
+				return ec.fieldContext_SubagentActivity_taskId(ctx, field)
+			case "index":
+				return ec.fieldContext_SubagentActivity_index(ctx, field)
+			case "description":
+				return ec.fieldContext_SubagentActivity_description(ctx, field)
+			case "currentTool":
+				return ec.fieldContext_SubagentActivity_currentTool(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SubagentActivity", field.Name)
 		},
 	}
 	return fc, nil
@@ -4220,6 +4298,8 @@ func (ec *executionContext) fieldContext_Query_agentSession(ctx context.Context,
 				return ec.fieldContext_AgentSession_pendingInteraction(ctx, field)
 			case "workDir":
 				return ec.fieldContext_AgentSession_workDir(ctx, field)
+			case "subagentActivities":
+				return ec.fieldContext_AgentSession_subagentActivities(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type AgentSession", field.Name)
 		},
@@ -4399,6 +4479,122 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 	return fc, nil
 }
 
+func (ec *executionContext) _SubagentActivity_taskId(ctx context.Context, field graphql.CollectedField, obj *model.SubagentActivity) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SubagentActivity_taskId,
+		func(ctx context.Context) (any, error) {
+			return obj.TaskID, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SubagentActivity_taskId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SubagentActivity",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SubagentActivity_index(ctx context.Context, field graphql.CollectedField, obj *model.SubagentActivity) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SubagentActivity_index,
+		func(ctx context.Context) (any, error) {
+			return obj.Index, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SubagentActivity_index(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SubagentActivity",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SubagentActivity_description(ctx context.Context, field graphql.CollectedField, obj *model.SubagentActivity) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SubagentActivity_description,
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SubagentActivity_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SubagentActivity",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SubagentActivity_currentTool(ctx context.Context, field graphql.CollectedField, obj *model.SubagentActivity) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SubagentActivity_currentTool,
+		func(ctx context.Context) (any, error) {
+			return obj.CurrentTool, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SubagentActivity_currentTool(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SubagentActivity",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Subscription_beanChanged(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
 	return graphql.ResolveFieldStream(
 		ctx,
@@ -4532,6 +4728,8 @@ func (ec *executionContext) fieldContext_Subscription_agentSessionChanged(ctx co
 				return ec.fieldContext_AgentSession_pendingInteraction(ctx, field)
 			case "workDir":
 				return ec.fieldContext_AgentSession_workDir(ctx, field)
+			case "subagentActivities":
+				return ec.fieldContext_AgentSession_subagentActivities(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type AgentSession", field.Name)
 		},
@@ -6802,6 +7000,11 @@ func (ec *executionContext) _AgentSession(ctx context.Context, sel ast.Selection
 			out.Values[i] = ec._AgentSession_pendingInteraction(ctx, field, obj)
 		case "workDir":
 			out.Values[i] = ec._AgentSession_workDir(ctx, field, obj)
+		case "subagentActivities":
+			out.Values[i] = ec._AgentSession_subagentActivities(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -7687,6 +7890,60 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 	return out
 }
 
+var subagentActivityImplementors = []string{"SubagentActivity"}
+
+func (ec *executionContext) _SubagentActivity(ctx context.Context, sel ast.SelectionSet, obj *model.SubagentActivity) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, subagentActivityImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SubagentActivity")
+		case "taskId":
+			out.Values[i] = ec._SubagentActivity_taskId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "index":
+			out.Values[i] = ec._SubagentActivity_index(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._SubagentActivity_description(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "currentTool":
+			out.Values[i] = ec._SubagentActivity_currentTool(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var subscriptionImplementors = []string{"Subscription"}
 
 func (ec *executionContext) _Subscription(ctx context.Context, sel ast.SelectionSet) func(ctx context.Context) graphql.Marshaler {
@@ -8489,6 +8746,60 @@ func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel
 	}
 
 	return ret
+}
+
+func (ec *executionContext) marshalNSubagentActivity2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐSubagentActivityᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.SubagentActivity) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNSubagentActivity2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐSubagentActivity(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSubagentActivity2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐSubagentActivity(ctx context.Context, sel ast.SelectionSet, v *model.SubagentActivity) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SubagentActivity(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNTime2ᚖtimeᚐTime(ctx context.Context, v any) (*time.Time, error) {

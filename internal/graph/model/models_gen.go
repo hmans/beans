@@ -49,6 +49,8 @@ type AgentSession struct {
 	PendingInteraction *PendingInteraction `json:"pendingInteraction,omitempty"`
 	// Working directory / worktree path for this session
 	WorkDir *string `json:"workDir,omitempty"`
+	// Currently running subagent activities (one per concurrent Agent tool call)
+	SubagentActivities []*SubagentActivity `json:"subagentActivities"`
 }
 
 // Represents a change to a bean
@@ -191,6 +193,18 @@ type ReplaceOperation struct {
 	Old string `json:"old"`
 	// Replacement text (can be empty to delete the matched text)
 	New string `json:"new"`
+}
+
+// Tracks real-time activity of a running subagent (Agent tool invocation)
+type SubagentActivity struct {
+	// Unique task identifier for this subagent
+	TaskID string `json:"taskId"`
+	// Sequential index (1-based) for display
+	Index int `json:"index"`
+	// What the subagent is currently doing
+	Description string `json:"description"`
+	// Tool currently being used by the subagent (empty string when idle)
+	CurrentTool string `json:"currentTool"`
 }
 
 type Subscription struct {

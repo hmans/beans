@@ -21,47 +21,57 @@ func TestParseStreamLine(t *testing.T) {
 		{
 			name:  "stream_event with content_block_delta",
 			input: `{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}},"session_id":"abc"}`,
-			want:  parsedEvent{Type: eventTextDelta, Text: "Hello"},
+			want:  parsedEvent{Type: eventTextDelta, Text: "Hello", SessionID: "abc"},
 		},
 		{
 			name:  "stream_event with content_block_start text",
 			input: `{"type":"stream_event","event":{"type":"content_block_start","index":0,"content_block":{"type":"text","text":"Hi"}},"session_id":"abc"}`,
-			want:  parsedEvent{Type: eventNewTextBlock, Text: "Hi"},
+			want:  parsedEvent{Type: eventNewTextBlock, Text: "Hi", SessionID: "abc"},
 		},
 		{
 			name:  "stream_event with content_block_start empty text",
 			input: `{"type":"stream_event","event":{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}},"session_id":"abc"}`,
-			want:  parsedEvent{Type: eventNewTextBlock},
+			want:  parsedEvent{Type: eventNewTextBlock, SessionID: "abc"},
 		},
 		{
 			name:  "stream_event with message_start (ignored)",
 			input: `{"type":"stream_event","event":{"type":"message_start","message":{"model":"claude"}},"session_id":"abc"}`,
-			want:  parsedEvent{Type: eventIgnored},
+			want:  parsedEvent{Type: eventIgnored, SessionID: "abc"},
 		},
 		{
 			name:  "stream_event with message_stop (ignored)",
 			input: `{"type":"stream_event","event":{"type":"message_stop"},"session_id":"abc"}`,
-			want:  parsedEvent{Type: eventIgnored},
+			want:  parsedEvent{Type: eventIgnored, SessionID: "abc"},
 		},
 		{
 			name:  "stream_event with message_delta (ignored)",
 			input: `{"type":"stream_event","event":{"type":"message_delta","delta":{"stop_reason":"end_turn"}},"session_id":"abc"}`,
-			want:  parsedEvent{Type: eventIgnored},
+			want:  parsedEvent{Type: eventIgnored, SessionID: "abc"},
 		},
 		{
 			name:  "stream_event with content_block_stop (ignored)",
 			input: `{"type":"stream_event","event":{"type":"content_block_stop","index":0},"session_id":"abc"}`,
-			want:  parsedEvent{Type: eventIgnored},
+			want:  parsedEvent{Type: eventIgnored, SessionID: "abc"},
 		},
 		{
-			name:  "user event (tool result, ignored)",
+			name:  "user event (tool result)",
 			input: `{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_123","type":"tool_result","content":"ok"}]}}`,
-			want:  parsedEvent{Type: eventIgnored},
+			want:  parsedEvent{Type: eventToolResult},
+		},
+		{
+			name:  "stream_event with thinking_delta (ignored, from subagent)",
+			input: `{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"Let me think..."}},"session_id":"sub-123"}`,
+			want:  parsedEvent{Type: eventIgnored, SessionID: "sub-123"},
+		},
+		{
+			name:  "stream_event with signature_delta (ignored)",
+			input: `{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"signature_delta"}},"session_id":"sub-123"}`,
+			want:  parsedEvent{Type: eventIgnored, SessionID: "sub-123"},
 		},
 		{
 			name:  "stream_event with tool use",
 			input: `{"type":"stream_event","event":{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","name":"Read"}},"session_id":"abc"}`,
-			want:  parsedEvent{Type: eventToolUse, ToolName: "Read"},
+			want:  parsedEvent{Type: eventToolUse, ToolName: "Read", SessionID: "abc"},
 		},
 		{
 			name:  "direct text delta (legacy)",
@@ -81,7 +91,7 @@ func TestParseStreamLine(t *testing.T) {
 		{
 			name:  "stream_event with input_json_delta",
 			input: `{"type":"stream_event","event":{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"file_path\":"}},"session_id":"abc"}`,
-			want:  parsedEvent{Type: eventToolInputDelta, Text: `{"file_path":`},
+			want:  parsedEvent{Type: eventToolInputDelta, Text: `{"file_path":`, SessionID: "abc"},
 		},
 		{
 			name:  "direct input_json_delta (legacy)",
@@ -102,6 +112,11 @@ func TestParseStreamLine(t *testing.T) {
 			name:  "error event",
 			input: `{"type":"error","error":{"message":"rate limited"}}`,
 			want:  parsedEvent{Type: eventError, Error: "rate limited"},
+		},
+		{
+			name:  "system task_progress event",
+			input: `{"type":"system","subtype":"task_progress","task_id":"abc123","tool_use_id":"toolu_01X","description":"Reading main.go","last_tool_name":"Read","session_id":"abc"}`,
+			want:  parsedEvent{Type: eventTaskProgress, Text: "Reading main.go", ToolName: "Read", TaskID: "abc123"},
 		},
 		{
 			name:  "system event (ignored)",

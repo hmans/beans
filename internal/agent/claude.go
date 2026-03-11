@@ -185,6 +185,8 @@ func (m *Manager) readOutput(beanID string, stdout io.Reader, workDir string) {
 	var toolInvIdx int = -1 // index into session.ToolInvocations
 	var pendingToolPersist bool // true when current tool msg hasn't been persisted yet
 
+	// Subagent activities are tracked via task_progress events and cleared on eventResult.
+
 	// flushToolMsg persists the current tool message to JSONL if one is pending.
 	// Called before persisting any other message or at end of stream.
 	flushToolMsg := func() {
@@ -263,6 +265,9 @@ func (m *Manager) readOutput(beanID string, stdout io.Reader, workDir string) {
 			if interaction := blockingInteraction(ev.ToolName, sess); interaction != nil {
 				m.handleBlockingTool(beanID, interaction)
 			}
+
+			// No subagent clearing here — activities are only cleared on eventResult
+			// (turn end). Parent text/tool events can interleave with active subagents.
 
 			// Flush any previous pending tool message before starting a new one
 			flushToolMsg()
@@ -388,6 +393,7 @@ func (m *Manager) readOutput(beanID string, stdout io.Reader, workDir string) {
 				s.streamingIdx = -1
 				s.Status = StatusIdle
 				s.SystemStatus = ""
+				s.SubagentActivities = nil
 			}
 			m.mu.Unlock()
 			m.notify(beanID)
@@ -403,6 +409,36 @@ func (m *Manager) readOutput(beanID string, stdout io.Reader, workDir string) {
 			}
 			m.mu.Unlock()
 			m.notify(beanID)
+
+		case eventTaskProgress:
+			// Subagent progress update — upsert by task_id.
+			m.mu.Lock()
+			if s, ok := m.sessions[beanID]; ok {
+				// Find existing activity by task_id, or create new one
+				var activity *SubagentActivity
+				for _, a := range s.SubagentActivities {
+					if a.TaskID == ev.TaskID {
+						activity = a
+						break
+					}
+				}
+				if activity == nil {
+					activity = &SubagentActivity{
+						TaskID: ev.TaskID,
+						Index:  len(s.SubagentActivities) + 1,
+					}
+					s.SubagentActivities = append(s.SubagentActivities, activity)
+				}
+				if ev.ToolName != "" {
+					activity.CurrentTool = ev.ToolName
+				}
+				if ev.Text != "" {
+					activity.Description = ev.Text
+				}
+			}
+			m.mu.Unlock()
+			m.notify(beanID)
+
 		}
 	}
 

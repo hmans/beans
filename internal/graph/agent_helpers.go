@@ -69,6 +69,16 @@ func agentSessionToModel(s *agent.Session) *model.AgentSession {
 		workDir = &s.WorkDir
 	}
 
+	subagents := make([]*model.SubagentActivity, len(s.SubagentActivities))
+	for i, sa := range s.SubagentActivities {
+		subagents[i] = &model.SubagentActivity{
+			TaskID:      sa.TaskID,
+			Index:       sa.Index,
+			Description: sa.Description,
+			CurrentTool: sa.CurrentTool,
+		}
+	}
+
 	return &model.AgentSession{
 		BeanID:             s.ID,
 		AgentType:          s.AgentType,
@@ -80,6 +90,7 @@ func agentSessionToModel(s *agent.Session) *model.AgentSession {
 		SystemStatus:       sysStatus,
 		PendingInteraction: pending,
 		WorkDir:            workDir,
+		SubagentActivities: subagents,
 	}
 }
 
