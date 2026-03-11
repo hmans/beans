@@ -5,7 +5,8 @@ status: completed
 type: task
 priority: normal
 created_at: 2026-03-11T12:24:53Z
-updated_at: 2026-03-11T12:27:06Z
+updated_at: 2026-03-11T16:46:51Z
+order: zzzzy
 ---
 
 Rename the `default_permission_mode` config key/field to `default_mode` since the permissions system was removed and it now just controls Plan vs Act mode.

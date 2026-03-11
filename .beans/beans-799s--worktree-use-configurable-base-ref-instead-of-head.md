@@ -5,7 +5,8 @@ status: completed
 type: feature
 priority: normal
 created_at: 2026-03-10T19:41:47Z
-updated_at: 2026-03-10T19:47:35Z
+updated_at: 2026-03-11T16:46:51Z
+order: zzzzs
 ---
 
 Worktrees are currently created from HEAD. They should default to origin/main and be configurable via worktree.base_ref in .beans.yml.

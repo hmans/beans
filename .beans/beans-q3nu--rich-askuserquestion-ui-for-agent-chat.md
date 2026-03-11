@@ -5,7 +5,8 @@ status: completed
 type: feature
 priority: normal
 created_at: 2026-03-11T12:40:34Z
-updated_at: 2026-03-11T12:44:34Z
+updated_at: 2026-03-11T16:46:51Z
+order: zzzzV
 ---
 
 Capture AskUserQuestion tool input (questions, options, multiSelect) from the Claude stream and render a proper interactive UI in the agent chat instead of the generic 'type your reply below' message.

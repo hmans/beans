@@ -5,7 +5,8 @@ status: completed
 type: bug
 priority: normal
 created_at: 2026-03-11T13:40:51Z
-updated_at: 2026-03-11T13:47:23Z
+updated_at: 2026-03-11T16:46:51Z
+order: zzzV
 ---
 
 When a user or agent enters plan mode, it triggers a permission prompt. Entering plan mode is a read-only/planning action and should not require approval — it's a mode switch, not a mutation.

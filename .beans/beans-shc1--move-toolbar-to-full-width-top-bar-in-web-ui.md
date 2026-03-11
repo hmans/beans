@@ -5,7 +5,8 @@ status: completed
 type: task
 priority: normal
 created_at: 2026-03-10T21:27:50Z
-updated_at: 2026-03-10T21:30:56Z
+updated_at: 2026-03-11T16:46:51Z
+order: zzzzw
 ---
 
 Move the PlanningView toolbar (New Bean, Backlog/Board toggle, filter, Changes/Agent buttons) from inside the backlog/board pane to span the full width of the main content area, with all panes nested below it.

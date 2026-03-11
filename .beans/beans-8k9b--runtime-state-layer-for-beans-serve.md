@@ -1,12 +1,12 @@
 ---
 # beans-8k9b
 title: Runtime state layer for beans-serve
-status: in-progress
+status: completed
 type: feature
 priority: normal
 created_at: 2026-03-11T14:58:36Z
-updated_at: 2026-03-11T15:25:09Z
-order: V
+updated_at: 2026-03-11T16:46:51Z
+order: F
 ---
 
 Decouple beans-serve runtime state from disk persistence. Add dirty tracking, optional disk writes on mutations, worktree watching, and save mechanism.

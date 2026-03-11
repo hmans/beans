@@ -5,7 +5,8 @@ status: completed
 type: feature
 priority: normal
 created_at: 2026-03-10T20:39:30Z
-updated_at: 2026-03-10T21:14:43Z
+updated_at: 2026-03-11T16:46:51Z
+order: zzzw
 ---
 
 Add a toggleable Changes pane to the web UI that shows git working tree status — list of changed files with per-file +/- line stats. Works in both PlanningView (main repo) and WorkspaceView (worktree).

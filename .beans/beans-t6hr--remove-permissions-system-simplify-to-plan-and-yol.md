@@ -5,7 +5,8 @@ status: completed
 type: feature
 priority: normal
 created_at: 2026-03-11T09:37:04Z
-updated_at: 2026-03-11T10:25:56Z
+updated_at: 2026-03-11T16:46:51Z
+order: zzzy
 ---
 
 Completely remove the existing permissions/Act mode and all related infrastructure. The app should have exactly two modes:

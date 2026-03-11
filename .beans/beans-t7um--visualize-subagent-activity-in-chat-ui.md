@@ -5,7 +5,8 @@ status: completed
 type: feature
 priority: normal
 created_at: 2026-03-11T10:19:14Z
-updated_at: 2026-03-11T10:28:21Z
+updated_at: 2026-03-11T16:46:51Z
+order: zzzzk
 ---
 
 When Claude uses subagents (via the Agent tool), the parent session receives stream events from the subagent but currently logs them as 'unhandled event'. We should visualize this activity in the chat UI so users can see what subagents are doing in real-time.
