@@ -4,7 +4,6 @@ You already know what beans is. This is the beans repository.
 
 # Commits
 
-- **NEVER create commits without explicit permission from the user.** Always present the changes first and wait for the user to ask you to commit. No exceptions.
 - Use conventional commit messages ("feat", "fix", "chore", etc.) when making commits.
 - Include the relevant bean ID(s) in the commit message (please follow conventional commit conventions, e.g. `Refs: bean-xxxx`).
 - Mark commits as "breaking" using the `!` notation when applicable (e.g., `feat!: ...`).
