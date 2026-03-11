@@ -19,14 +19,6 @@ type ActiveAgentStatus struct {
 	Status AgentSessionStatus `json:"status"`
 }
 
-// A configurable action button for the agent chat UI
-type AgentAction struct {
-	// Button label displayed in the UI
-	Label string `json:"label"`
-	// Prompt sent to the agent when clicked
-	Prompt string `json:"prompt"`
-}
-
 // A single message in an agent conversation
 type AgentMessage struct {
 	// Message role

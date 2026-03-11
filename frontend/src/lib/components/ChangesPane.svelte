@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, setContext } from 'svelte';
   import { changesStore } from '$lib/changes.svelte';
   import { ui } from '$lib/uiState.svelte';
-  import { agentActionsStore } from '$lib/agentActions.svelte';
+  import type { ActionContext } from '$lib/actionContext';
   import PaneHeader from '$lib/components/PaneHeader.svelte';
+  import ActionButton from '$lib/components/ActionButton.svelte';
 
   interface Props {
     path?: string;
@@ -12,6 +13,15 @@
   }
 
   let { path, onAction, agentBusy = false }: Props = $props();
+
+  if (onAction) {
+    setContext<ActionContext>('action', {
+      onAction,
+      get disabled() {
+        return agentBusy;
+      }
+    });
+  }
 
   const stagedChanges = $derived(changesStore.changes.filter((c) => c.staged));
   const unstagedChanges = $derived(changesStore.changes.filter((c) => !c.staged));
@@ -124,22 +134,17 @@
     {/if}
   </div>
 
-  {#if onAction && agentActionsStore.actions.length > 0}
+  {#if onAction}
     <div class="flex gap-2 border-t border-border px-3 py-2">
-      {#each agentActionsStore.actions as action (action.label)}
-        <button
-          class={[
-            'flex-1 rounded border border-border px-3 py-1.5 text-sm font-medium transition-colors',
-            agentBusy
-              ? 'cursor-not-allowed text-text-faint'
-              : 'cursor-pointer text-text-muted hover:bg-surface-alt hover:text-text'
-          ]}
-          disabled={agentBusy}
-          onclick={() => onAction(action.prompt)}
-        >
-          {action.label}
-        </button>
-      {/each}
+      <ActionButton
+        prompt="Create a commit. If you have just implemented a change, make sure there is an associated bean, it is up to date, and possibly even marked as completed if you are done with the change. Then only commit changes related to that change. If you haven't, please examine the git diff and commit whatever changes you see."
+      >
+        Commit
+      </ActionButton>
+
+      <ActionButton prompt="Ask a subagent for a thorough code review.">
+        Review
+      </ActionButton>
     </div>
   {/if}
 </div>

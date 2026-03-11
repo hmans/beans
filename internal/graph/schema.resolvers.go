@@ -802,19 +802,6 @@ func (r *queryResolver) HasDirtyBeans(ctx context.Context) (bool, error) {
 	return r.Core.HasDirty(), nil
 }
 
-// AgentActions is the resolver for the agentActions field.
-func (r *queryResolver) AgentActions(ctx context.Context) ([]*model.AgentAction, error) {
-	actions := r.Core.Config().GetActions()
-	result := make([]*model.AgentAction, len(actions))
-	for i, a := range actions {
-		result[i] = &model.AgentAction{
-			Label:  a.Label,
-			Prompt: a.Prompt,
-		}
-	}
-	return result, nil
-}
-
 // BeanChanged is the resolver for the beanChanged field.
 func (r *subscriptionResolver) BeanChanged(ctx context.Context, includeInitial *bool) (<-chan *model.BeanChangeEvent, error) {
 	// Subscribe to bean events from beancore

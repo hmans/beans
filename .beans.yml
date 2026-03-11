@@ -17,15 +17,6 @@ worktree:
 agent:
   # Default mode for agent sessions (act, plan)
   default_mode: act
-  # Action buttons shown in the agent chat UI
-  actions:
-    - label: Commit
-      prompt: |
-        Create a commit. If you have just implemented a change,
-        only commit changes related to that change. If you haven't,
-        please examine the git diff and commit whatever changes you see.
-    - label: Review
-      prompt: Ask a subagent for a thorough code review.
 server:
   # Port for the web UI (used by `beans-serve`)
   port: 8080

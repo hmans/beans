@@ -965,7 +965,6 @@ func TestSaveOmitsEmptyAgentSection(t *testing.T) {
 
 	cfg := DefaultWithPrefix("test-")
 	cfg.Agent.DefaultMode = "" // explicitly clear
-	cfg.Agent.Actions = nil    // explicitly clear
 	cfg.SetConfigDir(tmpDir)
 
 	if err := cfg.Save(tmpDir); err != nil {
@@ -1003,99 +1002,6 @@ func TestDefaultIncludesAgentSection(t *testing.T) {
 	}
 	if !strings.Contains(content, "default_mode: act") {
 		t.Error("expected default config to include default_mode: act")
-	}
-}
-
-func TestGetActionsReturnsNilByDefault(t *testing.T) {
-	cfg := Default()
-	actions := cfg.GetActions()
-
-	if actions != nil {
-		t.Fatalf("expected nil actions by default, got %v", actions)
-	}
-}
-
-func TestGetActionsReturnsConfigured(t *testing.T) {
-	cfg := Default()
-	cfg.Agent.Actions = []ActionConfig{
-		{Label: "Deploy", Prompt: "Deploy to staging"},
-	}
-	actions := cfg.GetActions()
-
-	if len(actions) != 1 {
-		t.Fatalf("expected 1 action, got %d", len(actions))
-	}
-	if actions[0].Label != "Deploy" {
-		t.Errorf("expected action label 'Deploy', got %q", actions[0].Label)
-	}
-}
-
-func TestGetActionsEmptySlice(t *testing.T) {
-	cfg := Default()
-	cfg.Agent.Actions = []ActionConfig{}
-	actions := cfg.GetActions()
-
-	if len(actions) != 0 {
-		t.Fatalf("expected 0 actions for empty slice, got %d", len(actions))
-	}
-}
-
-func TestActionsRoundTrip(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	cfg := Default()
-	cfg.Agent.Actions = []ActionConfig{
-		{Label: "Test", Prompt: "Run tests"},
-		{Label: "Lint", Prompt: "Run linter"},
-	}
-	cfg.SetConfigDir(tmpDir)
-
-	if err := cfg.Save(tmpDir); err != nil {
-		t.Fatalf("Save() error = %v", err)
-	}
-
-	loaded, err := Load(filepath.Join(tmpDir, ConfigFileName))
-	if err != nil {
-		t.Fatalf("Load() error = %v", err)
-	}
-
-	actions := loaded.GetActions()
-	if len(actions) != 2 {
-		t.Fatalf("expected 2 actions after round-trip, got %d", len(actions))
-	}
-	if actions[0].Label != "Test" || actions[0].Prompt != "Run tests" {
-		t.Errorf("first action mismatch: %+v", actions[0])
-	}
-	if actions[1].Label != "Lint" || actions[1].Prompt != "Run linter" {
-		t.Errorf("second action mismatch: %+v", actions[1])
-	}
-}
-
-func TestSaveIncludesActionsInAgentSection(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	cfg := DefaultWithPrefix("test-")
-	cfg.Agent.Actions = DefaultActions
-	cfg.SetConfigDir(tmpDir)
-
-	if err := cfg.Save(tmpDir); err != nil {
-		t.Fatalf("Save() error = %v", err)
-	}
-
-	data, err := os.ReadFile(filepath.Join(tmpDir, ConfigFileName))
-	if err != nil {
-		t.Fatalf("ReadFile error = %v", err)
-	}
-
-	content := string(data)
-	if !strings.Contains(content, "actions:") {
-		t.Error("expected actions in saved config")
-	}
-	if !strings.Contains(content, "label: Commit") {
-		t.Error("expected 'label: Commit' in saved config")
-	}
-	if !strings.Contains(content, "prompt: Create a commit") {
-		t.Error("expected 'prompt: Create a commit' in saved config")
 	}
 }
 

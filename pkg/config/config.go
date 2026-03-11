@@ -88,29 +88,12 @@ type WorktreeConfig struct {
 	BaseRef string `yaml:"base_ref,omitempty"`
 }
 
-// ActionConfig defines a configurable action button for the agent chat UI.
-type ActionConfig struct {
-	// Label is the button text displayed in the UI.
-	Label string `yaml:"label"`
-	// Prompt is the message sent to the agent when the button is clicked.
-	Prompt string `yaml:"prompt"`
-}
-
-// DefaultActions defines the default action buttons for the agent chat UI.
-var DefaultActions = []ActionConfig{
-	{Label: "Commit", Prompt: "Create a commit"},
-	{Label: "Review", Prompt: "Ask a subagent for a thorough code review"},
-}
-
 // AgentConfig defines settings for agent sessions.
 type AgentConfig struct {
 	// DefaultMode is the default mode for new agent sessions.
 	// Valid values: "act" (fully autonomous), "plan" (read-only).
 	// Default: "act"
 	DefaultMode PermissionMode `yaml:"default_mode,omitempty"`
-	// Actions defines the action buttons shown in the agent chat UI.
-	// Each action has a label and a prompt that gets sent to the agent.
-	Actions []ActionConfig `yaml:"actions,omitempty"`
 }
 
 // ServerConfig defines settings for the web server.
@@ -390,19 +373,6 @@ func (c *Config) toYAMLNode() *yaml.Node {
 		key.HeadComment = "Default mode for agent sessions (act, plan)"
 		agentMapping.Content = append(agentMapping.Content, key, strNode(string(c.Agent.DefaultMode)))
 	}
-	if len(c.Agent.Actions) > 0 {
-		actionsKey := strNode("actions")
-		actionsKey.HeadComment = "Action buttons shown in the agent chat UI"
-		actionsSeq := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
-		for _, action := range c.Agent.Actions {
-			actionMapping := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
-			actionMapping.Content = append(actionMapping.Content, strNode("label"), strNode(action.Label))
-			actionMapping.Content = append(actionMapping.Content, strNode("prompt"), strNode(action.Prompt))
-			actionsSeq.Content = append(actionsSeq.Content, actionMapping)
-		}
-		agentMapping.Content = append(agentMapping.Content, actionsKey, actionsSeq)
-	}
-
 	// Build the server mapping
 	serverMapping := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 	if c.Server.Port != 0 {
@@ -626,11 +596,6 @@ func (c *Config) GetWorktreeBaseRef() string {
 		return DefaultWorktreeBaseRef
 	}
 	return c.Worktree.BaseRef
-}
-
-// GetActions returns the configured agent actions. Returns nil if none are configured.
-func (c *Config) GetActions() []ActionConfig {
-	return c.Agent.Actions
 }
 
 // GetDefaultMode returns the configured default permission mode for agent sessions.

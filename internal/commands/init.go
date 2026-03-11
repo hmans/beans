@@ -63,9 +63,6 @@ var initCmd = &cobra.Command{
 			defaultCfg := config.DefaultWithPrefix(dirName + "-")
 			defaultCfg.SetConfigDir(projectDir)
 
-			// Include default agent action buttons
-			defaultCfg.Agent.Actions = config.DefaultActions
-
 			// Auto-detect the remote's default branch if we're in a git repo
 			if baseRef, ok := gitutil.DefaultRemoteBranch(projectDir, "origin"); ok {
 				defaultCfg.Worktree.BaseRef = baseRef
