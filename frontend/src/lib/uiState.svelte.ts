@@ -1,17 +1,42 @@
+import { goto } from '$app/navigation';
 import type { Bean } from '$lib/beans.svelte';
 import { beansStore } from '$lib/beans.svelte';
 
 class UIState {
-  // Active view: 'planning' or a beanId for workspace view
+  // Active view: 'planning' or a beanId for workspace view (derived from URL)
   activeView = $state<'planning' | string>('planning');
+
+  // Planning sub-view (derived from URL)
+  planningView = $state<'backlog' | 'board'>('backlog');
 
   get isPlanning(): boolean {
     return this.activeView === 'planning';
   }
 
-  setActiveView(view: 'planning' | string) {
-    this.activeView = view;
-    localStorage.setItem('beans-active-view', view);
+  /** Sync UIState from URL path. Called reactively from layout on every navigation. */
+  syncFromUrl(pathname: string) {
+    const workspaceMatch = pathname.match(/^\/workspace\/([^/]+)/);
+    if (workspaceMatch) {
+      this.activeView = workspaceMatch[1];
+      return;
+    }
+
+    this.activeView = 'planning';
+    this.planningView = pathname === '/planning/board' ? 'board' : 'backlog';
+  }
+
+  /** Navigate to a view via URL routing. */
+  navigateTo(view: 'planning' | string) {
+    if (view === 'planning') {
+      goto(`/planning${this.planningView === 'board' ? '/board' : ''}`);
+    } else {
+      goto(`/workspace/${view}`);
+    }
+  }
+
+  /** Navigate to a planning sub-view. */
+  navigateToPlanningView(view: 'backlog' | 'board') {
+    goto(view === 'board' ? '/planning/board' : '/planning');
   }
 
   // Selected bean ID (source of truth)
@@ -24,16 +49,16 @@ class UIState {
 
   selectBean(bean: Bean) {
     this.selectedBeanId = bean.id;
-    this.syncToUrl();
+    this.syncSelectedBeanToUrl();
   }
 
   clearSelection() {
     this.selectedBeanId = null;
-    this.syncToUrl();
+    this.syncSelectedBeanToUrl();
   }
 
   /** Update the URL query param without navigation */
-  private syncToUrl() {
+  private syncSelectedBeanToUrl() {
     const url = new URL(window.location.href);
     if (this.selectedBeanId) {
       url.searchParams.set('bean', this.selectedBeanId);
@@ -41,14 +66,6 @@ class UIState {
       url.searchParams.delete('bean');
     }
     window.history.replaceState(window.history.state, '', url);
-  }
-
-  // Planning view toggle (persisted to localStorage, initialized from layout load)
-  planningView = $state<'backlog' | 'board'>('backlog');
-
-  setPlanningView(view: 'backlog' | 'board') {
-    this.planningView = view;
-    localStorage.setItem('beans-planning-view', view);
   }
 
   // Planning chat pane (persisted to localStorage)

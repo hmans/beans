@@ -20,7 +20,7 @@
   <div class="flex-1 overflow-y-auto p-2">
     <!-- Planning item -->
     <button
-      onclick={() => ui.setActiveView('planning')}
+      onclick={() => ui.navigateTo('planning')}
       class={[
         'flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors',
         ui.isPlanning
@@ -54,7 +54,7 @@
 
       {#each worktreeBeans as bean (bean.id)}
         <button
-          onclick={() => ui.setActiveView(bean.id)}
+          onclick={() => ui.navigateTo(bean.id)}
           class={[
             'flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors',
             ui.activeView === bean.id

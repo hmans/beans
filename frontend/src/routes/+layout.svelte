@@ -2,12 +2,14 @@
   import './layout.css';
   import favicon from '$lib/assets/favicon.svg';
   import { preloadHighlighter } from '$lib/markdown';
+  import { page } from '$app/state';
   import { onMount, onDestroy } from 'svelte';
   import { beansStore } from '$lib/beans.svelte';
   import { worktreeStore } from '$lib/worktrees.svelte';
   import { agentStatusesStore } from '$lib/agentStatuses.svelte';
   import { ui } from '$lib/uiState.svelte';
   import BeanForm from '$lib/components/BeanForm.svelte';
+  import Sidebar from '$lib/components/Sidebar.svelte';
 
   preloadHighlighter();
 
@@ -15,20 +17,23 @@
 
   // Initialize UI state from load function data (runs before first render)
   $effect.pre(() => {
-    ui.planningView = data.planningView;
     ui.showPlanningChat = data.showPlanningChat;
     ui.showChanges = data.showChanges;
     ui.filterText = data.filterText;
-    ui.activeView = data.activeView;
     if (data.selectedBeanId) {
       ui.selectedBeanId = data.selectedBeanId;
     }
   });
 
+  // Sync UIState from URL path on every navigation
+  $effect(() => {
+    ui.syncFromUrl(page.url.pathname);
+  });
+
   // Fall back to planning view if the active workspace's worktree is removed
   $effect(() => {
     if (!ui.isPlanning && !worktreeStore.hasWorktree(ui.activeView)) {
-      ui.setActiveView('planning');
+      ui.navigateTo('planning');
     }
   });
 
@@ -55,7 +60,12 @@
       </div>
     </div>
   {:else}
-    {@render children()}
+    <div class="flex min-h-0 flex-1">
+      <Sidebar />
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+        {@render children()}
+      </div>
+    </div>
   {/if}
 </div>
 

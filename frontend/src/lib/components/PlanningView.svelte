@@ -2,6 +2,8 @@
   import { beansStore } from '$lib/beans.svelte';
   import { AgentChatStore } from '$lib/agentChat.svelte';
   import { ui } from '$lib/uiState.svelte';
+
+  let { planningView }: { planningView: 'backlog' | 'board' } = $props();
   import { backlogDrag } from '$lib/backlogDrag.svelte';
   import { matchesFilter } from '$lib/filter';
   import { onDestroy } from 'svelte';
@@ -67,19 +69,19 @@
 
     <div class="ml-3 flex">
       <button
-        onclick={() => ui.setPlanningView('backlog')}
+        onclick={() => ui.navigateToPlanningView('backlog')}
         class={[
           'btn-tab rounded-l-md',
-          ui.planningView === 'backlog' ? 'btn-tab-active' : 'btn-tab-inactive'
+          planningView === 'backlog' ? 'btn-tab-active' : 'btn-tab-inactive'
         ]}
       >
         Backlog
       </button>
       <button
-        onclick={() => ui.setPlanningView('board')}
+        onclick={() => ui.navigateToPlanningView('board')}
         class={[
           'btn-tab rounded-r-md border-l-0',
-          ui.planningView === 'board' ? 'btn-tab-active' : 'btn-tab-inactive'
+          planningView === 'board' ? 'btn-tab-active' : 'btn-tab-inactive'
         ]}
       >
         Board
@@ -178,8 +180,8 @@
         >
           {#snippet children()}
             <div class="flex h-full flex-col bg-surface">
-              <PaneHeader title={ui.planningView === 'backlog' ? 'Backlog' : 'Board'} />
-              {#if ui.planningView === 'backlog'}
+              <PaneHeader title={planningView === 'backlog' ? 'Backlog' : 'Board'} />
+              {#if planningView === 'backlog'}
                 <!-- svelte-ignore a11y_click_events_have_key_events -->
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div class="min-h-0 flex-1 overflow-auto bg-surface" onclick={handlePlanningClick}>
