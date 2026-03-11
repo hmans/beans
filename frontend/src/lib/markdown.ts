@@ -1,4 +1,5 @@
 import { Marked, type MarkedExtension } from 'marked';
+import DOMPurify from 'dompurify';
 import { browser } from '$app/environment';
 import { createHighlighterCore, type HighlighterCore } from 'shiki/core';
 import { createOnigurumaEngine } from 'shiki/engine/oniguruma';
@@ -257,7 +258,15 @@ export async function renderMarkdown(content: string): Promise<string> {
     md.use(plainCodeExtension());
   }
 
-  return md.parse(content) as string;
+  const html = md.parse(content) as string;
+
+  if (browser) {
+    return DOMPurify.sanitize(html, {
+      ADD_ATTR: ['data-bean-id']
+    });
+  }
+
+  return html;
 }
 
 /**
