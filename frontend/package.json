@@ -48,6 +48,7 @@
     "vitest-browser-svelte": "^2.0.1"
   },
   "dependencies": {
+    "dompurify": "^3.3.3",
     "marked": "^17.0.1",
     "shiki": "^3.20.0",
     "wonka": "^6.3.5"
