@@ -186,13 +186,14 @@ var agentActions = []agentActionDef{
 		PromptFunc: func(ctx actionContext) string {
 			return fmt.Sprintf(`Integrate this worktree's work into main. Follow these steps in order:
 
-1. If there are uncommitted changes, create a commit (following the usual commit guidelines).
-2. Mark bean %s as completed (update its status).
-3. Merge this branch into main. IMPORTANT: The main branch may have uncommitted changes. Before merging:
-   - Switch to main and stash any uncommitted changes (git stash)
-   - Merge this worktree's branch into main
-   - Pop the stash to restore main's uncommitted changes (git stash pop)
-   - If there are merge conflicts with the stash, resolve them carefully.`, ctx.BeanID)
+1. Mark bean %s as completed (update its status).
+2. If there are uncommitted changes, create a commit (following the usual commit guidelines).
+3. Merge into main WITHOUT switching to or modifying main's working directory (another agent may be working there). Do this from the worktree:
+   - First, merge main into this branch to incorporate any new changes: git merge main
+   - Resolve any merge conflicts if needed.
+   - Then update main's branch pointer: git push . HEAD:main
+   - This is atomic and fast-forward-only — if another agent integrated first, it will fail safely.
+   - If it fails, re-merge main (which now includes the other agent's work) and try the push again.`, ctx.BeanID)
 		},
 		Visible: func(ctx actionContext) bool {
 			return ctx.InWorktree && (ctx.HasChanges || ctx.HasNewCommits)
