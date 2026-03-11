@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"fmt"
 	"log"
 	"sync"
 )
@@ -108,7 +109,20 @@ func (m *Manager) GetSession(beanID string) *Session {
 
 // SendMessage sends a user message to the agent for the given worktree.
 // If no session exists, one is created. If no process is running, one is spawned.
-func (m *Manager) SendMessage(beanID, workDir, message string) error {
+// Images are optional base64-decoded uploads that will be stored and forwarded to Claude.
+func (m *Manager) SendMessage(beanID, workDir, message string, images []ImageUpload) error {
+	// Save images to disk before acquiring the lock
+	var imageRefs []ImageRef
+	if m.store != nil && len(images) > 0 {
+		for _, img := range images {
+			ref, err := m.store.saveImage(beanID, img.MediaType, img.Data)
+			if err != nil {
+				return fmt.Errorf("save image: %w", err)
+			}
+			imageRefs = append(imageRefs, ref)
+		}
+	}
+
 	m.mu.Lock()
 
 	// Get or create session
@@ -124,7 +138,7 @@ func (m *Manager) SendMessage(beanID, workDir, message string) error {
 	}
 
 	// Append user message and clear turn state
-	userMsg := Message{Role: RoleUser, Content: message}
+	userMsg := Message{Role: RoleUser, Content: message, Images: imageRefs}
 	session.Messages = append(session.Messages, userMsg)
 	session.Error = ""
 	session.PendingInteraction = nil
@@ -148,7 +162,7 @@ func (m *Manager) SendMessage(beanID, workDir, message string) error {
 	if hasProc && proc != nil {
 		// Send message to existing process via stdin — Claude Code's stream-json
 		// protocol handles interleaving even if the agent is mid-turn
-		return m.sendToProcess(proc, message)
+		return m.sendToProcess(proc, beanID, message, imageRefs)
 	}
 
 	// Spawn a new process
@@ -390,6 +404,40 @@ func (m *Manager) ClearSession(beanID string) error {
 
 	m.notify(beanID)
 	return nil
+}
+
+// AttachmentPath returns the filesystem path for a stored image attachment.
+// Used by the HTTP handler to serve images.
+func (m *Manager) AttachmentPath(beanID, imageID string) (string, error) {
+	if m.store == nil {
+		return "", fmt.Errorf("no store configured")
+	}
+	return m.store.attachmentPath(beanID, imageID)
+}
+
+// pruneOrphanedAttachments removes attachment files that are no longer referenced
+// by any message in the session. Called after compact to reclaim disk space.
+func (m *Manager) pruneOrphanedAttachments(beanID string) {
+	if m.store == nil {
+		return
+	}
+	m.mu.RLock()
+	s, ok := m.sessions[beanID]
+	if !ok {
+		m.mu.RUnlock()
+		return
+	}
+	var keepIDs []string
+	for _, msg := range s.Messages {
+		for _, img := range msg.Images {
+			keepIDs = append(keepIDs, img.ID)
+		}
+	}
+	m.mu.RUnlock()
+
+	if err := m.store.pruneAttachments(beanID, keepIDs); err != nil {
+		log.Printf("[agent:%s] failed to prune orphaned attachments: %v", beanID, err)
+	}
 }
 
 // Shutdown kills all running processes. Call on server shutdown.

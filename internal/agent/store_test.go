@@ -179,6 +179,177 @@ func TestStoreRejectsPathTraversal(t *testing.T) {
 	}
 }
 
+func TestStoreImageSaveAndPath(t *testing.T) {
+	dir := t.TempDir()
+	s, err := newStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	beanID := "bean-img"
+	data := []byte("fake-png-data")
+
+	// Save an image
+	ref, err := s.saveImage(beanID, "image/png", data)
+	if err != nil {
+		t.Fatalf("saveImage: %v", err)
+	}
+	if ref.MediaType != "image/png" {
+		t.Errorf("mediaType = %q, want image/png", ref.MediaType)
+	}
+	if ref.ID == "" {
+		t.Fatal("expected non-empty image ID")
+	}
+
+	// Verify file exists on disk
+	path, err := s.attachmentPath(beanID, ref.ID)
+	if err != nil {
+		t.Fatalf("attachmentPath: %v", err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read image file: %v", err)
+	}
+	if string(got) != string(data) {
+		t.Errorf("image data mismatch")
+	}
+}
+
+func TestStoreImageValidation(t *testing.T) {
+	dir := t.TempDir()
+	s, err := newStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Reject unsupported type
+	_, err = s.saveImage("bean-1", "image/bmp", []byte("data"))
+	if err == nil {
+		t.Error("expected error for unsupported image type")
+	}
+
+	// Reject oversized image
+	big := make([]byte, 6*1024*1024) // 6MB
+	_, err = s.saveImage("bean-1", "image/png", big)
+	if err == nil {
+		t.Error("expected error for oversized image")
+	}
+}
+
+func TestStoreImageRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	s, err := newStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	beanID := "bean-imgrt"
+	ref, err := s.saveImage(beanID, "image/jpeg", []byte("jpeg-data"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Persist a message with images
+	msg := Message{
+		Role:    RoleUser,
+		Content: "look at this",
+		Images:  []ImageRef{ref},
+	}
+	if err := s.appendMessage(beanID, msg); err != nil {
+		t.Fatal(err)
+	}
+
+	// Load back
+	msgs, _, err := s.load(beanID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(msgs))
+	}
+	if len(msgs[0].Images) != 1 {
+		t.Fatalf("expected 1 image ref, got %d", len(msgs[0].Images))
+	}
+	if msgs[0].Images[0].ID != ref.ID {
+		t.Errorf("image ID = %q, want %q", msgs[0].Images[0].ID, ref.ID)
+	}
+	if msgs[0].Images[0].MediaType != "image/jpeg" {
+		t.Errorf("mediaType = %q, want image/jpeg", msgs[0].Images[0].MediaType)
+	}
+}
+
+func TestStoreClearRemovesAttachments(t *testing.T) {
+	dir := t.TempDir()
+	s, err := newStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	beanID := "bean-clr"
+	ref, err := s.saveImage(beanID, "image/png", []byte("img"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	path, _ := s.attachmentPath(beanID, ref.ID)
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("image file should exist before clear")
+	}
+
+	if err := s.clear(beanID); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Error("image file should be deleted after clear")
+	}
+}
+
+func TestStorePruneAttachments(t *testing.T) {
+	dir := t.TempDir()
+	s, err := newStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	beanID := "bean-prune"
+	keep, _ := s.saveImage(beanID, "image/png", []byte("keep"))
+	orphan, _ := s.saveImage(beanID, "image/png", []byte("orphan"))
+
+	// Prune, keeping only the first image
+	if err := s.pruneAttachments(beanID, []string{keep.ID}); err != nil {
+		t.Fatal(err)
+	}
+
+	// keep should still exist
+	keepPath, _ := s.attachmentPath(beanID, keep.ID)
+	if _, err := os.Stat(keepPath); err != nil {
+		t.Error("kept image should still exist")
+	}
+
+	// orphan should be deleted
+	orphanPath, _ := s.attachmentPath(beanID, orphan.ID)
+	if _, err := os.Stat(orphanPath); !os.IsNotExist(err) {
+		t.Error("orphaned image should be deleted")
+	}
+}
+
+func TestStoreAttachmentPathTraversal(t *testing.T) {
+	dir := t.TempDir()
+	s, err := newStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	malicious := []string{"../../../etc/passwd", "foo/bar", "", ".."}
+	for _, id := range malicious {
+		_, err := s.attachmentPath("bean-1", id)
+		if err == nil {
+			t.Errorf("attachmentPath(%q) should have failed", id)
+		}
+	}
+}
+
 func TestManagerPersistence(t *testing.T) {
 	dir := t.TempDir()
 

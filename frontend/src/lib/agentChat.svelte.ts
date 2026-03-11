@@ -2,9 +2,15 @@ import { gql } from 'urql';
 import { pipe, subscribe } from 'wonka';
 import { client } from './graphqlClient';
 
+export interface AgentMessageImage {
+  url: string;
+  mediaType: string;
+}
+
 export interface AgentMessage {
   role: 'USER' | 'ASSISTANT' | 'TOOL';
   content: string;
+  images: AgentMessageImage[];
 }
 
 export type InteractionType = 'EXIT_PLAN' | 'ENTER_PLAN' | 'ASK_USER';
@@ -48,6 +54,11 @@ export interface AgentSession {
   subagentActivities: SubagentActivity[];
 }
 
+export interface ImageUploadInput {
+  data: string;
+  mediaType: string;
+}
+
 const AGENT_SESSION_SUBSCRIPTION = gql`
   subscription AgentSessionChanged($beanId: ID!) {
     agentSessionChanged(beanId: $beanId) {
@@ -57,6 +68,10 @@ const AGENT_SESSION_SUBSCRIPTION = gql`
       messages {
         role
         content
+        images {
+          url
+          mediaType
+        }
       }
       error
       planMode
@@ -87,8 +102,8 @@ const AGENT_SESSION_SUBSCRIPTION = gql`
 `;
 
 const SEND_AGENT_MESSAGE = gql`
-  mutation SendAgentMessage($beanId: ID!, $message: String!) {
-    sendAgentMessage(beanId: $beanId, message: $message)
+  mutation SendAgentMessage($beanId: ID!, $message: String!, $images: [ImageInput!]) {
+    sendAgentMessage(beanId: $beanId, message: $message, images: $images)
   }
 `;
 
@@ -187,11 +202,17 @@ export class AgentChatStore {
     this.#beanId = null;
   }
 
-  async sendMessage(beanId: string, message: string): Promise<boolean> {
+  async sendMessage(
+    beanId: string,
+    message: string,
+    images?: ImageUploadInput[]
+  ): Promise<boolean> {
     this.sending = true;
     this.error = null;
 
-    const result = await client.mutation(SEND_AGENT_MESSAGE, { beanId, message }).toPromise();
+    const result = await client
+      .mutation(SEND_AGENT_MESSAGE, { beanId, message, images: images ?? null })
+      .toPromise();
 
     this.sending = false;
 

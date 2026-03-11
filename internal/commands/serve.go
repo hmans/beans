@@ -168,6 +168,24 @@ func runServer(port int, origins []string) error {
 	// GraphQL Playground
 	router.GET("/playground", gin.WrapH(playground.Handler("Beans GraphQL", "/api/graphql")))
 
+	// Serve agent chat image attachments
+	router.GET("/api/attachments/:beanId/:filename", func(c *gin.Context) {
+		beanID := c.Param("beanId")
+		filename := c.Param("filename")
+		path, err := agentMgr.AttachmentPath(beanID, filename)
+		if err != nil {
+			c.Status(http.StatusBadRequest)
+			return
+		}
+		if _, err := os.Stat(path); err != nil {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		c.Header("Content-Disposition", "inline")
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.File(path)
+	})
+
 	// Serve the embedded frontend SPA
 	router.NoRoute(gin.WrapH(web.Handler()))
 

@@ -157,8 +157,9 @@ type Mutation {
 
   """
   Send a message to the agent in a worktree. Starts a session if none exists.
+  Optionally attach images (base64-encoded).
   """
-  sendAgentMessage(beanId: ID!, message: String!): Boolean!
+  sendAgentMessage(beanId: ID!, message: String!, images: [ImageInput!]): Boolean!
 
   """
   Stop the running agent in a worktree.
@@ -563,6 +564,28 @@ type AgentMessage {
   role: AgentMessageRole!
   "Text content"
   content: String!
+  "Attached images (empty for assistant/tool messages)"
+  images: [AgentMessageImage!]!
+}
+
+"""
+An image attached to an agent message
+"""
+type AgentMessageImage {
+  "URL to fetch the image"
+  url: String!
+  "MIME type (e.g. image/png)"
+  mediaType: String!
+}
+
+"""
+Input for uploading an image attachment
+"""
+input ImageInput {
+  "Base64-encoded image data"
+  data: String!
+  "MIME type (image/jpeg, image/png, image/gif, image/webp)"
+  mediaType: String!
 }
 
 """

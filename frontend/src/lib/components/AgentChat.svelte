@@ -74,7 +74,7 @@
     {agentMode}
     {systemStatus}
     {subagentActivities}
-    onSend={(text) => store.sendMessage(beanId, text)}
+    onSend={(text, images) => store.sendMessage(beanId, text, images)}
     onStop={() => store.stop(beanId)}
     onSetMode={setAgentMode}
     onCompact={() => store.sendMessage(beanId, '/compact')}

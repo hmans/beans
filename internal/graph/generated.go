@@ -64,7 +64,13 @@ type ComplexityRoot struct {
 
 	AgentMessage struct {
 		Content func(childComplexity int) int
+		Images  func(childComplexity int) int
 		Role    func(childComplexity int) int
+	}
+
+	AgentMessageImage struct {
+		MediaType func(childComplexity int) int
+		URL       func(childComplexity int) int
 	}
 
 	AgentSession struct {
@@ -145,7 +151,7 @@ type ComplexityRoot struct {
 		RemoveBlocking             func(childComplexity int, id string, targetID string, ifMatch *string) int
 		SaveBean                   func(childComplexity int, id string) int
 		SaveDirtyBeans             func(childComplexity int) int
-		SendAgentMessage           func(childComplexity int, beanID string, message string) int
+		SendAgentMessage           func(childComplexity int, beanID string, message string, images []*model.ImageInput) int
 		SetAgentActMode            func(childComplexity int, beanID string, actMode bool) int
 		SetAgentPendingInteraction func(childComplexity int, beanID string, typeArg model.InteractionType, planContent *string) int
 		SetAgentPlanMode           func(childComplexity int, beanID string, planMode bool) int
@@ -217,7 +223,7 @@ type MutationResolver interface {
 	RemoveBlockedBy(ctx context.Context, id string, targetID string, ifMatch *string) (*bean.Bean, error)
 	StartWork(ctx context.Context, beanID string) (*model.Worktree, error)
 	StopWork(ctx context.Context, beanID string) (bool, error)
-	SendAgentMessage(ctx context.Context, beanID string, message string) (bool, error)
+	SendAgentMessage(ctx context.Context, beanID string, message string, images []*model.ImageInput) (bool, error)
 	StopAgent(ctx context.Context, beanID string) (bool, error)
 	SetAgentPlanMode(ctx context.Context, beanID string, planMode bool) (bool, error)
 	SetAgentActMode(ctx context.Context, beanID string, actMode bool) (bool, error)
@@ -301,12 +307,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.AgentMessage.Content(childComplexity), true
+	case "AgentMessage.images":
+		if e.complexity.AgentMessage.Images == nil {
+			break
+		}
+
+		return e.complexity.AgentMessage.Images(childComplexity), true
 	case "AgentMessage.role":
 		if e.complexity.AgentMessage.Role == nil {
 			break
 		}
 
 		return e.complexity.AgentMessage.Role(childComplexity), true
+
+	case "AgentMessageImage.mediaType":
+		if e.complexity.AgentMessageImage.MediaType == nil {
+			break
+		}
+
+		return e.complexity.AgentMessageImage.MediaType(childComplexity), true
+	case "AgentMessageImage.url":
+		if e.complexity.AgentMessageImage.URL == nil {
+			break
+		}
+
+		return e.complexity.AgentMessageImage.URL(childComplexity), true
 
 	case "AgentSession.actMode":
 		if e.complexity.AgentSession.ActMode == nil {
@@ -743,7 +768,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.SendAgentMessage(childComplexity, args["beanId"].(string), args["message"].(string)), true
+		return e.complexity.Mutation.SendAgentMessage(childComplexity, args["beanId"].(string), args["message"].(string), args["images"].([]*model.ImageInput)), true
 	case "Mutation.setAgentActMode":
 		if e.complexity.Mutation.SetAgentActMode == nil {
 			break
@@ -1016,6 +1041,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputBeanFilter,
 		ec.unmarshalInputBodyModification,
 		ec.unmarshalInputCreateBeanInput,
+		ec.unmarshalInputImageInput,
 		ec.unmarshalInputReplaceOperation,
 		ec.unmarshalInputUpdateBeanInput,
 	)
@@ -1352,6 +1378,11 @@ func (ec *executionContext) field_Mutation_sendAgentMessage_args(ctx context.Con
 		return nil, err
 	}
 	args["message"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "images", ec.unmarshalOImageInput2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐImageInputᚄ)
+	if err != nil {
+		return nil, err
+	}
+	args["images"] = arg2
 	return args, nil
 }
 
@@ -1821,6 +1852,99 @@ func (ec *executionContext) fieldContext_AgentMessage_content(_ context.Context,
 	return fc, nil
 }
 
+func (ec *executionContext) _AgentMessage_images(ctx context.Context, field graphql.CollectedField, obj *model.AgentMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AgentMessage_images,
+		func(ctx context.Context) (any, error) {
+			return obj.Images, nil
+		},
+		nil,
+		ec.marshalNAgentMessageImage2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentMessageImageᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AgentMessage_images(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentMessage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "url":
+				return ec.fieldContext_AgentMessageImage_url(ctx, field)
+			case "mediaType":
+				return ec.fieldContext_AgentMessageImage_mediaType(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AgentMessageImage", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AgentMessageImage_url(ctx context.Context, field graphql.CollectedField, obj *model.AgentMessageImage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AgentMessageImage_url,
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AgentMessageImage_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentMessageImage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AgentMessageImage_mediaType(ctx context.Context, field graphql.CollectedField, obj *model.AgentMessageImage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AgentMessageImage_mediaType,
+		func(ctx context.Context) (any, error) {
+			return obj.MediaType, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AgentMessageImage_mediaType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentMessageImage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _AgentSession_beanId(ctx context.Context, field graphql.CollectedField, obj *model.AgentSession) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -1936,6 +2060,8 @@ func (ec *executionContext) fieldContext_AgentSession_messages(_ context.Context
 				return ec.fieldContext_AgentMessage_role(ctx, field)
 			case "content":
 				return ec.fieldContext_AgentMessage_content(ctx, field)
+			case "images":
+				return ec.fieldContext_AgentMessage_images(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type AgentMessage", field.Name)
 		},
@@ -4283,7 +4409,7 @@ func (ec *executionContext) _Mutation_sendAgentMessage(ctx context.Context, fiel
 		ec.fieldContext_Mutation_sendAgentMessage,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Mutation().SendAgentMessage(ctx, fc.Args["beanId"].(string), fc.Args["message"].(string))
+			return ec.resolvers.Mutation().SendAgentMessage(ctx, fc.Args["beanId"].(string), fc.Args["message"].(string), fc.Args["images"].([]*model.ImageInput))
 		},
 		nil,
 		ec.marshalNBoolean2bool,
@@ -7503,6 +7629,40 @@ func (ec *executionContext) unmarshalInputCreateBeanInput(ctx context.Context, o
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputImageInput(ctx context.Context, obj any) (model.ImageInput, error) {
+	var it model.ImageInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"data", "mediaType"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "data":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("data"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Data = data
+		case "mediaType":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mediaType"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MediaType = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputReplaceOperation(ctx context.Context, obj any) (model.ReplaceOperation, error) {
 	var it model.ReplaceOperation
 	asMap := map[string]any{}
@@ -7785,6 +7945,55 @@ func (ec *executionContext) _AgentMessage(ctx context.Context, sel ast.Selection
 			}
 		case "content":
 			out.Values[i] = ec._AgentMessage_content(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "images":
+			out.Values[i] = ec._AgentMessage_images(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var agentMessageImageImplementors = []string{"AgentMessageImage"}
+
+func (ec *executionContext) _AgentMessageImage(ctx context.Context, sel ast.SelectionSet, obj *model.AgentMessageImage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, agentMessageImageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AgentMessageImage")
+		case "url":
+			out.Values[i] = ec._AgentMessageImage_url(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "mediaType":
+			out.Values[i] = ec._AgentMessageImage_mediaType(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -9586,6 +9795,60 @@ func (ec *executionContext) marshalNAgentMessage2ᚖgithubᚗcomᚋhmansᚋbeans
 	return ec._AgentMessage(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNAgentMessageImage2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentMessageImageᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AgentMessageImage) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNAgentMessageImage2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentMessageImage(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAgentMessageImage2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentMessageImage(ctx context.Context, sel ast.SelectionSet, v *model.AgentMessageImage) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AgentMessageImage(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNAgentMessageRole2githubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentMessageRole(ctx context.Context, v any) (model.AgentMessageRole, error) {
 	var res model.AgentMessageRole
 	err := res.UnmarshalGQL(v)
@@ -9855,6 +10118,11 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNImageInput2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐImageInput(ctx context.Context, v any) (*model.ImageInput, error) {
+	res, err := ec.unmarshalInputImageInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNInt2int(ctx context.Context, v any) (int, error) {
@@ -10431,6 +10699,24 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	_ = ctx
 	res := graphql.MarshalBoolean(*v)
 	return res
+}
+
+func (ec *executionContext) unmarshalOImageInput2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐImageInputᚄ(ctx context.Context, v any) ([]*model.ImageInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]*model.ImageInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNImageInput2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐImageInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) marshalOPendingInteraction2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐPendingInteraction(ctx context.Context, sel ast.SelectionSet, v *model.PendingInteraction) graphql.Marshaler {

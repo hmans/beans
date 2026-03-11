@@ -22,9 +22,17 @@ func agentSessionToModel(s *agent.Session) *model.AgentSession {
 		case agent.RoleTool:
 			role = model.AgentMessageRoleTool
 		}
+		images := make([]*model.AgentMessageImage, 0, len(m.Images))
+		for _, img := range m.Images {
+			images = append(images, &model.AgentMessageImage{
+				URL:       fmt.Sprintf("/api/attachments/%s/%s", s.ID, img.ID),
+				MediaType: img.MediaType,
+			})
+		}
 		msgs[i] = &model.AgentMessage{
 			Role:    role,
 			Content: m.Content,
+			Images:  images,
 		}
 	}
 

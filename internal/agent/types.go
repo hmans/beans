@@ -25,10 +25,23 @@ type ActiveAgent struct {
 	Status SessionStatus
 }
 
+// ImageRef references a stored image attachment by its filename and media type.
+type ImageRef struct {
+	ID        string // filename on disk: <uuid>.<ext>
+	MediaType string // e.g. "image/png"
+}
+
+// ImageUpload carries raw image data from a GraphQL mutation into the agent layer.
+type ImageUpload struct {
+	Data      []byte // decoded image bytes
+	MediaType string // e.g. "image/png"
+}
+
 // Message represents a single chat message in an agent conversation.
 type Message struct {
 	Role    MessageRole
 	Content string
+	Images  []ImageRef // optional attached images (typically only on user messages)
 }
 
 // ToolInvocation records a tool call with its name and input summary.
@@ -140,6 +153,13 @@ func (s *Session) snapshot() Session {
 		snap.PendingInteraction = &pi
 	}
 	copy(snap.Messages, s.Messages)
+	// Deep copy image refs in each message
+	for i, m := range snap.Messages {
+		if len(m.Images) > 0 {
+			snap.Messages[i].Images = make([]ImageRef, len(m.Images))
+			copy(snap.Messages[i].Images, m.Images)
+		}
+	}
 	if len(s.SubagentActivities) > 0 {
 		snap.SubagentActivities = make([]*SubagentActivity, len(s.SubagentActivities))
 		for i, sa := range s.SubagentActivities {

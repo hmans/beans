@@ -35,6 +35,16 @@ type AgentMessage struct {
 	Role AgentMessageRole `json:"role"`
 	// Text content
 	Content string `json:"content"`
+	// Attached images (empty for assistant/tool messages)
+	Images []*AgentMessageImage `json:"images"`
+}
+
+// An image attached to an agent message
+type AgentMessageImage struct {
+	// URL to fetch the image
+	URL string `json:"url"`
+	// MIME type (e.g. image/png)
+	MediaType string `json:"mediaType"`
 }
 
 // An agent chat session within a worktree
@@ -201,6 +211,14 @@ type FileChange struct {
 	Deletions int `json:"deletions"`
 	// Whether this change is staged
 	Staged bool `json:"staged"`
+}
+
+// Input for uploading an image attachment
+type ImageInput struct {
+	// Base64-encoded image data
+	Data string `json:"data"`
+	// MIME type (image/jpeg, image/png, image/gif, image/webp)
+	MediaType string `json:"mediaType"`
 }
 
 type Mutation struct {

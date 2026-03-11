@@ -3,6 +3,7 @@ package agent
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -58,13 +59,44 @@ func (p *runningProcess) kill() {
 }
 
 // sendToProcess writes a user message to an existing process's stdin
-// using Claude Code's stream-json input format.
-func (m *Manager) sendToProcess(proc *runningProcess, message string) error {
+// using Claude Code's stream-json input format. When images are present,
+// the content field is sent as an array of content blocks (text + image)
+// matching the Anthropic API format.
+func (m *Manager) sendToProcess(proc *runningProcess, beanID, message string, images []ImageRef) error {
+	var content interface{} = message
+
+	if len(images) > 0 && m.store != nil {
+		blocks := []interface{}{
+			map[string]string{"type": "text", "text": message},
+		}
+		for _, img := range images {
+			path, err := m.store.attachmentPath(beanID, img.ID)
+			if err != nil {
+				log.Printf("[agent:%s] skip image %s: %v", beanID, img.ID, err)
+				continue
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				log.Printf("[agent:%s] skip image %s: %v", beanID, img.ID, err)
+				continue
+			}
+			blocks = append(blocks, map[string]interface{}{
+				"type": "image",
+				"source": map[string]string{
+					"type":       "base64",
+					"media_type": img.MediaType,
+					"data":       base64.StdEncoding.EncodeToString(data),
+				},
+			})
+		}
+		content = blocks
+	}
+
 	msg := map[string]interface{}{
 		"type": "user",
 		"message": map[string]interface{}{
 			"role":    "user",
-			"content": message,
+			"content": content,
 		},
 	}
 	data, err := json.Marshal(msg)
@@ -130,13 +162,14 @@ func (m *Manager) spawnAndRun(beanID string, session *Session) {
 	log.Printf("[agent:%s] spawned claude process (pid=%d, dir=%s, args=%v)", beanID, cmd.Process.Pid, session.WorkDir, args)
 
 	// Send the initial user message, prepending bean context on first spawn
-	initialMsg := session.Messages[len(session.Messages)-1].Content
+	lastMsg := session.Messages[len(session.Messages)-1]
+	initialMsg := lastMsg.Content
 	if session.SessionID == "" && m.contextProvider != nil {
 		if ctx := m.contextProvider(beanID); ctx != "" {
 			initialMsg = ctx + "\n\n---\n\n" + initialMsg
 		}
 	}
-	if err := m.sendToProcess(proc, initialMsg); err != nil {
+	if err := m.sendToProcess(proc, beanID, initialMsg, lastMsg.Images); err != nil {
 		m.setError(beanID, fmt.Sprintf("send initial message: %v", err))
 		proc.kill()
 		return
@@ -419,6 +452,11 @@ func (m *Manager) readOutput(beanID string, stdout io.Reader, workDir string) {
 			m.mu.Unlock()
 			m.notify(beanID)
 
+			// After compact, prune orphaned image attachments
+			if m.wasLastUserMessage(beanID, "/compact") {
+				m.pruneOrphanedAttachments(beanID)
+			}
+
 		case eventError:
 			flushToolMsg()
 			m.setError(beanID, ev.Error)
@@ -474,6 +512,23 @@ func (m *Manager) readOutput(beanID string, stdout io.Reader, workDir string) {
 
 	// Flush any remaining pending tool message at end of stream
 	flushToolMsg()
+}
+
+// wasLastUserMessage checks if the most recent user message in the session
+// matches the given content (trimmed). Used to detect /compact for pruning.
+func (m *Manager) wasLastUserMessage(beanID, content string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	s, ok := m.sessions[beanID]
+	if !ok {
+		return false
+	}
+	for i := len(s.Messages) - 1; i >= 0; i-- {
+		if s.Messages[i].Role == RoleUser {
+			return strings.TrimSpace(s.Messages[i].Content) == content
+		}
+	}
+	return false
 }
 
 // appendAssistantText appends text to the current streaming assistant message.
@@ -609,7 +664,7 @@ func (m *Manager) autoApproveModeSwitch(beanID string, interaction *PendingInter
 	// Respawn with the new mode by sending an auto-approval message.
 	// This runs in a goroutine because we're inside readOutput (same goroutine
 	// as spawnAndRun) and SendMessage will spawn a new process.
-	go m.SendMessage(beanID, workDir, "yes, proceed")
+	go m.SendMessage(beanID, workDir, "yes, proceed", nil)
 }
 
 // findPlanFilePath scans tool invocations for a Write to ~/.claude/plans/*.md

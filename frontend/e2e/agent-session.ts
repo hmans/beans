@@ -2,7 +2,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 
-type MessageEntry = { role: 'user' | 'assistant'; content: string };
+type ImageEntry = { id: string; media_type: string };
+type MessageEntry = { role: 'user' | 'assistant'; content: string; images?: ImageEntry[] };
 type InteractionType = 'EXIT_PLAN' | 'ENTER_PLAN' | 'ASK_USER';
 
 interface PendingInteractionConfig {
@@ -91,9 +92,11 @@ class AgentSessionBuilder {
     if (this.messages.length > 0) {
       const convDir = join(this.beansPath, '.conversations');
       mkdirSync(convDir, { recursive: true });
-      const lines = this.messages.map((m) =>
-        JSON.stringify({ type: 'message', role: m.role, content: m.content })
-      );
+      const lines = this.messages.map((m) => {
+        const entry: Record<string, unknown> = { type: 'message', role: m.role, content: m.content };
+        if (m.images && m.images.length > 0) entry.images = m.images;
+        return JSON.stringify(entry);
+      });
       writeFileSync(join(convDir, `${this.beanId}.jsonl`), lines.join('\n') + '\n');
     }
 

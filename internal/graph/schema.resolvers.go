@@ -7,6 +7,7 @@ package graph
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 
 	"github.com/hmans/beans/internal/agent"
@@ -565,7 +566,7 @@ func (r *mutationResolver) StopWork(ctx context.Context, beanID string) (bool, e
 }
 
 // SendAgentMessage is the resolver for the sendAgentMessage field.
-func (r *mutationResolver) SendAgentMessage(ctx context.Context, beanID string, message string) (bool, error) {
+func (r *mutationResolver) SendAgentMessage(ctx context.Context, beanID string, message string, images []*model.ImageInput) (bool, error) {
 	if r.AgentMgr == nil {
 		return false, fmt.Errorf("agent manager not available")
 	}
@@ -583,7 +584,16 @@ func (r *mutationResolver) SendAgentMessage(ctx context.Context, beanID string, 
 		}
 	}
 
-	if err := r.AgentMgr.SendMessage(beanID, workDir, message); err != nil {
+	var uploads []agent.ImageUpload
+	for _, img := range images {
+		data, err := base64.StdEncoding.DecodeString(img.Data)
+		if err != nil {
+			return false, fmt.Errorf("invalid base64 image data: %w", err)
+		}
+		uploads = append(uploads, agent.ImageUpload{Data: data, MediaType: img.MediaType})
+	}
+
+	if err := r.AgentMgr.SendMessage(beanID, workDir, message, uploads); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -701,7 +711,7 @@ func (r *mutationResolver) ExecuteAgentAction(ctx context.Context, beanID string
 	}
 
 	actCtx := actionContext{BeanID: beanID, WorkDir: workDir}
-	if err := r.AgentMgr.SendMessage(beanID, workDir, action.PromptFunc(actCtx)); err != nil {
+	if err := r.AgentMgr.SendMessage(beanID, workDir, action.PromptFunc(actCtx), nil); err != nil {
 		return false, err
 	}
 	return true, nil

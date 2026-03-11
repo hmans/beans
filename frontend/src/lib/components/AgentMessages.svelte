@@ -93,7 +93,22 @@
         {#if msg.role === 'USER'}
           <div class="flex gap-2">
             <span class="shrink-0 font-bold text-accent select-none">&gt;</span>
-            <p class="whitespace-pre-wrap text-text">{msg.content}</p>
+            <div>
+              {#if msg.content}
+                <p class="whitespace-pre-wrap text-text">{msg.content}</p>
+              {/if}
+              {#if msg.images.length > 0}
+                <div class="mt-2 flex flex-wrap gap-2">
+                  {#each msg.images as img}
+                    <img
+                      src={img.url}
+                      alt="Attached image"
+                      class="max-h-48 max-w-xs rounded border border-border"
+                    />
+                  {/each}
+                </div>
+              {/if}
+            </div>
           </div>
         {:else if msg.role === 'TOOL'}
           <div class="flex gap-2 text-xs text-text-faint">

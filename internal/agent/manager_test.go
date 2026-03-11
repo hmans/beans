@@ -464,7 +464,7 @@ func TestSendMessage_ClearsPendingInteraction(t *testing.T) {
 	// SendMessage will try to spawn a process — that will fail because
 	// there's no claude binary in test. But we can check the session state
 	// was updated before the spawn.
-	_ = m.SendMessage("test", "/tmp/test", "proceed")
+	_ = m.SendMessage("test", "/tmp/test", "proceed", nil)
 
 	s := m.sessions["test"]
 	if s.PendingInteraction != nil {
