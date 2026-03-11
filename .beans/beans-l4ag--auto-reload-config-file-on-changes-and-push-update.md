@@ -3,8 +3,10 @@
 title: Auto-reload config file on changes and push updates to frontend
 status: todo
 type: feature
+priority: normal
 created_at: 2026-03-11T18:12:28Z
-updated_at: 2026-03-11T18:12:28Z
+updated_at: 2026-03-11T19:54:28Z
+order: zzzV
 blocked_by:
     - beans-bbjk
 ---
