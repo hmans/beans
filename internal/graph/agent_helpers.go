@@ -190,19 +190,19 @@ var agentActions = []agentActionDef{
 	{
 		ID:          "integrate",
 		Label:       "Integrate",
-		Description: "Commit, complete the bean, and merge into main",
+		Description: "Commit, complete the bean, and rebase onto main",
 		PromptFunc: func(ctx actionContext) string {
 			return fmt.Sprintf(`Integrate this worktree's work into main. Follow these steps in order:
 
 1. Mark bean %s as completed (update its status).
 2. If there are uncommitted changes, create a commit (following the usual commit guidelines).
-3. Merge into main WITHOUT switching to or modifying main's working directory (another agent may be working there). Do this from the worktree:
+3. Rebase onto main and fast-forward push — do NOT merge. Do NOT switch to or modify main's working directory (another agent may be working there). Do this from the worktree:
    - Ensure the main repo accepts pushes to checked-out branches: git -C "$(git rev-parse --git-common-dir)/.." config receive.denyCurrentBranch updateInstead
-   - First, merge main into this branch to incorporate any new changes: git merge main
-   - Resolve any merge conflicts if needed.
-   - Then update main's branch pointer: git push . HEAD:main
-   - This is atomic and fast-forward-only — if another agent integrated first, it will fail safely.
-   - If it fails, re-merge main (which now includes the other agent's work) and try the push again.`, ctx.BeanID)
+   - Rebase this branch onto main: git rebase main
+   - Resolve any rebase conflicts if they arise, then continue with: git rebase --continue
+   - Then fast-forward main's branch pointer: git push . HEAD:main
+   - This push is fast-forward-only — if another agent integrated first, it will fail safely.
+   - If it fails, rebase again onto main (which now includes the other agent's work) and retry the push.`, ctx.BeanID)
 		},
 		Visible: func(ctx actionContext) bool {
 			return ctx.InWorktree && (ctx.HasChanges || ctx.HasNewCommits)
