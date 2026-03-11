@@ -825,12 +825,15 @@ func (r *queryResolver) AgentActions(ctx context.Context, beanID string) ([]*mod
 	// Build action context for visibility filtering
 	actCtx := actionContext{BeanID: beanID}
 
-	// Check if this bean has a worktree
+	// Check if this bean has a worktree and gather worktree state
 	if r.WorktreeMgr != nil {
 		if wts, err := r.WorktreeMgr.List(); err == nil {
 			for _, wt := range wts {
 				if wt.BeanID == beanID {
 					actCtx.InWorktree = true
+					actCtx.WorktreePath = wt.Path
+					actCtx.HasChanges = gitutil.HasChanges(wt.Path)
+					actCtx.HasNewCommits = gitutil.HasUnmergedCommits(wt.Path, "main")
 					break
 				}
 			}

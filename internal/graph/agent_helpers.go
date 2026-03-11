@@ -130,9 +130,12 @@ func activeAgentsToModel(agents []agent.ActiveAgent) []*model.ActiveAgentStatus 
 
 // actionContext provides context about the bean for action visibility filtering.
 type actionContext struct {
-	BeanID      string
-	BeanStatus  string
-	InWorktree  bool
+	BeanID         string
+	BeanStatus     string
+	InWorktree     bool
+	WorktreePath   string
+	HasChanges     bool // uncommitted changes or untracked files in worktree
+	HasNewCommits  bool // commits ahead of the base branch
 }
 
 // agentActionDef defines a single agent action with its metadata and prompt.
@@ -164,7 +167,7 @@ var agentActions = []agentActionDef{
 		Label:       "Commit",
 		Description: "Create a git commit",
 		PromptFunc:  func(_ string) string {
-			return "Create a commit. If you have just implemented a change, make sure there is an associated bean, it is up to date, and possibly even marked as completed if you are done with the change. Then only commit changes related to that change. If you haven't, please examine the git diff and commit whatever changes you see."
+			return "Create a commit. First, examine the git diff. If the only uncommitted changes are within the .beans/ directory (bean files), commit them with an appropriate message describing the bean updates (e.g. status changes, new beans, updated descriptions). If there are code changes as well, make sure there is an associated bean that is up to date, and possibly even marked as completed if you are done with the change. Then only commit changes related to that change."
 		},
 	},
 	{
@@ -173,6 +176,25 @@ var agentActions = []agentActionDef{
 		Description: "Ask for a code review",
 		PromptFunc:  func(_ string) string {
 			return "Ask a subagent for a thorough code review."
+		},
+	},
+	{
+		ID:          "integrate",
+		Label:       "Integrate",
+		Description: "Commit, complete the bean, and merge into main",
+		PromptFunc: func(beanID string) string {
+			return fmt.Sprintf(`Integrate this worktree's work into main. Follow these steps in order:
+
+1. If there are uncommitted changes, create a commit (following the usual commit guidelines).
+2. Mark bean %s as completed (update its status).
+3. Merge this branch into main. IMPORTANT: The main branch may have uncommitted changes. Before merging:
+   - Switch to main and stash any uncommitted changes (git stash)
+   - Merge this worktree's branch into main
+   - Pop the stash to restore main's uncommitted changes (git stash pop)
+   - If there are merge conflicts with the stash, resolve them carefully.`, beanID)
+		},
+		Visible: func(ctx actionContext) bool {
+			return ctx.InWorktree && (ctx.HasChanges || ctx.HasNewCommits)
 		},
 	},
 }

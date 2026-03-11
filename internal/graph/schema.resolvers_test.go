@@ -2890,6 +2890,34 @@ func TestStartWorkActionVisibility(t *testing.T) {
 	}
 }
 
+func TestIntegrateActionVisibility(t *testing.T) {
+	integrate := findAgentAction("integrate")
+	if integrate == nil {
+		t.Fatal("integrate action not found")
+	}
+
+	tests := []struct {
+		name    string
+		ctx     actionContext
+		visible bool
+	}{
+		{"hidden without worktree", actionContext{InWorktree: false, HasChanges: true}, false},
+		{"hidden when no changes and no new commits", actionContext{InWorktree: true}, false},
+		{"visible with uncommitted changes", actionContext{InWorktree: true, HasChanges: true}, true},
+		{"visible with new commits", actionContext{InWorktree: true, HasNewCommits: true}, true},
+		{"visible with both", actionContext{InWorktree: true, HasChanges: true, HasNewCommits: true}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := integrate.Visible(tt.ctx)
+			if got != tt.visible {
+				t.Errorf("Visible() = %v, want %v", got, tt.visible)
+			}
+		})
+	}
+}
+
 func TestExecuteAgentAction(t *testing.T) {
 	t.Run("nil agent manager", func(t *testing.T) {
 		resolver, _ := setupTestResolver(t)
@@ -2988,7 +3016,7 @@ func TestExecuteAgentAction(t *testing.T) {
 }
 
 func TestAgentActionRegistry(t *testing.T) {
-	expectedActions := []string{"start-work", "commit", "review"}
+	expectedActions := []string{"start-work", "commit", "review", "integrate"}
 	for _, id := range expectedActions {
 		action := findAgentAction(id)
 		if action == nil {

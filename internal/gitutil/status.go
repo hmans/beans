@@ -101,6 +101,27 @@ func parseNumstat(output string, staged bool) ([]FileChange, error) {
 	return changes, nil
 }
 
+// HasUnmergedCommits returns true if the current branch in dir has commits
+// that are not in the given base branch (i.e., commits ahead).
+func HasUnmergedCommits(dir, baseBranch string) bool {
+	cmd := exec.Command("git", "-C", dir, "rev-list", "--count", baseBranch+"..HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	count, _ := strconv.Atoi(strings.TrimSpace(string(out)))
+	return count > 0
+}
+
+// HasChanges returns true if there are any uncommitted changes or untracked files.
+func HasChanges(dir string) bool {
+	changes, err := FileChanges(dir)
+	if err != nil {
+		return false
+	}
+	return len(changes) > 0
+}
+
 // untrackedFiles returns untracked files via git ls-files.
 func untrackedFiles(dir string) ([]FileChange, error) {
 	cmd := exec.Command("git", "-C", dir, "ls-files", "--others", "--exclude-standard")
