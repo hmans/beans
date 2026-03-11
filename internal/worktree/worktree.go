@@ -35,7 +35,7 @@ type Manager struct {
 
 // NewManager creates a new worktree manager for the given repository root.
 // beansDir is the path to the .beans directory where worktrees are stored.
-// baseRef is the git ref to use as the starting point for new branches (e.g. "origin/main").
+// baseRef is the git ref to use as the starting point for new branches (e.g. "main").
 func NewManager(repoRoot, beansDir, baseRef string) *Manager {
 	return &Manager{repoRoot: repoRoot, beansDir: beansDir, baseRef: baseRef}
 }
@@ -141,7 +141,7 @@ func parsePorcelain(output string) []Worktree {
 // Create creates a new git worktree for the given bean ID.
 // The worktree is placed inside .beans/.worktrees/<beanID>.
 // If the branch beans/<beanID> already exists, it is reused; otherwise a new branch
-// is created from the configured base ref (default: origin/main).
+// is created from the configured base ref (default: main).
 func (m *Manager) Create(beanID string) (*Worktree, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

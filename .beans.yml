@@ -12,8 +12,8 @@ beans:
     # Default type for new beans
     default_type: task
 worktree:
-    # Git ref to use as the base for new worktree branches (default: origin/main)
-    base_ref: origin/main
+    # Git ref to use as the base for new worktree branches (default: main)
+    base_ref: main
 agent:
     # Default mode for agent sessions (act, plan)
     default_mode: act

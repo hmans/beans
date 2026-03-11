@@ -84,7 +84,7 @@ const (
 // WorktreeConfig defines settings for git worktree management.
 type WorktreeConfig struct {
 	// BaseRef is the git ref to use as the starting point for new worktree branches.
-	// Default: "origin/main"
+	// Default: "main"
 	BaseRef string `yaml:"base_ref,omitempty"`
 }
 
@@ -362,7 +362,7 @@ func (c *Config) toYAMLNode() *yaml.Node {
 	worktreeMapping := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 	if c.Worktree.BaseRef != "" {
 		key := strNode("base_ref")
-		key.HeadComment = "Git ref to use as the base for new worktree branches (default: origin/main)"
+		key.HeadComment = "Git ref to use as the base for new worktree branches (default: main)"
 		worktreeMapping.Content = append(worktreeMapping.Content, key, strNode(c.Worktree.BaseRef))
 	}
 
@@ -588,10 +588,10 @@ func (c *Config) PriorityList() string {
 }
 
 // DefaultWorktreeBaseRef is the default base ref for new worktree branches.
-const DefaultWorktreeBaseRef = "origin/main"
+const DefaultWorktreeBaseRef = "main"
 
 // GetWorktreeBaseRef returns the configured base ref for new worktree branches.
-// Returns "origin/main" if not set.
+// Returns "main" if not set.
 func (c *Config) GetWorktreeBaseRef() string {
 	if c.Worktree.BaseRef == "" {
 		return DefaultWorktreeBaseRef
