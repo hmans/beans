@@ -44,6 +44,11 @@ func NewManager(repoRoot, beansDir, baseRef string) *Manager {
 	return &Manager{repoRoot: repoRoot, beansDir: beansDir, baseRef: baseRef}
 }
 
+// BaseRef returns the configured base ref for worktree branches.
+func (m *Manager) BaseRef() string {
+	return m.baseRef
+}
+
 // Subscribe returns a channel that receives a signal whenever worktrees change.
 // The caller should call Unsubscribe when done.
 func (m *Manager) Subscribe() chan struct{} {

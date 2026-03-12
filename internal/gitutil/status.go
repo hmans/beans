@@ -101,14 +101,18 @@ func parseNumstat(output string, staged bool) ([]FileChange, error) {
 	return changes, nil
 }
 
-// MergeBase returns the merge-base commit between HEAD and the default remote
-// branch (e.g. origin/main). Returns ("", false) if it can't be determined.
-func MergeBase(dir string) (string, bool) {
-	remote, ok := DefaultRemoteBranch(dir, "origin")
-	if !ok {
-		return "", false
+// MergeBase returns the merge-base commit between HEAD and the given base ref.
+// If baseRef is empty, falls back to the default remote branch (e.g. origin/main).
+// Returns ("", false) if it can't be determined.
+func MergeBase(dir, baseRef string) (string, bool) {
+	if baseRef == "" {
+		remote, ok := DefaultRemoteBranch(dir, "origin")
+		if !ok {
+			return "", false
+		}
+		baseRef = remote
 	}
-	cmd := exec.Command("git", "-C", dir, "merge-base", "HEAD", remote)
+	cmd := exec.Command("git", "-C", dir, "merge-base", "HEAD", baseRef)
 	out, err := cmd.Output()
 	if err != nil {
 		return "", false
@@ -116,11 +120,13 @@ func MergeBase(dir string) (string, bool) {
 	return strings.TrimSpace(string(out)), true
 }
 
-// AllChangesVsUpstream returns all file changes compared to the upstream
+// AllChangesVsUpstream returns all file changes compared to the
 // merge-base: committed + staged + unstaged + untracked, deduplicated into
 // a single entry per file showing the total diff from merge-base to working tree.
-func AllChangesVsUpstream(dir string) ([]FileChange, error) {
-	base, ok := MergeBase(dir)
+// baseRef is the branch to compare against (e.g. "main"); if empty, falls back
+// to the default remote branch.
+func AllChangesVsUpstream(dir, baseRef string) ([]FileChange, error) {
+	base, ok := MergeBase(dir, baseRef)
 	if !ok {
 		// Fallback: if no merge-base, just return regular working tree changes
 		return FileChanges(dir)
@@ -166,10 +172,12 @@ func AllChangesVsUpstream(dir string) ([]FileChange, error) {
 	return changes, nil
 }
 
-// AllFileDiff returns the unified diff for a file compared to the upstream
+// AllFileDiff returns the unified diff for a file compared to the
 // merge-base. This shows the complete change from merge-base to working tree.
-func AllFileDiff(dir, filePath string) (string, error) {
-	base, ok := MergeBase(dir)
+// baseRef is the branch to compare against; if empty, falls back to the default
+// remote branch.
+func AllFileDiff(dir, filePath, baseRef string) (string, error) {
+	base, ok := MergeBase(dir, baseRef)
 	if !ok {
 		// Fallback to regular unstaged diff
 		return FileDiff(dir, filePath, false)

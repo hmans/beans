@@ -295,9 +295,22 @@ func initBranchedTestRepo(t *testing.T) string {
 func TestMergeBase(t *testing.T) {
 	dir := initBranchedTestRepo(t)
 
-	base, ok := MergeBase(dir)
+	base, ok := MergeBase(dir, "main")
 	if !ok {
 		t.Fatal("expected MergeBase to succeed")
+	}
+	if base == "" {
+		t.Fatal("expected non-empty merge-base")
+	}
+}
+
+func TestMergeBase_FallbackToRemote(t *testing.T) {
+	dir := initBranchedTestRepo(t)
+
+	// With empty baseRef, should fall back to origin's default branch
+	base, ok := MergeBase(dir, "")
+	if !ok {
+		t.Fatal("expected MergeBase fallback to succeed")
 	}
 	if base == "" {
 		t.Fatal("expected non-empty merge-base")
@@ -307,7 +320,7 @@ func TestMergeBase(t *testing.T) {
 func TestAllChangesVsUpstream_CommittedOnly(t *testing.T) {
 	dir := initBranchedTestRepo(t)
 
-	changes, err := AllChangesVsUpstream(dir)
+	changes, err := AllChangesVsUpstream(dir, "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -332,7 +345,7 @@ func TestAllChangesVsUpstream_CommittedPlusUnstaged(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	changes, err := AllChangesVsUpstream(dir)
+	changes, err := AllChangesVsUpstream(dir, "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -365,7 +378,7 @@ func TestAllChangesVsUpstream_WithUntracked(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	changes, err := AllChangesVsUpstream(dir)
+	changes, err := AllChangesVsUpstream(dir, "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -393,7 +406,7 @@ func TestAllChangesVsUpstream_WithUntracked(t *testing.T) {
 func TestAllFileDiff_CommittedFile(t *testing.T) {
 	dir := initBranchedTestRepo(t)
 
-	diff, err := AllFileDiff(dir, "feature.txt")
+	diff, err := AllFileDiff(dir, "feature.txt", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -413,7 +426,7 @@ func TestAllFileDiff_UntrackedFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	diff, err := AllFileDiff(dir, "untracked.txt")
+	diff, err := AllFileDiff(dir, "untracked.txt", "main")
 	if err != nil {
 		t.Fatal(err)
 	}

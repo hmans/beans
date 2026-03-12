@@ -837,7 +837,11 @@ func (r *queryResolver) AllFileChanges(ctx context.Context, path *string) ([]*mo
 		dir = *path
 	}
 
-	changes, err := gitutil.AllChangesVsUpstream(dir)
+	var baseRef string
+	if r.WorktreeMgr != nil {
+		baseRef = r.WorktreeMgr.BaseRef()
+	}
+	changes, err := gitutil.AllChangesVsUpstream(dir, baseRef)
 	if err != nil {
 		return nil, err
 	}
@@ -916,7 +920,11 @@ func (r *queryResolver) AllFileDiff(ctx context.Context, filePath string, path *
 		dir = *path
 	}
 
-	return gitutil.AllFileDiff(dir, filePath)
+	var baseRef string
+	if r.WorktreeMgr != nil {
+		baseRef = r.WorktreeMgr.BaseRef()
+	}
+	return gitutil.AllFileDiff(dir, filePath, baseRef)
 }
 
 // HasDirtyBeans is the resolver for the hasDirtyBeans field.
@@ -936,7 +944,7 @@ func (r *queryResolver) AgentActions(ctx context.Context, beanID string) ([]*mod
 				if wt.ID == beanID {
 					actCtx.WorkDir = wt.Path
 					actCtx.HasChanges = gitutil.HasChanges(wt.Path)
-					actCtx.HasNewCommits = gitutil.HasUnmergedCommits(wt.Path, "main")
+					actCtx.HasNewCommits = gitutil.HasUnmergedCommits(wt.Path, r.WorktreeMgr.BaseRef())
 					break
 				}
 			}
