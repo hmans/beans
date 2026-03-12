@@ -61,6 +61,7 @@ var initCmd = &cobra.Command{
 			// Create default config file with directory name as prefix
 			// Config is saved at project root (not inside .beans/)
 			defaultCfg := config.DefaultWithPrefix(dirName + "-")
+			defaultCfg.Project.Name = dirName
 			defaultCfg.SetConfigDir(projectDir)
 
 			// Auto-detect the remote's default branch if we're in a git repo

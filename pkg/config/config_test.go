@@ -1202,6 +1202,91 @@ server:
 	})
 }
 
+func TestGetProjectName(t *testing.T) {
+	t.Run("returns empty string by default", func(t *testing.T) {
+		cfg := Default()
+		if cfg.GetProjectName() != "" {
+			t.Errorf("GetProjectName() = %q, want empty string", cfg.GetProjectName())
+		}
+	})
+
+	t.Run("returns configured name", func(t *testing.T) {
+		cfg := Default()
+		cfg.Project.Name = "my-project"
+		if cfg.GetProjectName() != "my-project" {
+			t.Errorf("GetProjectName() = %q, want \"my-project\"", cfg.GetProjectName())
+		}
+	})
+
+	t.Run("loads from config file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		configPath := filepath.Join(tmpDir, ConfigFileName)
+
+		configContent := `project:
+  name: my-project
+beans:
+  prefix: test-
+`
+		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+			t.Fatalf("WriteFile error = %v", err)
+		}
+
+		cfg, err := Load(configPath)
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		if cfg.GetProjectName() != "my-project" {
+			t.Errorf("GetProjectName() = %q, want \"my-project\"", cfg.GetProjectName())
+		}
+	})
+}
+
+func TestSaveIncludesProjectSection(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := DefaultWithPrefix("test-")
+	cfg.Project.Name = "my-app"
+	cfg.SetConfigDir(tmpDir)
+
+	if err := cfg.Save(tmpDir); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, ConfigFileName))
+	if err != nil {
+		t.Fatalf("ReadFile error = %v", err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "project:") {
+		t.Error("expected project section in saved config")
+	}
+	if !strings.Contains(content, "name: my-app") {
+		t.Error("expected name: my-app in saved config")
+	}
+}
+
+func TestSaveOmitsEmptyProjectSection(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := DefaultWithPrefix("test-")
+	cfg.SetConfigDir(tmpDir)
+
+	if err := cfg.Save(tmpDir); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, ConfigFileName))
+	if err != nil {
+		t.Fatalf("ReadFile error = %v", err)
+	}
+
+	if strings.Contains(string(data), "project:") {
+		t.Error("expected project section to be omitted when not configured")
+	}
+}
+
 func TestGetCORSOrigins(t *testing.T) {
 	t.Run("returns defaults when not configured", func(t *testing.T) {
 		cfg := Default()

@@ -1,5 +1,8 @@
 # Beans configuration
 # See: https://github.com/hmans/beans
+project:
+  # Human-readable project name (displayed in the UI)
+  name: beans
 beans:
   # Directory where bean files are stored
   path: .beans

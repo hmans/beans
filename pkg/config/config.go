@@ -101,6 +101,13 @@ type AgentConfig struct {
 	DefaultMode PermissionMode `yaml:"default_mode,omitempty"`
 }
 
+// ProjectConfig defines project-level settings.
+type ProjectConfig struct {
+	// Name is the human-readable project name, displayed in the UI.
+	// Default: derived from directory name during `beans init`.
+	Name string `yaml:"name,omitempty"`
+}
+
 // ServerConfig defines settings for the web server.
 type ServerConfig struct {
 	// Port is the port to listen on (default: 8080)
@@ -115,6 +122,7 @@ type ServerConfig struct {
 // Config holds the beans configuration.
 // Note: Statuses are no longer stored in config - they are hardcoded like types.
 type Config struct {
+	Project  ProjectConfig  `yaml:"project,omitempty"`
 	Beans    BeansConfig    `yaml:"beans"`
 	Worktree WorktreeConfig `yaml:"worktree,omitempty"`
 	Agent    AgentConfig    `yaml:"agent,omitempty"`
@@ -329,6 +337,14 @@ func (c *Config) toYAMLNode() *yaml.Node {
 		return scalar(fmt.Sprintf("%d", value), "!!int")
 	}
 
+	// Build the project mapping
+	projectMapping := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+	if c.Project.Name != "" {
+		key := strNode("name")
+		key.HeadComment = "Human-readable project name (displayed in the UI)"
+		projectMapping.Content = append(projectMapping.Content, key, strNode(c.Project.Name))
+	}
+
 	// Build the beans mapping
 	beansMapping := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 
@@ -398,6 +414,10 @@ func (c *Config) toYAMLNode() *yaml.Node {
 		Tag:         "!!map",
 		HeadComment: "Beans configuration\nSee: https://github.com/hmans/beans",
 	}
+	if len(projectMapping.Content) > 0 {
+		topMapping.Content = append(topMapping.Content, strNode("project"), projectMapping)
+	}
+
 	topMapping.Content = append(topMapping.Content, strNode("beans"), beansMapping)
 
 	if len(worktreeMapping.Content) > 0 {
@@ -642,6 +662,11 @@ func IsValidPermissionMode(mode string) bool {
 	default:
 		return false
 	}
+}
+
+// GetProjectName returns the configured project name, or empty string if not set.
+func (c *Config) GetProjectName() string {
+	return c.Project.Name
 }
 
 // GetServerPort returns the configured server port, or the default if not set.

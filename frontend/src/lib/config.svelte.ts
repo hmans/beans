@@ -1,22 +1,25 @@
 import { gql } from 'urql';
 import { client } from './graphqlClient';
 
-const AGENT_ENABLED_QUERY = gql`
-  query AgentEnabled {
+const CONFIG_QUERY = gql`
+  query Config {
+    projectName
     agentEnabled
   }
 `;
 
 class ConfigStore {
+  projectName = $state('');
   agentEnabled = $state(true);
 
   async load(): Promise<void> {
-    const result = await client.query(AGENT_ENABLED_QUERY, {}).toPromise();
+    const result = await client.query(CONFIG_QUERY, {}).toPromise();
     if (result.error) {
       console.warn('Failed to load config:', result.error.message);
       return;
     }
     if (result.data) {
+      this.projectName = result.data.projectName;
       this.agentEnabled = result.data.agentEnabled;
     }
   }

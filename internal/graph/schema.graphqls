@@ -46,6 +46,12 @@ type Query {
   agentActions(beanId: ID!): [AgentAction!]!
 
   """
+  Human-readable project name from configuration.
+  Returns empty string if not configured.
+  """
+  projectName: String!
+
+  """
   Whether agent functionality is enabled in the project configuration.
   When false, the UI should hide agent chats, status panes, and worktree features.
   """

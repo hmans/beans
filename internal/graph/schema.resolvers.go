@@ -880,6 +880,15 @@ func (r *queryResolver) AgentActions(ctx context.Context, beanID string) ([]*mod
 	return result, nil
 }
 
+// ProjectName is the resolver for the projectName field.
+func (r *queryResolver) ProjectName(ctx context.Context) (string, error) {
+	cfg := r.Core.Config()
+	if cfg == nil {
+		return "", nil
+	}
+	return cfg.GetProjectName(), nil
+}
+
 // AgentEnabled is the resolver for the agentEnabled field.
 func (r *queryResolver) AgentEnabled(ctx context.Context) (bool, error) {
 	cfg := r.Core.Config()
