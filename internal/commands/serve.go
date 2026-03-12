@@ -104,6 +104,9 @@ func runServer(port int, origins []string) error {
 		c.Next()
 	})
 
+	// Content Security Policy middleware
+	router.Use(cspMiddleware())
+
 	// Create worktree manager (worktrees stored inside .beans/worktrees/)
 	wtManager := worktree.NewManager(cfg.ConfigDir(), core.Root(), cfg.GetWorktreeBaseRef())
 
@@ -247,6 +250,32 @@ func runServer(port int, origins []string) error {
 	}
 
 	return nil
+}
+
+// cspMiddleware returns Gin middleware that sets Content-Security-Policy headers.
+// The policy restricts resource loading to same-origin with targeted exceptions:
+// - 'unsafe-inline' for styles (required by Tailwind/Svelte)
+// - data:/blob: URIs for images (markdown rendering, attachment previews)
+// - localhost WebSocket origins for GraphQL subscriptions and terminal
+// - blob: workers for Shiki WASM engine
+func cspMiddleware() gin.HandlerFunc {
+	// Build the policy once; it's static for the lifetime of the server.
+	policy := strings.Join([]string{
+		"default-src 'self'",
+		"script-src 'self'",
+		"style-src 'self' 'unsafe-inline'",
+		"img-src 'self' data: blob:",
+		"font-src 'self'",
+		"connect-src 'self' ws://localhost:* wss://localhost:* ws://127.0.0.1:* wss://127.0.0.1:*",
+		"worker-src 'self' blob:",
+		"object-src 'none'",
+		"base-uri 'self'",
+	}, "; ")
+
+	return func(c *gin.Context) {
+		c.Header("Content-Security-Policy", policy)
+		c.Next()
+	}
 }
 
 func RegisterServeCmd(root *cobra.Command) {
