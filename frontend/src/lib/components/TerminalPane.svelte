@@ -52,7 +52,7 @@
     const term = new Terminal({
       cursorBlink: true,
       fontSize: 13,
-      fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace',
+      fontFamily: '"JetBrainsMono NF", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace',
       theme: {
         background: '#1a1a2e',
         foreground: '#e0e0e0',
