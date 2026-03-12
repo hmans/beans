@@ -7,38 +7,14 @@
 
   import SplitPane from '$lib/components/SplitPane.svelte';
 
-  interface AgentAction {
-    id: string;
-    label: string;
-    description: string | null;
-  }
-
   interface Props {
     path?: string;
-    beanId?: string;
-    agentBusy?: boolean;
   }
 
-  let { path, beanId, agentBusy = false }: Props = $props();
+  let { path }: Props = $props();
 
   type Tab = 'unstaged' | 'all';
   let activeTab = $state<Tab>('all');
-
-  const AGENT_ACTIONS_QUERY = gql`
-    query AgentActions($beanId: ID!) {
-      agentActions(beanId: $beanId) {
-        id
-        label
-        description
-      }
-    }
-  `;
-
-  const EXECUTE_AGENT_ACTION = gql`
-    mutation ExecuteAgentAction($beanId: ID!, $actionId: ID!) {
-      executeAgentAction(beanId: $beanId, actionId: $actionId)
-    }
-  `;
 
   const FILE_DIFF_QUERY = gql`
     query FileDiff($filePath: String!, $staged: Boolean!, $path: String) {
@@ -52,37 +28,10 @@
     }
   `;
 
-  let actions = $state<AgentAction[]>([]);
-  let executingAction = $state<string | null>(null);
-
   // Diff view state
   let selectedFile = $state<{ path: string; staged: boolean } | null>(null);
   let diffContent = $state<string>('');
   let diffLoading = $state(false);
-
-
-
-  async function fetchActions() {
-    if (!beanId) return;
-    const result = await client.query(AGENT_ACTIONS_QUERY, { beanId }).toPromise();
-    if (result.error) {
-      console.error('Failed to fetch agent actions:', result.error);
-      return;
-    }
-    if (result.data?.agentActions) {
-      actions = result.data.agentActions;
-    }
-  }
-
-  async function executeAction(actionId: string) {
-    if (!beanId || agentBusy) return;
-    executingAction = actionId;
-    try {
-      await client.mutation(EXECUTE_AGENT_ACTION, { beanId, actionId }).toPromise();
-    } finally {
-      executingAction = null;
-    }
-  }
 
   function selectFile(change: FileChange) {
     const key = { path: change.path, staged: change.staged };
@@ -134,22 +83,6 @@
     }
     diffLoading = false;
   }
-
-  // Re-fetch actions when beanId changes
-  $effect(() => {
-    if (beanId) {
-      fetchActions();
-    }
-  });
-
-  // Re-fetch actions when agent transitions to idle
-  let wasAgentBusy = $state(false);
-  $effect(() => {
-    if (wasAgentBusy && !agentBusy) {
-      fetchActions();
-    }
-    wasAgentBusy = agentBusy;
-  });
 
   // Clear selection when the selected file disappears from the active changes list
   $effect(() => {
@@ -433,23 +366,4 @@
     {@render fileList()}
   {/if}
 
-  {#if beanId && actions.length > 0}
-    <div class="flex gap-2 border-t border-border px-3 py-2">
-      {#each actions as action (action.id)}
-        <button
-          class={[
-            'flex-1 rounded border border-border px-3 py-1.5 text-sm font-medium transition-colors',
-            agentBusy || executingAction
-              ? 'cursor-not-allowed text-text-faint'
-              : 'cursor-pointer text-text-muted hover:bg-surface-alt hover:text-text'
-          ]}
-          disabled={agentBusy || !!executingAction}
-          title={action.description ?? undefined}
-          onclick={() => executeAction(action.id)}
-        >
-          {action.label}
-        </button>
-      {/each}
-    </div>
-  {/if}
 </div>

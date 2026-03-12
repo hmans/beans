@@ -5,41 +5,21 @@
 
   interface Props {
     children?: Snippet;
+    right?: Snippet;
     showAgentToggle?: boolean;
     agentActive?: boolean;
     onToggleAgent?: () => void;
   }
 
-  let { children, showAgentToggle = false, agentActive = false, onToggleAgent }: Props = $props();
+  let { children, right, showAgentToggle = false, agentActive = false, onToggleAgent }: Props = $props();
 </script>
 
 <div class="toolbar bg-surface-alt">
-  {#if children}
-    {@render children()}
-  {/if}
-  <div class="flex-1"></div>
   {#if configStore.agentEnabled}
-    <button
-      onclick={() => ui.toggleChanges()}
-      class={['btn-toggle ml-3', ui.showChanges ? 'btn-toggle-active' : 'btn-toggle-inactive']}
-      title={ui.showChanges ? 'Hide changes' : 'Show changes'}
-    >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
-        fill="currentColor"
-        class="h-4 w-4"
-      >
-        <path
-          d="M18 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9h-3v3h-2v-3H9V9h3V6h2v3h3v2zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm12 9H10v-2h6v2z"
-        />
-      </svg>
-      Changes
-    </button>
     {#if showAgentToggle && onToggleAgent}
       <button
         onclick={onToggleAgent}
-        class={['btn-toggle ml-1', agentActive ? 'btn-toggle-active' : 'btn-toggle-inactive']}
+        class={['btn-toggle', agentActive ? 'btn-toggle-active' : 'btn-toggle-inactive']}
         title={agentActive ? 'Hide agent' : 'Show agent'}
       >
         <svg
@@ -58,6 +38,23 @@
       </button>
     {/if}
     <button
+      onclick={() => ui.toggleChanges()}
+      class={['btn-toggle ml-1', ui.showChanges ? 'btn-toggle-active' : 'btn-toggle-inactive']}
+      title={ui.showChanges ? 'Hide changes' : 'Show changes'}
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        class="h-4 w-4"
+      >
+        <path
+          d="M18 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9h-3v3h-2v-3H9V9h3V6h2v3h3v2zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm12 9H10v-2h6v2z"
+        />
+      </svg>
+      Changes
+    </button>
+    <button
       onclick={() => ui.toggleTerminal()}
       class={['btn-toggle ml-1', ui.showTerminal ? 'btn-toggle-active' : 'btn-toggle-inactive']}
       title={ui.showTerminal ? 'Hide terminal' : 'Show terminal'}
@@ -67,5 +64,13 @@
       </svg>
       Terminal
     </button>
+    <div class="mr-3"></div>
+  {/if}
+  {#if children}
+    {@render children()}
+  {/if}
+  <div class="flex-1"></div>
+  {#if right}
+    {@render right()}
   {/if}
 </div>

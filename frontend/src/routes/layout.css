@@ -42,6 +42,10 @@ a,
   @apply flex h-8 cursor-pointer items-center gap-1.5 rounded border px-3 text-sm font-medium transition-colors;
 }
 
+.btn-toggle:disabled {
+  @apply cursor-not-allowed opacity-40;
+}
+
 .btn-tab-active,
 .btn-toggle-active {
   @apply border-accent bg-accent text-accent-text;
@@ -231,17 +235,17 @@ a,
 }
 
 .diff-gutter {
-  @apply w-10 select-none text-right align-top text-text-faint;
+  @apply w-10 text-right align-top text-text-faint select-none;
   @apply border-r border-border/50 pr-1.5;
   font-variant-numeric: tabular-nums;
 }
 
 .diff-gutter-hunk {
-  @apply bg-accent/10 border-r border-border/50;
+  @apply border-r border-border/50 bg-accent/10;
 }
 
 .diff-indicator {
-  @apply inline-block w-5 select-none text-center;
+  @apply inline-block w-5 text-center select-none;
 }
 
 tr.diff-add {
