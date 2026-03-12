@@ -146,7 +146,7 @@
   <div class="flex min-h-0 flex-1 overflow-hidden">
     <SplitPane direction="horizontal" side="end" persistKey="planning-terminal" initialSize={480} collapsed={!configStore.agentEnabled || !ui.showTerminal}>
       {#snippet aside()}
-        {#if ui.showTerminal}
+        {#if ui.terminalInitialized}
           <TerminalPane sessionId={CENTRAL_SESSION_ID} onClose={() => ui.toggleTerminal()} />
         {/if}
       {/snippet}

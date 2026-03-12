@@ -98,7 +98,7 @@
     {@render changesChatSplit()}
   {/snippet}
   {#snippet aside()}
-    {#if ui.showTerminal}
+    {#if ui.terminalInitialized}
       <TerminalPane sessionId={worktreeId} onClose={() => ui.toggleTerminal()} />
     {/if}
   {/snippet}

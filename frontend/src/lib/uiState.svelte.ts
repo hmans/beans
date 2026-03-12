@@ -84,12 +84,15 @@ class UIState {
     localStorage.setItem('beans-changes-pane', this.showChanges ? 'true' : 'false');
   }
 
-  // Terminal pane (persisted to localStorage)
+  // Terminal pane (always hidden by default, not persisted)
   showTerminal = $state(false);
+  terminalInitialized = $state(false);
 
   toggleTerminal() {
     this.showTerminal = !this.showTerminal;
-    localStorage.setItem('beans-terminal-pane', this.showTerminal ? 'true' : 'false');
+    if (this.showTerminal) {
+      this.terminalInitialized = true;
+    }
   }
 
   // Filter text (persisted to localStorage)

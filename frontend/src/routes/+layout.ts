@@ -7,7 +7,6 @@ export function load() {
   let selectedBeanId: string | null = null;
   let showPlanningChat = false;
   let showChanges = false;
-  let showTerminal = false;
   let filterText = '';
 
   if (browser) {
@@ -16,9 +15,8 @@ export function load() {
 
     showPlanningChat = localStorage.getItem('beans-planning-chat') === 'true';
     showChanges = localStorage.getItem('beans-changes-pane') === 'true';
-    showTerminal = localStorage.getItem('beans-terminal-pane') === 'true';
     filterText = localStorage.getItem('beans-filter-text') ?? '';
   }
 
-  return { selectedBeanId, showPlanningChat, showChanges, showTerminal, filterText };
+  return { selectedBeanId, showPlanningChat, showChanges, filterText };
 }
