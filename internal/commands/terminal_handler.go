@@ -153,7 +153,7 @@ func resolveTerminalWorkDir(sessionID string, wtMgr *worktree.Manager, projectRo
 	}
 
 	for _, wt := range worktrees {
-		if wt.BeanID == sessionID {
+		if wt.ID == sessionID {
 			return wt.Path, nil
 		}
 	}
