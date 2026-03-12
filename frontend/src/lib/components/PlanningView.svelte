@@ -144,123 +144,106 @@
   </div>
 
   <div class="flex min-h-0 flex-1 overflow-hidden">
-    <SplitPane direction="vertical" side="end" persistKey="planning-terminal" initialSize={300} collapsed={!ui.showTerminal}>
+    <SplitPane direction="horizontal" side="end" persistKey="planning-terminal" initialSize={480} collapsed={!configStore.agentEnabled || !ui.showTerminal}>
+      {#snippet aside()}
+        {#if ui.showTerminal}
+          <TerminalPane sessionId={CENTRAL_SESSION_ID} onClose={() => ui.toggleTerminal()} />
+        {/if}
+      {/snippet}
       {#snippet children()}
-        <SplitPane
-          direction="horizontal"
-          side="end"
-          persistKey="right-panel-width"
-          initialSize={ui.showChanges && ui.showPlanningChat ? 720 : 420}
-          collapsed={!configStore.agentEnabled || (!ui.showChanges && !ui.showPlanningChat)}
-        >
+        <SplitPane direction="horizontal" side="end" persistKey="planning-agent" initialSize={420} collapsed={!configStore.agentEnabled || !ui.showPlanningChat}>
           {#snippet aside()}
-            {#if ui.showChanges && ui.showPlanningChat}
-              <SplitPane direction="horizontal" side="end" persistKey="changes-chat-split" initialSize={420}>
-                {#snippet children()}
-                  <ChangesPane
-                    beanId={CENTRAL_SESSION_ID}
-                    {agentBusy}
-                  />
-                {/snippet}
-                {#snippet aside()}
-                  <div class="flex h-full flex-col border-l border-border bg-surface">
-                    <PaneHeader title="Agent" onClose={() => ui.togglePlanningChat()} />
-                    <div class="min-h-0 flex-1">
-                      <AgentChat beanId={CENTRAL_SESSION_ID} store={agentStore} />
-                    </div>
-                  </div>
-                {/snippet}
-              </SplitPane>
-            {:else if ui.showPlanningChat}
+            {#if ui.showPlanningChat}
               <div class="flex h-full flex-col border-l border-border bg-surface">
                 <PaneHeader title="Agent" onClose={() => ui.togglePlanningChat()} />
                 <div class="min-h-0 flex-1">
                   <AgentChat beanId={CENTRAL_SESSION_ID} store={agentStore} />
                 </div>
               </div>
-            {:else if ui.showChanges}
-              <ChangesPane
-                beanId={CENTRAL_SESSION_ID}
-                {agentBusy}
-              />
             {/if}
           {/snippet}
-
           {#snippet children()}
-            <SplitPane
-              direction="horizontal"
-              side="end"
-              persistKey="detail-width"
-              initialSize={480}
-              collapsed={!ui.currentBean}
-            >
-              {#snippet children()}
-                <div class="flex h-full flex-col bg-surface">
-                  <PaneHeader title={planningView === 'backlog' ? 'Backlog' : 'Board'} />
-                  {#if planningView === 'backlog'}
-                    <!-- svelte-ignore a11y_click_events_have_key_events -->
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
-                    <div class="min-h-0 flex-1 overflow-auto bg-surface" onclick={handlePlanningClick}>
-                      <div
-                        class="p-3"
-                        ondragover={(e) => backlogDrag.hoverList(e, null, filteredTopLevelBeans.length)}
-                        ondragleave={(e) => backlogDrag.leaveList(e, e.currentTarget, null)}
-                        ondrop={(e) => backlogDrag.drop(e, null, filteredTopLevelBeans)}
-                        role="list"
-                      >
-                        {#each filteredTopLevelBeans as bean, i (bean.id)}
-                          <BeanItem
-                            {bean}
-                            parentId={null}
-                            index={i}
-                            selectedId={ui.currentBean?.id}
-                            onSelect={(b) => ui.selectBean(b)}
-                            filterText={ui.filterText}
-                          />
-                        {:else}
-                          {#if !beansStore.loading}
-                            <p class="text-text-muted text-center py-8 text-sm">
-                              {ui.filterText ? 'No matching beans' : 'No beans yet'}
-                            </p>
-                          {/if}
-                        {/each}
-
-                        <div
-                          class={[
-                            'mx-1 h-0.5 rounded-full transition-colors',
-                            backlogDrag.showEndIndicator(null, filteredTopLevelBeans.length)
-                              ? 'bg-accent'
-                              : 'bg-transparent'
-                          ]}
-                        ></div>
-                      </div>
-                    </div>
-                  {:else}
-                    <div class="min-h-0 flex-1 bg-surface-alt">
-                      <BoardView onSelect={(b) => ui.selectBean(b)} selectedId={ui.currentBean?.id} />
-                    </div>
-                  {/if}
-                </div>
-              {/snippet}
-
+            <SplitPane direction="horizontal" side="end" persistKey="planning-changes" initialSize={420} collapsed={!configStore.agentEnabled || !ui.showChanges}>
               {#snippet aside()}
-                {#if ui.currentBean}
-                  <BeanPane
-                    bean={ui.currentBean}
-                    onSelect={(b) => ui.selectBean(b)}
-                    onEdit={(b) => ui.openEditForm(b)}
-                    onClose={() => ui.clearSelection()}
+                {#if ui.showChanges}
+                  <ChangesPane
+                    beanId={CENTRAL_SESSION_ID}
+                    {agentBusy}
                   />
                 {/if}
+              {/snippet}
+              {#snippet children()}
+                <SplitPane
+                  direction="horizontal"
+                  side="end"
+                  persistKey="detail-width"
+                  initialSize={480}
+                  collapsed={!ui.currentBean}
+                >
+                  {#snippet children()}
+                    <div class="flex h-full flex-col bg-surface">
+                      <PaneHeader title={planningView === 'backlog' ? 'Backlog' : 'Board'} />
+                      {#if planningView === 'backlog'}
+                        <!-- svelte-ignore a11y_click_events_have_key_events -->
+                        <!-- svelte-ignore a11y_no_static_element_interactions -->
+                        <div class="min-h-0 flex-1 overflow-auto bg-surface" onclick={handlePlanningClick}>
+                          <div
+                            class="p-3"
+                            ondragover={(e) => backlogDrag.hoverList(e, null, filteredTopLevelBeans.length)}
+                            ondragleave={(e) => backlogDrag.leaveList(e, e.currentTarget, null)}
+                            ondrop={(e) => backlogDrag.drop(e, null, filteredTopLevelBeans)}
+                            role="list"
+                          >
+                            {#each filteredTopLevelBeans as bean, i (bean.id)}
+                              <BeanItem
+                                {bean}
+                                parentId={null}
+                                index={i}
+                                selectedId={ui.currentBean?.id}
+                                onSelect={(b) => ui.selectBean(b)}
+                                filterText={ui.filterText}
+                              />
+                            {:else}
+                              {#if !beansStore.loading}
+                                <p class="text-text-muted text-center py-8 text-sm">
+                                  {ui.filterText ? 'No matching beans' : 'No beans yet'}
+                                </p>
+                              {/if}
+                            {/each}
+
+                            <div
+                              class={[
+                                'mx-1 h-0.5 rounded-full transition-colors',
+                                backlogDrag.showEndIndicator(null, filteredTopLevelBeans.length)
+                                  ? 'bg-accent'
+                                  : 'bg-transparent'
+                              ]}
+                            ></div>
+                          </div>
+                        </div>
+                      {:else}
+                        <div class="min-h-0 flex-1 bg-surface-alt">
+                          <BoardView onSelect={(b) => ui.selectBean(b)} selectedId={ui.currentBean?.id} />
+                        </div>
+                      {/if}
+                    </div>
+                  {/snippet}
+
+                  {#snippet aside()}
+                    {#if ui.currentBean}
+                      <BeanPane
+                        bean={ui.currentBean}
+                        onSelect={(b) => ui.selectBean(b)}
+                        onEdit={(b) => ui.openEditForm(b)}
+                        onClose={() => ui.clearSelection()}
+                      />
+                    {/if}
+                  {/snippet}
+                </SplitPane>
               {/snippet}
             </SplitPane>
           {/snippet}
         </SplitPane>
-      {/snippet}
-      {#snippet aside()}
-        {#if ui.showTerminal}
-          <TerminalPane sessionId={CENTRAL_SESSION_ID} onClose={() => ui.toggleTerminal()} />
-        {/if}
       {/snippet}
     </SplitPane>
   </div>

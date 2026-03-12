@@ -118,7 +118,7 @@
   });
 </script>
 
-<div class="flex h-full flex-col border-t border-border bg-[#1a1a2e]">
+<div class="flex h-full flex-col border-l border-border bg-[#1a1a2e]">
   <PaneHeader title="Terminal" {onClose} />
   <div class="min-h-0 flex-1 px-1" bind:this={terminalEl}></div>
 </div>
