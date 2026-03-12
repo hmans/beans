@@ -1098,7 +1098,7 @@ func TestSubscriptionBeanChanged(t *testing.T) {
 	createTestBean(t, core, "existing-1", "Existing Bean 1", "todo")
 	createTestBean(t, core, "existing-2", "Existing Bean 2", "in-progress")
 
-	t.Run("includeInitial=true sends existing beans then INITIAL_SYNC_COMPLETE", func(t *testing.T) {
+	t.Run("includeInitial=true sends INITIAL_SNAPSHOT with all beans", func(t *testing.T) {
 		sr := resolver.Subscription()
 		includeInitial := true
 		ch, err := sr.BeanChanged(ctx, &includeInitial)
@@ -1106,32 +1106,24 @@ func TestSubscriptionBeanChanged(t *testing.T) {
 			t.Fatalf("BeanChanged() error = %v", err)
 		}
 
-		// Should receive both existing beans as INITIAL events
-		received := make(map[string]bool)
-		for i := 0; i < 2; i++ {
-			select {
-			case event := <-ch:
-				if event.Type != model.ChangeTypeInitial {
-					t.Errorf("Expected INITIAL event, got %v", event.Type)
-				}
-				received[event.BeanID] = true
-			case <-ctx.Done():
-				t.Fatal("Context cancelled before receiving all initial beans")
-			}
-		}
-
-		if !received["existing-1"] || !received["existing-2"] {
-			t.Errorf("Did not receive all expected beans: %v", received)
-		}
-
-		// Should receive INITIAL_SYNC_COMPLETE
+		// Should receive a single INITIAL_SNAPSHOT event with all beans
 		select {
 		case event := <-ch:
-			if event.Type != model.ChangeTypeInitialSyncComplete {
-				t.Errorf("Expected INITIAL_SYNC_COMPLETE event, got %v", event.Type)
+			if event.Type != model.ChangeTypeInitialSnapshot {
+				t.Errorf("Expected INITIAL_SNAPSHOT event, got %v", event.Type)
+			}
+			if len(event.Beans) != 2 {
+				t.Fatalf("Expected 2 beans in snapshot, got %d", len(event.Beans))
+			}
+			received := make(map[string]bool)
+			for _, b := range event.Beans {
+				received[b.ID] = true
+			}
+			if !received["existing-1"] || !received["existing-2"] {
+				t.Errorf("Did not receive all expected beans: %v", received)
 			}
 		case <-ctx.Done():
-			t.Fatal("Context cancelled before receiving INITIAL_SYNC_COMPLETE")
+			t.Fatal("Context cancelled before receiving snapshot")
 		}
 	})
 

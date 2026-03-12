@@ -26,7 +26,7 @@ export interface Bean {
 /**
  * Change type from GraphQL subscription
  */
-type ChangeType = 'INITIAL' | 'INITIAL_SYNC_COMPLETE' | 'CREATED' | 'UPDATED' | 'DELETED';
+type ChangeType = 'INITIAL_SNAPSHOT' | 'CREATED' | 'UPDATED' | 'DELETED';
 
 /**
  * Bean change event from GraphQL subscription
@@ -35,32 +35,36 @@ interface BeanChangeEvent {
   type: ChangeType;
   beanId: string;
   bean: Bean | null;
+  beans: Bean[] | null;
 }
 
 /**
  * GraphQL subscription for bean changes with initial state support
  */
+const BEAN_FIELDS = `
+  id
+  slug
+  path
+  title
+  status
+  type
+  priority
+  tags
+  createdAt
+  updatedAt
+  body
+  order
+  parentId
+  blockingIds
+`;
+
 const BEAN_CHANGED_SUBSCRIPTION = gql`
   subscription BeanChanged($includeInitial: Boolean!) {
     beanChanged(includeInitial: $includeInitial) {
       type
       beanId
-      bean {
-        id
-        slug
-        path
-        title
-        status
-        type
-        priority
-        tags
-        createdAt
-        updatedAt
-        body
-        order
-        parentId
-        blockingIds
-      }
+      bean { ${BEAN_FIELDS} }
+      beans { ${BEAN_FIELDS} }
     }
   }
 `;
@@ -129,13 +133,14 @@ export class BeansStore {
         if (!event) return;
 
         switch (event.type) {
-          case 'INITIAL':
-            if (event.bean) {
-              this.beans.set(event.bean.id, event.bean);
+          case 'INITIAL_SNAPSHOT':
+            if (event.beans) {
+              const fresh = new SvelteMap<string, Bean>();
+              for (const b of event.beans) {
+                fresh.set(b.id, b);
+              }
+              this.beans = fresh;
             }
-            break;
-          case 'INITIAL_SYNC_COMPLETE':
-            // Server explicitly signals initial sync is done
             this.#initialSyncDone = true;
             this.loading = false;
             break;

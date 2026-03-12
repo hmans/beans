@@ -904,30 +904,16 @@ func (r *subscriptionResolver) BeanChanged(ctx context.Context, includeInitial *
 		defer unsubscribe()
 		defer close(out)
 
-		// If includeInitial is true, emit all current beans first (sorted consistently with CLI)
+		// If includeInitial is true, emit all current beans as a single snapshot
 		if includeInitial != nil && *includeInitial {
 			beans := r.Core.All()
 			cfg := r.Core.Config()
 			bean.SortByStatusPriorityAndType(beans, cfg.StatusNames(), cfg.PriorityNames(), cfg.TypeNames())
 
-			for _, b := range beans {
-				select {
-				case out <- &model.BeanChangeEvent{
-					Type:   model.ChangeTypeInitial,
-					BeanID: b.ID,
-					Bean:   b,
-				}:
-					// Sent successfully
-				case <-ctx.Done():
-					return
-				}
-			}
-
-			// Signal that initial sync is complete
 			select {
 			case out <- &model.BeanChangeEvent{
-				Type:   model.ChangeTypeInitialSyncComplete,
-				BeanID: "",
+				Type:  model.ChangeTypeInitialSnapshot,
+				Beans: beans,
 			}:
 				// Sent successfully
 			case <-ctx.Done():

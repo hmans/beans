@@ -99,9 +99,11 @@ type AskUserQuestion struct {
 type BeanChangeEvent struct {
 	// Type of change that occurred
 	Type ChangeType `json:"type"`
-	// The bean that changed (null for DELETED events)
+	// The bean that changed (null for INITIAL_SNAPSHOT and DELETED events)
 	Bean *bean.Bean `json:"bean,omitempty"`
-	// ID of the bean that changed (always present)
+	// All beans as a batch (only present for INITIAL_SNAPSHOT events)
+	Beans []*bean.Bean `json:"beans,omitempty"`
+	// ID of the bean that changed (empty for INITIAL_SNAPSHOT events)
 	BeanID string `json:"beanId"`
 }
 
@@ -430,18 +432,15 @@ func (e AgentSessionStatus) MarshalJSON() ([]byte, error) {
 type ChangeType string
 
 const (
-	// Bean existed when subscription started (emitted when includeInitial=true)
-	ChangeTypeInitial ChangeType = "INITIAL"
-	// Signals that all initial beans have been sent (emitted after INITIAL events when includeInitial=true)
-	ChangeTypeInitialSyncComplete ChangeType = "INITIAL_SYNC_COMPLETE"
-	ChangeTypeCreated             ChangeType = "CREATED"
-	ChangeTypeUpdated             ChangeType = "UPDATED"
-	ChangeTypeDeleted             ChangeType = "DELETED"
+	// All existing beans sent as a single batch when subscription starts (emitted when includeInitial=true)
+	ChangeTypeInitialSnapshot ChangeType = "INITIAL_SNAPSHOT"
+	ChangeTypeCreated         ChangeType = "CREATED"
+	ChangeTypeUpdated         ChangeType = "UPDATED"
+	ChangeTypeDeleted         ChangeType = "DELETED"
 )
 
 var AllChangeType = []ChangeType{
-	ChangeTypeInitial,
-	ChangeTypeInitialSyncComplete,
+	ChangeTypeInitialSnapshot,
 	ChangeTypeCreated,
 	ChangeTypeUpdated,
 	ChangeTypeDeleted,
@@ -449,7 +448,7 @@ var AllChangeType = []ChangeType{
 
 func (e ChangeType) IsValid() bool {
 	switch e {
-	case ChangeTypeInitial, ChangeTypeInitialSyncComplete, ChangeTypeCreated, ChangeTypeUpdated, ChangeTypeDeleted:
+	case ChangeTypeInitialSnapshot, ChangeTypeCreated, ChangeTypeUpdated, ChangeTypeDeleted:
 		return true
 	}
 	return false

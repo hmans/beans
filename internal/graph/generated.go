@@ -129,6 +129,7 @@ type ComplexityRoot struct {
 	BeanChangeEvent struct {
 		Bean   func(childComplexity int) int
 		BeanID func(childComplexity int) int
+		Beans  func(childComplexity int) int
 		Type   func(childComplexity int) int
 	}
 
@@ -615,6 +616,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.BeanChangeEvent.BeanID(childComplexity), true
+	case "BeanChangeEvent.beans":
+		if e.complexity.BeanChangeEvent.Beans == nil {
+			break
+		}
+
+		return e.complexity.BeanChangeEvent.Beans(childComplexity), true
 	case "BeanChangeEvent.type":
 		if e.complexity.BeanChangeEvent.Type == nil {
 			break
@@ -3551,6 +3558,83 @@ func (ec *executionContext) fieldContext_BeanChangeEvent_bean(_ context.Context,
 	return fc, nil
 }
 
+func (ec *executionContext) _BeanChangeEvent_beans(ctx context.Context, field graphql.CollectedField, obj *model.BeanChangeEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_BeanChangeEvent_beans,
+		func(ctx context.Context) (any, error) {
+			return obj.Beans, nil
+		},
+		nil,
+		ec.marshalOBean2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeanᚐBeanᚄ,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_BeanChangeEvent_beans(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "BeanChangeEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Bean_id(ctx, field)
+			case "slug":
+				return ec.fieldContext_Bean_slug(ctx, field)
+			case "path":
+				return ec.fieldContext_Bean_path(ctx, field)
+			case "title":
+				return ec.fieldContext_Bean_title(ctx, field)
+			case "status":
+				return ec.fieldContext_Bean_status(ctx, field)
+			case "type":
+				return ec.fieldContext_Bean_type(ctx, field)
+			case "priority":
+				return ec.fieldContext_Bean_priority(ctx, field)
+			case "tags":
+				return ec.fieldContext_Bean_tags(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Bean_createdAt(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_Bean_updatedAt(ctx, field)
+			case "body":
+				return ec.fieldContext_Bean_body(ctx, field)
+			case "order":
+				return ec.fieldContext_Bean_order(ctx, field)
+			case "etag":
+				return ec.fieldContext_Bean_etag(ctx, field)
+			case "isDirty":
+				return ec.fieldContext_Bean_isDirty(ctx, field)
+			case "parentId":
+				return ec.fieldContext_Bean_parentId(ctx, field)
+			case "blockingIds":
+				return ec.fieldContext_Bean_blockingIds(ctx, field)
+			case "blockedByIds":
+				return ec.fieldContext_Bean_blockedByIds(ctx, field)
+			case "blockedBy":
+				return ec.fieldContext_Bean_blockedBy(ctx, field)
+			case "blocking":
+				return ec.fieldContext_Bean_blocking(ctx, field)
+			case "parent":
+				return ec.fieldContext_Bean_parent(ctx, field)
+			case "children":
+				return ec.fieldContext_Bean_children(ctx, field)
+			case "implicitStatus":
+				return ec.fieldContext_Bean_implicitStatus(ctx, field)
+			case "implicitStatusFrom":
+				return ec.fieldContext_Bean_implicitStatusFrom(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _BeanChangeEvent_beanId(ctx context.Context, field graphql.CollectedField, obj *model.BeanChangeEvent) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -5712,6 +5796,8 @@ func (ec *executionContext) fieldContext_Subscription_beanChanged(ctx context.Co
 				return ec.fieldContext_BeanChangeEvent_type(ctx, field)
 			case "bean":
 				return ec.fieldContext_BeanChangeEvent_bean(ctx, field)
+			case "beans":
+				return ec.fieldContext_BeanChangeEvent_beans(ctx, field)
 			case "beanId":
 				return ec.fieldContext_BeanChangeEvent_beanId(ctx, field)
 			}
@@ -8761,6 +8847,8 @@ func (ec *executionContext) _BeanChangeEvent(ctx context.Context, sel ast.Select
 			}
 		case "bean":
 			out.Values[i] = ec._BeanChangeEvent_bean(ctx, field, obj)
+		case "beans":
+			out.Values[i] = ec._BeanChangeEvent_beans(ctx, field, obj)
 		case "beanId":
 			out.Values[i] = ec._BeanChangeEvent_beanId(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -10777,6 +10865,53 @@ func (ec *executionContext) marshalOAskUserQuestion2ᚕᚖgithubᚗcomᚋhmans�
 				defer wg.Done()
 			}
 			ret[i] = ec.marshalNAskUserQuestion2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAskUserQuestion(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalOBean2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeanᚐBeanᚄ(ctx context.Context, sel ast.SelectionSet, v []*bean.Bean) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNBean2ᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeanᚐBean(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
