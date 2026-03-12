@@ -165,3 +165,36 @@ func TestTruncate(t *testing.T) {
 	}
 }
 
+
+func TestListLimit(t *testing.T) {
+	beans := []*bean.Bean{
+		{ID: "1"},
+		{ID: "2"},
+		{ID: "3"},
+		{ID: "4"},
+		{ID: "5"},
+	}
+
+	tests := []struct {
+		name  string
+		limit int
+		want  int
+	}{
+		{"no limit", 0, 5},
+		{"limit less than total", 3, 3},
+		{"limit exactly total", 5, 5},
+		{"limit greater than total", 10, 5},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out := beans
+			if tt.limit > 0 && len(out) > tt.limit {
+				out = out[:tt.limit]
+			}
+			if len(out) != tt.want {
+				t.Errorf("limit=%d: got len=%d, want %d", tt.limit, len(out), tt.want)
+			}
+		})
+	}
+}

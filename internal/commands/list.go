@@ -37,6 +37,7 @@ var (
 	listQuiet      bool
 	listSort       string
 	listFull       bool
+	listLimit      int
 )
 
 var listCmd = &cobra.Command{
@@ -120,6 +121,11 @@ Search Syntax (--search/-S):
 
 		// Sort beans
 		sortBeans(beans, listSort, cfg)
+
+		// Apply limit
+		if listLimit > 0 && len(beans) > listLimit {
+			beans = beans[:listLimit]
+		}
 
 		// JSON output (flat list)
 		if listJSON {
@@ -311,5 +317,6 @@ func RegisterListCmd(root *cobra.Command) {
 	listCmd.Flags().BoolVarP(&listQuiet, "quiet", "q", false, "Only output IDs (one per line)")
 	listCmd.Flags().StringVar(&listSort, "sort", "", "Sort by: created, updated, status, priority, id (default: status, priority, type, title)")
 	listCmd.Flags().BoolVar(&listFull, "full", false, "Include bean body in JSON output")
+	listCmd.Flags().IntVar(&listLimit, "limit", 0, "Limit the number of beans returned")
 	root.AddCommand(listCmd)
 }
