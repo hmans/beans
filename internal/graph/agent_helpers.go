@@ -179,6 +179,28 @@ var agentActions = []agentActionDef{
 		},
 	},
 	{
+		ID:          "tests",
+		Label:       "Tests",
+		Description: "Create or update tests for the changes in this branch",
+		PromptFunc: func(_ actionContext) string {
+			return "Create or amend tests for the changes we've made in this branch. Then run the project's test suite and fix any failures."
+		},
+		Visible: func(ctx actionContext) bool {
+			return ctx.HasChanges || ctx.HasNewCommits
+		},
+	},
+	{
+		ID:          "learn",
+		Label:       "Learn",
+		Description: "Identify learnings to add to repository rules",
+		PromptFunc: func(_ actionContext) string {
+			return "Identify things that we learned during this session and that should be added to this repository's rules files."
+		},
+		Visible: func(ctx actionContext) bool {
+			return ctx.HasChanges || ctx.HasNewCommits
+		},
+	},
+	{
 		ID:          "integrate",
 		Label:       "Integrate",
 		Description: "Commit, complete any associated beans, and rebase onto main",

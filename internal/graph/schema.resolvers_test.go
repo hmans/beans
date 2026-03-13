@@ -2855,30 +2855,35 @@ func TestQueryAgentActions(t *testing.T) {
 	})
 }
 
-func TestIntegrateActionVisibility(t *testing.T) {
-	integrate := findAgentAction("integrate")
-	if integrate == nil {
-		t.Fatal("integrate action not found")
-	}
+func TestConditionalActionVisibility(t *testing.T) {
+	// All actions that are only visible when changes exist should share the same behavior
+	conditionalActions := []string{"tests", "learn", "integrate"}
 
-	tests := []struct {
-		name    string
-		ctx     actionContext
-		visible bool
-	}{
-		{"hidden when no changes and no new commits", actionContext{}, false},
-		{"visible with uncommitted changes", actionContext{HasChanges: true}, true},
-		{"visible with new commits", actionContext{HasNewCommits: true}, true},
-		{"visible with both", actionContext{HasChanges: true, HasNewCommits: true}, true},
-	}
+	for _, actionID := range conditionalActions {
+		action := findAgentAction(actionID)
+		if action == nil {
+			t.Fatalf("%s action not found", actionID)
+		}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := integrate.Visible(tt.ctx)
-			if got != tt.visible {
-				t.Errorf("Visible() = %v, want %v", got, tt.visible)
-			}
-		})
+		tests := []struct {
+			name    string
+			ctx     actionContext
+			visible bool
+		}{
+			{"hidden when no changes and no new commits", actionContext{}, false},
+			{"visible with uncommitted changes", actionContext{HasChanges: true}, true},
+			{"visible with new commits", actionContext{HasNewCommits: true}, true},
+			{"visible with both", actionContext{HasChanges: true, HasNewCommits: true}, true},
+		}
+
+		for _, tt := range tests {
+			t.Run(actionID+"/"+tt.name, func(t *testing.T) {
+				got := action.Visible(tt.ctx)
+				if got != tt.visible {
+					t.Errorf("Visible() = %v, want %v", got, tt.visible)
+				}
+			})
+		}
 	}
 }
 
