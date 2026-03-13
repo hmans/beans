@@ -233,6 +233,21 @@ func TestExtractToolSummary(t *testing.T) {
 			input: `{"foo":"bar"}`,
 			want:  "",
 		},
+		{
+			name:  "AskUserQuestion with questions array",
+			input: `{"questions":[{"question":"Which approach should we use?","options":[{"label":"A"},{"label":"B"}]}]}`,
+			want:  "Which approach should we use?",
+		},
+		{
+			name:  "AskUserQuestion long question truncated",
+			input: `{"questions":[{"question":"This is a very long question that goes on and on and should be truncated at eighty characters exactly right here"}]}`,
+			want:  "This is a very long question that goes on and on and should be truncated at e...",
+		},
+		{
+			name:  "AskUserQuestion empty questions array",
+			input: `{"questions":[]}`,
+			want:  "",
+		},
 	}
 
 	for _, tt := range tests {

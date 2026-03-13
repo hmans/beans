@@ -327,5 +327,20 @@ func extractToolSummary(inputJSON, workDir string) string {
 			}
 		}
 	}
+
+	// Special case: AskUserQuestion has a "questions" array — extract the first question text
+	if qs, ok := obj["questions"]; ok {
+		if arr, ok := qs.([]interface{}); ok && len(arr) > 0 {
+			if qObj, ok := arr[0].(map[string]interface{}); ok {
+				if q, ok := qObj["question"].(string); ok && q != "" {
+					if len(q) > 80 {
+						q = q[:77] + "..."
+					}
+					return q
+				}
+			}
+		}
+	}
+
 	return ""
 }
