@@ -181,10 +181,10 @@
         </span>
       {/if}
     </div>
-    <div class="flex items-center gap-2">
-      <h1 class="flex-1 text-2xl font-bold text-text">{bean.title}</h1>
+    <h1 class="text-2xl font-bold text-text">{bean.title}</h1>
 
-      <!-- Workflow action buttons -->
+    <!-- Action buttons -->
+    <div class="mt-2 flex flex-wrap items-center gap-2">
       {#if canStartWork && bean.status === 'todo'}
         <button
           class="btn-toggle btn-toggle-inactive"
