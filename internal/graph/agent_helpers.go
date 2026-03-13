@@ -207,19 +207,18 @@ var agentActions = []agentActionDef{
 	{
 		ID:          "integrate",
 		Label:       "Integrate",
-		Description: "Commit, complete any associated beans, and rebase onto main",
+		Description: "Commit, complete any associated beans, and squash-merge into main",
 		PromptFunc: func(_ actionContext) string {
-			return `Integrate this worktree's work into main. Follow these steps in order:
+			return `Squash-merge this worktree's work into main. All commits from this branch must be combined into a single commit on main. Follow these steps in order:
 
 1. If there are associated beans, mark them as completed.
 2. If there are uncommitted changes, create a commit (following the usual commit guidelines).
-3. Rebase onto main and fast-forward push — do NOT merge. Do NOT switch to or modify main's working directory (another agent may be working there). Do this from the worktree:
+3. Squash-merge onto main — combine ALL commits from this branch into ONE commit on main. Do NOT switch to or modify main's working directory (another agent may be working there). Do this from the worktree:
    - Ensure the main repo accepts pushes to checked-out branches: git -C "$(git rev-parse --git-common-dir)/.." config receive.denyCurrentBranch updateInstead
-   - Rebase this branch onto main: git rebase main
-   - Resolve any rebase conflicts if they arise, then continue with: git rebase --continue
-   - Then fast-forward main's branch pointer: git push . HEAD:main
-   - This push is fast-forward-only — if another agent integrated first, it will fail safely.
-   - If it fails, rebase again onto main (which now includes the other agent's work) and retry the push.`
+   - Create the squash commit: git diff main...HEAD | git -C "$(git rev-parse --git-common-dir)/.." apply --index
+   - Write a single, well-crafted conventional commit message that summarizes all the work done in this branch. Include relevant bean IDs.
+   - Commit directly on main: git -C "$(git rev-parse --git-common-dir)/.." commit -m "<your message>"
+   - If the apply fails due to conflicts with work another agent integrated first, rebase onto main first (git rebase main), then retry the squash.`
 		},
 		Visible: func(ctx actionContext) bool {
 			return ctx.HasChanges || ctx.HasNewCommits
