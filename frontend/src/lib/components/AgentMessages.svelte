@@ -139,8 +139,9 @@
             <p class="whitespace-pre-wrap">{msg.content}</p>
           </div>
         {:else if msg.role === 'TOOL'}
-          <div class="text-text-faint">
-            <div class="flex gap-2">
+          <div class="flex gap-2 text-text-faint">
+            <span class="shrink-0 select-none">&middot;</span>
+            <div class="min-w-0">
               {#if msg.diff}
                 <button
                   class="flex cursor-pointer gap-2 text-left hover:text-text-muted"
@@ -152,11 +153,11 @@
               {:else}
                 <span>{msg.content}</span>
               {/if}
-            </div>
-            {#if msg.diff && expandedDiffs.has(i)}
-              <pre class="mt-1 ml-5 max-h-64 overflow-auto rounded border border-border bg-surface-alt p-2 font-mono leading-relaxed">{#each msg.diff.split('\n') as line}<span class={diffLineClass(line)}>{line}
+              {#if msg.diff && expandedDiffs.has(i)}
+                <pre class="mt-1 max-h-64 overflow-auto rounded border border-border bg-surface-alt p-2 font-mono leading-relaxed">{#each msg.diff.split('\n') as line}<span class={diffLineClass(line)}>{line}
 </span>{/each}</pre>
-            {/if}
+              {/if}
+            </div>
           </div>
         {:else if getRenderedContent(i)}
           <div class="flex gap-2">
