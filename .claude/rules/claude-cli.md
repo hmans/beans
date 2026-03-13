@@ -1,3 +1,8 @@
+---
+paths:
+  - "internal/agent/**"
+---
+
 # Claude CLI Process Spawning
 
 This codebase spawns `claude` CLI processes programmatically (see `internal/agent/`). When constructing CLI arguments:

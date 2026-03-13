@@ -1,6 +1,12 @@
 # What we're building
 
-You already know what beans is. This is the beans repository.
+Beans is an agentic-first issue tracker. Issues ("beans") live as markdown files in a `.beans/` directory inside a project repo. The system has three interfaces:
+
+- **CLI** (`beans` binary) — create, list, update, and query beans from the terminal
+- **Terminal TUI** — Bubbletea-based interactive interface
+- **Web TUI** (`beans serve`) — SvelteKit SPA served by an embedded Go HTTP server, communicating via GraphQL (queries, mutations, subscriptions over WebSocket)
+
+The web TUI is the primary development focus. It includes a backlog board, per-bean agent chat (spawning Claude Code processes), git worktree management, file change diffs, and terminal sessions.
 
 # Commits
 
@@ -14,12 +20,29 @@ You already know what beans is. This is the beans repository.
 - When we're working in a PR branch, make separate commits, and update the PR description to reflect the changes made.
 - Include the relevant bean ID(s) in the PR title (please follow conventional commit conventions, e.g. `Refs: bean-xxxx`).
 
-# Project Specific
+# Project Structure
 
-- When making changes to the GraphQL schema, run `mise codegen` to regenerate the code.
-- The `internal/graph/` package provides a GraphQL resolver that can be used to query and mutate beans.
-- All CLI commands that interact with beans should internally use GraphQL queries/mutations.
+Key packages:
+
+- `pkg/bean/` — Bean data model, parsing, sorting, validation (no I/O)
+- `pkg/beancore/` — Core engine: disk I/O, file watching, search indexing, worktree watching
+- `internal/graph/` — GraphQL schema and resolvers (the API layer for both web TUI and CLI)
+- `internal/agent/` — Agent session manager: spawns Claude Code processes, parses JSONL output, pub/sub for real-time updates
+- `internal/worktree/` — Git worktree lifecycle management
+- `internal/terminal/` — PTY session management for embedded terminals
+- `internal/commands/` — CLI command implementations (Cobra)
+- `frontend/` — SvelteKit SPA (embedded into the Go binary via `//go:embed`)
+
+## GraphQL
+
+- When making changes to the GraphQL schema (`internal/graph/schema.graphqls`), run `mise codegen` to regenerate `generated.go`.
+- All CLI commands that interact with beans should internally use GraphQL queries/mutations against the local server.
+- Subscriptions use WebSocket transport. The `beanChanged` subscription supports `includeInitial: true` to send a full snapshot on connect, avoiding race conditions between initial load and live updates.
+
+## Build
+
 - `mise build` to build a `./beans` executable
+- The frontend is built and embedded into the Go binary at compile time
 
 # GraphQL Subscriptions
 
