@@ -8,7 +8,6 @@
   import { agentStatusesStore } from '$lib/agentStatuses.svelte';
   import { configStore } from '$lib/config.svelte';
   import { ui } from '$lib/uiState.svelte';
-  import { generateWorkspaceName } from '$lib/nameGenerator';
   import { typeBorders } from '$lib/styles';
   import ConfirmModal from './ConfirmModal.svelte';
   import greenbean from '$lib/assets/greenbean.png';
@@ -33,8 +32,7 @@
   let confirmingRemoveId = $state<string | null>(null);
 
   async function handleCreateWorktree() {
-    const name = generateWorkspaceName();
-    const wt = await worktreeStore.createWorktree(name);
+    const wt = await worktreeStore.createWorktree();
     if (wt) {
       ui.navigateTo(wt.id);
     }
