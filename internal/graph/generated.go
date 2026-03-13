@@ -182,6 +182,7 @@ type ComplexityRoot struct {
 		FileChanges    func(childComplexity int, path *string) int
 		FileDiff       func(childComplexity int, filePath string, staged bool, path *string) int
 		HasDirtyBeans  func(childComplexity int) int
+		MainBranch     func(childComplexity int) int
 		ProjectName    func(childComplexity int) int
 		Worktrees      func(childComplexity int) int
 	}
@@ -256,6 +257,7 @@ type QueryResolver interface {
 	HasDirtyBeans(ctx context.Context) (bool, error)
 	AgentActions(ctx context.Context, beanID string) ([]*model.AgentAction, error)
 	ProjectName(ctx context.Context) (string, error)
+	MainBranch(ctx context.Context) (string, error)
 	AgentEnabled(ctx context.Context) (bool, error)
 }
 type SubscriptionResolver interface {
@@ -1010,6 +1012,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.HasDirtyBeans(childComplexity), true
+	case "Query.mainBranch":
+		if e.complexity.Query.MainBranch == nil {
+			break
+		}
+
+		return e.complexity.Query.MainBranch(childComplexity), true
 	case "Query.projectName":
 		if e.complexity.Query.ProjectName == nil {
 			break
@@ -5776,6 +5784,35 @@ func (ec *executionContext) fieldContext_Query_projectName(_ context.Context, fi
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_mainBranch(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_mainBranch,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Query().MainBranch(ctx)
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_mainBranch(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_agentEnabled(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -9780,6 +9817,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_projectName(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "mainBranch":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_mainBranch(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}

@@ -4,12 +4,14 @@ import { client } from './graphqlClient';
 const CONFIG_QUERY = gql`
   query Config {
     projectName
+    mainBranch
     agentEnabled
   }
 `;
 
 class ConfigStore {
   projectName = $state('');
+  mainBranch = $state('main');
   agentEnabled = $state(true);
 
   async load(): Promise<void> {
@@ -20,6 +22,7 @@ class ConfigStore {
     }
     if (result.data) {
       this.projectName = result.data.projectName;
+      this.mainBranch = result.data.mainBranch;
       this.agentEnabled = result.data.agentEnabled;
     }
   }

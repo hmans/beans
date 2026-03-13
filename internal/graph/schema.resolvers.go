@@ -987,6 +987,14 @@ func (r *queryResolver) ProjectName(ctx context.Context) (string, error) {
 	return cfg.GetProjectName(), nil
 }
 
+// MainBranch is the resolver for the mainBranch field.
+func (r *queryResolver) MainBranch(ctx context.Context) (string, error) {
+	if branch, ok := gitutil.CurrentBranch(r.ProjectRoot); ok {
+		return branch, nil
+	}
+	return "main", nil
+}
+
 // AgentEnabled is the resolver for the agentEnabled field.
 func (r *queryResolver) AgentEnabled(ctx context.Context) (bool, error) {
 	cfg := r.Core.Config()

@@ -112,6 +112,46 @@ func TestDefaultRemoteBranch_NotGitRepo(t *testing.T) {
 	}
 }
 
+func TestCurrentBranch_DefaultBranch(t *testing.T) {
+	repoDir := initTestRepo(t)
+
+	branch, ok := CurrentBranch(repoDir)
+	if !ok {
+		t.Fatal("expected ok=true for repo with branch")
+	}
+	// Default branch from git init is typically "main" or "master"
+	if branch != "main" && branch != "master" {
+		t.Errorf("CurrentBranch() = %q, want main or master", branch)
+	}
+}
+
+func TestCurrentBranch_CustomBranch(t *testing.T) {
+	repoDir := initTestRepo(t)
+
+	cmd := exec.Command("git", "checkout", "-b", "develop")
+	cmd.Dir = repoDir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git checkout failed: %s: %v", out, err)
+	}
+
+	branch, ok := CurrentBranch(repoDir)
+	if !ok {
+		t.Fatal("expected ok=true")
+	}
+	if branch != "develop" {
+		t.Errorf("CurrentBranch() = %q, want develop", branch)
+	}
+}
+
+func TestCurrentBranch_NotGitRepo(t *testing.T) {
+	dir := t.TempDir()
+
+	_, ok := CurrentBranch(dir)
+	if ok {
+		t.Error("expected ok=false for non-git directory")
+	}
+}
+
 func TestMainWorktreeRoot_NotGitRepo(t *testing.T) {
 	dir := t.TempDir()
 

@@ -57,6 +57,21 @@ func DefaultRemoteBranch(dir, remote string) (string, bool) {
 	return strings.TrimSpace(string(out)), true
 }
 
+// CurrentBranch returns the current branch name for the repo at dir.
+// Returns ("", false) if not a git repo or HEAD is detached.
+func CurrentBranch(dir string) (string, bool) {
+	cmd := exec.Command("git", "-C", dir, "rev-parse", "--abbrev-ref", "HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", false
+	}
+	branch := strings.TrimSpace(string(out))
+	if branch == "HEAD" {
+		return "", false // detached HEAD
+	}
+	return branch, true
+}
+
 func gitRevParse(dir, flag string) (string, error) {
 	cmd := exec.Command("git", "-C", dir, "rev-parse", flag)
 	out, err := cmd.Output()

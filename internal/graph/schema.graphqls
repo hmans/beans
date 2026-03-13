@@ -64,6 +64,11 @@ type Query {
   projectName: String!
 
   """
+  The current branch of the main repository.
+  """
+  mainBranch: String!
+
+  """
   Whether agent functionality is enabled in the project configuration.
   When false, the UI should hide agent chats, status panes, and worktree features.
   """
