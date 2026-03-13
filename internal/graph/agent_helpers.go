@@ -220,7 +220,8 @@ var agentActions = []agentActionDef{
    - Create the squash commit: git diff main...HEAD | git -C "$(git rev-parse --git-common-dir)/.." apply --index
    - Write a single, well-crafted conventional commit message that summarizes all the work done in this branch. Include relevant bean IDs.
    - Commit directly on main: git -C "$(git rev-parse --git-common-dir)/.." commit -m "<your message>"
-   - If the apply fails due to conflicts with work another agent integrated first, rebase onto main first (git rebase main), then retry the squash.`
+   - If the apply fails due to conflicts with work another agent integrated first, rebase onto main first (git rebase main), then retry the squash.
+4. Reset this branch to main so it doesn't appear to diverge: git reset --hard main`
 		},
 		Visible: func(ctx actionContext) bool {
 			return ctx.HasChanges || ctx.HasNewCommits
