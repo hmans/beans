@@ -38,7 +38,6 @@
   }
 
   const columns = [
-    { status: 'draft', label: 'Draft', color: 'bg-status-draft-bg text-status-draft-text' },
     { status: 'todo', label: 'Todo', color: 'bg-status-todo-bg text-status-todo-text' },
     {
       status: 'in-progress',
