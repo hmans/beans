@@ -9,6 +9,7 @@
   import { configStore } from '$lib/config.svelte';
   import { ui } from '$lib/uiState.svelte';
   import { generateWorkspaceName } from '$lib/nameGenerator';
+  import { typeBorders } from '$lib/styles';
   import ConfirmModal from './ConfirmModal.svelte';
   import greenbean from '$lib/assets/greenbean.png';
 
@@ -137,20 +138,23 @@
         </button>
 
         {#if item.beans.length > 0}
-          {#each item.beans as wtBean (wtBean.id)}
-            <button
-              onclick={() => {
-                ui.navigateTo('planning');
-                ui.selectBeanById(wtBean.id);
-              }}
-              class={[
-                'flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-md py-1 pr-3 pl-8 text-left text-xs transition-colors',
-                'text-text-faint hover:bg-surface hover:text-text-muted'
-              ]}
-            >
-              <span class="min-w-0 flex-1 truncate">{wtBean.title}</span>
-            </button>
-          {/each}
+          <div class="mt-0.5 mb-1 ml-5 mr-1 flex flex-col gap-0.5">
+            {#each item.beans as wtBean (wtBean.id)}
+              <button
+                onclick={() => {
+                  ui.navigateTo('planning');
+                  ui.selectBeanById(wtBean.id);
+                }}
+                class={[
+                  'flex min-w-0 cursor-pointer items-center gap-1.5 rounded-xs border-l-2 bg-surface px-2 py-1 text-left transition-colors hover:bg-surface-alt',
+                  typeBorders[wtBean.type] ?? 'border-l-type-task-border'
+                ]}
+              >
+                <code class="shrink-0 text-[9px] text-text-faint">{wtBean.id.slice(-4)}</code>
+                <span class="min-w-0 flex-1 truncate text-xs text-text-muted">{wtBean.title}</span>
+              </button>
+            {/each}
+          </div>
         {/if}
       {/each}
     {/if}
