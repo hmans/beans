@@ -48,7 +48,7 @@ class BeansCLI {
 
   run(args: string[]): string {
     return execFileSync(this.binaryPath, ['--beans-path', this.beansPath, ...args], {
-      cwd: PROJECT_ROOT,
+      cwd: this.projectDir,
       encoding: 'utf-8',
       timeout: 10_000
     });
@@ -112,7 +112,7 @@ export const test = base.extend<Fixtures>({
       beansServe,
       ['--port', String(port), '--beans-path', beansPath],
       {
-        cwd: PROJECT_ROOT,
+        cwd: projectDir,
         env: { ...process.env, GIN_MODE: 'release' },
         stdio: 'pipe'
       }

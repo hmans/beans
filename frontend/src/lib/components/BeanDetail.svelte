@@ -112,8 +112,7 @@
     startingWork = true;
     worktreeError = null;
 
-    // Create a worktree named after the bean
-    const wt = await worktreeStore.createWorktree(bean.title);
+    const wt = await worktreeStore.createWorktree();
     if (!wt) {
       worktreeError = worktreeStore.error;
       startingWork = false;

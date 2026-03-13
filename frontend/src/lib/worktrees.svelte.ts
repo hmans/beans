@@ -1,6 +1,7 @@
 import { gql } from 'urql';
 import { pipe, subscribe } from 'wonka';
 import { client } from './graphqlClient';
+import { generateWorkspaceName } from '$lib/nameGenerator';
 
 export const MAIN_WORKSPACE_ID = '__main__';
 
@@ -79,10 +80,11 @@ class WorktreeStore {
     }
   }
 
-  async createWorktree(name: string): Promise<Worktree | null> {
+  async createWorktree(): Promise<Worktree | null> {
     this.loading = true;
     this.error = null;
 
+    const name = generateWorkspaceName();
     const result = await client.mutation(CREATE_WORKTREE, { name }).toPromise();
 
     this.loading = false;

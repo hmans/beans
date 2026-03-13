@@ -5,7 +5,6 @@
   import { agentStatusesStore } from '$lib/agentStatuses.svelte';
   import { configStore } from '$lib/config.svelte';
   import { ui } from '$lib/uiState.svelte';
-  import { generateWorkspaceName } from '$lib/nameGenerator';
   import { typeBorders } from '$lib/styles';
   import ConfirmModal from './ConfirmModal.svelte';
   import greenbean from '$lib/assets/greenbean.png';
@@ -21,7 +20,7 @@
     return beansStore.all.filter((b) => b.worktreeId === worktreeId);
   }
 
-  const mainWorkspace: WorkspaceItem = { id: MAIN_WORKSPACE_ID, label: 'main', beans: [] };
+  const mainWorkspace: WorkspaceItem = $derived({ id: MAIN_WORKSPACE_ID, label: configStore.mainBranch, beans: [] });
 
   const workspaceItems = $derived([
     mainWorkspace,
@@ -35,8 +34,7 @@
   let confirmingRemoveId = $state<string | null>(null);
 
   async function handleCreateWorktree() {
-    const name = generateWorkspaceName();
-    const wt = await worktreeStore.createWorktree(name);
+    const wt = await worktreeStore.createWorktree();
     if (wt) {
       ui.navigateTo(wt.id);
     }
