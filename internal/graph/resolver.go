@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/hmans/beans/internal/agent"
+	"github.com/hmans/beans/internal/gitutil"
 	"github.com/hmans/beans/internal/graph/model"
 	"github.com/hmans/beans/internal/terminal"
 	"github.com/hmans/beans/internal/worktree"
@@ -167,12 +168,19 @@ func (r *Resolver) removeBlockedByRelationships(b *bean.Bean, targetIDs []string
 
 // worktreeToModel converts an internal worktree to a GraphQL model.
 // It takes an optional beancore.Core to resolve BeanIDs into full Bean objects.
-func worktreeToModel(wt *worktree.Worktree, core *beancore.Core) *model.Worktree {
+// When computeGitStatus is true, it shells out to git to compute hasChanges and
+// hasUnmergedCommits; otherwise these default to false to avoid expensive subprocess
+// calls on hot paths like subscriptions.
+func worktreeToModel(wt *worktree.Worktree, core *beancore.Core, baseRef string, computeGitStatus bool) *model.Worktree {
 	m := &model.Worktree{
 		ID:     wt.ID,
 		Branch: wt.Branch,
 		Path:   wt.Path,
 		Beans:  []*bean.Bean{},
+	}
+	if computeGitStatus {
+		m.HasChanges = gitutil.HasChanges(wt.Path)
+		m.HasUnmergedCommits = gitutil.HasUnmergedCommits(wt.Path, baseRef)
 	}
 	if wt.Name != "" {
 		m.Name = &wt.Name

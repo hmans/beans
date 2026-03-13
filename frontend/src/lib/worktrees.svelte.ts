@@ -47,6 +47,21 @@ const REMOVE_WORKTREE = gql`
   }
 `;
 
+export interface WorktreeStatus {
+  hasChanges: boolean;
+  hasUnmergedCommits: boolean;
+}
+
+const WORKTREES_QUERY = gql`
+  query Worktrees {
+    worktrees {
+      id
+      hasChanges
+      hasUnmergedCommits
+    }
+  }
+`;
+
 class WorktreeStore {
   worktrees = $state<Worktree[]>([]);
   initialized = $state(false);
@@ -136,6 +151,14 @@ class WorktreeStore {
 
   hasWorktree(id: string): boolean {
     return this.worktrees.some((wt) => wt.id === id);
+  }
+
+  /** Fetch fresh git status for a specific worktree (on-demand, not cached). */
+  async getWorktreeStatus(id: string): Promise<WorktreeStatus | null> {
+    const result = await client.query(WORKTREES_QUERY, {}, { requestPolicy: 'network-only' }).toPromise();
+    if (result.error) return null;
+    const wt = result.data?.worktrees?.find((w: { id: string }) => w.id === id);
+    return wt ? { hasChanges: wt.hasChanges, hasUnmergedCommits: wt.hasUnmergedCommits } : null;
   }
 }
 

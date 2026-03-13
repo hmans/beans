@@ -1,6 +1,6 @@
 <script lang="ts">
   import { fade } from 'svelte/transition';
-  import { worktreeStore, MAIN_WORKSPACE_ID } from '$lib/worktrees.svelte';
+  import { worktreeStore, MAIN_WORKSPACE_ID, type WorktreeStatus } from '$lib/worktrees.svelte';
   import { beansStore, type Bean } from '$lib/beans.svelte';
   import { agentStatusesStore } from '$lib/agentStatuses.svelte';
   import { configStore } from '$lib/config.svelte';
@@ -36,6 +36,13 @@
   ]);
 
   let confirmingRemoveId = $state<string | null>(null);
+  let confirmingStatus = $state<WorktreeStatus | null>(null);
+
+  async function promptDestroy(id: string) {
+    const status = await worktreeStore.getWorktreeStatus(id);
+    confirmingStatus = status;
+    confirmingRemoveId = id;
+  }
 
   async function handleCreateWorktree() {
     const wt = await worktreeStore.createWorktree();
@@ -46,6 +53,7 @@
 
   async function handleRemoveWorktree(id: string) {
     confirmingRemoveId = null;
+    confirmingStatus = null;
     // Navigate away immediately since the store optimistically removes the item
     if (ui.activeView === id) {
       ui.navigateTo('planning');
@@ -146,13 +154,13 @@
                   tabindex="-1"
                   onclick={(e) => {
                     e.stopPropagation();
-                    confirmingRemoveId = item.id;
+                    promptDestroy(item.id);
                   }}
                   onkeydown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
                       e.stopPropagation();
-                      confirmingRemoveId = item.id;
+                      promptDestroy(item.id);
                     }
                   }}
                   class="absolute inset-0 flex cursor-pointer items-center justify-center rounded text-text-faint opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
@@ -195,13 +203,19 @@
 
   {#if confirmingRemoveId}
     {@const label = workspaceItems.find((w) => w.id === confirmingRemoveId)?.label ?? 'this worktree'}
+    {@const warnings = [
+      confirmingStatus?.hasChanges && 'uncommitted changes',
+      confirmingStatus?.hasUnmergedCommits && 'unmerged commits'
+    ].filter(Boolean)}
     <ConfirmModal
       title="Destroy Worktree"
-      message={`Are you sure you want to destroy the worktree for "${label}"? This cannot be undone.`}
+      message={warnings.length > 0
+        ? `This worktree has ${warnings.join(' and ')}. Are you sure you want to destroy the worktree for "${label}"? This cannot be undone.`
+        : `Are you sure you want to destroy the worktree for "${label}"? This cannot be undone.`}
       confirmLabel="Destroy"
       danger
       onConfirm={() => handleRemoveWorktree(confirmingRemoveId!)}
-      onCancel={() => (confirmingRemoveId = null)}
+      onCancel={() => { confirmingRemoveId = null; confirmingStatus = null; }}
     />
   {/if}
 </nav>

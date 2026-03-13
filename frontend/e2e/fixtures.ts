@@ -1,6 +1,6 @@
 import { test as base } from '@playwright/test';
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { BacklogPage } from './pages/backlog-page';
@@ -69,6 +69,47 @@ class BeansCLI {
     if (opts.priority) args.push('--priority', opts.priority);
     if (opts.type) args.push('-t', opts.type);
     this.run(args);
+  }
+
+  /** Run a GraphQL query against the running beans-serve instance. */
+  async graphql<T = unknown>(query: string): Promise<T> {
+    const res = await fetch(`${this.baseURL}/api/graphql`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query })
+    });
+    const json = await res.json();
+    return json.data as T;
+  }
+
+  /** Get all worktree paths from the running server. */
+  async getWorktrees(): Promise<{ id: string; path: string; branch: string }[]> {
+    const data = await this.graphql<{ worktrees: { id: string; path: string; branch: string }[] }>(
+      '{ worktrees { id path branch } }'
+    );
+    return data.worktrees;
+  }
+
+  /** Create a file in a worktree directory to simulate uncommitted changes. */
+  createFileInWorktree(worktreePath: string, filename: string, content: string): void {
+    writeFileSync(join(worktreePath, filename), content);
+  }
+
+  /** Create a commit in a worktree directory to simulate unmerged commits. */
+  commitInWorktree(worktreePath: string, filename: string, content: string): void {
+    writeFileSync(join(worktreePath, filename), content);
+    execFileSync('git', ['add', filename], { cwd: worktreePath, timeout: 10_000 });
+    execFileSync('git', ['commit', '-m', 'test commit'], {
+      cwd: worktreePath,
+      timeout: 10_000,
+      env: {
+        ...process.env,
+        GIT_AUTHOR_NAME: 'test',
+        GIT_AUTHOR_EMAIL: 'test@test',
+        GIT_COMMITTER_NAME: 'test',
+        GIT_COMMITTER_EMAIL: 'test@test'
+      }
+    });
   }
 }
 

@@ -495,6 +495,10 @@ type Worktree {
   path: String!
   "Beans detected from changes in this worktree vs the base branch"
   beans: [Bean!]!
+  "Whether the worktree has uncommitted changes or untracked files"
+  hasChanges: Boolean!
+  "Whether the worktree has commits not yet merged into the base branch"
+  hasUnmergedCommits: Boolean!
   "Post-creation setup status (null if no setup configured)"
   setupStatus: WorktreeSetupStatus
   "Error message if setup failed"

@@ -206,14 +206,16 @@ type ComplexityRoot struct {
 	}
 
 	Worktree struct {
-		Beans       func(childComplexity int) int
-		Branch      func(childComplexity int) int
-		Description func(childComplexity int) int
-		ID          func(childComplexity int) int
-		Name        func(childComplexity int) int
-		Path        func(childComplexity int) int
-		SetupError  func(childComplexity int) int
-		SetupStatus func(childComplexity int) int
+		Beans              func(childComplexity int) int
+		Branch             func(childComplexity int) int
+		Description        func(childComplexity int) int
+		HasChanges         func(childComplexity int) int
+		HasUnmergedCommits func(childComplexity int) int
+		ID                 func(childComplexity int) int
+		Name               func(childComplexity int) int
+		Path               func(childComplexity int) int
+		SetupError         func(childComplexity int) int
+		SetupStatus        func(childComplexity int) int
 	}
 }
 
@@ -1147,6 +1149,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Worktree.Description(childComplexity), true
+	case "Worktree.hasChanges":
+		if e.complexity.Worktree.HasChanges == nil {
+			break
+		}
+
+		return e.complexity.Worktree.HasChanges(childComplexity), true
+	case "Worktree.hasUnmergedCommits":
+		if e.complexity.Worktree.HasUnmergedCommits == nil {
+			break
+		}
+
+		return e.complexity.Worktree.HasUnmergedCommits(childComplexity), true
 	case "Worktree.id":
 		if e.complexity.Worktree.ID == nil {
 			break
@@ -4820,6 +4834,10 @@ func (ec *executionContext) fieldContext_Mutation_createWorktree(ctx context.Con
 				return ec.fieldContext_Worktree_path(ctx, field)
 			case "beans":
 				return ec.fieldContext_Worktree_beans(ctx, field)
+			case "hasChanges":
+				return ec.fieldContext_Worktree_hasChanges(ctx, field)
+			case "hasUnmergedCommits":
+				return ec.fieldContext_Worktree_hasUnmergedCommits(ctx, field)
 			case "setupStatus":
 				return ec.fieldContext_Worktree_setupStatus(ctx, field)
 			case "setupError":
@@ -5596,6 +5614,10 @@ func (ec *executionContext) fieldContext_Query_worktrees(_ context.Context, fiel
 				return ec.fieldContext_Worktree_path(ctx, field)
 			case "beans":
 				return ec.fieldContext_Worktree_beans(ctx, field)
+			case "hasChanges":
+				return ec.fieldContext_Worktree_hasChanges(ctx, field)
+			case "hasUnmergedCommits":
+				return ec.fieldContext_Worktree_hasUnmergedCommits(ctx, field)
 			case "setupStatus":
 				return ec.fieldContext_Worktree_setupStatus(ctx, field)
 			case "setupError":
@@ -6369,6 +6391,10 @@ func (ec *executionContext) fieldContext_Subscription_worktreesChanged(_ context
 				return ec.fieldContext_Worktree_path(ctx, field)
 			case "beans":
 				return ec.fieldContext_Worktree_beans(ctx, field)
+			case "hasChanges":
+				return ec.fieldContext_Worktree_hasChanges(ctx, field)
+			case "hasUnmergedCommits":
+				return ec.fieldContext_Worktree_hasUnmergedCommits(ctx, field)
 			case "setupStatus":
 				return ec.fieldContext_Worktree_setupStatus(ctx, field)
 			case "setupError":
@@ -6699,6 +6725,64 @@ func (ec *executionContext) fieldContext_Worktree_beans(_ context.Context, field
 				return ec.fieldContext_Bean_implicitStatusFrom(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Bean", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Worktree_hasChanges(ctx context.Context, field graphql.CollectedField, obj *model.Worktree) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Worktree_hasChanges,
+		func(ctx context.Context) (any, error) {
+			return obj.HasChanges, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Worktree_hasChanges(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Worktree",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Worktree_hasUnmergedCommits(ctx context.Context, field graphql.CollectedField, obj *model.Worktree) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Worktree_hasUnmergedCommits,
+		func(ctx context.Context) (any, error) {
+			return obj.HasUnmergedCommits, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Worktree_hasUnmergedCommits(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Worktree",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
 		},
 	}
 	return fc, nil
@@ -10361,6 +10445,16 @@ func (ec *executionContext) _Worktree(ctx context.Context, sel ast.SelectionSet,
 			}
 		case "beans":
 			out.Values[i] = ec._Worktree_beans(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "hasChanges":
+			out.Values[i] = ec._Worktree_hasChanges(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "hasUnmergedCommits":
+			out.Values[i] = ec._Worktree_hasUnmergedCommits(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

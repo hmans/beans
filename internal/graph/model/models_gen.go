@@ -318,6 +318,10 @@ type Worktree struct {
 	Path string `json:"path"`
 	// Beans detected from changes in this worktree vs the base branch
 	Beans []*bean.Bean `json:"beans"`
+	// Whether the worktree has uncommitted changes or untracked files
+	HasChanges bool `json:"hasChanges"`
+	// Whether the worktree has commits not yet merged into the base branch
+	HasUnmergedCommits bool `json:"hasUnmergedCommits"`
 	// Post-creation setup status (null if no setup configured)
 	SetupStatus *WorktreeSetupStatus `json:"setupStatus,omitempty"`
 	// Error message if setup failed
