@@ -195,6 +195,12 @@ func (m *Manager) DetectBeanIDs(worktreePath string) []string {
 			continue
 		}
 
+		// Skip if the file was deleted in the worktree
+		fullPath := filepath.Join(worktreePath, ".beans", rest)
+		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+			continue
+		}
+
 		id, _ := bean.ParseFilename(rest)
 		if id != "" && !seen[id] {
 			seen[id] = true

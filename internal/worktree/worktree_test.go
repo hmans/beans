@@ -472,6 +472,39 @@ func TestDetectBeanIDs_UncommittedChanges(t *testing.T) {
 	}
 }
 
+func TestDetectBeanIDs_DeletedFile(t *testing.T) {
+	repoDir, beansDir := initTestRepo(t)
+
+	// Create a bean on main
+	if err := os.WriteFile(filepath.Join(beansDir, "beans-del1--to-delete.md"), []byte("---\ntitle: To Delete\nstatus: todo\ntype: task\n---\n"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	gitRun(t, repoDir, "add", "-A")
+	gitRun(t, repoDir, "commit", "-m", "add bean")
+
+	mgr := NewManager(repoDir, beansDir, "main")
+
+	wt, err := mgr.Create("delete-test")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	// Delete the bean file in the worktree
+	wtBeanFile := filepath.Join(wt.Path, ".beans", "beans-del1--to-delete.md")
+	if err := os.Remove(wtBeanFile); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	gitRun(t, wt.Path, "add", "-A")
+	gitRun(t, wt.Path, "commit", "-m", "delete bean")
+
+	ids := mgr.DetectBeanIDs(wt.Path)
+
+	// Should NOT include the deleted bean
+	if len(ids) != 0 {
+		t.Errorf("expected 0 IDs for deleted bean, got %d: %v", len(ids), ids)
+	}
+}
+
 // gitRun runs a git command in the given directory, failing the test on error.
 func gitRun(t *testing.T, dir string, args ...string) {
 	t.Helper()
