@@ -214,7 +214,6 @@
                     typeBorders[wtBean.type] ?? 'border-l-type-task-border'
                   ]}
                 >
-                  <code class="shrink-0 text-[9px] text-text-faint">{wtBean.id.slice(-4)}</code>
                   <span class="min-w-0 flex-1 text-xs text-text-muted">{wtBean.title}</span>
                 </button>
               {/each}
