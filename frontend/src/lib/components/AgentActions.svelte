@@ -25,11 +25,19 @@
 {/if}
 {#each store.actions as action (action.id)}
   <button
-    class="btn-toggle btn-toggle-inactive ml-1"
+    class={[
+      'btn-toggle ml-1',
+      action.id === 'integrate'
+        ? 'border-success/30 bg-success/10 text-success hover:bg-success/20'
+        : 'btn-toggle-inactive'
+    ]}
     disabled={agentBusy || !!store.executingAction || action.disabled}
     title={action.disabled ? (action.disabledReason ?? undefined) : (action.description ?? undefined)}
     onclick={() => store.execute(beanId, action.id)}
   >
+    {#if action.id === 'integrate'}
+      <span class="icon-[uil--check] size-4"></span>
+    {/if}
     {action.label}
   </button>
 {/each}
