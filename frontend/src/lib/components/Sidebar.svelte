@@ -37,18 +37,28 @@
     }))
   ]);
 
-  // Poll for uncommitted changes in the main repo
+  // Poll for uncommitted changes in the main repo and worktree integration readiness
   const MAIN_CHANGES_QUERY = gql`query { fileChanges { path } }`;
+  const WORKTREE_STATUS_QUERY = gql`query { worktrees { id hasChanges hasUnmergedCommits } }`;
   let mainHasChanges = $state(false);
+  let readyWorktreeIds = $state(new Set<string>());
 
-  async function fetchMainChanges() {
-    const result = await client.query(MAIN_CHANGES_QUERY, {}).toPromise();
-    mainHasChanges = (result.data?.fileChanges?.length ?? 0) > 0;
+  async function fetchStatuses() {
+    const [mainResult, wtResult] = await Promise.all([
+      client.query(MAIN_CHANGES_QUERY, {}).toPromise(),
+      client.query(WORKTREE_STATUS_QUERY, {}).toPromise()
+    ]);
+    mainHasChanges = (mainResult.data?.fileChanges?.length ?? 0) > 0;
+    const ready = new Set<string>();
+    for (const wt of wtResult.data?.worktrees ?? []) {
+      if (wt.hasChanges || wt.hasUnmergedCommits) ready.add(wt.id);
+    }
+    readyWorktreeIds = ready;
   }
 
-  fetchMainChanges();
-  const mainChangesInterval = setInterval(fetchMainChanges, 3000);
-  onDestroy(() => clearInterval(mainChangesInterval));
+  fetchStatuses();
+  const statusInterval = setInterval(fetchStatuses, 3000);
+  onDestroy(() => clearInterval(statusInterval));
 
   let confirmingRemoveId = $state<string | null>(null);
   let confirmingStatus = $state<WorktreeStatus | null>(null);
@@ -165,6 +175,8 @@
                 <div class="loader absolute inset-0" transition:fade={{ duration: 200 }}></div>
               {:else if item.id === MAIN_WORKSPACE_ID && mainHasChanges}
                 <span class="icon-[uil--exclamation-triangle] absolute inset-0 block size-4 text-warning" title="Uncommitted changes"></span>
+              {:else if item.id !== MAIN_WORKSPACE_ID && readyWorktreeIds.has(item.id)}
+                <span class="icon-[uil--check] absolute inset-0 block size-4 text-success" title="Ready to integrate"></span>
               {:else if item.id !== MAIN_WORKSPACE_ID}
                 <span
                   role="button"
