@@ -134,15 +134,14 @@
     {/if}
     {#snippet right()}
       <AgentActions beanId={worktreeId} {agentBusy} />
-      {#if isWorktree && hasNoChanges}
+      {#if isWorktree}
         <button
-          class={["btn-toggle ml-2 cursor-pointer border-danger/30 bg-danger/10 text-danger", agentBusy ? "opacity-50" : "hover:bg-danger/20"]}
+          class={["btn-toggle ml-1 cursor-pointer border-border bg-transparent text-text-muted", agentBusy ? "opacity-50" : "hover:text-danger"]}
           title={agentBusy ? "Cannot destroy while agent is running" : "Destroy this worktree"}
           disabled={agentBusy}
           onclick={() => (confirmingDestroy = true)}
         >
-          <span class="icon-[uil--trash-alt] size-4"></span>
-          Destroy
+          <span class="icon-[uil--archive] size-4"></span>
         </button>
       {/if}
     {/snippet}
@@ -161,9 +160,12 @@
 
 {#if confirmingDestroy}
   {@const label = worktree?.name ?? worktreeId}
+  {@const warning = hasNoChanges
+    ? `Are you sure you want to destroy the worktree for "${label}"? This cannot be undone.`
+    : `The worktree "${label}" has uncommitted changes that will be lost. Are you sure you want to destroy it? This cannot be undone.`}
   <ConfirmModal
     title="Destroy Worktree"
-    message={`Are you sure you want to destroy the worktree for "${label}"? This cannot be undone.`}
+    message={warning}
     confirmLabel="Destroy"
     danger
     onConfirm={handleDestroy}
