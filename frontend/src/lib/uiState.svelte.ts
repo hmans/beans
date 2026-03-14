@@ -73,6 +73,16 @@ class UIState {
     this.syncSelectedBeanToUrl();
   }
 
+  /** Pre-select a bean for a specific view (e.g. before navigating to that view). */
+  selectBeanForView(beanId: string, view: string) {
+    this.selectedBeanByView[view] = beanId;
+    // If already on this view, sync to URL immediately
+    if (view === this.activeView) {
+      this.syncSelectedBeanToUrl();
+    }
+    // Otherwise, syncFromUrl will pick it up when the navigation completes
+  }
+
   clearSelection() {
     this.selectedBeanId = null;
     this.syncSelectedBeanToUrl();

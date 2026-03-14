@@ -177,8 +177,8 @@
               {#each item.beans as wtBean (wtBean.id)}
                 <button
                   onclick={() => {
+                    ui.selectBeanForView(wtBean.id, item.id);
                     ui.navigateTo(item.id);
-                    ui.selectBeanById(wtBean.id);
                   }}
                   class={[
                     'flex min-w-0 cursor-pointer items-start gap-1.5 rounded-xs border-l-2 px-2 py-1 text-left transition-colors hover:bg-surface-alt',

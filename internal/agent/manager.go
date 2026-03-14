@@ -156,6 +156,11 @@ func (m *Manager) SendMessage(beanID, workDir, message string, images []ImageUpl
 	session.PendingInteraction = nil
 	session.ToolInvocations = nil
 
+	// Check if this is the first user message in the session (for description
+	// generation). We can't just check !ok because AddInfoMessage may have
+	// pre-created the session (e.g. from workspace setup notifications).
+	isFirstUserMessage := countUserMessages(session.Messages) == 1
+
 	// Persist user message
 	if m.store != nil {
 		if err := m.store.appendMessage(beanID, userMsg); err != nil {
@@ -171,8 +176,8 @@ func (m *Manager) SendMessage(beanID, workDir, message string, images []ImageUpl
 	// Notify subscribers that we have a new user message + running status
 	m.notify(beanID)
 
-	// Fire onFirstUserMessage callback when this is a brand new session
-	if !ok && m.onFirstUserMessage != nil {
+	// Fire onFirstUserMessage callback when this is the first user message
+	if isFirstUserMessage && m.onFirstUserMessage != nil {
 		go m.onFirstUserMessage(beanID, message)
 	}
 
@@ -546,4 +551,15 @@ func (m *Manager) loadOrCreateSession(beanID, workDir string) *Session {
 	}
 
 	return session
+}
+
+// countUserMessages returns how many messages in the slice have RoleUser.
+func countUserMessages(msgs []Message) int {
+	n := 0
+	for _, m := range msgs {
+		if m.Role == RoleUser {
+			n++
+		}
+	}
+	return n
 }
