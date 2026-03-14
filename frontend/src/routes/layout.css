@@ -143,6 +143,23 @@ a,
   @apply my-1;
 }
 
+.prose ul:has(> li > input[type='checkbox']) {
+  @apply pl-2;
+}
+
+.prose li:has(> input[type='checkbox']) {
+  @apply list-none;
+}
+
+.prose input[type='checkbox'] {
+  @apply mr-1.5 size-4 appearance-none rounded border border-text-faint align-middle;
+}
+
+.prose input[type='checkbox']:checked {
+  @apply border-green-600 bg-green-600;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='white'%3E%3Cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3E%3C/svg%3E");
+}
+
 .prose li > ul,
 .prose li > ol {
   @apply my-1;

@@ -262,7 +262,8 @@ export async function renderMarkdown(content: string): Promise<string> {
 
   if (browser) {
     return DOMPurify.sanitize(html, {
-      ADD_ATTR: ['data-bean-id', 'target', 'rel']
+      ADD_TAGS: ['input'],
+      ADD_ATTR: ['data-bean-id', 'target', 'rel', 'checked', 'disabled', 'type']
     });
   }
 
