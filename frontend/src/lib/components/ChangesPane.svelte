@@ -27,7 +27,7 @@
     await client
       .mutation(SendAgentMessageDocument, {
         beanId: worktreeId,
-        message: `Please rebase this branch against ${configStore.mainBranch} and resolve any conflicts.`
+        message: `Please run \`git rebase ${configStore.worktreeBaseRef}\` and resolve any conflicts.`
       })
       .toPromise();
   }

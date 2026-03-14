@@ -194,6 +194,7 @@ type ComplexityRoot struct {
 		HasDirtyBeans      func(childComplexity int) int
 		MainBranch         func(childComplexity int) int
 		ProjectName        func(childComplexity int) int
+		WorktreeBaseRef    func(childComplexity int) int
 		WorktreeRunCommand func(childComplexity int) int
 		Worktrees          func(childComplexity int) int
 	}
@@ -280,6 +281,7 @@ type QueryResolver interface {
 	ProjectName(ctx context.Context) (string, error)
 	MainBranch(ctx context.Context) (string, error)
 	AgentEnabled(ctx context.Context) (bool, error)
+	WorktreeBaseRef(ctx context.Context) (string, error)
 	WorktreeRunCommand(ctx context.Context) (string, error)
 }
 type SubscriptionResolver interface {
@@ -1104,6 +1106,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.ProjectName(childComplexity), true
+	case "Query.worktreeBaseRef":
+		if e.complexity.Query.WorktreeBaseRef == nil {
+			break
+		}
+
+		return e.complexity.Query.WorktreeBaseRef(childComplexity), true
 	case "Query.worktreeRunCommand":
 		if e.complexity.Query.WorktreeRunCommand == nil {
 			break
@@ -6295,6 +6303,35 @@ func (ec *executionContext) fieldContext_Query_agentEnabled(_ context.Context, f
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_worktreeBaseRef(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_worktreeBaseRef,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Query().WorktreeBaseRef(ctx)
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_worktreeBaseRef(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_worktreeRunCommand(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -10647,6 +10684,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_agentEnabled(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "worktreeBaseRef":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_worktreeBaseRef(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}

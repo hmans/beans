@@ -132,6 +132,7 @@ query Config {
   projectName
   mainBranch
   agentEnabled
+  worktreeBaseRef
   worktreeRunCommand
 }
 

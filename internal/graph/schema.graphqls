@@ -81,6 +81,12 @@ type Query {
   agentEnabled: Boolean!
 
   """
+  The configured base ref for worktree branches (from worktree.base_ref config).
+  Used as the rebase target. Defaults to "main".
+  """
+  worktreeBaseRef: String!
+
+  """
   Shell command to run the project (from worktree.run config).
   When non-empty, the UI shows a "Run" button in workspace toolbars.
   """

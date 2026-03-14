@@ -17,6 +17,7 @@ import (
 	"github.com/hmans/beans/internal/graph/model"
 	"github.com/hmans/beans/pkg/bean"
 	"github.com/hmans/beans/pkg/beancore"
+	"github.com/hmans/beans/pkg/config"
 )
 
 // IsDirty is the resolver for the isDirty field.
@@ -1112,6 +1113,15 @@ func (r *queryResolver) AgentEnabled(ctx context.Context) (bool, error) {
 		return true, nil
 	}
 	return cfg.IsAgentEnabled(), nil
+}
+
+// WorktreeBaseRef is the resolver for the worktreeBaseRef field.
+func (r *queryResolver) WorktreeBaseRef(ctx context.Context) (string, error) {
+	cfg := r.Core.Config()
+	if cfg == nil {
+		return config.DefaultWorktreeBaseRef, nil
+	}
+	return cfg.GetWorktreeBaseRef(), nil
 }
 
 // WorktreeRunCommand is the resolver for the worktreeRunCommand field.
