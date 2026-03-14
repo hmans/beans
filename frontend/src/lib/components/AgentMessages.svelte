@@ -62,12 +62,12 @@
     }
   });
 
-  // Render markdown for assistant messages (including the one being streamed).
+  // Render markdown for assistant and user messages (including the one being streamed).
   // The key includes content length, so each new delta triggers a re-render.
   $effect(() => {
     for (let i = 0; i < messages.length; i++) {
       const msg = messages[i];
-      if (msg.role !== 'ASSISTANT') continue;
+      if (msg.role !== 'ASSISTANT' && msg.role !== 'USER') continue;
 
       const key = `${i}:${msg.content.length}`;
       if (!renderedMessages.has(key)) {
@@ -80,7 +80,7 @@
 
   function getRenderedContent(index: number): string | null {
     const msg = messages[index];
-    if (!msg || msg.role !== 'ASSISTANT') return null;
+    if (!msg || (msg.role !== 'ASSISTANT' && msg.role !== 'USER')) return null;
     const key = `${index}:${msg.content.length}`;
     return renderedMessages.get(key) ?? null;
   }
@@ -124,7 +124,11 @@
         {#if msg.role === 'USER'}
           <div class="rounded-lg border border-border bg-surface-alt px-3 py-2">
             <div>
-              {#if msg.content}
+              {#if getRenderedContent(i)}
+                <div class="agent-prose prose max-w-none min-w-0 text-text">
+                  {@html getRenderedContent(i)}
+                </div>
+              {:else if msg.content}
                 <p class="whitespace-pre-wrap text-text">{msg.content}</p>
               {/if}
               {#if msg.images.length > 0}
