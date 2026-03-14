@@ -2,6 +2,7 @@
   import { gql } from 'urql';
   import { changesStore, type FileChange } from '$lib/changes.svelte';
   import { client } from '$lib/graphqlClient';
+  import { configStore } from '$lib/config.svelte';
   import { MAIN_WORKSPACE_ID } from '$lib/worktrees.svelte';
 
   import SplitPane from '$lib/components/SplitPane.svelte';
@@ -30,7 +31,7 @@
     await client
       .mutation(SEND_AGENT_MESSAGE, {
         beanId: worktreeId,
-        message: 'Please rebase this branch against the main branch and resolve any conflicts.'
+        message: `Please rebase this branch against ${configStore.mainBranch} and resolve any conflicts.`
       })
       .toPromise();
   }
