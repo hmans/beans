@@ -43,8 +43,10 @@ func TestReadOutputMessageOrder(t *testing.T) {
 		streamingIdx: -1,
 	}
 	m.sessions["bean-test"] = session
+	proc := &runningProcess{done: make(chan struct{})}
+	m.processes["bean-test"] = proc
 
-	m.readOutput("bean-test", strings.NewReader(lines), "")
+	m.readOutput("bean-test", strings.NewReader(lines), "", proc)
 
 	// Expected message order:
 	// [0] USER: "hello"          (pre-existing)
@@ -103,12 +105,14 @@ func TestReadOutputMultiTurnResetsStatus(t *testing.T) {
 		streamingIdx: -1,
 	}
 	m.sessions["bean-multi-turn"] = session
+	proc := &runningProcess{done: make(chan struct{})}
+	m.processes["bean-multi-turn"] = proc
 
 	// Run readOutput in a goroutine since it blocks
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		m.readOutput("bean-multi-turn", pr, "")
+		m.readOutput("bean-multi-turn", pr, "", proc)
 	}()
 
 	// Helper to write a line and wait for it to be processed
@@ -193,8 +197,10 @@ func TestReadOutputMultipleTools(t *testing.T) {
 		streamingIdx: -1,
 	}
 	m.sessions["bean-multi"] = session
+	proc := &runningProcess{done: make(chan struct{})}
+	m.processes["bean-multi"] = proc
 
-	m.readOutput("bean-multi", strings.NewReader(lines), "")
+	m.readOutput("bean-multi", strings.NewReader(lines), "", proc)
 
 	// Expected: USER, ASSISTANT(Step 1), TOOL(Bash), ASSISTANT(Step 2), TOOL(Read), ASSISTANT(Step 3)
 	msgs := session.Messages
@@ -243,11 +249,13 @@ func TestReadOutputAskUserQuestionStaysIdle(t *testing.T) {
 		streamingIdx: -1,
 	}
 	m.sessions["bean-ask"] = session
+	proc := &runningProcess{done: make(chan struct{})}
+	m.processes["bean-ask"] = proc
 
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		m.readOutput("bean-ask", pr, "")
+		m.readOutput("bean-ask", pr, "", proc)
 	}()
 
 	writeLine := func(line string) {
@@ -304,6 +312,84 @@ func TestReadOutputAskUserQuestionStaysIdle(t *testing.T) {
 	m.mu.RUnlock()
 	if finalStatus != StatusIdle {
 		t.Errorf("after trailing events, expected Idle, got %s", finalStatus)
+	}
+
+	pw.Close()
+	<-done
+}
+
+// TestReadOutputStaleProcessDoesNotResetStatus verifies that when a process has
+// been replaced (e.g. after autoApproveModeSwitch), its result event does NOT
+// reset the session status to Idle if a new process is already running.
+func TestReadOutputStaleProcessDoesNotResetStatus(t *testing.T) {
+	pr, pw := io.Pipe()
+
+	m := &Manager{
+		sessions:    make(map[string]*Session),
+		processes:   make(map[string]*runningProcess),
+		subscribers: make(map[string][]chan struct{}),
+	}
+
+	session := &Session{
+		ID:           "bean-stale",
+		AgentType:    "claude",
+		Status:       StatusRunning,
+		Messages:     []Message{{Role: RoleUser, Content: "hello"}},
+		streamingIdx: -1,
+	}
+	m.sessions["bean-stale"] = session
+	oldProc := &runningProcess{done: make(chan struct{})}
+	m.processes["bean-stale"] = oldProc
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		m.readOutput("bean-stale", pr, "", oldProc)
+	}()
+
+	writeLine := func(line string) {
+		_, _ = pw.Write([]byte(line + "\n"))
+	}
+
+	awaitStatus := func(want SessionStatus) SessionStatus {
+		deadline := time.After(500 * time.Millisecond)
+		for {
+			m.mu.RLock()
+			s := m.sessions["bean-stale"].Status
+			m.mu.RUnlock()
+			if s == want {
+				return s
+			}
+			select {
+			case <-deadline:
+				return s
+			case <-time.After(time.Millisecond):
+			}
+		}
+	}
+
+	// First turn produces text
+	writeLine(`{"type":"content_block_start","content_block":{"type":"text","text":""}}`)
+	writeLine(`{"type":"content_block_delta","delta":{"type":"text_delta","text":"planning..."}}`)
+
+	// Simulate process replacement: remove old proc from map and add a new one
+	// (as autoApproveModeSwitch would do)
+	m.mu.Lock()
+	newProc := &runningProcess{done: make(chan struct{})}
+	m.processes["bean-stale"] = newProc
+	session.Status = StatusRunning // new process sets this
+	m.mu.Unlock()
+
+	// Old process emits a result event as it dies
+	writeLine(`{"type":"result","session_id":"sess-1"}`)
+
+	// Give time for the event to be processed
+	time.Sleep(50 * time.Millisecond)
+
+	// Status should still be Running (new process is active), NOT reset to Idle
+	status := awaitStatus(StatusRunning)
+	if status != StatusRunning {
+		t.Fatalf("after stale result event, expected Running (new process active), got %s", status)
 	}
 
 	pw.Close()

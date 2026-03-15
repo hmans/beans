@@ -177,7 +177,7 @@ func (m *Manager) spawnAndRun(beanID string, session *Session) {
 	}
 
 	// Read stdout line by line
-	m.readOutput(beanID, stdout, session.WorkDir)
+	m.readOutput(beanID, stdout, session.WorkDir, proc)
 
 	// Process exited — clean up.
 	// Only modify state if this proc is still the current one for this beanID.
@@ -204,7 +204,7 @@ func (m *Manager) spawnAndRun(beanID string, session *Session) {
 
 // readOutput reads Claude Code's stream-json output line by line,
 // updates the session state, and notifies subscribers.
-func (m *Manager) readOutput(beanID string, stdout io.Reader, workDir string) {
+func (m *Manager) readOutput(beanID string, stdout io.Reader, workDir string, proc *runningProcess) {
 	scanner := bufio.NewScanner(stdout)
 	// Increase buffer for long lines (1MB)
 	scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024)
@@ -281,12 +281,17 @@ func (m *Manager) readOutput(beanID string, stdout io.Reader, workDir string) {
 	// currently Idle. This handles multi-turn processes where Claude Code
 	// starts a new turn (e.g. after a Stop hook) without us spawning a new
 	// process. Skipped after a blocking tool has been handled — the process
-	// is winding down and shouldn't flip back to RUNNING.
+	// is winding down and shouldn't flip back to RUNNING. Also skipped if
+	// this process has been replaced (e.g. after autoApproveModeSwitch).
 	ensureRunning := func() {
 		if blocked {
 			return
 		}
 		m.mu.Lock()
+		if m.processes[beanID] != proc {
+			m.mu.Unlock()
+			return
+		}
 		s, ok := m.sessions[beanID]
 		if ok && s.Status == StatusIdle {
 			s.Status = StatusRunning
@@ -439,9 +444,15 @@ func (m *Manager) readOutput(beanID string, stdout io.Reader, workDir string) {
 					m.mu.Lock()
 					if s, ok := m.sessions[beanID]; ok && toolMsgIdx < len(s.Messages) {
 						s.Messages[toolMsgIdx].Content = toolName + ": " + summary
-						// Update structured tool invocation input
+						// Update structured tool invocation input.
+						// For file-based tools, store the raw (untruncated) file_path
+						// so findPlanFilePath works even with long paths.
 						if toolInvIdx >= 0 && toolInvIdx < len(s.ToolInvocations) {
-							s.ToolInvocations[toolInvIdx].Input = summary
+							if fp := extractFilePath(toolInputBuf.String()); fp != "" {
+								s.ToolInvocations[toolInvIdx].Input = fp
+							} else {
+								s.ToolInvocations[toolInvIdx].Input = summary
+							}
 						}
 					}
 					m.mu.Unlock()
@@ -525,11 +536,16 @@ func (m *Manager) readOutput(beanID string, stdout io.Reader, workDir string) {
 					}
 					m.mu.Lock()
 				}
-				// Reset streaming target and transient state
+				// Reset streaming target
 				s.streamingIdx = -1
-				s.Status = StatusIdle
-				s.SystemStatus = ""
-				s.SubagentActivities = nil
+				// Only modify session status if this is still the current process.
+				// A dying process (e.g. after autoApproveModeSwitch) must not
+				// reset status to Idle when a new process is already Running.
+				if m.processes[beanID] == proc {
+					s.Status = StatusIdle
+					s.SystemStatus = ""
+					s.SubagentActivities = nil
+				}
 			}
 			m.mu.Unlock()
 			m.notify(beanID)
@@ -689,11 +705,21 @@ func (m *Manager) handleBlockingTool(beanID string, interaction *PendingInteract
 		return
 	}
 
-	// For ExitPlanMode, find and read the plan file from recent Write tool messages
+	// For ExitPlanMode, find and read the plan file from recent Write tool messages.
+	// Falls back to the last assistant message if no plan file was written (Claude
+	// sometimes describes the plan inline instead of writing a file).
 	if interaction.Type == InteractionExitPlan {
 		if path := findPlanFilePath(s.ToolInvocations); path != "" {
 			if content, err := os.ReadFile(path); err == nil {
 				interaction.PlanContent = string(content)
+			}
+		}
+		if interaction.PlanContent == "" {
+			for i := len(s.Messages) - 1; i >= 0; i-- {
+				if s.Messages[i].Role == RoleAssistant && s.Messages[i].Content != "" {
+					interaction.PlanContent = s.Messages[i].Content
+					break
+				}
 			}
 		}
 	}

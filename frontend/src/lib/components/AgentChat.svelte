@@ -49,11 +49,13 @@
     store.setActMode(beanId, mode === 'act');
   }
 
-  function approveInteraction() {
+  async function approveInteraction() {
     // Enable act mode so the resumed process gets --dangerously-skip-permissions.
     // Without this, the process would restart in plan mode and loop.
-    store.setPlanMode(beanId, false);
-    store.setActMode(beanId, true);
+    // IMPORTANT: Must await mode changes before sending — if sendMessage arrives
+    // at the backend first, the process respawns in plan mode and loops.
+    await store.setPlanMode(beanId, false);
+    await store.setActMode(beanId, true);
     store.sendMessage(beanId, 'yes, proceed');
   }
 </script>
