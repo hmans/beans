@@ -12,9 +12,10 @@
     activityLabel: string;
     subagentActivities: SubagentActivity[];
     setupRunning?: boolean;
+    scrollToBottomTrigger?: number;
   }
 
-  let { messages, isRunning, activityLabel, subagentActivities, setupRunning = false }: Props = $props();
+  let { messages, isRunning, activityLabel, subagentActivities, setupRunning = false, scrollToBottomTrigger = 0 }: Props = $props();
 
   // Track how many messages existed after the initial load so only
   // genuinely new messages get the decrypt animation.  The prop may be
@@ -100,6 +101,14 @@
     const linkedBean = beansStore.get(target.dataset.beanId!);
     if (linkedBean) ui.selectBean(linkedBean);
   }
+
+  // Force scroll to bottom when triggered externally (e.g. action buttons, composer send)
+  $effect(() => {
+    if (scrollToBottomTrigger > 0) {
+      stuckToBottom = true;
+      scrollToBottom();
+    }
+  });
 
   function scrollToBottom() {
     if (messagesEl) {

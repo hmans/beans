@@ -10,9 +10,12 @@
     beanId: string;
     store?: AgentChatStore;
     setupRunning?: boolean;
+    scrollToBottomTrigger?: number;
   }
 
-  let { beanId, store: externalStore, setupRunning = false }: Props = $props();
+  let { beanId, store: externalStore, setupRunning = false, scrollToBottomTrigger = 0 }: Props = $props();
+  let internalScrollTrigger = $state(0);
+  const combinedScrollTrigger = $derived(scrollToBottomTrigger + internalScrollTrigger);
 
   const ownStore = new AgentChatStore();
   const store = $derived(externalStore ?? ownStore);
@@ -56,7 +59,7 @@
 </script>
 
 <div class="flex h-full flex-col bg-surface">
-  <AgentMessages {messages} {isRunning} {activityLabel} {subagentActivities} {setupRunning} />
+  <AgentMessages {messages} {isRunning} {activityLabel} {subagentActivities} {setupRunning} scrollToBottomTrigger={combinedScrollTrigger} />
 
   <!-- Error banner -->
   {#if sessionError || store.error}
@@ -80,7 +83,7 @@
     {agentMode}
     {systemStatus}
     {subagentActivities}
-    onSend={(text, images) => store.sendMessage(beanId, text, images)}
+    onSend={(text, images) => { internalScrollTrigger++; store.sendMessage(beanId, text, images); }}
     onStop={() => store.stop(beanId)}
     onSetMode={setAgentMode}
     onCompact={() => store.sendMessage(beanId, '/compact')}

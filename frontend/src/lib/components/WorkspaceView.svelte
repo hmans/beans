@@ -74,14 +74,16 @@
   const worktreePath = $derived(worktree?.path);
 
   const setupRunning = $derived(worktree?.setupStatus === 'RUNNING');
+
+  let scrollToBottomTrigger = $state(0);
 </script>
 
 {#snippet changesPanel()}
-  <ChangesPane path={worktreePath} {worktreeId} />
+  <ChangesPane path={worktreePath} {worktreeId} onAgentMessage={() => scrollToBottomTrigger++} />
 {/snippet}
 
 {#snippet agentChatPanel()}
-  <AgentChat beanId={worktreeId} store={agentStore} {setupRunning} />
+  <AgentChat beanId={worktreeId} store={agentStore} {setupRunning} {scrollToBottomTrigger} />
 {/snippet}
 
 {#snippet terminalPanel()}
@@ -127,7 +129,7 @@
       </button>
     {/if}
     {#snippet right()}
-      <AgentActions beanId={worktreeId} {agentBusy} />
+      <AgentActions beanId={worktreeId} {agentBusy} onExecute={() => scrollToBottomTrigger++} />
       {#if isWorktree}
         <button
           class={["btn-toggle ml-1 cursor-pointer border-border bg-transparent text-text-muted", agentBusy ? "opacity-50" : "hover:text-danger"]}

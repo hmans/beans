@@ -5,9 +5,10 @@
   interface Props {
     beanId: string;
     agentBusy: boolean;
+    onExecute?: () => void;
   }
 
-  let { beanId, agentBusy }: Props = $props();
+  let { beanId, agentBusy, onExecute }: Props = $props();
 
   const store = new AgentActionsStore();
 
@@ -33,7 +34,7 @@
     ]}
     disabled={agentBusy || !!store.executingAction || action.disabled}
     title={action.disabled ? (action.disabledReason ?? undefined) : (action.description ?? undefined)}
-    onclick={() => store.execute(beanId, action.id)}
+    onclick={() => { store.execute(beanId, action.id); onExecute?.(); }}
   >
     {#if action.id === 'integrate'}
       <span class="icon-[uil--check] size-4"></span>

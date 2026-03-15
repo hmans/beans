@@ -12,9 +12,10 @@
   interface Props {
     path?: string;
     worktreeId?: string;
+    onAgentMessage?: () => void;
   }
 
-  let { path, worktreeId }: Props = $props();
+  let { path, worktreeId, onAgentMessage }: Props = $props();
 
   const isWorktree = $derived(worktreeId != null && worktreeId !== MAIN_WORKSPACE_ID);
   const branchStatus = $derived(changesStore.branchStatus);
@@ -24,6 +25,7 @@
   async function requestRebase() {
     if (!worktreeId) return;
     rebaseRequested = true;
+    onAgentMessage?.();
     await client
       .mutation(SendAgentMessageDocument, {
         beanId: worktreeId,
