@@ -1,6 +1,7 @@
 [tools]
 go = "latest"
 node = "latest"
+pnpm = "latest"
 svu = "latest"
 watchexec = "latest"
 

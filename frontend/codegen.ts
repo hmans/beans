@@ -38,7 +38,7 @@ const config: CodegenConfig = {
   hooks: {
     afterOneFileWrite: [
       // Remove the placeholder import that the plugin generates
-      'sed -i "" "/^import.*__PLACEHOLDER_DO_NOT_IMPORT__/d"',
+      'perl -i -ne \'print unless /^import.*__PLACEHOLDER_DO_NOT_IMPORT__/\'',
     ],
   },
 };
