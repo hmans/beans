@@ -508,15 +508,19 @@ func TestAutoApproveModeSwitch_EnterPlan(t *testing.T) {
 		ID:        "test",
 		Status:    StatusRunning,
 		PlanMode:  false,
+		ActMode:   true, // default for new sessions
 		SessionID: "sess-456",
 		WorkDir:   "/tmp/test",
 	}
 
-	m.autoApproveModeSwitch("test", &PendingInteraction{Type: InteractionEnterPlan}, "/tmp/test")
+	m.autoApproveModeSwitch("test", &PendingInteraction{Type: InteractionEnterPlan})
 
 	s := m.sessions["test"]
 	if !s.PlanMode {
 		t.Error("expected PlanMode to be true after EnterPlanMode")
+	}
+	if s.ActMode {
+		t.Error("expected ActMode to be false after EnterPlanMode (so process respawns with --permission-mode plan)")
 	}
 	if s.PendingInteraction != nil {
 		t.Error("expected no PendingInteraction (auto-approved)")

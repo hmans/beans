@@ -383,7 +383,7 @@ func (m *Manager) readOutput(beanID string, stdout io.Reader, workDir string, pr
 					deferredAskUser = true
 				} else if interaction.Type == InteractionEnterPlan {
 					// Auto-approve entering plan mode — no user prompt needed.
-					m.autoApproveModeSwitch(beanID, interaction, workDir)
+					m.autoApproveModeSwitch(beanID, interaction)
 				} else {
 					m.handleBlockingTool(beanID, interaction)
 					blocked = true
@@ -748,8 +748,9 @@ func (m *Manager) handleBlockingTool(beanID string, interaction *PendingInteract
 
 // autoApproveModeSwitch handles EnterPlanMode/ExitPlanMode by toggling the mode,
 // killing the current process, and immediately respawning with --resume.
-// No pending interaction is set — the user is not prompted.
-func (m *Manager) autoApproveModeSwitch(beanID string, interaction *PendingInteraction, workDir string) {
+// No pending interaction is set and no message is added to the conversation —
+// the mode switch is transparent to the user.
+func (m *Manager) autoApproveModeSwitch(beanID string, interaction *PendingInteraction) {
 	m.mu.Lock()
 	s, ok := m.sessions[beanID]
 	if !ok {
@@ -760,9 +761,14 @@ func (m *Manager) autoApproveModeSwitch(beanID string, interaction *PendingInter
 	switch interaction.Type {
 	case InteractionExitPlan:
 		s.PlanMode = false
+		s.ActMode = true
 	case InteractionEnterPlan:
 		s.PlanMode = true
+		s.ActMode = false
 	}
+
+	s.PendingInteraction = nil
+	s.Status = StatusRunning
 
 	proc, hasProc := m.processes[beanID]
 	if hasProc {
@@ -776,10 +782,9 @@ func (m *Manager) autoApproveModeSwitch(beanID string, interaction *PendingInter
 
 	m.notify(beanID)
 
-	// Respawn with the new mode by sending an auto-approval message.
-	// This runs in a goroutine because we're inside readOutput (same goroutine
-	// as spawnAndRun) and SendMessage will spawn a new process.
-	go m.SendMessage(beanID, workDir, "yes, proceed", nil)
+	// Respawn with the new mode via --resume. Runs in a goroutine because
+	// we're inside readOutput (same goroutine as spawnAndRun).
+	go m.spawnAndRun(beanID, s)
 }
 
 // findPlanFilePath scans tool invocations for a Write to ~/.claude/plans/*.md
