@@ -54,13 +54,13 @@
 
 {#if interaction.type === 'EXIT_PLAN'}
   <div class="border-t border-status-in-progress-text/20 bg-status-in-progress-bg/50 p-3">
-    <p class="mb-2 text-xs text-text-muted">
+    <p class="mb-2 text-text-muted">
       Agent wants to leave plan mode and start working.
     </p>
 
     {#if renderedPlanContent}
-      <div class="mb-3 max-h-48 overflow-y-auto rounded border border-border bg-surface p-3">
-        <div class="agent-prose prose max-w-none min-w-0 text-xs text-text">
+      <div class="mb-3 max-h-96 overflow-y-auto rounded border border-border bg-surface p-3">
+        <div class="agent-prose prose max-w-none min-w-0 text-text">
           {@html renderedPlanContent}
         </div>
       </div>
@@ -69,11 +69,11 @@
     <div class="flex items-center gap-3">
       <button
         onclick={onApprove}
-        class="cursor-pointer rounded bg-status-in-progress-text px-3 py-1 text-xs text-white transition-colors hover:opacity-90"
+        class="cursor-pointer rounded bg-status-in-progress-text px-3 py-1.5 text-white transition-colors hover:opacity-90"
       >
         Approve
       </button>
-      <span class="text-xs text-text-muted">or type below to refine the plan</span>
+      <span class="text-text-muted">or type below to refine the plan</span>
     </div>
   </div>
 {/if}
