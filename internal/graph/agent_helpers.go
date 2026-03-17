@@ -284,7 +284,7 @@ REMINDER: Do NOT push anything to any remote. The integrate action is purely loc
 			case forge.CheckStatusPending:
 				return "Checks Running"
 			case forge.CheckStatusFail:
-				return "Checks Failed"
+				return "Fix Tests"
 			default:
 				return "Merge PR"
 			}
@@ -292,6 +292,21 @@ REMINDER: Do NOT push anything to any remote. The integrate action is purely loc
 		PromptFunc: func(ctx actionContext) string {
 			cli := ctx.ForgeCLI
 			if ctx.PullRequest != nil {
+				// Fix Tests — checks failed, inspect and fix
+				if !ctx.HasChanges && !ctx.HasUnpushedCommits && ctx.PullRequest.Checks == forge.CheckStatusFail {
+					return fmt.Sprintf(`CI checks have failed on pull request %s.
+
+Investigate the failures and fix them:
+
+1. Inspect the failed checks: %s pr checks %d
+2. View the logs of the failed run to understand what went wrong: %s run view --log-failed (pick the relevant run ID from the checks output)
+3. Fix the issue in the code.
+4. Run the project's test suite locally to verify the fix.
+5. Create a commit with the fix and push: git push
+
+After pushing, the checks will re-run automatically.`, ctx.PullRequest.URL, cli, ctx.PullRequest.Number, cli)
+				}
+
 				// Merge PR — everything is pushed, checks pass, ready to merge
 				if !ctx.HasChanges && !ctx.HasUnpushedCommits && ctx.PullRequest.CanMerge() {
 					return fmt.Sprintf(`The pull request %s is ready to merge. All checks are passing and the PR is approved.
@@ -338,8 +353,6 @@ Push the latest changes to update it:
 				switch ctx.PullRequest.Checks {
 				case forge.CheckStatusPending:
 					return "CI checks are still running"
-				case forge.CheckStatusFail:
-					return "CI checks have failed"
 				case forge.CheckStatusPass:
 					if !ctx.PullRequest.Mergeable {
 						return "PR has merge conflicts or branch protection requirements not met"
