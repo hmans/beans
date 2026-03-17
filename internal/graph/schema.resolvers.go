@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hmans/beans/internal/agent"
 	"github.com/hmans/beans/internal/gitutil"
@@ -1379,7 +1380,21 @@ func (r *subscriptionResolver) WorktreesChanged(ctx context.Context) (<-chan []*
 			go populatePRsAsync(result)
 		}
 
-		// Then emit on each change
+		// Periodically re-fetch PR data so sidebar icons stay current
+		// even when no worktree filesystem events occur.
+		prTicker := time.NewTicker(30 * time.Second)
+		defer prTicker.Stop()
+
+		// refreshPRs fetches the current worktree list with PR data and emits it.
+		refreshPRs := func() {
+			wts, err := r.WorktreeMgr.List()
+			if err != nil {
+				return
+			}
+			result := buildWorktreeList(wts)
+			go populatePRsAsync(result)
+		}
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -1399,6 +1414,8 @@ func (r *subscriptionResolver) WorktreesChanged(ctx context.Context) (<-chan []*
 					return
 				}
 				go populatePRsAsync(result)
+			case <-prTicker.C:
+				refreshPRs()
 			}
 		}
 	}()
