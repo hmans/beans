@@ -67,22 +67,27 @@ func TestCanMerge(t *testing.T) {
 	}{
 		{
 			"all green",
-			PullRequest{ChecksPass: true, ReviewApproved: true, Mergeable: true},
+			PullRequest{Checks: CheckStatusPass, ReviewApproved: true, Mergeable: true},
 			true,
 		},
 		{
 			"draft PR",
-			PullRequest{IsDraft: true, ChecksPass: true, ReviewApproved: true, Mergeable: true},
+			PullRequest{IsDraft: true, Checks: CheckStatusPass, ReviewApproved: true, Mergeable: true},
 			false,
 		},
 		{
 			"checks failing",
-			PullRequest{ChecksPass: false, ReviewApproved: true, Mergeable: true},
+			PullRequest{Checks: CheckStatusFail, ReviewApproved: true, Mergeable: true},
+			false,
+		},
+		{
+			"checks pending",
+			PullRequest{Checks: CheckStatusPending, ReviewApproved: true, Mergeable: true},
 			false,
 		},
 		{
 			"not mergeable",
-			PullRequest{ChecksPass: true, ReviewApproved: true, Mergeable: false},
+			PullRequest{Checks: CheckStatusPass, ReviewApproved: true, Mergeable: false},
 			false,
 		},
 		{
@@ -102,21 +107,21 @@ func TestCanMerge(t *testing.T) {
 	}
 }
 
-func TestChecksPass(t *testing.T) {
+func TestComputeCheckStatus(t *testing.T) {
 	tests := []struct {
 		name     string
 		checks   []ghStatusCheck
-		expected bool
+		expected CheckStatus
 	}{
-		{"no checks", nil, true},
-		{"empty checks", []ghStatusCheck{}, true},
+		{"no checks", nil, CheckStatusPass},
+		{"empty checks", []ghStatusCheck{}, CheckStatusPass},
 		{
 			"all success",
 			[]ghStatusCheck{
 				{Status: "COMPLETED", Conclusion: "SUCCESS"},
 				{Status: "COMPLETED", Conclusion: "SUCCESS"},
 			},
-			true,
+			CheckStatusPass,
 		},
 		{
 			"neutral and skipped count as pass",
@@ -125,7 +130,7 @@ func TestChecksPass(t *testing.T) {
 				{Status: "COMPLETED", Conclusion: "NEUTRAL"},
 				{Status: "COMPLETED", Conclusion: "SKIPPED"},
 			},
-			true,
+			CheckStatusPass,
 		},
 		{
 			"one failure",
@@ -133,22 +138,30 @@ func TestChecksPass(t *testing.T) {
 				{Status: "COMPLETED", Conclusion: "SUCCESS"},
 				{Status: "COMPLETED", Conclusion: "FAILURE"},
 			},
-			false,
+			CheckStatusFail,
 		},
 		{
 			"still in progress",
 			[]ghStatusCheck{
 				{Status: "IN_PROGRESS", Conclusion: ""},
 			},
-			false,
+			CheckStatusPending,
+		},
+		{
+			"mix of completed and in progress",
+			[]ghStatusCheck{
+				{Status: "COMPLETED", Conclusion: "SUCCESS"},
+				{Status: "IN_PROGRESS", Conclusion: ""},
+			},
+			CheckStatusPending,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := checksPass(tc.checks)
+			got := computeCheckStatus(tc.checks)
 			if got != tc.expected {
-				t.Errorf("checksPass() = %v, want %v", got, tc.expected)
+				t.Errorf("computeCheckStatus() = %q, want %q", got, tc.expected)
 			}
 		})
 	}

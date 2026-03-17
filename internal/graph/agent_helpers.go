@@ -261,18 +261,26 @@ REMINDER: Do NOT push anything to any remote. The integrate action is purely loc
 		Label:       "Create PR",
 		Description: "Push branch and create a pull request",
 		LabelFunc: func(ctx actionContext) string {
-			if ctx.PullRequest != nil {
-				if !ctx.HasChanges && !ctx.HasUnpushedCommits {
-					if ctx.PullRequest.CanMerge() {
-						return "Merge PR"
-					}
-					// Nothing to push and not mergeable — button shouldn't be visible,
-					// but if it is, label it accurately
-					return "Update PR"
-				}
+			if ctx.PullRequest == nil {
+				return "Create PR"
+			}
+			if ctx.HasChanges || ctx.HasUnpushedCommits {
 				return "Update PR"
 			}
-			return "Create PR"
+			// Nothing to push — label reflects PR check state
+			switch ctx.PullRequest.Checks {
+			case forge.CheckStatusPass:
+				if ctx.PullRequest.CanMerge() {
+					return "Merge PR"
+				}
+				return "Merge PR"
+			case forge.CheckStatusPending:
+				return "Checks Running"
+			case forge.CheckStatusFail:
+				return "Checks Failed"
+			default:
+				return "Merge PR"
+			}
 		},
 		PromptFunc: func(ctx actionContext) string {
 			cli := ctx.ForgeCLI
@@ -313,14 +321,24 @@ Push the latest changes to update it:
 				return false
 			}
 			if ctx.PullRequest == nil {
-				// No PR yet — show "Create PR" if there's work to push
 				return ctx.HasChanges || ctx.HasNewCommits
 			}
-			// PR exists — show "Update PR" only if there's something to push,
-			// or "Merge PR" if it's ready
-			return ctx.HasChanges || ctx.HasUnpushedCommits || ctx.PullRequest.CanMerge()
+			// PR exists — always show
+			return true
 		},
 		Disabled: func(ctx actionContext) string {
+			if ctx.PullRequest != nil && !ctx.HasChanges && !ctx.HasUnpushedCommits {
+				switch ctx.PullRequest.Checks {
+				case forge.CheckStatusPending:
+					return "CI checks are still running"
+				case forge.CheckStatusFail:
+					return "CI checks have failed"
+				case forge.CheckStatusPass:
+					if !ctx.PullRequest.Mergeable {
+						return "PR has merge conflicts or branch protection requirements not met"
+					}
+				}
+			}
 			return ""
 		},
 	},

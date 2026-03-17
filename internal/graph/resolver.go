@@ -234,7 +234,7 @@ func populatePR(ctx context.Context, m *model.Worktree, forgeProvider forge.Prov
 			State:          pr.State,
 			URL:            pr.URL,
 			IsDraft:        pr.IsDraft,
-			ChecksPass:     pr.ChecksPass,
+			CheckStatus:    string(pr.Checks),
 			ReviewApproved: pr.ReviewApproved,
 			Mergeable:      pr.Mergeable,
 		}

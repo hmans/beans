@@ -19,6 +19,19 @@
   $effect(() => {
     store.notifyAgentStatus(beanId, agentBusy);
   });
+
+  function prActionStyle(label: string): string {
+    switch (label) {
+      case 'Merge PR':
+        return 'border-success/30 bg-success/10 text-success hover:bg-success/20';
+      case 'Checks Running':
+        return 'border-warning/30 bg-warning/10 text-warning';
+      case 'Checks Failed':
+        return 'border-danger/30 bg-danger/10 text-danger';
+      default:
+        return 'border-accent/30 bg-accent/10 text-accent hover:bg-accent/20';
+    }
+  }
 </script>
 
 {#if agentBusy}
@@ -28,10 +41,10 @@
   <button
     class={[
       'btn-toggle ml-1',
-      action.id === 'integrate' || (action.id === 'create-pr' && action.label === 'Merge PR')
+      action.id === 'integrate'
         ? 'border-success/30 bg-success/10 text-success hover:bg-success/20'
         : action.id === 'create-pr'
-          ? 'border-accent/30 bg-accent/10 text-accent hover:bg-accent/20'
+          ? prActionStyle(action.label)
           : 'btn-toggle-inactive'
     ]}
     disabled={agentBusy || !!store.executingAction || action.disabled}
@@ -42,6 +55,10 @@
       <span class="icon-[uil--check] size-4"></span>
     {:else if action.id === 'create-pr' && action.label === 'Merge PR'}
       <span class="icon-[uil--check-circle] size-4"></span>
+    {:else if action.id === 'create-pr' && action.label === 'Checks Running'}
+      <span class="icon-[uil--clock] size-4"></span>
+    {:else if action.id === 'create-pr' && action.label === 'Checks Failed'}
+      <span class="icon-[uil--exclamation-triangle] size-4"></span>
     {:else if action.id === 'create-pr'}
       <span class="icon-[uil--code-branch] size-4"></span>
     {/if}

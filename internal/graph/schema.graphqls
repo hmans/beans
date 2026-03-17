@@ -558,8 +558,8 @@ type PullRequest {
   url: String!
   "Whether this PR is a draft"
   isDraft: Boolean!
-  "Whether all CI checks are passing"
-  checksPass: Boolean!
+  "Aggregate CI check status: pass, fail, pending"
+  checkStatus: String!
   "Whether review requirements are met"
   reviewApproved: Boolean!
   "Whether the forge reports the PR can be merged"

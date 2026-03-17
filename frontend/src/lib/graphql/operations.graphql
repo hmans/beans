@@ -37,7 +37,7 @@ fragment WorktreeFields on Worktree {
     state
     url
     isDraft
-    checksPass
+    checkStatus
     reviewApproved
     mergeable
   }

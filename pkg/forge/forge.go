@@ -24,6 +24,15 @@ type Provider interface {
 	CreatePR(ctx context.Context, repoDir string, opts CreatePROpts) (*PullRequest, error)
 }
 
+// CheckStatus represents the aggregate state of CI checks on a PR.
+type CheckStatus string
+
+const (
+	CheckStatusPass    CheckStatus = "pass"    // all checks completed successfully (or no checks)
+	CheckStatusFail    CheckStatus = "fail"    // at least one check failed, none still running
+	CheckStatusPending CheckStatus = "pending" // at least one check is still running/queued
+)
+
 // PullRequest represents a pull/merge request on a git forge.
 type PullRequest struct {
 	Number         int
@@ -31,15 +40,15 @@ type PullRequest struct {
 	State          string // "open", "closed", "merged", "draft"
 	URL            string
 	IsDraft        bool
-	ChecksPass     bool // all CI checks are passing (or no checks required)
-	ReviewApproved bool // review requirements are met (approved or no reviews required)
-	Mergeable      bool // forge reports the PR can be merged (no conflicts, branch protections met)
+	Checks         CheckStatus // aggregate CI check status
+	ReviewApproved bool        // review requirements are met (approved or no reviews required)
+	Mergeable      bool        // forge reports the PR can be merged (no conflicts, branch protections met)
 }
 
 // CanMerge returns true if the PR is in a mergeable state:
 // not a draft, checks pass, review approved, and forge says it's mergeable.
 func (pr *PullRequest) CanMerge() bool {
-	return !pr.IsDraft && pr.ChecksPass && pr.Mergeable
+	return !pr.IsDraft && pr.Checks == CheckStatusPass && pr.Mergeable
 }
 
 // CreatePROpts are the options for creating a pull/merge request.

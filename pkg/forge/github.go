@@ -89,26 +89,32 @@ func (g *GitHub) FindPR(ctx context.Context, repoDir string, branch string) (*Pu
 		State:          normalizeState(pr.State),
 		URL:            pr.URL,
 		IsDraft:        pr.IsDraft,
-		ChecksPass:     checksPass(pr.StatusChecks),
+		Checks:         computeCheckStatus(pr.StatusChecks),
 		ReviewApproved: pr.ReviewDecision == "APPROVED" || pr.ReviewDecision == "",
 		Mergeable:      pr.MergeStateStatus == "CLEAN",
 	}, nil
 }
 
-// checksPass returns true if all status checks have passed (or there are none).
-func checksPass(checks []ghStatusCheck) bool {
+// computeCheckStatus determines the aggregate check status from individual checks.
+func computeCheckStatus(checks []ghStatusCheck) CheckStatus {
+	if len(checks) == 0 {
+		return CheckStatusPass
+	}
 	for _, c := range checks {
 		if c.Status != "COMPLETED" {
-			return false
-		}
-		switch c.Conclusion {
-		case "SUCCESS", "NEUTRAL", "SKIPPED":
-			// These are fine
-		default:
-			return false
+			return CheckStatusPending
 		}
 	}
-	return true
+	// All completed — check conclusions
+	for _, c := range checks {
+		switch c.Conclusion {
+		case "SUCCESS", "NEUTRAL", "SKIPPED":
+			// fine
+		default:
+			return CheckStatusFail
+		}
+	}
+	return CheckStatusPass
 }
 
 func (g *GitHub) CreatePR(ctx context.Context, repoDir string, opts CreatePROpts) (*PullRequest, error) {
@@ -158,7 +164,7 @@ func (g *GitHub) findPRByURL(ctx context.Context, repoDir string, url string) (*
 		State:          normalizeState(pr.State),
 		URL:            pr.URL,
 		IsDraft:        pr.IsDraft,
-		ChecksPass:     checksPass(pr.StatusChecks),
+		Checks:         computeCheckStatus(pr.StatusChecks),
 		ReviewApproved: pr.ReviewDecision == "APPROVED" || pr.ReviewDecision == "",
 		Mergeable:      pr.MergeStateStatus == "CLEAN",
 	}, nil

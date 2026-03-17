@@ -184,7 +184,7 @@ type ComplexityRoot struct {
 	}
 
 	PullRequest struct {
-		ChecksPass     func(childComplexity int) int
+		CheckStatus    func(childComplexity int) int
 		IsDraft        func(childComplexity int) int
 		Mergeable      func(childComplexity int) int
 		Number         func(childComplexity int) int
@@ -1028,12 +1028,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.PendingInteraction.Type(childComplexity), true
 
-	case "PullRequest.checksPass":
-		if e.complexity.PullRequest.ChecksPass == nil {
+	case "PullRequest.checkStatus":
+		if e.complexity.PullRequest.CheckStatus == nil {
 			break
 		}
 
-		return e.complexity.PullRequest.ChecksPass(childComplexity), true
+		return e.complexity.PullRequest.CheckStatus(childComplexity), true
 	case "PullRequest.isDraft":
 		if e.complexity.PullRequest.IsDraft == nil {
 			break
@@ -5982,30 +5982,30 @@ func (ec *executionContext) fieldContext_PullRequest_isDraft(_ context.Context, 
 	return fc, nil
 }
 
-func (ec *executionContext) _PullRequest_checksPass(ctx context.Context, field graphql.CollectedField, obj *model.PullRequest) (ret graphql.Marshaler) {
+func (ec *executionContext) _PullRequest_checkStatus(ctx context.Context, field graphql.CollectedField, obj *model.PullRequest) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_PullRequest_checksPass,
+		ec.fieldContext_PullRequest_checkStatus,
 		func(ctx context.Context) (any, error) {
-			return obj.ChecksPass, nil
+			return obj.CheckStatus, nil
 		},
 		nil,
-		ec.marshalNBoolean2bool,
+		ec.marshalNString2string,
 		true,
 		true,
 	)
 }
 
-func (ec *executionContext) fieldContext_PullRequest_checksPass(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_PullRequest_checkStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "PullRequest",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -7703,8 +7703,8 @@ func (ec *executionContext) fieldContext_Worktree_pullRequest(_ context.Context,
 				return ec.fieldContext_PullRequest_url(ctx, field)
 			case "isDraft":
 				return ec.fieldContext_PullRequest_isDraft(ctx, field)
-			case "checksPass":
-				return ec.fieldContext_PullRequest_checksPass(ctx, field)
+			case "checkStatus":
+				return ec.fieldContext_PullRequest_checkStatus(ctx, field)
 			case "reviewApproved":
 				return ec.fieldContext_PullRequest_reviewApproved(ctx, field)
 			case "mergeable":
@@ -10954,8 +10954,8 @@ func (ec *executionContext) _PullRequest(ctx context.Context, sel ast.SelectionS
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "checksPass":
-			out.Values[i] = ec._PullRequest_checksPass(ctx, field, obj)
+		case "checkStatus":
+			out.Values[i] = ec._PullRequest_checkStatus(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
