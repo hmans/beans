@@ -164,6 +164,7 @@ type actionContext struct {
 	MainRepoPath       string // absolute path to the main repo working directory
 	PullRequest        *forge.PullRequest
 	ForgeCLI           string // "gh", "glab", or "" if no forge detected
+	ForgeLoading       bool   // true when forge is detected but PR state hasn't been fetched yet
 }
 
 // agentActionDef defines a single agent action with its metadata and prompt.
@@ -268,6 +269,9 @@ REMINDER: Do NOT push anything to any remote. The integrate action is purely loc
 		Label:       "Create PR",
 		Description: "Push branch and create a pull request",
 		LabelFunc: func(ctx actionContext) string {
+			if ctx.ForgeLoading {
+				return "Loading..."
+			}
 			if ctx.PullRequest == nil {
 				return "Create PR"
 			}
@@ -349,6 +353,9 @@ Push the latest changes to update it:
 			return true
 		},
 		Disabled: func(ctx actionContext) string {
+			if ctx.ForgeLoading {
+				return "Checking PR status..."
+			}
 			if ctx.PullRequest != nil && !ctx.HasChanges && !ctx.HasUnpushedCommits {
 				switch ctx.PullRequest.Checks {
 				case forge.CheckStatusPending:

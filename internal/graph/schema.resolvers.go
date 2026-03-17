@@ -1148,10 +1148,13 @@ func (r *queryResolver) AgentActions(ctx context.Context, beanID string, skipFor
 		}
 	}
 
-	// Populate forge context (skip if caller wants local-only actions for fast initial render)
-	if r.Forge != nil && !(skipForge != nil && *skipForge) {
+	// Populate forge context
+	if r.Forge != nil {
 		actCtx.ForgeCLI = r.Forge.CLIName()
-		if branch != "" {
+		if skipForge != nil && *skipForge {
+			// Show the PR button in loading state while the full fetch is pending
+			actCtx.ForgeLoading = true
+		} else if branch != "" {
 			pr, _ := r.Forge.FindPR(ctx, r.ProjectRoot, branch)
 			actCtx.PullRequest = pr
 		}
