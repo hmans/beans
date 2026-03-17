@@ -248,6 +248,9 @@ CRITICAL SAFETY RULES — READ BEFORE DOING ANYTHING:
 REMINDER: Do NOT push anything to any remote. The integrate action is purely local.`, ctx.MainRepoPath)
 		},
 		Visible: func(ctx actionContext) bool {
+			if ctx.PullRequest != nil {
+				return false
+			}
 			return ctx.HasChanges || ctx.HasNewCommits
 		},
 		Disabled: func(ctx actionContext) string {
