@@ -1140,6 +1140,7 @@ func (r *queryResolver) AgentActions(ctx context.Context, beanID string) ([]*mod
 					actCtx.HasChanges = gitutil.HasChanges(wt.Path)
 					actCtx.HasNewCommits = gitutil.HasUnmergedCommits(wt.Path, r.WorktreeMgr.BaseRef())
 					actCtx.HasUnpushedCommits = gitutil.HasUnpushedCommits(wt.Path)
+					actCtx.HasConflicts = gitutil.HasConflicts(wt.Path, r.WorktreeMgr.BaseRef())
 					branch = wt.Branch
 					break
 				}

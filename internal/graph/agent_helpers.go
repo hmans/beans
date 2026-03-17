@@ -159,6 +159,7 @@ type actionContext struct {
 	HasChanges         bool   // uncommitted changes or untracked files
 	HasNewCommits      bool   // commits ahead of the base branch
 	HasUnpushedCommits bool   // commits ahead of the remote tracking branch
+	HasConflicts       bool   // rebasing onto base branch would produce conflicts
 	MainRepoHasChanges bool   // main repo has uncommitted changes
 	MainRepoPath       string // absolute path to the main repo working directory
 	PullRequest        *forge.PullRequest
@@ -250,6 +251,9 @@ REMINDER: Do NOT push anything to any remote. The integrate action is purely loc
 			return ctx.HasChanges || ctx.HasNewCommits
 		},
 		Disabled: func(ctx actionContext) string {
+			if ctx.HasConflicts {
+				return "Branch has merge conflicts with base branch"
+			}
 			if ctx.MainRepoHasChanges {
 				return "Main workspace has uncommitted changes"
 			}
