@@ -204,7 +204,7 @@
               : 'border-border/50 bg-surface/50 hover:border-border hover:bg-surface'
           ]}
         >
-          <div class="group flex items-center">
+          <div class="group flex items-start">
             <button
               onclick={() => ui.navigateTo(item.id)}
               class={[
@@ -223,7 +223,7 @@
                 {/if}
               </div>
             </button>
-            <div class="relative mr-2 h-4 w-4 shrink-0">
+            <div class="relative mt-2.5 mr-2 h-4 w-4 shrink-0">
               {#if agentStatusesStore.isRunning(item.id)}
                 <div class="loader absolute inset-0" transition:fade={{ duration: 200 }}></div>
               {:else if item.id === MAIN_WORKSPACE_ID && mainHasChanges}
