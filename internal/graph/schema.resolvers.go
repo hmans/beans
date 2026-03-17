@@ -776,6 +776,8 @@ func (r *mutationResolver) ExecuteAgentAction(ctx context.Context, beanID string
 	}
 
 	actCtx := actionContext{WorktreeID: beanID, WorkDir: workDir, MainRepoPath: r.ProjectRoot}
+	actCtx.HasChanges = gitutil.HasChanges(workDir)
+	actCtx.HasUnpushedCommits = gitutil.HasUnpushedCommits(workDir)
 
 	// Populate forge context for actions that need it
 	if r.Forge != nil {
@@ -1137,6 +1139,7 @@ func (r *queryResolver) AgentActions(ctx context.Context, beanID string) ([]*mod
 					actCtx.WorkDir = wt.Path
 					actCtx.HasChanges = gitutil.HasChanges(wt.Path)
 					actCtx.HasNewCommits = gitutil.HasUnmergedCommits(wt.Path, r.WorktreeMgr.BaseRef())
+					actCtx.HasUnpushedCommits = gitutil.HasUnpushedCommits(wt.Path)
 					branch = wt.Branch
 					break
 				}

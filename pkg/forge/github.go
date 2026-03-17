@@ -14,45 +14,101 @@ type GitHub struct{}
 func (g *GitHub) Name() string    { return "github" }
 func (g *GitHub) CLIName() string { return "gh" }
 
-// ghPR is the JSON shape returned by `gh pr list --json`.
-type ghPR struct {
-	Number  int    `json:"number"`
-	Title   string `json:"title"`
-	State   string `json:"state"`   // "OPEN", "CLOSED", "MERGED"
-	URL     string `json:"url"`
-	IsDraft bool   `json:"isDraft"`
+// ghPRList is the JSON shape returned by `gh pr list --json`.
+type ghPRList struct {
+	Number int    `json:"number"`
+	URL    string `json:"url"`
+}
+
+// ghPRView is the JSON shape returned by `gh pr view --json` with full details.
+type ghPRView struct {
+	Number         int              `json:"number"`
+	Title          string           `json:"title"`
+	State          string           `json:"state"` // "OPEN", "CLOSED", "MERGED"
+	URL            string           `json:"url"`
+	IsDraft        bool             `json:"isDraft"`
+	MergeStateStatus string         `json:"mergeStateStatus"` // "CLEAN", "BLOCKED", "BEHIND", "DIRTY", "UNKNOWN"
+	ReviewDecision string           `json:"reviewDecision"`   // "APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED", ""
+	StatusChecks   []ghStatusCheck  `json:"statusCheckRollup"`
+}
+
+type ghStatusCheck struct {
+	Status     string `json:"status"`     // "COMPLETED", "IN_PROGRESS", "QUEUED", etc.
+	Conclusion string `json:"conclusion"` // "SUCCESS", "FAILURE", "NEUTRAL", "SKIPPED", etc.
 }
 
 func (g *GitHub) FindPR(ctx context.Context, repoDir string, branch string) (*PullRequest, error) {
-	cmd := exec.CommandContext(ctx, "gh", "pr", "list",
+	// First, find the PR number for this branch (lightweight query)
+	listCmd := exec.CommandContext(ctx, "gh", "pr", "list",
 		"--head", branch,
 		"--state", "open",
-		"--json", "number,title,state,url,isDraft",
+		"--json", "number,url",
 		"--limit", "1",
 	)
-	cmd.Dir = repoDir
-	out, err := cmd.Output()
+	listCmd.Dir = repoDir
+	listOut, err := listCmd.Output()
 	if err != nil {
-		// gh returns exit code 1 when not in a repo or no auth — treat as "no PR"
 		return nil, nil
 	}
 
-	var prs []ghPR
-	if err := json.Unmarshal(out, &prs); err != nil {
-		return nil, fmt.Errorf("parsing gh output: %w", err)
+	var prs []ghPRList
+	if err := json.Unmarshal(listOut, &prs); err != nil {
+		return nil, fmt.Errorf("parsing gh pr list output: %w", err)
 	}
 	if len(prs) == 0 {
 		return nil, nil
 	}
 
-	pr := &prs[0]
+	// Now fetch full details including merge readiness
+	viewCmd := exec.CommandContext(ctx, "gh", "pr", "view", fmt.Sprintf("%d", prs[0].Number),
+		"--json", "number,title,state,url,isDraft,mergeStateStatus,reviewDecision,statusCheckRollup",
+	)
+	viewCmd.Dir = repoDir
+	viewOut, err := viewCmd.Output()
+	if err != nil {
+		// Fall back to minimal info from list
+		return &PullRequest{
+			Number: prs[0].Number,
+			URL:    prs[0].URL,
+			State:  "open",
+		}, nil
+	}
+
+	var pr ghPRView
+	if err := json.Unmarshal(viewOut, &pr); err != nil {
+		return &PullRequest{
+			Number: prs[0].Number,
+			URL:    prs[0].URL,
+			State:  "open",
+		}, nil
+	}
+
 	return &PullRequest{
-		Number:  pr.Number,
-		Title:   pr.Title,
-		State:   normalizeState(pr.State),
-		URL:     pr.URL,
-		IsDraft: pr.IsDraft,
+		Number:         pr.Number,
+		Title:          pr.Title,
+		State:          normalizeState(pr.State),
+		URL:            pr.URL,
+		IsDraft:        pr.IsDraft,
+		ChecksPass:     checksPass(pr.StatusChecks),
+		ReviewApproved: pr.ReviewDecision == "APPROVED" || pr.ReviewDecision == "",
+		Mergeable:      pr.MergeStateStatus == "CLEAN",
 	}, nil
+}
+
+// checksPass returns true if all status checks have passed (or there are none).
+func checksPass(checks []ghStatusCheck) bool {
+	for _, c := range checks {
+		if c.Status != "COMPLETED" {
+			return false
+		}
+		switch c.Conclusion {
+		case "SUCCESS", "NEUTRAL", "SKIPPED":
+			// These are fine
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func (g *GitHub) CreatePR(ctx context.Context, repoDir string, opts CreatePROpts) (*PullRequest, error) {
@@ -83,26 +139,28 @@ func (g *GitHub) CreatePR(ctx context.Context, repoDir string, opts CreatePROpts
 
 func (g *GitHub) findPRByURL(ctx context.Context, repoDir string, url string) (*PullRequest, error) {
 	cmd := exec.CommandContext(ctx, "gh", "pr", "view", url,
-		"--json", "number,title,state,url,isDraft",
+		"--json", "number,title,state,url,isDraft,mergeStateStatus,reviewDecision,statusCheckRollup",
 	)
 	cmd.Dir = repoDir
 	out, err := cmd.Output()
 	if err != nil {
-		// Return a minimal PR with just the URL if view fails
 		return &PullRequest{URL: url, State: "open"}, nil
 	}
 
-	var pr ghPR
+	var pr ghPRView
 	if err := json.Unmarshal(out, &pr); err != nil {
 		return &PullRequest{URL: url, State: "open"}, nil
 	}
 
 	return &PullRequest{
-		Number:  pr.Number,
-		Title:   pr.Title,
-		State:   normalizeState(pr.State),
-		URL:     pr.URL,
-		IsDraft: pr.IsDraft,
+		Number:         pr.Number,
+		Title:          pr.Title,
+		State:          normalizeState(pr.State),
+		URL:            pr.URL,
+		IsDraft:        pr.IsDraft,
+		ChecksPass:     checksPass(pr.StatusChecks),
+		ReviewApproved: pr.ReviewDecision == "APPROVED" || pr.ReviewDecision == "",
+		Mergeable:      pr.MergeStateStatus == "CLEAN",
 	}, nil
 }
 

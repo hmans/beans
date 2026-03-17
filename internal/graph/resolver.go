@@ -229,11 +229,14 @@ func populatePR(ctx context.Context, m *model.Worktree, forgeProvider forge.Prov
 	pr, _ := forgeProvider.FindPR(ctx, repoDir, m.Branch)
 	if pr != nil {
 		m.PullRequest = &model.PullRequest{
-			Number:  pr.Number,
-			Title:   pr.Title,
-			State:   pr.State,
-			URL:     pr.URL,
-			IsDraft: pr.IsDraft,
+			Number:         pr.Number,
+			Title:          pr.Title,
+			State:          pr.State,
+			URL:            pr.URL,
+			IsDraft:        pr.IsDraft,
+			ChecksPass:     pr.ChecksPass,
+			ReviewApproved: pr.ReviewApproved,
+			Mergeable:      pr.Mergeable,
 		}
 	}
 }

@@ -58,3 +58,98 @@ func TestFormatPRRef(t *testing.T) {
 		t.Errorf("FormatPRRef() = %q, want %q", got, "#42")
 	}
 }
+
+func TestCanMerge(t *testing.T) {
+	tests := []struct {
+		name     string
+		pr       PullRequest
+		expected bool
+	}{
+		{
+			"all green",
+			PullRequest{ChecksPass: true, ReviewApproved: true, Mergeable: true},
+			true,
+		},
+		{
+			"draft PR",
+			PullRequest{IsDraft: true, ChecksPass: true, ReviewApproved: true, Mergeable: true},
+			false,
+		},
+		{
+			"checks failing",
+			PullRequest{ChecksPass: false, ReviewApproved: true, Mergeable: true},
+			false,
+		},
+		{
+			"not mergeable",
+			PullRequest{ChecksPass: true, ReviewApproved: true, Mergeable: false},
+			false,
+		},
+		{
+			"zero value",
+			PullRequest{},
+			false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.pr.CanMerge()
+			if got != tc.expected {
+				t.Errorf("CanMerge() = %v, want %v", got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestChecksPass(t *testing.T) {
+	tests := []struct {
+		name     string
+		checks   []ghStatusCheck
+		expected bool
+	}{
+		{"no checks", nil, true},
+		{"empty checks", []ghStatusCheck{}, true},
+		{
+			"all success",
+			[]ghStatusCheck{
+				{Status: "COMPLETED", Conclusion: "SUCCESS"},
+				{Status: "COMPLETED", Conclusion: "SUCCESS"},
+			},
+			true,
+		},
+		{
+			"neutral and skipped count as pass",
+			[]ghStatusCheck{
+				{Status: "COMPLETED", Conclusion: "SUCCESS"},
+				{Status: "COMPLETED", Conclusion: "NEUTRAL"},
+				{Status: "COMPLETED", Conclusion: "SKIPPED"},
+			},
+			true,
+		},
+		{
+			"one failure",
+			[]ghStatusCheck{
+				{Status: "COMPLETED", Conclusion: "SUCCESS"},
+				{Status: "COMPLETED", Conclusion: "FAILURE"},
+			},
+			false,
+		},
+		{
+			"still in progress",
+			[]ghStatusCheck{
+				{Status: "IN_PROGRESS", Conclusion: ""},
+			},
+			false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := checksPass(tc.checks)
+			if got != tc.expected {
+				t.Errorf("checksPass() = %v, want %v", got, tc.expected)
+			}
+		})
+	}
+}

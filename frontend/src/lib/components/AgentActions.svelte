@@ -28,7 +28,7 @@
   <button
     class={[
       'btn-toggle ml-1',
-      action.id === 'integrate'
+      action.id === 'integrate' || (action.id === 'create-pr' && action.label === 'Merge PR')
         ? 'border-success/30 bg-success/10 text-success hover:bg-success/20'
         : action.id === 'create-pr'
           ? 'border-accent/30 bg-accent/10 text-accent hover:bg-accent/20'
@@ -40,6 +40,8 @@
   >
     {#if action.id === 'integrate'}
       <span class="icon-[uil--check] size-4"></span>
+    {:else if action.id === 'create-pr' && action.label === 'Merge PR'}
+      <span class="icon-[uil--check-circle] size-4"></span>
     {:else if action.id === 'create-pr'}
       <span class="icon-[uil--code-branch] size-4"></span>
     {/if}

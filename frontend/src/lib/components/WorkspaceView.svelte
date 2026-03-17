@@ -141,6 +141,7 @@
       VS Code
     </button>
     {#snippet right()}
+      <AgentActions beanId={worktreeId} {agentBusy} onExecute={() => scrollToBottomTrigger++} />
       {#if worktree?.pullRequest}
         <a
           class="btn-toggle ml-1 cursor-pointer border-accent/30 bg-accent/10 text-accent hover:bg-accent/20"
@@ -153,7 +154,6 @@
           PR #{worktree.pullRequest.number}
         </a>
       {/if}
-      <AgentActions beanId={worktreeId} {agentBusy} onExecute={() => scrollToBottomTrigger++} />
       {#if isWorktree}
         <button
           class={["btn-toggle ml-1 cursor-pointer border-border bg-transparent text-text-muted", agentBusy ? "opacity-50" : "hover:text-danger"]}

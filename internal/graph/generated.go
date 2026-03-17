@@ -184,11 +184,14 @@ type ComplexityRoot struct {
 	}
 
 	PullRequest struct {
-		IsDraft func(childComplexity int) int
-		Number  func(childComplexity int) int
-		State   func(childComplexity int) int
-		Title   func(childComplexity int) int
-		URL     func(childComplexity int) int
+		ChecksPass     func(childComplexity int) int
+		IsDraft        func(childComplexity int) int
+		Mergeable      func(childComplexity int) int
+		Number         func(childComplexity int) int
+		ReviewApproved func(childComplexity int) int
+		State          func(childComplexity int) int
+		Title          func(childComplexity int) int
+		URL            func(childComplexity int) int
 	}
 
 	Query struct {
@@ -1025,18 +1028,36 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.PendingInteraction.Type(childComplexity), true
 
+	case "PullRequest.checksPass":
+		if e.complexity.PullRequest.ChecksPass == nil {
+			break
+		}
+
+		return e.complexity.PullRequest.ChecksPass(childComplexity), true
 	case "PullRequest.isDraft":
 		if e.complexity.PullRequest.IsDraft == nil {
 			break
 		}
 
 		return e.complexity.PullRequest.IsDraft(childComplexity), true
+	case "PullRequest.mergeable":
+		if e.complexity.PullRequest.Mergeable == nil {
+			break
+		}
+
+		return e.complexity.PullRequest.Mergeable(childComplexity), true
 	case "PullRequest.number":
 		if e.complexity.PullRequest.Number == nil {
 			break
 		}
 
 		return e.complexity.PullRequest.Number(childComplexity), true
+	case "PullRequest.reviewApproved":
+		if e.complexity.PullRequest.ReviewApproved == nil {
+			break
+		}
+
+		return e.complexity.PullRequest.ReviewApproved(childComplexity), true
 	case "PullRequest.state":
 		if e.complexity.PullRequest.State == nil {
 			break
@@ -5961,6 +5982,93 @@ func (ec *executionContext) fieldContext_PullRequest_isDraft(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _PullRequest_checksPass(ctx context.Context, field graphql.CollectedField, obj *model.PullRequest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PullRequest_checksPass,
+		func(ctx context.Context) (any, error) {
+			return obj.ChecksPass, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PullRequest_checksPass(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PullRequest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PullRequest_reviewApproved(ctx context.Context, field graphql.CollectedField, obj *model.PullRequest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PullRequest_reviewApproved,
+		func(ctx context.Context) (any, error) {
+			return obj.ReviewApproved, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PullRequest_reviewApproved(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PullRequest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PullRequest_mergeable(ctx context.Context, field graphql.CollectedField, obj *model.PullRequest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PullRequest_mergeable,
+		func(ctx context.Context) (any, error) {
+			return obj.Mergeable, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PullRequest_mergeable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PullRequest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_bean(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -7595,6 +7703,12 @@ func (ec *executionContext) fieldContext_Worktree_pullRequest(_ context.Context,
 				return ec.fieldContext_PullRequest_url(ctx, field)
 			case "isDraft":
 				return ec.fieldContext_PullRequest_isDraft(ctx, field)
+			case "checksPass":
+				return ec.fieldContext_PullRequest_checksPass(ctx, field)
+			case "reviewApproved":
+				return ec.fieldContext_PullRequest_reviewApproved(ctx, field)
+			case "mergeable":
+				return ec.fieldContext_PullRequest_mergeable(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type PullRequest", field.Name)
 		},
@@ -10837,6 +10951,21 @@ func (ec *executionContext) _PullRequest(ctx context.Context, sel ast.SelectionS
 			}
 		case "isDraft":
 			out.Values[i] = ec._PullRequest_isDraft(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "checksPass":
+			out.Values[i] = ec._PullRequest_checksPass(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reviewApproved":
+			out.Values[i] = ec._PullRequest_reviewApproved(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "mergeable":
+			out.Values[i] = ec._PullRequest_mergeable(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

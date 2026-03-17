@@ -264,6 +264,12 @@ type PullRequest struct {
 	URL string `json:"url"`
 	// Whether this PR is a draft
 	IsDraft bool `json:"isDraft"`
+	// Whether all CI checks are passing
+	ChecksPass bool `json:"checksPass"`
+	// Whether review requirements are met
+	ReviewApproved bool `json:"reviewApproved"`
+	// Whether the forge reports the PR can be merged
+	Mergeable bool `json:"mergeable"`
 }
 
 type Query struct {

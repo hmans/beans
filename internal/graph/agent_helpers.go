@@ -158,6 +158,7 @@ type actionContext struct {
 	WorkDir            string // working directory (worktree path or project root)
 	HasChanges         bool   // uncommitted changes or untracked files
 	HasNewCommits      bool   // commits ahead of the base branch
+	HasUnpushedCommits bool   // commits ahead of the remote tracking branch
 	MainRepoHasChanges bool   // main repo has uncommitted changes
 	MainRepoPath       string // absolute path to the main repo working directory
 	PullRequest        *forge.PullRequest
@@ -261,6 +262,9 @@ REMINDER: Do NOT push anything to any remote. The integrate action is purely loc
 		Description: "Push branch and create a pull request",
 		LabelFunc: func(ctx actionContext) string {
 			if ctx.PullRequest != nil {
+				if !ctx.HasChanges && !ctx.HasUnpushedCommits && ctx.PullRequest.CanMerge() {
+					return "Merge PR"
+				}
 				return "Update PR"
 			}
 			return "Create PR"
@@ -268,7 +272,16 @@ REMINDER: Do NOT push anything to any remote. The integrate action is purely loc
 		PromptFunc: func(ctx actionContext) string {
 			cli := ctx.ForgeCLI
 			if ctx.PullRequest != nil {
-				// PR already exists — push latest commits
+				// Merge PR — everything is pushed, checks pass, ready to merge
+				if !ctx.HasChanges && !ctx.HasUnpushedCommits && ctx.PullRequest.CanMerge() {
+					return fmt.Sprintf(`The pull request %s is ready to merge. All checks are passing and the PR is approved.
+
+Merge the PR using: %s pr merge %d --squash --delete-branch
+
+After merging, report the merge result.`, ctx.PullRequest.URL, cli, ctx.PullRequest.Number)
+				}
+
+				// Update PR — push latest commits
 				return fmt.Sprintf(`A pull request already exists for this branch: %s
 
 Push the latest changes to update it:
@@ -291,7 +304,7 @@ Push the latest changes to update it:
 4. Report the PR URL when done.`, cli)
 		},
 		Visible: func(ctx actionContext) bool {
-			return ctx.ForgeCLI != "" && (ctx.HasChanges || ctx.HasNewCommits)
+			return ctx.ForgeCLI != "" && (ctx.HasChanges || ctx.HasNewCommits || (ctx.PullRequest != nil && ctx.PullRequest.CanMerge()))
 		},
 		Disabled: func(ctx actionContext) string {
 			return ""
