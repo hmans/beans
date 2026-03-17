@@ -776,6 +776,25 @@ func (r *mutationResolver) ExecuteAgentAction(ctx context.Context, beanID string
 	}
 
 	actCtx := actionContext{WorktreeID: beanID, WorkDir: workDir, MainRepoPath: r.ProjectRoot}
+	actCtx.HasChanges = gitutil.HasChanges(workDir)
+	actCtx.HasUnpushedCommits = gitutil.HasUnpushedCommits(workDir)
+
+	// Populate forge context for actions that need it
+	if r.Forge != nil {
+		actCtx.ForgeCLI = r.Forge.CLIName()
+		if r.WorktreeMgr != nil {
+			if wts, err := r.WorktreeMgr.List(); err == nil {
+				for _, wt := range wts {
+					if wt.ID == beanID {
+						pr, _ := r.Forge.FindPR(ctx, r.ProjectRoot, wt.Branch)
+						actCtx.PullRequest = pr
+						break
+					}
+				}
+			}
+		}
+	}
+
 	if err := r.AgentMgr.SendMessage(beanID, workDir, action.PromptFunc(actCtx), nil); err != nil {
 		return false, err
 	}
@@ -891,7 +910,9 @@ func (r *queryResolver) Worktrees(ctx context.Context) ([]*model.Worktree, error
 
 	result := make([]*model.Worktree, len(wts))
 	for i, wt := range wts {
-		result[i] = worktreeToModel(&wt, r.Core, r.WorktreeMgr.BaseRef(), true)
+		m := worktreeToModel(&wt, r.Core, r.WorktreeMgr.BaseRef(), true)
+		populatePR(ctx, m, r.Forge, r.ProjectRoot)
+		result[i] = m
 	}
 	return result, nil
 }
@@ -1103,11 +1124,12 @@ func (r *queryResolver) HasDirtyBeans(ctx context.Context) (bool, error) {
 }
 
 // AgentActions is the resolver for the agentActions field.
-func (r *queryResolver) AgentActions(ctx context.Context, beanID string) ([]*model.AgentAction, error) {
+func (r *queryResolver) AgentActions(ctx context.Context, beanID string, skipForge *bool) ([]*model.AgentAction, error) {
 	// Build action context for visibility filtering
 	actCtx := actionContext{WorktreeID: beanID}
 
 	// Check if this worktree exists and gather its state
+	var branch string
 	if r.WorktreeMgr != nil {
 		actCtx.MainRepoHasChanges = gitutil.HasChanges(r.WorktreeMgr.RepoRoot())
 
@@ -1117,9 +1139,24 @@ func (r *queryResolver) AgentActions(ctx context.Context, beanID string) ([]*mod
 					actCtx.WorkDir = wt.Path
 					actCtx.HasChanges = gitutil.HasChanges(wt.Path)
 					actCtx.HasNewCommits = gitutil.HasUnmergedCommits(wt.Path, r.WorktreeMgr.BaseRef())
+					actCtx.HasUnpushedCommits = gitutil.HasUnpushedCommits(wt.Path)
+					actCtx.HasConflicts = gitutil.HasConflicts(wt.Path, r.WorktreeMgr.BaseRef())
+					branch = wt.Branch
 					break
 				}
 			}
+		}
+	}
+
+	// Populate forge context
+	if r.Forge != nil {
+		actCtx.ForgeCLI = r.Forge.CLIName()
+		if skipForge != nil && *skipForge {
+			// Show the PR button in loading state while the full fetch is pending
+			actCtx.ForgeLoading = true
+		} else if branch != "" {
+			pr, _ := r.Forge.FindPR(ctx, r.ProjectRoot, branch)
+			actCtx.PullRequest = pr
 		}
 	}
 
@@ -1128,10 +1165,14 @@ func (r *queryResolver) AgentActions(ctx context.Context, beanID string) ([]*mod
 		if a.Visible != nil && !a.Visible(actCtx) {
 			continue
 		}
+		label := a.Label
+		if a.LabelFunc != nil {
+			label = a.LabelFunc(actCtx)
+		}
 		desc := a.Description
 		action := &model.AgentAction{
 			ID:          a.ID,
-			Label:       a.Label,
+			Label:       label,
 			Description: &desc,
 		}
 		if a.Disabled != nil {
@@ -1278,11 +1319,12 @@ func (r *subscriptionResolver) WorktreesChanged(ctx context.Context) (<-chan []*
 		defer r.WorktreeMgr.Unsubscribe(ch)
 		defer close(out)
 
-		// Emit the current list immediately
+		// Emit the current list immediately (with PR data for the initial snapshot)
 		if wts, err := r.WorktreeMgr.List(); err == nil {
 			result := make([]*model.Worktree, len(wts))
 			for i, wt := range wts {
 				result[i] = worktreeToModel(&wt, r.Core, r.WorktreeMgr.BaseRef(), false)
+				populatePR(ctx, result[i], r.Forge, r.ProjectRoot)
 			}
 			select {
 			case out <- result:
@@ -1307,6 +1349,7 @@ func (r *subscriptionResolver) WorktreesChanged(ctx context.Context) (<-chan []*
 				result := make([]*model.Worktree, len(wts))
 				for i, wt := range wts {
 					result[i] = worktreeToModel(&wt, r.Core, r.WorktreeMgr.BaseRef(), false)
+					populatePR(ctx, result[i], r.Forge, r.ProjectRoot)
 				}
 				select {
 				case out <- result:

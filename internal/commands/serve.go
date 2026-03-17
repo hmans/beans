@@ -27,6 +27,7 @@ import (
 	"github.com/hmans/beans/internal/web"
 	"github.com/hmans/beans/internal/worktree"
 	"github.com/hmans/beans/pkg/config"
+	"github.com/hmans/beans/pkg/forge"
 )
 
 var (
@@ -256,6 +257,13 @@ func runServer(port int, origins []string) error {
 		core.SetOnWorktreeBeansChanged(wtManager.Notify)
 	}
 
+	// Detect git forge (GitHub, GitLab, etc.) for PR integration
+	projectRoot := filepath.Dir(core.Root())
+	forgeProvider := forge.Detect(projectRoot)
+	if forgeProvider != nil {
+		fmt.Printf("[beans] detected forge: %s (using %s CLI)\n", forgeProvider.Name(), forgeProvider.CLIName())
+	}
+
 	// Create GraphQL server with explicit transports
 	es := graph.NewExecutableSchema(graph.Config{
 		Resolvers: &graph.Resolver{
@@ -264,7 +272,8 @@ func runServer(port int, origins []string) error {
 			AgentMgr:    agentMgr,
 			TerminalMgr: termMgr,
 			PortAlloc:   portAlloc,
-			ProjectRoot: filepath.Dir(core.Root()),
+			Forge:       forgeProvider,
+			ProjectRoot: projectRoot,
 		},
 	})
 	gqlHandler := handler.New(es)

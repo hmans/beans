@@ -142,6 +142,18 @@
     </button>
     {#snippet right()}
       <AgentActions beanId={worktreeId} {agentBusy} onExecute={() => scrollToBottomTrigger++} />
+      {#if worktree?.pullRequest}
+        <a
+          class="btn-toggle ml-1 cursor-pointer border-accent/30 bg-accent/10 text-accent hover:bg-accent/20"
+          href={worktree.pullRequest.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={`PR #${worktree.pullRequest.number}: ${worktree.pullRequest.title}`}
+        >
+          <span class="icon-[uil--external-link-alt] size-4"></span>
+          PR #{worktree.pullRequest.number}
+        </a>
+      {/if}
       {#if isWorktree}
         <button
           class={["btn-toggle ml-1 cursor-pointer border-border bg-transparent text-text-muted", agentBusy ? "opacity-50" : "hover:text-danger"]}
