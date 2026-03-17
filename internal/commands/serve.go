@@ -22,6 +22,7 @@ import (
 	"github.com/hmans/beans/internal/agent"
 	"github.com/hmans/beans/internal/cors"
 	"github.com/hmans/beans/internal/graph"
+	"github.com/hmans/beans/internal/portalloc"
 	"github.com/hmans/beans/internal/terminal"
 	"github.com/hmans/beans/internal/web"
 	"github.com/hmans/beans/internal/worktree"
@@ -138,8 +139,25 @@ func runServer(port int, origins []string) error {
 		}
 	}
 
-	// Create terminal session manager
-	termMgr := terminal.NewManager()
+	// Create workspace port allocator and allocate port for central workspace
+	portAlloc := portalloc.NewDefault()
+	portAlloc.Allocate(graph.CentralSessionID)
+
+	// Allocate ports for existing worktrees
+	if existingWTs, err := wtManager.List(); err == nil {
+		for _, wt := range existingWTs {
+			portAlloc.Allocate(wt.ID)
+		}
+	}
+
+	// Create terminal session manager with workspace port injection
+	termMgr := terminal.NewManager(func(sessionID string) []string {
+		port, err := portAlloc.Get(sessionID)
+		if err != nil {
+			return nil
+		}
+		return []string{fmt.Sprintf("BEANS_WORKSPACE_PORT=%d", port)}
+	})
 	defer termMgr.Shutdown()
 
 	// Create agent session manager (with conversation persistence)
@@ -230,6 +248,7 @@ func runServer(port int, origins []string) error {
 			WorktreeMgr: wtManager,
 			AgentMgr:    agentMgr,
 			TerminalMgr: termMgr,
+			PortAlloc:   portAlloc,
 			ProjectRoot: filepath.Dir(core.Root()),
 		},
 	})

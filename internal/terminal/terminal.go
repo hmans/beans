@@ -187,15 +187,21 @@ func (s *Session) Close() {
 	_ = s.cmd.Wait()
 }
 
+// EnvFunc returns extra environment variables for a given session ID.
+// Used to inject workspace-specific env vars (e.g. BEANS_WORKSPACE_PORT).
+type EnvFunc func(sessionID string) []string
+
 // Manager manages PTY sessions keyed by session ID.
 type Manager struct {
 	mu       sync.Mutex
 	sessions map[string]*Session
+	envFunc  EnvFunc
 }
 
 // NewManager creates a new terminal session manager.
-func NewManager() *Manager {
-	return &Manager{sessions: make(map[string]*Session)}
+// An optional EnvFunc can provide extra environment variables per session.
+func NewManager(envFunc EnvFunc) *Manager {
+	return &Manager{sessions: make(map[string]*Session), envFunc: envFunc}
 }
 
 // Create spawns a new PTY session, replacing any existing session with the same ID.
@@ -242,7 +248,11 @@ func (m *Manager) createLocked(sessionID, workDir string, cols, rows uint16) (*S
 
 	cmd := exec.Command(shell, "-l")
 	cmd.Dir = workDir
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+	env := append(os.Environ(), "TERM=xterm-256color")
+	if m.envFunc != nil {
+		env = append(env, m.envFunc(sessionID)...)
+	}
+	cmd.Env = env
 
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: cols, Rows: rows})
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"github.com/hmans/beans/internal/agent"
 	"github.com/hmans/beans/internal/gitutil"
 	"github.com/hmans/beans/internal/graph/model"
+	"github.com/hmans/beans/internal/portalloc"
 	"github.com/hmans/beans/internal/terminal"
 	"github.com/hmans/beans/internal/worktree"
 	"github.com/hmans/beans/pkg/bean"
@@ -25,6 +26,7 @@ type Resolver struct {
 	WorktreeMgr *worktree.Manager
 	AgentMgr    *agent.Manager
 	TerminalMgr *terminal.Manager
+	PortAlloc   *portalloc.Allocator
 	ProjectRoot string // absolute path to the project root (parent of .beans)
 }
 

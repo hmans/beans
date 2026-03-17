@@ -574,6 +574,11 @@ func (r *mutationResolver) CreateWorktree(ctx context.Context, name string) (*mo
 		return nil, err
 	}
 
+	// Allocate a workspace port for this worktree
+	if r.PortAlloc != nil {
+		r.PortAlloc.Allocate(wt.ID)
+	}
+
 	// Start watching the worktree's .beans/ directory for bean changes
 	if err := r.Core.WatchWorktreeBeans(wt.Path); err != nil {
 		fmt.Printf("[beans] warning: failed to watch worktree beans: %v\n", err)
@@ -599,6 +604,11 @@ func (r *mutationResolver) RemoveWorktree(ctx context.Context, id string) (bool,
 
 	if err := r.WorktreeMgr.Remove(id); err != nil {
 		return false, err
+	}
+
+	// Free the workspace port
+	if r.PortAlloc != nil {
+		r.PortAlloc.Free(id)
 	}
 
 	// Close any terminal session associated with this worktree

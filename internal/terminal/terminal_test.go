@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -47,7 +48,7 @@ func TestRingBufferEmpty(t *testing.T) {
 }
 
 func TestManagerCreateAndClose(t *testing.T) {
-	mgr := NewManager()
+	mgr := NewManager(nil)
 	defer mgr.Shutdown()
 
 	sess, err := mgr.Create("test-1", os.TempDir(), 80, 24)
@@ -73,7 +74,7 @@ func TestManagerCreateAndClose(t *testing.T) {
 }
 
 func TestManagerCreateReplacesExisting(t *testing.T) {
-	mgr := NewManager()
+	mgr := NewManager(nil)
 	defer mgr.Shutdown()
 
 	sess1, err := mgr.Create("test-replace", os.TempDir(), 80, 24)
@@ -97,7 +98,7 @@ func TestManagerCreateReplacesExisting(t *testing.T) {
 }
 
 func TestSessionResize(t *testing.T) {
-	mgr := NewManager()
+	mgr := NewManager(nil)
 	defer mgr.Shutdown()
 
 	sess, err := mgr.Create("test-resize", os.TempDir(), 80, 24)
@@ -111,7 +112,7 @@ func TestSessionResize(t *testing.T) {
 }
 
 func TestSessionWriteAndAttach(t *testing.T) {
-	mgr := NewManager()
+	mgr := NewManager(nil)
 	defer mgr.Shutdown()
 
 	sess, err := mgr.Create("test-io", os.TempDir(), 80, 24)
@@ -140,7 +141,7 @@ func TestSessionWriteAndAttach(t *testing.T) {
 }
 
 func TestSessionScrollback(t *testing.T) {
-	mgr := NewManager()
+	mgr := NewManager(nil)
 	defer mgr.Shutdown()
 
 	sess, err := mgr.Create("test-scrollback", os.TempDir(), 80, 24)
@@ -169,7 +170,7 @@ func TestSessionScrollback(t *testing.T) {
 }
 
 func TestGetOrCreateReusesAliveSession(t *testing.T) {
-	mgr := NewManager()
+	mgr := NewManager(nil)
 	defer mgr.Shutdown()
 
 	sess1, reconnected, err := mgr.GetOrCreate("test-reuse", os.TempDir(), 80, 24)
@@ -193,7 +194,7 @@ func TestGetOrCreateReusesAliveSession(t *testing.T) {
 }
 
 func TestGetOrCreateReplacesDeadSession(t *testing.T) {
-	mgr := NewManager()
+	mgr := NewManager(nil)
 	defer mgr.Shutdown()
 
 	sess1, _, err := mgr.GetOrCreate("test-dead", os.TempDir(), 80, 24)
@@ -224,7 +225,7 @@ func TestGetOrCreateReplacesDeadSession(t *testing.T) {
 }
 
 func TestSessionAlive(t *testing.T) {
-	mgr := NewManager()
+	mgr := NewManager(nil)
 	defer mgr.Shutdown()
 
 	sess, err := mgr.Create("test-alive", os.TempDir(), 80, 24)
@@ -251,7 +252,7 @@ func TestSessionAlive(t *testing.T) {
 }
 
 func TestManagerShutdown(t *testing.T) {
-	mgr := NewManager()
+	mgr := NewManager(nil)
 
 	_, err := mgr.Create("test-shutdown-1", os.TempDir(), 80, 24)
 	if err != nil {
@@ -271,3 +272,42 @@ func TestManagerShutdown(t *testing.T) {
 		t.Fatal("session 2 still exists after Shutdown")
 	}
 }
+
+func TestEnvFuncInjection(t *testing.T) {
+	mgr := NewManager(func(sessionID string) []string {
+		return []string{"BEANS_WORKSPACE_PORT=44000"}
+	})
+	defer mgr.Shutdown()
+
+	sess, err := mgr.Create("test-env", os.TempDir(), 80, 24)
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	// Attach and ask the shell to echo the env var
+	_, output := sess.Attach()
+	_, err = sess.Write([]byte("echo PORT=$BEANS_WORKSPACE_PORT\n"))
+	if err != nil {
+		t.Fatalf("Write failed: %v", err)
+	}
+
+	// Collect output for a short time looking for the PORT= line
+	deadline := time.After(5 * time.Second)
+	var collected []byte
+	for {
+		select {
+		case data := <-output:
+			collected = append(collected, data...)
+			if containsSubstring(collected, "PORT=44000") {
+				return // success
+			}
+		case <-deadline:
+			t.Fatalf("timed out; collected output: %q", string(collected))
+		}
+	}
+}
+
+func containsSubstring(data []byte, sub string) bool {
+	return len(data) >= len(sub) && strings.Contains(string(data), sub)
+}
+
