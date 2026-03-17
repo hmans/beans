@@ -115,6 +115,9 @@ func agentSessionToModel(s *agent.Session) *model.AgentSession {
 		}
 	}
 
+	quickReplies := make([]string, len(s.QuickReplies))
+	copy(quickReplies, s.QuickReplies)
+
 	return &model.AgentSession{
 		BeanID:             s.ID,
 		AgentType:          s.AgentType,
@@ -128,6 +131,7 @@ func agentSessionToModel(s *agent.Session) *model.AgentSession {
 		PendingInteraction: pending,
 		WorkDir:            workDir,
 		SubagentActivities: subagents,
+		QuickReplies:       quickReplies,
 	}
 }
 

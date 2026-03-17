@@ -81,6 +81,7 @@ fragment AgentSessionFields on AgentSession {
     description
     currentTool
   }
+  quickReplies
 }
 
 fragment FileChangeFields on FileChange {

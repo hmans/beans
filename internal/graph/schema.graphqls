@@ -631,6 +631,8 @@ type AgentSession {
   workDir: String
   "Currently running subagent activities (one per concurrent Agent tool call)"
   subagentActivities: [SubagentActivity!]!
+  "Suggested quick reply messages generated after a turn completes"
+  quickReplies: [String!]!
 }
 
 """

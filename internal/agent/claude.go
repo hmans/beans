@@ -555,6 +555,9 @@ func (m *Manager) readOutput(beanID string, stdout io.Reader, workDir string, pr
 				go m.onTurnComplete(beanID)
 			}
 
+			// Generate quick reply suggestions asynchronously
+			go m.generateQuickReplies(beanID)
+
 			// After compact, prune orphaned image attachments
 			if m.wasLastUserMessage(beanID, "/compact") {
 				m.pruneOrphanedAttachments(beanID)

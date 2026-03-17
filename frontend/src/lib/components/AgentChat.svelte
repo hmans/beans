@@ -44,6 +44,7 @@
   const sessionEffort = $derived(store.session?.effort ?? '');
   const pendingInteraction = $derived(store.session?.pendingInteraction ?? null);
   const subagentActivities = $derived(store.session?.subagentActivities ?? []);
+  const quickReplies = $derived(store.session?.quickReplies ?? []);
 
   function setAgentMode(mode: 'plan' | 'act') {
     store.setPlanMode(beanId, mode === 'plan');
@@ -87,6 +88,7 @@
     effort={sessionEffort}
     {systemStatus}
     {subagentActivities}
+    {quickReplies}
     onSend={(text, images) => { internalScrollTrigger++; store.sendMessage(beanId, text, images); }}
     onStop={() => store.stop(beanId)}
     onSetMode={setAgentMode}

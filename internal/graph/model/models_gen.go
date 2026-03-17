@@ -79,6 +79,8 @@ type AgentSession struct {
 	WorkDir *string `json:"workDir,omitempty"`
 	// Currently running subagent activities (one per concurrent Agent tool call)
 	SubagentActivities []*SubagentActivity `json:"subagentActivities"`
+	// Suggested quick reply messages generated after a turn completes
+	QuickReplies []string `json:"quickReplies"`
 }
 
 // A selectable option within an AskUserQuestion

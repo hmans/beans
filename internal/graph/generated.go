@@ -85,6 +85,7 @@ type ComplexityRoot struct {
 		Messages           func(childComplexity int) int
 		PendingInteraction func(childComplexity int) int
 		PlanMode           func(childComplexity int) int
+		QuickReplies       func(childComplexity int) int
 		Status             func(childComplexity int) int
 		SubagentActivities func(childComplexity int) int
 		SystemStatus       func(childComplexity int) int
@@ -457,6 +458,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.AgentSession.PlanMode(childComplexity), true
+	case "AgentSession.quickReplies":
+		if e.complexity.AgentSession.QuickReplies == nil {
+			break
+		}
+
+		return e.complexity.AgentSession.QuickReplies(childComplexity), true
 	case "AgentSession.status":
 		if e.complexity.AgentSession.Status == nil {
 			break
@@ -2859,6 +2866,35 @@ func (ec *executionContext) fieldContext_AgentSession_subagentActivities(_ conte
 				return ec.fieldContext_SubagentActivity_currentTool(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type SubagentActivity", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AgentSession_quickReplies(ctx context.Context, field graphql.CollectedField, obj *model.AgentSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AgentSession_quickReplies,
+		func(ctx context.Context) (any, error) {
+			return obj.QuickReplies, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AgentSession_quickReplies(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentSession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -6362,6 +6398,8 @@ func (ec *executionContext) fieldContext_Query_agentSession(ctx context.Context,
 				return ec.fieldContext_AgentSession_workDir(ctx, field)
 			case "subagentActivities":
 				return ec.fieldContext_AgentSession_subagentActivities(ctx, field)
+			case "quickReplies":
+				return ec.fieldContext_AgentSession_quickReplies(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type AgentSession", field.Name)
 		},
@@ -7223,6 +7261,8 @@ func (ec *executionContext) fieldContext_Subscription_agentSessionChanged(ctx co
 				return ec.fieldContext_AgentSession_workDir(ctx, field)
 			case "subagentActivities":
 				return ec.fieldContext_AgentSession_subagentActivities(ctx, field)
+			case "quickReplies":
+				return ec.fieldContext_AgentSession_quickReplies(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type AgentSession", field.Name)
 		},
@@ -9918,6 +9958,11 @@ func (ec *executionContext) _AgentSession(ctx context.Context, sel ast.Selection
 			out.Values[i] = ec._AgentSession_workDir(ctx, field, obj)
 		case "subagentActivities":
 			out.Values[i] = ec._AgentSession_subagentActivities(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "quickReplies":
+			out.Values[i] = ec._AgentSession_quickReplies(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

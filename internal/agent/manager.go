@@ -177,6 +177,7 @@ func (m *Manager) SendMessage(beanID, workDir, message string, images []ImageUpl
 	session.Error = ""
 	session.PendingInteraction = nil
 	session.ToolInvocations = nil
+	session.QuickReplies = nil
 
 	// Check if this is the first user message in the session (for description
 	// generation). We can't just check !ok because AddInfoMessage may have
