@@ -14,8 +14,9 @@
 
   $effect(() => {
     // Fast initial fetch (skip forge/PR lookup) so local actions render instantly,
-    // then start polling which includes forge data for PR button states.
-    store.fetch(beanId, true);
+    // then immediately follow up with a full fetch to get PR state without waiting
+    // for the first poll interval.
+    store.fetch(beanId, true).then(() => store.fetch(beanId));
     store.startPolling(beanId);
     return () => store.stopPolling();
   });
