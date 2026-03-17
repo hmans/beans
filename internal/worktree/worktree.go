@@ -90,6 +90,33 @@ func (m *Manager) BaseRef() string {
 	return m.baseRef
 }
 
+// fetchBaseRef fetches the base ref from the remote so that worktrees branch
+// from the latest code. Handles both plain refs ("main") and remote-tracking
+// refs ("origin/main"). Logs warnings on failure but does not return an error —
+// a stale ref is better than refusing to create a worktree.
+func (m *Manager) fetchBaseRef() {
+	if m.baseRef == "" {
+		return
+	}
+
+	// Determine which remote and ref to fetch.
+	// "origin/main" → remote="origin", ref="main"
+	// "main"        → remote="origin", ref="main"
+	remote := "origin"
+	ref := m.baseRef
+	if strings.Contains(m.baseRef, "/") {
+		parts := strings.SplitN(m.baseRef, "/", 2)
+		remote = parts[0]
+		ref = parts[1]
+	}
+
+	cmd := exec.Command("git", "fetch", remote, ref)
+	cmd.Dir = m.repoRoot
+	if out, err := cmd.CombinedOutput(); err != nil {
+		log.Printf("[worktree] warning: git fetch %s %s failed: %s", remote, ref, strings.TrimSpace(string(out)))
+	}
+}
+
 // SetOnSetupDone registers a callback that fires when a worktree's setup command finishes.
 func (m *Manager) SetOnSetupDone(fn SetupDoneFunc) {
 	m.onSetupDone = fn
@@ -325,6 +352,10 @@ func (m *Manager) Create(name string) (*Worktree, error) {
 	if _, err := os.Stat(worktreePath); err == nil {
 		return nil, fmt.Errorf("worktree path already exists: %s", worktreePath)
 	}
+
+	// Fetch the latest base ref from origin so worktrees branch from up-to-date code.
+	// This is especially important for PR-based workflows using origin/<branch> as base_ref.
+	m.fetchBaseRef()
 
 	// Create the worktree with a new branch
 	args := []string{"worktree", "add", worktreePath, "-b", branch}
