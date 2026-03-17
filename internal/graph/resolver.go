@@ -219,3 +219,21 @@ func worktreeToModel(wt *worktree.Worktree, core *beancore.Core, baseRef string,
 	}
 	return m
 }
+
+// populatePR looks up the pull request for a worktree's branch via the forge provider
+// and sets it on the model. No-op if forge is nil or lookup fails.
+func populatePR(ctx context.Context, m *model.Worktree, forgeProvider forge.Provider, repoDir string) {
+	if forgeProvider == nil {
+		return
+	}
+	pr, _ := forgeProvider.FindPR(ctx, repoDir, m.Branch)
+	if pr != nil {
+		m.PullRequest = &model.PullRequest{
+			Number:  pr.Number,
+			Title:   pr.Title,
+			State:   pr.State,
+			URL:     pr.URL,
+			IsDraft: pr.IsDraft,
+		}
+	}
+}

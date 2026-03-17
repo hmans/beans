@@ -909,18 +909,7 @@ func (r *queryResolver) Worktrees(ctx context.Context) ([]*model.Worktree, error
 	result := make([]*model.Worktree, len(wts))
 	for i, wt := range wts {
 		m := worktreeToModel(&wt, r.Core, r.WorktreeMgr.BaseRef(), true)
-		// Look up PR for this branch (only on explicit queries, not subscriptions)
-		if r.Forge != nil {
-			if pr, _ := r.Forge.FindPR(ctx, r.ProjectRoot, wt.Branch); pr != nil {
-				m.PullRequest = &model.PullRequest{
-					Number:  pr.Number,
-					Title:   pr.Title,
-					State:   pr.State,
-					URL:     pr.URL,
-					IsDraft: pr.IsDraft,
-				}
-			}
-		}
+		populatePR(ctx, m, r.Forge, r.ProjectRoot)
 		result[i] = m
 	}
 	return result, nil
@@ -1323,11 +1312,12 @@ func (r *subscriptionResolver) WorktreesChanged(ctx context.Context) (<-chan []*
 		defer r.WorktreeMgr.Unsubscribe(ch)
 		defer close(out)
 
-		// Emit the current list immediately
+		// Emit the current list immediately (with PR data for the initial snapshot)
 		if wts, err := r.WorktreeMgr.List(); err == nil {
 			result := make([]*model.Worktree, len(wts))
 			for i, wt := range wts {
 				result[i] = worktreeToModel(&wt, r.Core, r.WorktreeMgr.BaseRef(), false)
+				populatePR(ctx, result[i], r.Forge, r.ProjectRoot)
 			}
 			select {
 			case out <- result:
