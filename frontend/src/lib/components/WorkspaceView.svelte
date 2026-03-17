@@ -143,14 +143,20 @@
     {#snippet right()}
       <AgentActions beanId={worktreeId} {agentBusy} onExecute={() => scrollToBottomTrigger++} />
       {#if worktree?.pullRequest && configStore.worktreeIntegrateMode === 'pr'}
+        {@const isMerged = worktree.pullRequest.state === 'merged'}
         <a
-          class="btn-toggle ml-1 cursor-pointer border-accent/30 bg-accent/10 text-accent hover:bg-accent/20"
+          class={[
+            "btn-toggle ml-1 cursor-pointer",
+            isMerged
+              ? "border-purple-500/30 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20"
+              : "border-accent/30 bg-accent/10 text-accent hover:bg-accent/20"
+          ]}
           href={worktree.pullRequest.url}
           target="_blank"
           rel="noopener noreferrer"
           title={`PR #${worktree.pullRequest.number}: ${worktree.pullRequest.title}`}
         >
-          <span class="icon-[uil--external-link-alt] size-4"></span>
+          <span class={["size-4", isMerged ? "icon-[uil--code-branch] rotate-180" : "icon-[uil--external-link-alt]"]}></span>
           PR #{worktree.pullRequest.number}
         </a>
       {/if}
