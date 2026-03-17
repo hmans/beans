@@ -262,8 +262,13 @@ REMINDER: Do NOT push anything to any remote. The integrate action is purely loc
 		Description: "Push branch and create a pull request",
 		LabelFunc: func(ctx actionContext) string {
 			if ctx.PullRequest != nil {
-				if !ctx.HasChanges && !ctx.HasUnpushedCommits && ctx.PullRequest.CanMerge() {
-					return "Merge PR"
+				if !ctx.HasChanges && !ctx.HasUnpushedCommits {
+					if ctx.PullRequest.CanMerge() {
+						return "Merge PR"
+					}
+					// Nothing to push and not mergeable — button shouldn't be visible,
+					// but if it is, label it accurately
+					return "Update PR"
 				}
 				return "Update PR"
 			}
@@ -304,7 +309,16 @@ Push the latest changes to update it:
 4. Report the PR URL when done.`, cli)
 		},
 		Visible: func(ctx actionContext) bool {
-			return ctx.ForgeCLI != "" && (ctx.HasChanges || ctx.HasNewCommits || (ctx.PullRequest != nil && ctx.PullRequest.CanMerge()))
+			if ctx.ForgeCLI == "" {
+				return false
+			}
+			if ctx.PullRequest == nil {
+				// No PR yet — show "Create PR" if there's work to push
+				return ctx.HasChanges || ctx.HasNewCommits
+			}
+			// PR exists — show "Update PR" only if there's something to push,
+			// or "Merge PR" if it's ready
+			return ctx.HasChanges || ctx.HasUnpushedCommits || ctx.PullRequest.CanMerge()
 		},
 		Disabled: func(ctx actionContext) string {
 			return ""
