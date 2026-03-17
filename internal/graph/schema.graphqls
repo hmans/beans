@@ -540,6 +540,24 @@ type Worktree {
   setupStatus: WorktreeSetupStatus
   "Error message if setup failed"
   setupError: String
+  "Open pull/merge request for this worktree's branch (null if none)"
+  pullRequest: PullRequest
+}
+
+"""
+A pull/merge request on a git forge (GitHub, GitLab, etc.)
+"""
+type PullRequest {
+  "PR number on the forge"
+  number: Int!
+  "PR title"
+  title: String!
+  "Current state: open, closed, merged"
+  state: String!
+  "Web URL to view the PR"
+  url: String!
+  "Whether this PR is a draft"
+  isDraft: Boolean!
 }
 
 """

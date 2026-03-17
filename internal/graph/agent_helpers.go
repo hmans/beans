@@ -7,6 +7,7 @@ import (
 	"github.com/hmans/beans/internal/agent"
 	"github.com/hmans/beans/internal/gitutil"
 	"github.com/hmans/beans/internal/graph/model"
+	"github.com/hmans/beans/pkg/forge"
 )
 
 // agentSessionToModel converts an agent.Session to the GraphQL model type.
@@ -159,6 +160,8 @@ type actionContext struct {
 	HasNewCommits      bool   // commits ahead of the base branch
 	MainRepoHasChanges bool   // main repo has uncommitted changes
 	MainRepoPath       string // absolute path to the main repo working directory
+	PullRequest        *forge.PullRequest
+	ForgeCLI           string // "gh", "glab", or "" if no forge detected
 }
 
 // agentActionDef defines a single agent action with its metadata and prompt.
@@ -166,6 +169,8 @@ type agentActionDef struct {
 	ID          string
 	Label       string
 	Description string
+	// LabelFunc returns a dynamic label based on context. Takes precedence over Label if set.
+	LabelFunc func(ctx actionContext) string
 	// PromptFunc generates the prompt from the full action context.
 	PromptFunc func(ctx actionContext) string
 	// Visible determines whether this action should appear. If nil, always visible.
@@ -247,6 +252,48 @@ REMINDER: Do NOT push anything to any remote. The integrate action is purely loc
 			if ctx.MainRepoHasChanges {
 				return "Main workspace has uncommitted changes"
 			}
+			return ""
+		},
+	},
+	{
+		ID:          "create-pr",
+		Label:       "Create PR",
+		Description: "Push branch and create a pull request",
+		LabelFunc: func(ctx actionContext) string {
+			if ctx.PullRequest != nil {
+				return "Update PR"
+			}
+			return "Create PR"
+		},
+		PromptFunc: func(ctx actionContext) string {
+			cli := ctx.ForgeCLI
+			if ctx.PullRequest != nil {
+				// PR already exists — push latest commits
+				return fmt.Sprintf(`A pull request already exists for this branch: %s
+
+Push the latest changes to update it:
+
+1. If there are uncommitted changes, create a commit first (following the usual commit guidelines).
+2. Push to the remote: git push
+3. If the push fails because the remote is ahead, pull with rebase first: git pull --rebase && git push
+4. Optionally update the PR title/body if the scope has changed: %s pr edit --title "..." --body "..."`, ctx.PullRequest.URL, cli)
+			}
+
+			// No PR yet — create one
+			return fmt.Sprintf(`Create a pull request for this branch. Follow these steps:
+
+1. If there are uncommitted changes, create a commit first (following the usual commit guidelines).
+2. Push the branch to the remote: git push -u origin HEAD
+3. Create the PR using: %s pr create --title "..." --body "..."
+   - Derive the PR title from the branch name and commit messages. Use a conventional commit style prefix.
+   - Write a meaningful PR body summarizing the changes.
+   - Include any relevant bean IDs.
+4. Report the PR URL when done.`, cli)
+		},
+		Visible: func(ctx actionContext) bool {
+			return ctx.ForgeCLI != "" && (ctx.HasChanges || ctx.HasNewCommits)
+		},
+		Disabled: func(ctx actionContext) string {
 			return ""
 		},
 	},

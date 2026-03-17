@@ -30,7 +30,9 @@
       'btn-toggle ml-1',
       action.id === 'integrate'
         ? 'border-success/30 bg-success/10 text-success hover:bg-success/20'
-        : 'btn-toggle-inactive'
+        : action.id === 'create-pr'
+          ? 'border-accent/30 bg-accent/10 text-accent hover:bg-accent/20'
+          : 'btn-toggle-inactive'
     ]}
     disabled={agentBusy || !!store.executingAction || action.disabled}
     title={action.disabled ? (action.disabledReason ?? undefined) : (action.description ?? undefined)}
@@ -38,6 +40,8 @@
   >
     {#if action.id === 'integrate'}
       <span class="icon-[uil--check] size-4"></span>
+    {:else if action.id === 'create-pr'}
+      <span class="icon-[uil--code-branch] size-4"></span>
     {/if}
     {action.label}
   </button>

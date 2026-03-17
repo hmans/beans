@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/hmans/beans/internal/agent"
@@ -11,6 +12,7 @@ import (
 	"github.com/hmans/beans/internal/worktree"
 	"github.com/hmans/beans/pkg/bean"
 	"github.com/hmans/beans/pkg/beancore"
+	"github.com/hmans/beans/pkg/forge"
 )
 
 //go:generate go tool gqlgen generate
@@ -27,7 +29,8 @@ type Resolver struct {
 	AgentMgr    *agent.Manager
 	TerminalMgr *terminal.Manager
 	PortAlloc   *portalloc.Allocator
-	ProjectRoot string // absolute path to the project root (parent of .beans)
+	Forge       forge.Provider       // git forge provider (GitHub, GitLab, etc.) — nil if not detected
+	ProjectRoot string               // absolute path to the project root (parent of .beans)
 }
 
 // ETagMismatchError is returned when an ETag validation fails.

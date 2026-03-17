@@ -776,6 +776,23 @@ func (r *mutationResolver) ExecuteAgentAction(ctx context.Context, beanID string
 	}
 
 	actCtx := actionContext{WorktreeID: beanID, WorkDir: workDir, MainRepoPath: r.ProjectRoot}
+
+	// Populate forge context for actions that need it
+	if r.Forge != nil {
+		actCtx.ForgeCLI = r.Forge.CLIName()
+		if r.WorktreeMgr != nil {
+			if wts, err := r.WorktreeMgr.List(); err == nil {
+				for _, wt := range wts {
+					if wt.ID == beanID {
+						pr, _ := r.Forge.FindPR(ctx, r.ProjectRoot, wt.Branch)
+						actCtx.PullRequest = pr
+						break
+					}
+				}
+			}
+		}
+	}
+
 	if err := r.AgentMgr.SendMessage(beanID, workDir, action.PromptFunc(actCtx), nil); err != nil {
 		return false, err
 	}
@@ -891,7 +908,20 @@ func (r *queryResolver) Worktrees(ctx context.Context) ([]*model.Worktree, error
 
 	result := make([]*model.Worktree, len(wts))
 	for i, wt := range wts {
-		result[i] = worktreeToModel(&wt, r.Core, r.WorktreeMgr.BaseRef(), true)
+		m := worktreeToModel(&wt, r.Core, r.WorktreeMgr.BaseRef(), true)
+		// Look up PR for this branch (only on explicit queries, not subscriptions)
+		if r.Forge != nil {
+			if pr, _ := r.Forge.FindPR(ctx, r.ProjectRoot, wt.Branch); pr != nil {
+				m.PullRequest = &model.PullRequest{
+					Number:  pr.Number,
+					Title:   pr.Title,
+					State:   pr.State,
+					URL:     pr.URL,
+					IsDraft: pr.IsDraft,
+				}
+			}
+		}
+		result[i] = m
 	}
 	return result, nil
 }
@@ -1108,6 +1138,7 @@ func (r *queryResolver) AgentActions(ctx context.Context, beanID string) ([]*mod
 	actCtx := actionContext{WorktreeID: beanID}
 
 	// Check if this worktree exists and gather its state
+	var branch string
 	if r.WorktreeMgr != nil {
 		actCtx.MainRepoHasChanges = gitutil.HasChanges(r.WorktreeMgr.RepoRoot())
 
@@ -1117,9 +1148,19 @@ func (r *queryResolver) AgentActions(ctx context.Context, beanID string) ([]*mod
 					actCtx.WorkDir = wt.Path
 					actCtx.HasChanges = gitutil.HasChanges(wt.Path)
 					actCtx.HasNewCommits = gitutil.HasUnmergedCommits(wt.Path, r.WorktreeMgr.BaseRef())
+					branch = wt.Branch
 					break
 				}
 			}
+		}
+	}
+
+	// Populate forge context
+	if r.Forge != nil {
+		actCtx.ForgeCLI = r.Forge.CLIName()
+		if branch != "" {
+			pr, _ := r.Forge.FindPR(ctx, r.ProjectRoot, branch)
+			actCtx.PullRequest = pr
 		}
 	}
 
@@ -1128,10 +1169,14 @@ func (r *queryResolver) AgentActions(ctx context.Context, beanID string) ([]*mod
 		if a.Visible != nil && !a.Visible(actCtx) {
 			continue
 		}
+		label := a.Label
+		if a.LabelFunc != nil {
+			label = a.LabelFunc(actCtx)
+		}
 		desc := a.Description
 		action := &model.AgentAction{
 			ID:          a.ID,
-			Label:       a.Label,
+			Label:       label,
 			Description: &desc,
 		}
 		if a.Disabled != nil {

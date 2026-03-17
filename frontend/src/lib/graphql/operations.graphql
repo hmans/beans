@@ -31,6 +31,13 @@ fragment WorktreeFields on Worktree {
   }
   setupStatus
   setupError
+  pullRequest {
+    number
+    title
+    state
+    url
+    isDraft
+  }
 }
 
 fragment AgentSessionFields on AgentSession {

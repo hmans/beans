@@ -252,6 +252,20 @@ type PendingInteraction struct {
 	Questions []*AskUserQuestion `json:"questions,omitempty"`
 }
 
+// A pull/merge request on a git forge (GitHub, GitLab, etc.)
+type PullRequest struct {
+	// PR number on the forge
+	Number int `json:"number"`
+	// PR title
+	Title string `json:"title"`
+	// Current state: open, closed, merged
+	State string `json:"state"`
+	// Web URL to view the PR
+	URL string `json:"url"`
+	// Whether this PR is a draft
+	IsDraft bool `json:"isDraft"`
+}
+
 type Query struct {
 }
 
@@ -340,6 +354,8 @@ type Worktree struct {
 	SetupStatus *WorktreeSetupStatus `json:"setupStatus,omitempty"`
 	// Error message if setup failed
 	SetupError *string `json:"setupError,omitempty"`
+	// Open pull/merge request for this worktree's branch (null if none)
+	PullRequest *PullRequest `json:"pullRequest,omitempty"`
 }
 
 // Role of an agent message sender
