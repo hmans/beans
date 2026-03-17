@@ -275,6 +275,9 @@ REMINDER: Do NOT push anything to any remote. The integrate action is purely loc
 			if ctx.PullRequest == nil {
 				return "Create PR"
 			}
+			if ctx.PullRequest.State == "merged" {
+				return "PR Merged"
+			}
 			if ctx.HasChanges || ctx.HasUnpushedCommits {
 				return "Update PR"
 			}
@@ -296,6 +299,13 @@ REMINDER: Do NOT push anything to any remote. The integrate action is purely loc
 		PromptFunc: func(ctx actionContext) string {
 			cli := ctx.ForgeCLI
 			if ctx.PullRequest != nil {
+				// PR Merged — clean up
+				if ctx.PullRequest.State == "merged" {
+					return fmt.Sprintf(`The pull request %s has been merged successfully.
+
+Mark any associated beans as completed.`, ctx.PullRequest.URL)
+				}
+
 				// Fix Tests — checks failed, inspect and fix
 				if !ctx.HasChanges && !ctx.HasUnpushedCommits && ctx.PullRequest.Checks == forge.CheckStatusFail {
 					return fmt.Sprintf(`CI checks have failed on pull request %s.
@@ -315,9 +325,14 @@ After pushing, the checks will re-run automatically.`, ctx.PullRequest.URL, cli,
 				if !ctx.HasChanges && !ctx.HasUnpushedCommits && ctx.PullRequest.CanMerge() {
 					return fmt.Sprintf(`The pull request %s is ready to merge. All checks are passing and the PR is approved.
 
-Merge the PR using: %s pr merge %d --squash --delete-branch
+Merge the PR using: %s pr merge %d
 
-After merging, report the merge result.`, ctx.PullRequest.URL, cli, ctx.PullRequest.Number)
+Do NOT pass --squash, --rebase, or --merge flags — let the repository's merge settings decide the strategy.
+Do NOT switch branches or check out main after merging — stay on the current branch.
+
+After merging:
+1. Report the merge result.
+2. Mark any associated beans as completed.`, ctx.PullRequest.URL, cli, ctx.PullRequest.Number)
 				}
 
 				// Update PR — push latest commits

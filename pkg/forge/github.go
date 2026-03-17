@@ -56,20 +56,40 @@ func (g *GitHub) FindPR(ctx context.Context, repoDir string, branch string) (*Pu
 		return nil, fmt.Errorf("parsing gh pr list output: %w", err)
 	}
 	if len(prs) == 0 {
-		return nil, nil
+		// No open PR — check for a recently merged one
+		mergedCmd := exec.CommandContext(ctx, "gh", "pr", "list",
+			"--head", branch,
+			"--state", "merged",
+			"--json", "number,url",
+			"--limit", "1",
+		)
+		mergedCmd.Dir = repoDir
+		mergedOut, err := mergedCmd.Output()
+		if err != nil {
+			return nil, nil
+		}
+		var merged []ghPRList
+		if err := json.Unmarshal(mergedOut, &merged); err != nil || len(merged) == 0 {
+			return nil, nil
+		}
+		// Return merged PR with minimal details
+		return g.fetchPRDetails(ctx, repoDir, merged[0].Number, merged[0].URL)
 	}
 
-	// Now fetch full details including merge readiness
-	viewCmd := exec.CommandContext(ctx, "gh", "pr", "view", fmt.Sprintf("%d", prs[0].Number),
+	return g.fetchPRDetails(ctx, repoDir, prs[0].Number, prs[0].URL)
+}
+
+// fetchPRDetails fetches full PR details by number, falling back to minimal info on failure.
+func (g *GitHub) fetchPRDetails(ctx context.Context, repoDir string, number int, fallbackURL string) (*PullRequest, error) {
+	viewCmd := exec.CommandContext(ctx, "gh", "pr", "view", fmt.Sprintf("%d", number),
 		"--json", "number,title,state,url,isDraft,mergeStateStatus,reviewDecision,statusCheckRollup",
 	)
 	viewCmd.Dir = repoDir
 	viewOut, err := viewCmd.Output()
 	if err != nil {
-		// Fall back to minimal info from list
 		return &PullRequest{
-			Number: prs[0].Number,
-			URL:    prs[0].URL,
+			Number: number,
+			URL:    fallbackURL,
 			State:  "open",
 		}, nil
 	}
@@ -77,8 +97,8 @@ func (g *GitHub) FindPR(ctx context.Context, repoDir string, branch string) (*Pu
 	var pr ghPRView
 	if err := json.Unmarshal(viewOut, &pr); err != nil {
 		return &PullRequest{
-			Number: prs[0].Number,
-			URL:    prs[0].URL,
+			Number: number,
+			URL:    fallbackURL,
 			State:  "open",
 		}, nil
 	}

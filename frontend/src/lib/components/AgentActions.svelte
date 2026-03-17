@@ -28,6 +28,7 @@
   function prActionStyle(label: string): string {
     switch (label) {
       case 'Merge PR':
+      case 'PR Merged':
         return 'border-success/30 bg-success/10 text-success hover:bg-success/20';
       case 'Checks Running':
         return 'border-warning/30 bg-warning/10 text-warning';
@@ -62,6 +63,8 @@
       <span class="icon-[uil--check] size-4"></span>
     {:else if action.id === 'create-pr' && action.label === 'Loading...'}
       <div class="loader size-4"></div>
+    {:else if action.id === 'create-pr' && action.label === 'PR Merged'}
+      <span class="icon-[uil--check-circle] size-4"></span>
     {:else if action.id === 'create-pr' && action.label === 'Merge PR'}
       <span class="icon-[uil--check-circle] size-4"></span>
     {:else if action.id === 'create-pr' && action.label === 'Checks Running'}
