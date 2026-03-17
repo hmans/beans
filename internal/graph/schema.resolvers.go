@@ -12,10 +12,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/hmans/beans/internal/agent"
 	"github.com/hmans/beans/internal/gitutil"
 	"github.com/hmans/beans/internal/graph/model"
+	"github.com/hmans/beans/internal/worktree"
 	"github.com/hmans/beans/pkg/bean"
 	"github.com/hmans/beans/pkg/beancore"
 	"github.com/hmans/beans/pkg/config"
@@ -1331,22 +1333,50 @@ func (r *subscriptionResolver) WorktreesChanged(ctx context.Context) (<-chan []*
 	ch := r.WorktreeMgr.Subscribe()
 	out := make(chan []*model.Worktree)
 
+	// buildWorktreeList converts worktree structs to GraphQL models without PR data.
+	buildWorktreeList := func(wts []worktree.Worktree) []*model.Worktree {
+		result := make([]*model.Worktree, len(wts))
+		for i, wt := range wts {
+			result[i] = worktreeToModel(&wt, r.Core, r.WorktreeMgr.BaseRef(), false)
+		}
+		return result
+	}
+
+	// populatePRsAsync fetches PR data for all worktrees in parallel,
+	// then re-emits the updated list on the output channel.
+	populatePRsAsync := func(result []*model.Worktree) {
+		if r.Forge == nil || len(result) == 0 {
+			return
+		}
+		var wg sync.WaitGroup
+		for i := range result {
+			wg.Add(1)
+			go func(m *model.Worktree) {
+				defer wg.Done()
+				populatePR(ctx, m, r.Forge, r.ProjectRoot)
+			}(result[i])
+		}
+		wg.Wait()
+		select {
+		case out <- result:
+		case <-ctx.Done():
+		}
+	}
+
 	go func() {
 		defer r.WorktreeMgr.Unsubscribe(ch)
 		defer close(out)
 
-		// Emit the current list immediately (with PR data for the initial snapshot)
+		// Emit the current list immediately without PR data, then
+		// fetch PR data in the background and re-emit.
 		if wts, err := r.WorktreeMgr.List(); err == nil {
-			result := make([]*model.Worktree, len(wts))
-			for i, wt := range wts {
-				result[i] = worktreeToModel(&wt, r.Core, r.WorktreeMgr.BaseRef(), false)
-				populatePR(ctx, result[i], r.Forge, r.ProjectRoot)
-			}
+			result := buildWorktreeList(wts)
 			select {
 			case out <- result:
 			case <-ctx.Done():
 				return
 			}
+			go populatePRsAsync(result)
 		}
 
 		// Then emit on each change
@@ -1362,16 +1392,13 @@ func (r *subscriptionResolver) WorktreesChanged(ctx context.Context) (<-chan []*
 				if err != nil {
 					continue
 				}
-				result := make([]*model.Worktree, len(wts))
-				for i, wt := range wts {
-					result[i] = worktreeToModel(&wt, r.Core, r.WorktreeMgr.BaseRef(), false)
-					populatePR(ctx, result[i], r.Forge, r.ProjectRoot)
-				}
+				result := buildWorktreeList(wts)
 				select {
 				case out <- result:
 				case <-ctx.Done():
 					return
 				}
+				go populatePRsAsync(result)
 			}
 		}
 	}()
