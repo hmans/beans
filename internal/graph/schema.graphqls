@@ -93,6 +93,14 @@ type Query {
   When non-empty, the UI shows a "Run" button in workspace toolbars.
   """
   worktreeRunCommand: String!
+
+  """
+  The configured integration mode for worktrees (from worktree.integrate config).
+  "local" = squash-merge locally (hides PR buttons).
+  "pr" = push and create PRs (hides Integrate button).
+  Defaults to "local".
+  """
+  worktreeIntegrateMode: String!
 }
 
 type Subscription {

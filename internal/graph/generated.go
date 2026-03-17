@@ -195,22 +195,23 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		AgentActions       func(childComplexity int, beanID string, skipForge *bool) int
-		AgentEnabled       func(childComplexity int) int
-		AgentSession       func(childComplexity int, beanID string) int
-		AllFileChanges     func(childComplexity int, path *string) int
-		AllFileDiff        func(childComplexity int, filePath string, path *string) int
-		Bean               func(childComplexity int, id string) int
-		Beans              func(childComplexity int, filter *model.BeanFilter) int
-		BranchStatus       func(childComplexity int, path *string) int
-		FileChanges        func(childComplexity int, path *string) int
-		FileDiff           func(childComplexity int, filePath string, staged bool, path *string) int
-		HasDirtyBeans      func(childComplexity int) int
-		MainBranch         func(childComplexity int) int
-		ProjectName        func(childComplexity int) int
-		WorktreeBaseRef    func(childComplexity int) int
-		WorktreeRunCommand func(childComplexity int) int
-		Worktrees          func(childComplexity int) int
+		AgentActions          func(childComplexity int, beanID string, skipForge *bool) int
+		AgentEnabled          func(childComplexity int) int
+		AgentSession          func(childComplexity int, beanID string) int
+		AllFileChanges        func(childComplexity int, path *string) int
+		AllFileDiff           func(childComplexity int, filePath string, path *string) int
+		Bean                  func(childComplexity int, id string) int
+		Beans                 func(childComplexity int, filter *model.BeanFilter) int
+		BranchStatus          func(childComplexity int, path *string) int
+		FileChanges           func(childComplexity int, path *string) int
+		FileDiff              func(childComplexity int, filePath string, staged bool, path *string) int
+		HasDirtyBeans         func(childComplexity int) int
+		MainBranch            func(childComplexity int) int
+		ProjectName           func(childComplexity int) int
+		WorktreeBaseRef       func(childComplexity int) int
+		WorktreeIntegrateMode func(childComplexity int) int
+		WorktreeRunCommand    func(childComplexity int) int
+		Worktrees             func(childComplexity int) int
 	}
 
 	SubagentActivity struct {
@@ -300,6 +301,7 @@ type QueryResolver interface {
 	AgentEnabled(ctx context.Context) (bool, error)
 	WorktreeBaseRef(ctx context.Context) (string, error)
 	WorktreeRunCommand(ctx context.Context) (string, error)
+	WorktreeIntegrateMode(ctx context.Context) (string, error)
 }
 type SubscriptionResolver interface {
 	BeanChanged(ctx context.Context, includeInitial *bool) (<-chan *model.BeanChangeEvent, error)
@@ -1206,6 +1208,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.WorktreeBaseRef(childComplexity), true
+	case "Query.worktreeIntegrateMode":
+		if e.complexity.Query.WorktreeIntegrateMode == nil {
+			break
+		}
+
+		return e.complexity.Query.WorktreeIntegrateMode(childComplexity), true
 	case "Query.worktreeRunCommand":
 		if e.complexity.Query.WorktreeRunCommand == nil {
 			break
@@ -6842,6 +6850,35 @@ func (ec *executionContext) fieldContext_Query_worktreeRunCommand(_ context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_worktreeIntegrateMode(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_worktreeIntegrateMode,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Query().WorktreeIntegrateMode(ctx)
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_worktreeIntegrateMode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -11350,6 +11387,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_worktreeRunCommand(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "worktreeIntegrateMode":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_worktreeIntegrateMode(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}

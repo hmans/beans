@@ -1235,6 +1235,96 @@ func TestSaveAlwaysIncludesWorktreeStubs(t *testing.T) {
 	}
 }
 
+func TestGetWorktreeIntegrate(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    IntegrateMode
+		expected IntegrateMode
+	}{
+		{"default (empty)", "", IntegrateModeLocal},
+		{"local", IntegrateModeLocal, IntegrateModeLocal},
+		{"pr", IntegrateModePR, IntegrateModePR},
+		{"invalid value", "garbage", IntegrateModeLocal},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Default()
+			cfg.Worktree.Integrate = tt.value
+			if got := cfg.GetWorktreeIntegrate(); got != tt.expected {
+				t.Errorf("GetWorktreeIntegrate() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestWorktreeIntegrateLoadAndSave(t *testing.T) {
+	t.Run("loads from config file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		configPath := filepath.Join(tmpDir, ConfigFileName)
+
+		configContent := `beans:
+  prefix: test-
+worktree:
+  integrate: pr
+`
+		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+			t.Fatalf("WriteFile error = %v", err)
+		}
+
+		cfg, err := Load(configPath)
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		if cfg.GetWorktreeIntegrate() != IntegrateModePR {
+			t.Errorf("GetWorktreeIntegrate() = %q, want %q", cfg.GetWorktreeIntegrate(), IntegrateModePR)
+		}
+	})
+
+	t.Run("saves to config file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		cfg := DefaultWithPrefix("test-")
+		cfg.Worktree.Integrate = IntegrateModePR
+		cfg.SetConfigDir(tmpDir)
+
+		if err := cfg.Save(tmpDir); err != nil {
+			t.Fatalf("Save() error = %v", err)
+		}
+
+		data, err := os.ReadFile(filepath.Join(tmpDir, ConfigFileName))
+		if err != nil {
+			t.Fatalf("ReadFile error = %v", err)
+		}
+
+		content := string(data)
+		if !strings.Contains(content, "integrate: pr") {
+			t.Errorf("expected integrate: pr in saved config, got:\n%s", content)
+		}
+	})
+
+	t.Run("default saves as local", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		cfg := DefaultWithPrefix("test-")
+		cfg.SetConfigDir(tmpDir)
+
+		if err := cfg.Save(tmpDir); err != nil {
+			t.Fatalf("Save() error = %v", err)
+		}
+
+		data, err := os.ReadFile(filepath.Join(tmpDir, ConfigFileName))
+		if err != nil {
+			t.Fatalf("ReadFile error = %v", err)
+		}
+
+		content := string(data)
+		if !strings.Contains(content, "integrate: local") {
+			t.Errorf("expected integrate: local in saved config, got:\n%s", content)
+		}
+	})
+}
+
 func TestGetServerPort(t *testing.T) {
 	t.Run("returns default when not configured", func(t *testing.T) {
 		cfg := Default()

@@ -165,6 +165,7 @@ type actionContext struct {
 	PullRequest        *forge.PullRequest
 	ForgeCLI           string // "gh", "glab", or "" if no forge detected
 	ForgeLoading       bool   // true when forge is detected but PR state hasn't been fetched yet
+	IntegrateMode      string // "local" or "pr" — controls which integration buttons are visible
 }
 
 // agentActionDef defines a single agent action with its metadata and prompt.
@@ -249,6 +250,9 @@ CRITICAL SAFETY RULES — READ BEFORE DOING ANYTHING:
 REMINDER: Do NOT push anything to any remote. The integrate action is purely local.`, ctx.MainRepoPath)
 		},
 		Visible: func(ctx actionContext) bool {
+			if ctx.IntegrateMode == "pr" {
+				return false
+			}
 			if ctx.PullRequest != nil {
 				return false
 			}
@@ -360,6 +364,9 @@ Push the latest changes to update it:
 4. Report the PR URL when done.`, cli)
 		},
 		Visible: func(ctx actionContext) bool {
+			if ctx.IntegrateMode == "local" {
+				return false
+			}
 			if ctx.ForgeCLI == "" {
 				return false
 			}

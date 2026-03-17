@@ -1128,6 +1128,13 @@ func (r *queryResolver) AgentActions(ctx context.Context, beanID string, skipFor
 	// Build action context for visibility filtering
 	actCtx := actionContext{WorktreeID: beanID}
 
+	// Set integrate mode from config
+	if cfg := r.Core.Config(); cfg != nil {
+		actCtx.IntegrateMode = string(cfg.GetWorktreeIntegrate())
+	} else {
+		actCtx.IntegrateMode = string(config.IntegrateModeLocal)
+	}
+
 	// Check if this worktree exists and gather its state
 	var branch string
 	if r.WorktreeMgr != nil {
@@ -1228,6 +1235,15 @@ func (r *queryResolver) WorktreeRunCommand(ctx context.Context) (string, error) 
 		return "", nil
 	}
 	return cfg.GetWorktreeRun(), nil
+}
+
+// WorktreeIntegrateMode is the resolver for the worktreeIntegrateMode field.
+func (r *queryResolver) WorktreeIntegrateMode(ctx context.Context) (string, error) {
+	cfg := r.Core.Config()
+	if cfg == nil {
+		return string(config.IntegrateModeLocal), nil
+	}
+	return string(cfg.GetWorktreeIntegrate()), nil
 }
 
 // BeanChanged is the resolver for the beanChanged field.

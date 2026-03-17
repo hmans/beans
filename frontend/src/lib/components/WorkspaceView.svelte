@@ -142,7 +142,7 @@
     </button>
     {#snippet right()}
       <AgentActions beanId={worktreeId} {agentBusy} onExecute={() => scrollToBottomTrigger++} />
-      {#if worktree?.pullRequest}
+      {#if worktree?.pullRequest && configStore.worktreeIntegrateMode === 'pr'}
         <a
           class="btn-toggle ml-1 cursor-pointer border-accent/30 bg-accent/10 text-accent hover:bg-accent/20"
           href={worktree.pullRequest.url}

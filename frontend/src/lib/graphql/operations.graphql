@@ -145,6 +145,7 @@ query Config {
   agentEnabled
   worktreeBaseRef
   worktreeRunCommand
+  worktreeIntegrateMode
 }
 
 query Worktrees {
