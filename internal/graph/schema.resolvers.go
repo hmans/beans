@@ -1124,7 +1124,7 @@ func (r *queryResolver) HasDirtyBeans(ctx context.Context) (bool, error) {
 }
 
 // AgentActions is the resolver for the agentActions field.
-func (r *queryResolver) AgentActions(ctx context.Context, beanID string) ([]*model.AgentAction, error) {
+func (r *queryResolver) AgentActions(ctx context.Context, beanID string, skipForge *bool) ([]*model.AgentAction, error) {
 	// Build action context for visibility filtering
 	actCtx := actionContext{WorktreeID: beanID}
 
@@ -1148,8 +1148,8 @@ func (r *queryResolver) AgentActions(ctx context.Context, beanID string) ([]*mod
 		}
 	}
 
-	// Populate forge context
-	if r.Forge != nil {
+	// Populate forge context (skip if caller wants local-only actions for fast initial render)
+	if r.Forge != nil && !(skipForge != nil && *skipForge) {
 		actCtx.ForgeCLI = r.Forge.CLIName()
 		if branch != "" {
 			pr, _ := r.Forge.FindPR(ctx, r.ProjectRoot, branch)

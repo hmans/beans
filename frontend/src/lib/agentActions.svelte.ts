@@ -15,9 +15,13 @@ export class AgentActionsStore {
   #wasAgentBusy = false;
   #pollTimer: ReturnType<typeof setInterval> | null = null;
 
-  async fetch(beanId: string) {
+  async fetch(beanId: string, skipForge?: boolean) {
     const result = await client
-      .query(AgentActionsDocument, { beanId }, { requestPolicy: 'network-only' })
+      .query(
+        AgentActionsDocument,
+        { beanId, skipForge: skipForge ?? null },
+        { requestPolicy: 'network-only' }
+      )
       .toPromise();
     if (result.error) {
       console.error('Failed to fetch agent actions:', result.error);

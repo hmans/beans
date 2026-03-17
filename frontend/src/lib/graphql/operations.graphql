@@ -174,8 +174,8 @@ query BranchStatus($path: String) {
   }
 }
 
-query AgentActions($beanId: ID!) {
-  agentActions(beanId: $beanId) {
+query AgentActions($beanId: ID!, $skipForge: Boolean) {
+  agentActions(beanId: $beanId, skipForge: $skipForge) {
     ...AgentActionFields
   }
 }

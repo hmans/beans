@@ -195,7 +195,7 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		AgentActions       func(childComplexity int, beanID string) int
+		AgentActions       func(childComplexity int, beanID string, skipForge *bool) int
 		AgentEnabled       func(childComplexity int) int
 		AgentSession       func(childComplexity int, beanID string) int
 		AllFileChanges     func(childComplexity int, path *string) int
@@ -294,7 +294,7 @@ type QueryResolver interface {
 	AllFileDiff(ctx context.Context, filePath string, path *string) (string, error)
 	BranchStatus(ctx context.Context, path *string) (*model.BranchStatus, error)
 	HasDirtyBeans(ctx context.Context) (bool, error)
-	AgentActions(ctx context.Context, beanID string) ([]*model.AgentAction, error)
+	AgentActions(ctx context.Context, beanID string, skipForge *bool) ([]*model.AgentAction, error)
 	ProjectName(ctx context.Context) (string, error)
 	MainBranch(ctx context.Context) (string, error)
 	AgentEnabled(ctx context.Context) (bool, error)
@@ -1087,7 +1087,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Query.AgentActions(childComplexity, args["beanId"].(string)), true
+		return e.complexity.Query.AgentActions(childComplexity, args["beanId"].(string), args["skipForge"].(*bool)), true
 	case "Query.agentEnabled":
 		if e.complexity.Query.AgentEnabled == nil {
 			break
@@ -1920,6 +1920,11 @@ func (ec *executionContext) field_Query_agentActions_args(ctx context.Context, r
 		return nil, err
 	}
 	args["beanId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "skipForge", ec.unmarshalOBoolean2ᚖbool)
+	if err != nil {
+		return nil, err
+	}
+	args["skipForge"] = arg1
 	return args, nil
 }
 
@@ -6647,7 +6652,7 @@ func (ec *executionContext) _Query_agentActions(ctx context.Context, field graph
 		ec.fieldContext_Query_agentActions,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Query().AgentActions(ctx, fc.Args["beanId"].(string))
+			return ec.resolvers.Query().AgentActions(ctx, fc.Args["beanId"].(string), fc.Args["skipForge"].(*bool))
 		},
 		nil,
 		ec.marshalNAgentAction2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentActionᚄ,

@@ -13,7 +13,9 @@
   const store = new AgentActionsStore();
 
   $effect(() => {
-    store.fetch(beanId);
+    // Fast initial fetch (skip forge/PR lookup) so local actions render instantly,
+    // then start polling which includes forge data for PR button states.
+    store.fetch(beanId, true);
     store.startPolling(beanId);
     return () => store.stopPolling();
   });

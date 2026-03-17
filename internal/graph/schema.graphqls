@@ -59,9 +59,11 @@ type Query {
   hasDirtyBeans: Boolean!
 
   """
-  Get available agent actions for a bean
+  Get available agent actions for a bean.
+  When skipForge is true, forge-dependent actions (PR buttons) are omitted
+  for a faster response — useful for the initial render before polling kicks in.
   """
-  agentActions(beanId: ID!): [AgentAction!]!
+  agentActions(beanId: ID!, skipForge: Boolean): [AgentAction!]!
 
   """
   Human-readable project name from configuration.
