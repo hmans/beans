@@ -8,12 +8,15 @@ import {
 export type AgentAction = AgentActionFieldsFragment;
 
 const PR_POLL_INTERVAL = 10_000;
+/** Delay before the follow-up re-fetch after agent idle, giving CI providers time to register new checks. */
+const POST_IDLE_REFETCH_DELAY = 5_000;
 
 export class AgentActionsStore {
   actions = $state<AgentAction[]>([]);
   executingAction = $state<string | null>(null);
   #wasAgentBusy = false;
   #pollTimer: ReturnType<typeof setInterval> | null = null;
+  #postIdleTimer: ReturnType<typeof setTimeout> | null = null;
 
   async fetch(beanId: string, skipForge?: boolean) {
     const result = await client
@@ -38,9 +41,21 @@ export class AgentActionsStore {
    */
   notifyAgentStatus(beanId: string, busy: boolean) {
     if (this.#wasAgentBusy && !busy) {
+      // Immediate fetch for actions that don't depend on external CI state.
       this.fetch(beanId);
+      // Delayed re-fetch to pick up CI check status that GitHub may not have
+      // registered yet right after the agent pushed.
+      this.#clearPostIdleTimer();
+      this.#postIdleTimer = setTimeout(() => this.fetch(beanId), POST_IDLE_REFETCH_DELAY);
     }
     this.#wasAgentBusy = busy;
+  }
+
+  #clearPostIdleTimer() {
+    if (this.#postIdleTimer) {
+      clearTimeout(this.#postIdleTimer);
+      this.#postIdleTimer = null;
+    }
   }
 
   /** Start polling agent actions to keep PR check status fresh. */
@@ -54,6 +69,7 @@ export class AgentActionsStore {
       clearInterval(this.#pollTimer);
       this.#pollTimer = null;
     }
+    this.#clearPostIdleTimer();
   }
 
   async execute(beanId: string, actionId: string) {
