@@ -7,13 +7,18 @@ import {
 
 export type AgentAction = AgentActionFieldsFragment;
 
+const PR_POLL_INTERVAL = 10_000;
+
 export class AgentActionsStore {
   actions = $state<AgentAction[]>([]);
   executingAction = $state<string | null>(null);
   #wasAgentBusy = false;
+  #pollTimer: ReturnType<typeof setInterval> | null = null;
 
   async fetch(beanId: string) {
-    const result = await client.query(AgentActionsDocument, { beanId }).toPromise();
+    const result = await client
+      .query(AgentActionsDocument, { beanId }, { requestPolicy: 'network-only' })
+      .toPromise();
     if (result.error) {
       console.error('Failed to fetch agent actions:', result.error);
       return;
@@ -32,6 +37,19 @@ export class AgentActionsStore {
       this.fetch(beanId);
     }
     this.#wasAgentBusy = busy;
+  }
+
+  /** Start polling agent actions to keep PR check status fresh. */
+  startPolling(beanId: string) {
+    this.stopPolling();
+    this.#pollTimer = setInterval(() => this.fetch(beanId), PR_POLL_INTERVAL);
+  }
+
+  stopPolling() {
+    if (this.#pollTimer) {
+      clearInterval(this.#pollTimer);
+      this.#pollTimer = null;
+    }
   }
 
   async execute(beanId: string, actionId: string) {

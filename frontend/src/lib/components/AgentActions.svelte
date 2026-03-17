@@ -14,6 +14,8 @@
 
   $effect(() => {
     store.fetch(beanId);
+    store.startPolling(beanId);
+    return () => store.stopPolling();
   });
 
   $effect(() => {

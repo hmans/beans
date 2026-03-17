@@ -1345,6 +1345,7 @@ func (r *subscriptionResolver) WorktreesChanged(ctx context.Context) (<-chan []*
 				result := make([]*model.Worktree, len(wts))
 				for i, wt := range wts {
 					result[i] = worktreeToModel(&wt, r.Core, r.WorktreeMgr.BaseRef(), false)
+					populatePR(ctx, result[i], r.Forge, r.ProjectRoot)
 				}
 				select {
 				case out <- result:
