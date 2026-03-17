@@ -29,7 +29,12 @@ func GenerateQuickReplies(message string) []string {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "claude", "--print", "--model", "haiku")
+	cmd := exec.CommandContext(ctx, "claude",
+		"--print", "--model", "haiku",
+		"--no-session-persistence",
+		"--disable-slash-commands",
+		"--strict-mcp-config", "--mcp-config", `{"mcpServers":{}}`,
+	)
 	cmd.Env = buildClaudeEnv()
 	cmd.Stdin = strings.NewReader(prompt)
 

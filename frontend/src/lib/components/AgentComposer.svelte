@@ -177,7 +177,7 @@
         <button
           type="button"
           onclick={() => onSend(reply)}
-          class="cursor-pointer rounded-full border border-border bg-surface-alt px-3 py-1
+          class="cursor-pointer rounded border border-border bg-surface-alt px-3 py-1
             text-text-muted transition-colors hover:border-accent/40 hover:bg-accent/10 hover:text-accent"
         >
           {reply}
