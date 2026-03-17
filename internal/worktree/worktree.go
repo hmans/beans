@@ -110,6 +110,13 @@ func (m *Manager) fetchBaseRef() {
 		ref = parts[1]
 	}
 
+	// Skip fetch if the remote doesn't exist (e.g., local-only test repos)
+	checkCmd := exec.Command("git", "remote", "get-url", remote)
+	checkCmd.Dir = m.repoRoot
+	if err := checkCmd.Run(); err != nil {
+		return
+	}
+
 	cmd := exec.Command("git", "fetch", remote, ref)
 	cmd.Dir = m.repoRoot
 	if out, err := cmd.CombinedOutput(); err != nil {
