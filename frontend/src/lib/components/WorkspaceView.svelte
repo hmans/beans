@@ -37,10 +37,6 @@
     if (result.data) {
       isRunning = true;
       runPort = result.data.startRun;
-
-      // Show and initialize the terminal pane
-      ui.terminalInitialized = true;
-      ui.showTerminal = true;
     }
   }
 
@@ -129,28 +125,41 @@
   <AgentChat beanId={worktreeId} store={agentStore} {setupRunning} {scrollToBottomTrigger} />
 {/snippet}
 
-{#snippet terminalPanel()}
-  {#if ui.terminalInitialized}
-    <div class="flex h-full min-h-0 flex-row bg-surface">
-      <div class="flex min-w-0 flex-1 flex-col">
-        <div class="pane-toolbar">
-          <span>Terminal</span>
-          <div class="flex-1"></div>
-          <button onclick={() => ui.toggleTerminal()} class="btn-icon cursor-pointer" title="Close">&#x2715;</button>
-        </div>
-        <TerminalPane sessionId={worktreeId} hideToolbar />
-      </div>
-      {#if isRunning}
-        <div class="flex min-w-0 flex-1 flex-col border-l border-border">
-          <div class="pane-toolbar">
-            <span>Run</span>
-          </div>
-          {#key runSessionId}
-            <TerminalPane sessionId={runSessionId} hideToolbar onSessionEnd={handleRunSessionEnd} />
-          {/key}
-        </div>
-      {/if}
+{#snippet shellPane()}
+  <div class="flex h-full min-h-0 flex-col bg-surface">
+    <div class="pane-toolbar">
+      <span>Terminal</span>
+      <div class="flex-1"></div>
+      <button onclick={() => ui.toggleTerminal()} class="btn-icon cursor-pointer" title="Close">&#x2715;</button>
     </div>
+    <TerminalPane sessionId={worktreeId} hideToolbar />
+  </div>
+{/snippet}
+
+{#snippet runPane()}
+  <div class="flex h-full min-h-0 flex-col bg-surface">
+    <div class="pane-toolbar">
+      <span>Run</span>
+    </div>
+    {#key runSessionId}
+      <TerminalPane sessionId={runSessionId} hideToolbar onSessionEnd={handleRunSessionEnd} />
+    {/key}
+  </div>
+{/snippet}
+
+{#snippet terminalPanel()}
+  {#if ui.showTerminal && isRunning}
+    <SplitPane
+      direction="horizontal"
+      panels={[
+        { content: shellPane },
+        { content: runPane, size: 500, persistKey: 'workspace-shell-run' }
+      ]}
+    />
+  {:else if ui.showTerminal && ui.terminalInitialized}
+    {@render shellPane()}
+  {:else if isRunning}
+    {@render runPane()}
   {/if}
 {/snippet}
 
@@ -260,7 +269,7 @@
       direction="vertical"
       panels={[
         { content: mainContent },
-        { content: terminalPanel, size: 300, collapsed: !ui.showTerminal, persistKey: 'workspace-terminal' }
+        { content: terminalPanel, size: 300, collapsed: !(ui.showTerminal || isRunning), persistKey: 'workspace-terminal' }
       ]}
     />
   </div>
