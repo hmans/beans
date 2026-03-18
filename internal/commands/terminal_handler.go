@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -161,8 +162,13 @@ func handleTerminalWS(c *gin.Context, termMgr *terminal.Manager, wtMgr *worktree
 
 // resolveTerminalWorkDir maps a session ID to a filesystem path.
 // "__central__" maps to the project root; other IDs are looked up as worktree bean IDs.
+// The "__run" suffix is stripped before lookup, so run sessions resolve to the same
+// directory as their parent workspace.
 func resolveTerminalWorkDir(sessionID string, wtMgr *worktree.Manager, projectRoot string) (string, error) {
-	if sessionID == "__central__" {
+	// Strip __run suffix so run sessions resolve to the same workspace directory
+	baseID := strings.TrimSuffix(sessionID, "__run")
+
+	if baseID == "__central__" {
 		return projectRoot, nil
 	}
 
@@ -172,7 +178,7 @@ func resolveTerminalWorkDir(sessionID string, wtMgr *worktree.Manager, projectRo
 	}
 
 	for _, wt := range worktrees {
-		if wt.ID == sessionID {
+		if wt.ID == baseID {
 			return wt.Path, nil
 		}
 	}

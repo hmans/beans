@@ -25,7 +25,6 @@
   // Run session state
   let isRunning = $state(false);
   let runPort = $state(0);
-  let terminalTab = $state<'shell' | 'run'>('shell');
 
   const runSessionId = $derived(worktreeId + '__run');
   const hasRunCommand = $derived(!!configStore.worktreeRunCommand);
@@ -38,7 +37,6 @@
     if (result.data) {
       isRunning = true;
       runPort = result.data.startRun;
-      terminalTab = 'run';
 
       // Show and initialize the terminal pane
       ui.terminalInitialized = true;
@@ -53,7 +51,6 @@
 
   function handleRunSessionEnd() {
     isRunning = false;
-    terminalTab = 'shell';
   }
 
   function handleOpenApp() {
@@ -132,34 +129,24 @@
 
 {#snippet terminalPanel()}
   {#if ui.terminalInitialized}
-    <div class="flex h-full min-h-0 flex-col bg-surface">
-      <div class="pane-toolbar">
-        {#if isRunning}
-          <button
-            class={["btn-tab-sm cursor-pointer", terminalTab === 'shell' ? "btn-tab-active" : "btn-tab-inactive"]}
-            onclick={() => (terminalTab = 'shell')}
-          >
-            Shell
-          </button>
-          <button
-            class={["btn-tab-sm cursor-pointer", terminalTab === 'run' ? "btn-tab-active" : "btn-tab-inactive"]}
-            onclick={() => (terminalTab = 'run')}
-          >
-            Run
-          </button>
-        {:else}
+    <div class="flex h-full min-h-0 flex-row bg-surface">
+      <div class="flex min-w-0 flex-1 flex-col">
+        <div class="pane-toolbar">
           <span>Terminal</span>
-        {/if}
-        <div class="flex-1"></div>
-        <button onclick={() => ui.toggleTerminal()} class="btn-icon cursor-pointer" title="Close">&#x2715;</button>
-      </div>
-      {#if terminalTab === 'shell' || !isRunning}
+          <div class="flex-1"></div>
+          <button onclick={() => ui.toggleTerminal()} class="btn-icon cursor-pointer" title="Close">&#x2715;</button>
+        </div>
         <TerminalPane sessionId={worktreeId} hideToolbar />
-      {/if}
-      {#if terminalTab === 'run' && isRunning}
-        {#key runSessionId}
-          <TerminalPane sessionId={runSessionId} hideToolbar onSessionEnd={handleRunSessionEnd} />
-        {/key}
+      </div>
+      {#if isRunning}
+        <div class="flex min-w-0 flex-1 flex-col border-l border-border">
+          <div class="pane-toolbar">
+            <span>Run</span>
+          </div>
+          {#key runSessionId}
+            <TerminalPane sessionId={runSessionId} hideToolbar onSessionEnd={handleRunSessionEnd} />
+          {/key}
+        </div>
       {/if}
     </div>
   {/if}
