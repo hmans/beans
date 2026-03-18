@@ -202,22 +202,7 @@ func (m *Manager) List() ([]Worktree, error) {
 		}
 	}
 
-	// Sort by LastActiveAt descending (most recently active first).
-	// Worktrees with no activity sort to the end.
-	sort.SliceStable(worktrees, func(i, j int) bool {
-		ti, tj := worktrees[i].LastActiveAt, worktrees[j].LastActiveAt
-		if ti.IsZero() && tj.IsZero() {
-			return false
-		}
-		if ti.IsZero() {
-			return false
-		}
-		if tj.IsZero() {
-			return true
-		}
-		return ti.After(tj)
-	})
-
+	// Keep worktrees in git's output order (creation order, oldest first).
 	return worktrees, nil
 }
 

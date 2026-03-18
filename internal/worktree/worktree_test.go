@@ -717,11 +717,11 @@ func TestTouchLastActive(t *testing.T) {
 	}
 }
 
-func TestListSortsByLastActiveAt(t *testing.T) {
+func TestListKeepsCreationOrder(t *testing.T) {
 	repoDir, _, wtRoot := initTestRepo(t)
 	mgr := NewManager(repoDir, wtRoot, "", "")
 
-	// Create three worktrees
+	// Create three worktrees in a specific order
 	_, err := mgr.Create("wt-alpha")
 	if err != nil {
 		t.Fatalf("Create alpha: %v", err)
@@ -735,12 +735,7 @@ func TestListSortsByLastActiveAt(t *testing.T) {
 		t.Fatalf("Create gamma: %v", err)
 	}
 
-	// Touch them in a specific order: beta first, then gamma, then alpha
-	// (with small delays to ensure distinct timestamps)
-	time.Sleep(10 * time.Millisecond)
-	if err := mgr.TouchLastActive("wt-beta"); err != nil {
-		t.Fatalf("TouchLastActive beta: %v", err)
-	}
+	// Touch them in a different order — should NOT affect listing order
 	time.Sleep(10 * time.Millisecond)
 	if err := mgr.TouchLastActive("wt-gamma"); err != nil {
 		t.Fatalf("TouchLastActive gamma: %v", err)
@@ -750,7 +745,7 @@ func TestListSortsByLastActiveAt(t *testing.T) {
 		t.Fatalf("TouchLastActive alpha: %v", err)
 	}
 
-	// List should be sorted: alpha (most recent), gamma, beta
+	// List should preserve creation order: alpha, beta, gamma
 	wts, err := mgr.List()
 	if err != nil {
 		t.Fatalf("List: %v", err)
@@ -760,13 +755,13 @@ func TestListSortsByLastActiveAt(t *testing.T) {
 	}
 
 	if wts[0].ID != "wt-alpha" {
-		t.Errorf("wts[0].ID = %q, want %q (most recently active)", wts[0].ID, "wt-alpha")
+		t.Errorf("wts[0].ID = %q, want %q (created first)", wts[0].ID, "wt-alpha")
 	}
-	if wts[1].ID != "wt-gamma" {
-		t.Errorf("wts[1].ID = %q, want %q", wts[1].ID, "wt-gamma")
+	if wts[1].ID != "wt-beta" {
+		t.Errorf("wts[1].ID = %q, want %q (created second)", wts[1].ID, "wt-beta")
 	}
-	if wts[2].ID != "wt-beta" {
-		t.Errorf("wts[2].ID = %q, want %q (least recently active)", wts[2].ID, "wt-beta")
+	if wts[2].ID != "wt-gamma" {
+		t.Errorf("wts[2].ID = %q, want %q (created third)", wts[2].ID, "wt-gamma")
 	}
 }
 
