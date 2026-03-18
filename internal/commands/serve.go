@@ -203,13 +203,13 @@ func runServer(port int, origins []string) error {
 	// its workspace identity.
 	agentMgr.SetSystemPromptProvider(func(beanID string) string {
 		if beanID == graph.CentralSessionID {
-			return fmt.Sprintf("You are the central planning agent for the beans project. Your working directory is the main repository at: %s", filepath.Dir(core.Root()))
+			return fmt.Sprintf("You are the central planning agent for the beans project. Your working directory is the main repository at: %s\nNEVER merge pull requests. After creating a PR, stop and report the URL. Do not run `gh pr merge` or any equivalent.\nNEVER assume CI checks are absent. Checks take time to register after a push. If `gh pr checks` returns empty, it means checks haven't started yet, not that none are configured.", filepath.Dir(core.Root()))
 		}
 		wtPath := wtManager.WorktreePath(beanID)
 		if wtPath == "" {
 			return ""
 		}
-		return fmt.Sprintf("You are a workspace agent working in a git worktree. Your worktree ID is %q and your working directory is: %s\nAll file modifications MUST be within this directory. NEVER modify files in the main repository or other worktrees.\nNEVER force-push to main. NEVER push to origin/main. The Integrate action is local-only.", beanID, wtPath)
+		return fmt.Sprintf("You are a workspace agent working in a git worktree. Your worktree ID is %q and your working directory is: %s\nAll file modifications MUST be within this directory. NEVER modify files in the main repository or other worktrees.\nNEVER force-push to main. NEVER push to origin/main. The Integrate action is local-only.\nNEVER merge pull requests. After creating a PR, stop and report the URL. Do not run `gh pr merge` or any equivalent.\nNEVER assume CI checks are absent. Checks take time to register after a push. If `gh pr checks` returns empty, it means checks haven't started yet, not that none are configured.", beanID, wtPath)
 	})
 
 	// Post an info message to the workspace's agent chat when setup finishes.
