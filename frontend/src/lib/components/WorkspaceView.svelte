@@ -24,6 +24,12 @@
   import AgentActions from './AgentActions.svelte';
   import ConfirmModal from './ConfirmModal.svelte';
 
+  interface Props {
+    worktreeId: string;
+  }
+
+  let { worktreeId }: Props = $props();
+
   // Run session state
   let isRunning = $state(false);
   let runPort = $state(0);
@@ -60,12 +66,6 @@
   async function handleOpenInEditor() {
     await client.mutation(OpenInEditorDocument, { workspaceId: worktreeId }).toPromise();
   }
-
-  interface Props {
-    worktreeId: string;
-  }
-
-  let { worktreeId }: Props = $props();
 
   const agentStore = new AgentChatStore();
 

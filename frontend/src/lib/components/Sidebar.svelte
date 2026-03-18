@@ -291,6 +291,7 @@
                     ui.selectBeanForView(wtBean.id, item.id);
                     ui.navigateTo(item.id);
                   }}
+                  aria-label={wtBean.title}
                   class={[
                     'flex min-w-0 cursor-pointer items-baseline gap-1.5 rounded border-l-2 bg-surface-alt/50 px-2 py-1 text-left shadow-sm transition-colors hover:bg-surface-alt',
                     typeBorders[wtBean.type] ?? 'border-l-type-task-border'

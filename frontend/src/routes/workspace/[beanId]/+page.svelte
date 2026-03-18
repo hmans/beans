@@ -2,7 +2,7 @@
   import { page } from '$app/state';
   import WorkspaceView from '$lib/components/WorkspaceView.svelte';
 
-  const worktreeId = $derived(page.params.beanId);
+  const worktreeId = $derived(page.params.beanId!);
 </script>
 
 {#key worktreeId}
