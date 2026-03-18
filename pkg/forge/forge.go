@@ -20,6 +20,10 @@ type Provider interface {
 	// FindPR returns the open pull/merge request for the given branch, or nil if none exists.
 	FindPR(ctx context.Context, repoDir string, branch string) (*PullRequest, error)
 
+	// FindPRs returns pull requests for multiple branches in a single batch query.
+	// The returned map is keyed by branch name. Branches with no PR are omitted.
+	FindPRs(ctx context.Context, repoDir string, branches []string) (map[string]*PullRequest, error)
+
 	// CreatePR creates a new pull/merge request and returns it.
 	CreatePR(ctx context.Context, repoDir string, opts CreatePROpts) (*PullRequest, error)
 }
@@ -77,6 +81,32 @@ func Detect(repoDir string) Provider {
 	default:
 		return nil
 	}
+}
+
+// ParseOwnerRepo extracts the owner and repository name from a git remote URL.
+// Supports SSH (git@github.com:owner/repo.git) and HTTPS (https://github.com/owner/repo.git) formats.
+func ParseOwnerRepo(remoteURL string) (owner, repo string, ok bool) {
+	url := strings.TrimSpace(remoteURL)
+	url = strings.TrimSuffix(url, ".git")
+
+	// SSH format: git@github.com:owner/repo
+	if idx := strings.Index(url, ":"); idx != -1 && !strings.Contains(url[:idx], "/") {
+		path := url[idx+1:]
+		parts := strings.SplitN(path, "/", 2)
+		if len(parts) == 2 && parts[0] != "" && parts[1] != "" {
+			return parts[0], parts[1], true
+		}
+	}
+
+	// HTTPS format: https://github.com/owner/repo
+	url = strings.TrimPrefix(url, "https://")
+	url = strings.TrimPrefix(url, "http://")
+	parts := strings.Split(url, "/")
+	if len(parts) >= 3 && parts[1] != "" && parts[2] != "" {
+		return parts[1], parts[2], true
+	}
+
+	return "", "", false
 }
 
 // getOriginURL returns the URL of the "origin" git remote.

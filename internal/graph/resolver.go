@@ -220,23 +220,40 @@ func worktreeToModel(wt *worktree.Worktree, core *beancore.Core, baseRef string,
 	return m
 }
 
-// populatePR looks up the pull request for a worktree's branch via the forge provider
-// and sets it on the model. No-op if forge is nil or lookup fails.
-func populatePR(ctx context.Context, m *model.Worktree, forgeProvider forge.Provider, repoDir string) {
-	if forgeProvider == nil {
+// populatePRsBatch fetches PR data for multiple worktrees in a single batch query
+// and sets the results on the corresponding models.
+func populatePRsBatch(ctx context.Context, worktrees []*model.Worktree, forgeProvider forge.Provider, repoDir string) {
+	if forgeProvider == nil || len(worktrees) == 0 {
 		return
 	}
-	pr, _ := forgeProvider.FindPR(ctx, repoDir, m.Branch)
-	if pr != nil {
-		m.PullRequest = &model.PullRequest{
-			Number:         pr.Number,
-			Title:          pr.Title,
-			State:          pr.State,
-			URL:            pr.URL,
-			IsDraft:        pr.IsDraft,
-			CheckStatus:    string(pr.Checks),
-			ReviewApproved: pr.ReviewApproved,
-			Mergeable:      pr.Mergeable,
+
+	branches := make([]string, len(worktrees))
+	for i, wt := range worktrees {
+		branches[i] = wt.Branch
+	}
+
+	prs, err := forgeProvider.FindPRs(ctx, repoDir, branches)
+	if err != nil {
+		return
+	}
+
+	for _, wt := range worktrees {
+		if pr, ok := prs[wt.Branch]; ok {
+			wt.PullRequest = forgePRToModel(pr)
 		}
+	}
+}
+
+// forgePRToModel converts a forge PullRequest to a GraphQL model PullRequest.
+func forgePRToModel(pr *forge.PullRequest) *model.PullRequest {
+	return &model.PullRequest{
+		Number:         pr.Number,
+		Title:          pr.Title,
+		State:          pr.State,
+		URL:            pr.URL,
+		IsDraft:        pr.IsDraft,
+		CheckStatus:    string(pr.Checks),
+		ReviewApproved: pr.ReviewApproved,
+		Mergeable:      pr.Mergeable,
 	}
 }

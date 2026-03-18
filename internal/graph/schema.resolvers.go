@@ -12,7 +12,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/hmans/beans/internal/agent"
@@ -913,10 +912,9 @@ func (r *queryResolver) Worktrees(ctx context.Context) ([]*model.Worktree, error
 
 	result := make([]*model.Worktree, len(wts))
 	for i, wt := range wts {
-		m := worktreeToModel(&wt, r.Core, r.WorktreeMgr.BaseRef(), true)
-		populatePR(ctx, m, r.Forge, r.ProjectRoot)
-		result[i] = m
+		result[i] = worktreeToModel(&wt, r.Core, r.WorktreeMgr.BaseRef(), true)
 	}
+	populatePRsBatch(ctx, result, r.Forge, r.ProjectRoot)
 	return result, nil
 }
 
@@ -1343,21 +1341,13 @@ func (r *subscriptionResolver) WorktreesChanged(ctx context.Context) (<-chan []*
 		return result
 	}
 
-	// populatePRsAsync fetches PR data for all worktrees in parallel,
+	// populatePRsAsync fetches PR data for all worktrees in a single batch query,
 	// then re-emits the updated list on the output channel.
 	populatePRsAsync := func(result []*model.Worktree) {
 		if r.Forge == nil || len(result) == 0 {
 			return
 		}
-		var wg sync.WaitGroup
-		for i := range result {
-			wg.Add(1)
-			go func(m *model.Worktree) {
-				defer wg.Done()
-				populatePR(ctx, m, r.Forge, r.ProjectRoot)
-			}(result[i])
-		}
-		wg.Wait()
+		populatePRsBatch(ctx, result, r.Forge, r.ProjectRoot)
 		select {
 		case out <- result:
 		case <-ctx.Done():

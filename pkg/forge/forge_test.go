@@ -107,6 +107,150 @@ func TestCanMerge(t *testing.T) {
 	}
 }
 
+func TestParseOwnerRepo(t *testing.T) {
+	tests := []struct {
+		name      string
+		url       string
+		wantOwner string
+		wantRepo  string
+		wantOK    bool
+	}{
+		{"SSH github.com", "git@github.com:owner/repo.git", "owner", "repo", true},
+		{"SSH no .git suffix", "git@github.com:owner/repo", "owner", "repo", true},
+		{"HTTPS github.com", "https://github.com/owner/repo.git", "owner", "repo", true},
+		{"HTTPS no .git suffix", "https://github.com/owner/repo", "owner", "repo", true},
+		{"HTTP", "http://github.com/owner/repo.git", "owner", "repo", true},
+		{"GitHub Enterprise SSH", "git@github.corp.co:org/project.git", "org", "project", true},
+		{"GitHub Enterprise HTTPS", "https://github.example.com/org/project.git", "org", "project", true},
+		{"empty", "", "", "", false},
+		{"no path", "https://github.com", "", "", false},
+		{"single path segment", "https://github.com/owner", "", "", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			owner, repo, ok := ParseOwnerRepo(tc.url)
+			if ok != tc.wantOK {
+				t.Fatalf("ParseOwnerRepo(%q) ok = %v, want %v", tc.url, ok, tc.wantOK)
+			}
+			if owner != tc.wantOwner {
+				t.Errorf("ParseOwnerRepo(%q) owner = %q, want %q", tc.url, owner, tc.wantOwner)
+			}
+			if repo != tc.wantRepo {
+				t.Errorf("ParseOwnerRepo(%q) repo = %q, want %q", tc.url, repo, tc.wantRepo)
+			}
+		})
+	}
+}
+
+func TestGraphQLCheckToStatusCheck(t *testing.T) {
+	tests := []struct {
+		name string
+		node ghGraphQLCheckNode
+		want ghStatusCheck
+	}{
+		{
+			"CheckRun success",
+			ghGraphQLCheckNode{TypeName: "CheckRun", Status: "COMPLETED", Conclusion: "SUCCESS"},
+			ghStatusCheck{Status: "COMPLETED", Conclusion: "SUCCESS"},
+		},
+		{
+			"CheckRun in progress",
+			ghGraphQLCheckNode{TypeName: "CheckRun", Status: "IN_PROGRESS", Conclusion: ""},
+			ghStatusCheck{Status: "IN_PROGRESS", Conclusion: ""},
+		},
+		{
+			"StatusContext success",
+			ghGraphQLCheckNode{TypeName: "StatusContext", State: "SUCCESS"},
+			ghStatusCheck{Status: "COMPLETED", Conclusion: "SUCCESS"},
+		},
+		{
+			"StatusContext pending",
+			ghGraphQLCheckNode{TypeName: "StatusContext", State: "PENDING"},
+			ghStatusCheck{Status: "IN_PROGRESS", Conclusion: ""},
+		},
+		{
+			"StatusContext failure",
+			ghGraphQLCheckNode{TypeName: "StatusContext", State: "FAILURE"},
+			ghStatusCheck{Status: "COMPLETED", Conclusion: "FAILURE"},
+		},
+		{
+			"StatusContext error",
+			ghGraphQLCheckNode{TypeName: "StatusContext", State: "ERROR"},
+			ghStatusCheck{Status: "COMPLETED", Conclusion: "FAILURE"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := graphQLCheckToStatusCheck(tc.node)
+			if got != tc.want {
+				t.Errorf("graphQLCheckToStatusCheck() = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestGraphQLPRToForge(t *testing.T) {
+	pr := ghGraphQLPR{
+		Number:           42,
+		Title:            "Test PR",
+		State:            "OPEN",
+		URL:              "https://github.com/owner/repo/pull/42",
+		IsDraft:          false,
+		MergeStateStatus: "CLEAN",
+		ReviewDecision:   "APPROVED",
+	}
+	pr.Commits.Nodes = []struct {
+		Commit struct {
+			StatusCheckRollup *struct {
+				Contexts struct {
+					Nodes []ghGraphQLCheckNode `json:"nodes"`
+				} `json:"contexts"`
+			} `json:"statusCheckRollup"`
+		} `json:"commit"`
+	}{
+		{Commit: struct {
+			StatusCheckRollup *struct {
+				Contexts struct {
+					Nodes []ghGraphQLCheckNode `json:"nodes"`
+				} `json:"contexts"`
+			} `json:"statusCheckRollup"`
+		}{
+			StatusCheckRollup: &struct {
+				Contexts struct {
+					Nodes []ghGraphQLCheckNode `json:"nodes"`
+				} `json:"contexts"`
+			}{
+				Contexts: struct {
+					Nodes []ghGraphQLCheckNode `json:"nodes"`
+				}{
+					Nodes: []ghGraphQLCheckNode{
+						{TypeName: "CheckRun", Status: "COMPLETED", Conclusion: "SUCCESS"},
+					},
+				},
+			},
+		}},
+	}
+
+	got := graphQLPRToForge(pr)
+	if got.Number != 42 {
+		t.Errorf("Number = %d, want 42", got.Number)
+	}
+	if got.State != "open" {
+		t.Errorf("State = %q, want %q", got.State, "open")
+	}
+	if got.Checks != CheckStatusPass {
+		t.Errorf("Checks = %q, want %q", got.Checks, CheckStatusPass)
+	}
+	if !got.ReviewApproved {
+		t.Error("ReviewApproved = false, want true")
+	}
+	if !got.Mergeable {
+		t.Error("Mergeable = false, want true")
+	}
+}
+
 func TestComputeCheckStatus(t *testing.T) {
 	tests := []struct {
 		name     string

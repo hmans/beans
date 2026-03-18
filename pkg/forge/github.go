@@ -37,6 +37,142 @@ type ghStatusCheck struct {
 	Conclusion string `json:"conclusion"` // "SUCCESS", "FAILURE", "NEUTRAL", "SKIPPED", etc.
 }
 
+// ghGraphQLPR represents a PR node from the GitHub GraphQL API response.
+type ghGraphQLPR struct {
+	Number           int    `json:"number"`
+	Title            string `json:"title"`
+	State            string `json:"state"`
+	URL              string `json:"url"`
+	IsDraft          bool   `json:"isDraft"`
+	MergeStateStatus string `json:"mergeStateStatus"`
+	ReviewDecision   string `json:"reviewDecision"`
+	Commits          struct {
+		Nodes []struct {
+			Commit struct {
+				StatusCheckRollup *struct {
+					Contexts struct {
+						Nodes []ghGraphQLCheckNode `json:"nodes"`
+					} `json:"contexts"`
+				} `json:"statusCheckRollup"`
+			} `json:"commit"`
+		} `json:"nodes"`
+	} `json:"commits"`
+}
+
+type ghGraphQLCheckNode struct {
+	TypeName   string `json:"__typename"`
+	Status     string `json:"status"`     // CheckRun: COMPLETED, IN_PROGRESS, QUEUED, etc.
+	Conclusion string `json:"conclusion"` // CheckRun: SUCCESS, FAILURE, NEUTRAL, SKIPPED, etc.
+	State      string `json:"state"`      // StatusContext: SUCCESS, PENDING, FAILURE, ERROR, EXPECTED
+}
+
+// graphQLCheckToStatusCheck converts a GitHub GraphQL check node to our internal format.
+func graphQLCheckToStatusCheck(node ghGraphQLCheckNode) ghStatusCheck {
+	if node.TypeName == "StatusContext" {
+		switch node.State {
+		case "SUCCESS":
+			return ghStatusCheck{Status: "COMPLETED", Conclusion: "SUCCESS"}
+		case "PENDING", "EXPECTED":
+			return ghStatusCheck{Status: "IN_PROGRESS", Conclusion: ""}
+		default: // ERROR, FAILURE
+			return ghStatusCheck{Status: "COMPLETED", Conclusion: "FAILURE"}
+		}
+	}
+	return ghStatusCheck{Status: node.Status, Conclusion: node.Conclusion}
+}
+
+// graphQLPRToForge converts a GitHub GraphQL PR response to our PullRequest type.
+func graphQLPRToForge(pr ghGraphQLPR) *PullRequest {
+	var checks []ghStatusCheck
+	if len(pr.Commits.Nodes) > 0 {
+		rollup := pr.Commits.Nodes[0].Commit.StatusCheckRollup
+		if rollup != nil {
+			for _, node := range rollup.Contexts.Nodes {
+				checks = append(checks, graphQLCheckToStatusCheck(node))
+			}
+		}
+	}
+
+	return &PullRequest{
+		Number:         pr.Number,
+		Title:          pr.Title,
+		State:          normalizeState(pr.State),
+		URL:            pr.URL,
+		IsDraft:        pr.IsDraft,
+		Checks:         computeCheckStatus(checks),
+		ReviewApproved: pr.ReviewDecision == "APPROVED" || pr.ReviewDecision == "",
+		Mergeable:      pr.MergeStateStatus == "CLEAN",
+	}
+}
+
+const prGraphQLFields = `nodes {
+	number title state url isDraft mergeStateStatus reviewDecision
+	commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 100) {
+		nodes { __typename ... on CheckRun { status conclusion } ... on StatusContext { state } }
+	} } } } }
+}`
+
+func (g *GitHub) FindPRs(ctx context.Context, repoDir string, branches []string) (map[string]*PullRequest, error) {
+	if len(branches) == 0 {
+		return map[string]*PullRequest{}, nil
+	}
+
+	owner, repo, ok := ParseOwnerRepo(getOriginURL(repoDir))
+	if !ok {
+		return nil, fmt.Errorf("cannot parse GitHub owner/repo from remote URL")
+	}
+
+	// Build a single GraphQL query with two aliases per branch (open + merged).
+	var queryParts []string
+	for i, branch := range branches {
+		queryParts = append(queryParts,
+			fmt.Sprintf(`open%d: pullRequests(headRefName: %q, first: 1, states: [OPEN]) { %s }`, i, branch, prGraphQLFields),
+			fmt.Sprintf(`merged%d: pullRequests(headRefName: %q, first: 1, states: [MERGED], orderBy: {field: CREATED_AT, direction: DESC}) { %s }`, i, branch, prGraphQLFields),
+		)
+	}
+	query := fmt.Sprintf(`{ repository(owner: %q, name: %q) { %s } }`,
+		owner, repo, strings.Join(queryParts, "\n"))
+
+	cmd := exec.CommandContext(ctx, "gh", "api", "graphql", "-f", "query="+query)
+	cmd.Dir = repoDir
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("gh api graphql: %w", err)
+	}
+
+	// Parse the dynamic response.
+	var envelope struct {
+		Data struct {
+			Repository json.RawMessage `json:"repository"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(out, &envelope); err != nil {
+		return nil, fmt.Errorf("parsing graphql response: %w", err)
+	}
+
+	var repoData map[string]struct {
+		Nodes []ghGraphQLPR `json:"nodes"`
+	}
+	if err := json.Unmarshal(envelope.Data.Repository, &repoData); err != nil {
+		return nil, fmt.Errorf("parsing repository data: %w", err)
+	}
+
+	// Resolve results: prefer open PR, fall back to merged.
+	result := make(map[string]*PullRequest, len(branches))
+	for i, branch := range branches {
+		openKey := fmt.Sprintf("open%d", i)
+		mergedKey := fmt.Sprintf("merged%d", i)
+
+		if conn, ok := repoData[openKey]; ok && len(conn.Nodes) > 0 {
+			result[branch] = graphQLPRToForge(conn.Nodes[0])
+		} else if conn, ok := repoData[mergedKey]; ok && len(conn.Nodes) > 0 {
+			result[branch] = graphQLPRToForge(conn.Nodes[0])
+		}
+	}
+
+	return result, nil
+}
+
 func (g *GitHub) FindPR(ctx context.Context, repoDir string, branch string) (*PullRequest, error) {
 	// First, find the PR number for this branch (lightweight query)
 	listCmd := exec.CommandContext(ctx, "gh", "pr", "list",
