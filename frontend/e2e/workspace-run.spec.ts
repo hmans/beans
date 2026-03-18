@@ -48,8 +48,8 @@ test.describe('Workspace run experience', () => {
     // Toolbar Run button should be gone (replaced by Stop)
     await expect(runButton).not.toBeVisible();
 
-    // Terminal pane should be visible with Shell and Run tabs
-    await expect(page.getByRole('button', { name: 'Shell' })).toBeVisible({ timeout: 5_000 });
+    // Terminal and Run panes should be visible side by side
+    await expect(page.getByRole('textbox', { name: 'Terminal input' })).toHaveCount(2, { timeout: 5_000 });
   });
 
   test('clicking Stop kills the process and reverts to Run button', async ({
