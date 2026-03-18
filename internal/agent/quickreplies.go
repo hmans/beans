@@ -8,23 +8,40 @@ import (
 	"time"
 )
 
-const quickRepliesPrompt = `You are given the last message from an AI coding assistant. Suggest 3-4 short replies (under 10 words each) that the user might want to send next. Focus on the most likely actions: approving work, asking for changes, requesting more detail, etc.
+const quickRepliesPrompt = `You are given the last message from an AI coding assistant, along with the current workspace status. Suggest 3-4 short replies (under 10 words each) that the user might want to send next.
+
+Consider the workspace status when making suggestions. For example:
+- If there are uncommitted changes, suggest committing
+- If there are unpushed commits and no PR exists, suggest creating a PR
+- If a PR exists with passing checks, suggest merging
+- If there are conflicts with the base branch, suggest rebasing
+
+Focus on the most likely next actions: approving work, committing, creating/updating PRs, asking for changes, requesting more detail, etc.
 
 Output one reply per line, nothing else. No numbering, no bullets, no quotes.
 
 Examples of good replies:
 Yes, implement this
+Commit these changes
+Create a PR
 Show me the code first
 What about error handling?
-Let's skip this for now
-
-Assistant message:`
+Let's skip this for now`
 
 // GenerateQuickReplies runs a lightweight Claude Haiku call to suggest
-// follow-up replies based on the last assistant message.
+// follow-up replies based on the last assistant message and workspace context.
+// workspaceContext is optional — pass "" to omit it.
 // Returns a slice of suggestion strings, or nil on error.
-func GenerateQuickReplies(message string) []string {
-	prompt := quickRepliesPrompt + "\n\n" + truncate(message, 2000)
+func GenerateQuickReplies(message string, workspaceContext string) []string {
+	var sb strings.Builder
+	sb.WriteString(quickRepliesPrompt)
+	if workspaceContext != "" {
+		sb.WriteString("\n\nWorkspace status:\n")
+		sb.WriteString(workspaceContext)
+	}
+	sb.WriteString("\n\nAssistant message:\n\n")
+	sb.WriteString(truncate(message, 2000))
+	prompt := sb.String()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -71,7 +88,12 @@ func (m *Manager) generateQuickReplies(beanID string) {
 		return
 	}
 
-	replies := GenerateQuickReplies(lastAssistant)
+	var wsContext string
+	if m.quickReplyContext != nil {
+		wsContext = m.quickReplyContext(beanID)
+	}
+
+	replies := GenerateQuickReplies(lastAssistant, wsContext)
 	if len(replies) == 0 {
 		return
 	}
