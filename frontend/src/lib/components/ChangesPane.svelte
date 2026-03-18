@@ -2,11 +2,11 @@
   import { changesStore, type FileChange } from '$lib/changes.svelte';
   import { client } from '$lib/graphqlClient';
   import { configStore } from '$lib/config.svelte';
+  import { diffSelectionStore } from '$lib/diffSelection.svelte';
   import { ui } from '$lib/uiState.svelte';
   import { MAIN_WORKSPACE_ID } from '$lib/worktrees.svelte';
-  import { SendAgentMessageDocument, DiscardFileChangeDocument, FileDiffDocument, AllFileDiffDocument } from '$lib/graphql/generated';
+  import { SendAgentMessageDocument, DiscardFileChangeDocument } from '$lib/graphql/generated';
 
-  import SplitPane from '$lib/components/SplitPane.svelte';
   import ConfirmModal from './ConfirmModal.svelte';
 
   interface Props {
@@ -37,60 +37,15 @@
   type Tab = 'unstaged' | 'all';
   let activeTab = $state<Tab>('all');
 
-  // Diff view state
-  let selectedFile = $state<{ path: string; staged: boolean } | null>(null);
-  let diffContent = $state<string>('');
-  let diffLoading = $state(false);
+  const selectedFile = $derived(diffSelectionStore.selected);
+
+  // Keep the store's context in sync with the current tab and worktree path
+  $effect(() => {
+    diffSelectionStore.setContext(activeTab, path);
+  });
 
   function selectFile(change: FileChange) {
-    const key = { path: change.path, staged: change.staged };
-    // Toggle off if clicking the same file
-    if (selectedFile?.path === key.path && selectedFile?.staged === key.staged) {
-      selectedFile = null;
-      diffContent = '';
-      return;
-    }
-    selectedFile = key;
-    if (activeTab === 'all') {
-      fetchAllDiff(key.path);
-    } else {
-      fetchDiff(key.path, key.staged);
-    }
-  }
-
-  async function fetchDiff(filePath: string, staged: boolean) {
-    diffLoading = true;
-    const result = await client
-      .query(FileDiffDocument, { filePath, staged, path: path ?? null })
-      .toPromise();
-
-    // Guard against stale response if user clicked a different file while loading
-    if (selectedFile?.path !== filePath || selectedFile?.staged !== staged) return;
-
-    if (result.error) {
-      console.error('Failed to fetch diff:', result.error);
-      diffContent = '';
-    } else {
-      diffContent = result.data?.fileDiff ?? '';
-    }
-    diffLoading = false;
-  }
-
-  async function fetchAllDiff(filePath: string) {
-    diffLoading = true;
-    const result = await client
-      .query(AllFileDiffDocument, { filePath, path: path ?? null })
-      .toPromise();
-
-    if (selectedFile?.path !== filePath) return;
-
-    if (result.error) {
-      console.error('Failed to fetch all diff:', result.error);
-      diffContent = '';
-    } else {
-      diffContent = result.data?.allFileDiff ?? '';
-    }
-    diffLoading = false;
+    diffSelectionStore.toggle(change.path, change.staged);
   }
 
   // Clear selection when the selected file disappears from the active changes list
@@ -101,8 +56,7 @@
         (c) => c.path === selectedFile!.path && (activeTab === 'all' || c.staged === selectedFile!.staged)
       );
       if (!stillExists) {
-        selectedFile = null;
-        diffContent = '';
+        diffSelectionStore.clear();
       }
     }
   });
@@ -112,8 +66,7 @@
   $effect(() => {
     if (activeTab !== prevTab) {
       prevTab = activeTab;
-      selectedFile = null;
-      diffContent = '';
+      diffSelectionStore.clear();
     }
   });
 
@@ -130,8 +83,7 @@
     await client.mutation(DiscardFileChangeDocument, { filePath, staged, path: path ?? null }).toPromise();
     // Clear selection if the discarded file was selected
     if (selectedFile?.path === filePath) {
-      selectedFile = null;
-      diffContent = '';
+      diffSelectionStore.clear();
     }
     changesStore.fetch(path);
   }
@@ -184,51 +136,6 @@
     return selectedFile?.path === change.path && selectedFile?.staged === change.staged;
   }
 
-  interface DiffLine {
-    type: 'add' | 'del' | 'hunk' | 'context' | 'header';
-    content: string;
-    oldNum: number | null;
-    newNum: number | null;
-  }
-
-  const parsedDiffLines = $derived.by(() => {
-    if (!diffContent) return [];
-    const raw = diffContent.split('\n');
-    const lines: DiffLine[] = [];
-    let oldNum = 0;
-    let newNum = 0;
-
-    for (const line of raw) {
-      if (line.startsWith('diff --git') || line.startsWith('index ') || line.startsWith('--- ') || line.startsWith('+++ ')) {
-        // Skip raw git headers
-        continue;
-      }
-      if (line.startsWith('@@')) {
-        const match = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)/);
-        if (match) {
-          oldNum = parseInt(match[1]);
-          newNum = parseInt(match[2]);
-          lines.push({ type: 'hunk', content: match[3]?.trim() || '', oldNum: null, newNum: null });
-        }
-        continue;
-      }
-      if (line.startsWith('+')) {
-        lines.push({ type: 'add', content: line.slice(1), oldNum: null, newNum: newNum++ });
-      } else if (line.startsWith('-')) {
-        lines.push({ type: 'del', content: line.slice(1), oldNum: oldNum++, newNum: null });
-      } else {
-        lines.push({ type: 'context', content: line.startsWith(' ') ? line.slice(1) : line, oldNum: oldNum++, newNum: newNum++ });
-      }
-    }
-    return lines;
-  });
-
-  function diffLineClass(type: DiffLine['type']): string {
-    if (type === 'add') return 'diff-add';
-    if (type === 'del') return 'diff-del';
-    if (type === 'hunk') return 'diff-hunk';
-    return '';
-  }
 
 </script>
 
@@ -290,51 +197,6 @@
         {/each}
       {/if}
     {/if}
-  </div>
-{/snippet}
-
-{#snippet diffView()}
-  <div class="flex h-full flex-col border-t border-border">
-    <div class="flex items-center justify-between px-3 py-1.5">
-      <span class="truncate font-mono text-xs text-text-muted">
-        {selectedFile?.path}
-        {#if activeTab !== 'all' && selectedFile?.staged}
-          <span class="text-text-faint">(staged)</span>
-        {/if}
-      </span>
-      <button
-        class="btn-icon shrink-0 cursor-pointer"
-        onclick={() => { selectedFile = null; diffContent = ''; }}
-        aria-label="Close diff"
-      >
-        <span class="iconify lucide--x size-3.5"></span>
-      </button>
-    </div>
-    <div class="flex-1 overflow-auto bg-surface-alt">
-      {#if diffLoading}
-        <p class="px-3 py-4 text-center text-text-muted">Loading...</p>
-      {:else if diffContent === ''}
-        <p class="px-3 py-4 text-center text-text-muted">No diff available</p>
-      {:else}
-        <table class="diff-table w-full font-mono text-sm">
-          <tbody>
-            {#each parsedDiffLines as line, i (i)}
-              {#if line.type === 'hunk'}
-                <tr class="diff-hunk">
-                  <td class="diff-gutter-hunk"></td>
-                  <td class="px-3 py-1">{line.content || '...'}</td>
-                </tr>
-              {:else}
-                <tr class={diffLineClass(line.type)}>
-                  <td class="diff-gutter">{line.newNum ?? line.oldNum ?? ''}</td>
-                  <td class="whitespace-pre pr-3">{#if line.type === 'add'}<span class="diff-indicator">+</span>{:else if line.type === 'del'}<span class="diff-indicator">-</span>{:else}<span class="diff-indicator"> </span>{/if}{line.content}</td>
-                </tr>
-              {/if}
-            {/each}
-          </tbody>
-        </table>
-      {/if}
-    </div>
   </div>
 {/snippet}
 
@@ -410,17 +272,7 @@
   {/if}
   {@render tabSwitcher()}
 
-  {#if selectedFile}
-    <SplitPane
-      direction="vertical"
-      panels={[
-        { content: fileList, size: 200, minSize: 60, persistKey: 'changes-diff' },
-        { content: diffView }
-      ]}
-    />
-  {:else}
-    {@render fileList()}
-  {/if}
+  {@render fileList()}
 </div>
 
 {#if confirmingDiscard}

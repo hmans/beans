@@ -12,10 +12,12 @@
   import { ui } from '$lib/uiState.svelte';
   import { worktreeStore, MAIN_WORKSPACE_ID } from '$lib/worktrees.svelte';
   import { onDestroy } from 'svelte';
+  import { diffSelectionStore } from '$lib/diffSelection.svelte';
   import SplitPane from './SplitPane.svelte';
   import AgentChat from './AgentChat.svelte';
   import BeanPane from './BeanPane.svelte';
   import ChangesPane from './ChangesPane.svelte';
+  import DiffPane from './DiffPane.svelte';
 
   import TerminalPane from './TerminalPane.svelte';
   import ViewToolbar from './ViewToolbar.svelte';
@@ -78,6 +80,13 @@
   $effect(() => {
     changesStore.startPolling(worktreePath);
     return () => changesStore.stopPolling();
+  });
+
+  // Clear diff selection when Changes pane is hidden
+  $effect(() => {
+    if (!ui.showChanges) {
+      diffSelectionStore.clear();
+    }
   });
 
   // Check initial run state on mount
@@ -165,11 +174,16 @@
   {/if}
 {/snippet}
 
+{#snippet diffPanel()}
+  <DiffPane />
+{/snippet}
+
 {#snippet mainContent()}
   <SplitPane
     direction="horizontal"
     panels={[
       { content: agentChatPanel },
+      { content: diffPanel, size: 600, collapsed: !diffSelectionStore.selected, persistKey: 'workspace-diff' },
       { content: changesPanel, size: 420, collapsed: !ui.showChanges, persistKey: 'workspace-changes' },
       { content: beanDetailPanel, size: 480, collapsed: !ui.currentBean, persistKey: 'workspace-detail' }
     ]}
