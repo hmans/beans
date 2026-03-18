@@ -16,7 +16,8 @@ beans:
   default_type: task
 worktree:
   # Git ref to use as the base for new worktree branches (default: main)
-  base_ref: main
+  base_ref: origin/main
+  integrate: pr
   # Shell command to run inside a worktree after creation (e.g. "pnpm install")
   setup: mise trust && mise setup
   # Shell command to run the project (adds a "Run" button to workspace toolbar)

@@ -60,11 +60,15 @@ test.describe('Workspace creation', () => {
     // Wait for a second workspace to appear
     await expect(workspaceLabels).toHaveCount(3, { timeout: 10_000 }); // main + 2 new
 
-    const secondName = await workspaceLabels.nth(2).textContent();
+    // Collect all non-main workspace names (order may vary due to LastActiveAt sorting)
+    const allNames: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const name = await workspaceLabels.nth(i).textContent();
+      if (name && name !== 'main') allNames.push(name);
+    }
 
-    expect(firstName).toBeTruthy();
-    expect(secondName).toBeTruthy();
-    expect(firstName).not.toBe(secondName);
+    expect(allNames).toHaveLength(2);
+    expect(allNames[0]).not.toBe(allNames[1]);
   });
 
   test('destroy worktree removes it from sidebar', async ({ beans, page }) => {

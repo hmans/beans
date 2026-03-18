@@ -27,6 +27,7 @@ import (
 	"github.com/hmans/beans/internal/web"
 	"github.com/hmans/beans/internal/worktree"
 	"github.com/hmans/beans/pkg/config"
+	"github.com/hmans/beans/pkg/forge"
 )
 
 var (
@@ -192,6 +193,21 @@ func runServer(port int, origins []string) error {
 	}
 	defer agentMgr.Shutdown()
 
+	// Inject a system prompt that tells the agent which worktree/directory it's in.
+	// This is separate from context (which goes in the first user message) because
+	// the system prompt persists across --resume, ensuring the agent always knows
+	// its workspace identity.
+	agentMgr.SetSystemPromptProvider(func(beanID string) string {
+		if beanID == graph.CentralSessionID {
+			return fmt.Sprintf("You are the central planning agent for the beans project. Your working directory is the main repository at: %s", filepath.Dir(core.Root()))
+		}
+		wtPath := wtManager.WorktreePath(beanID)
+		if wtPath == "" {
+			return ""
+		}
+		return fmt.Sprintf("You are a workspace agent working in a git worktree. Your worktree ID is %q and your working directory is: %s\nAll file modifications MUST be within this directory. NEVER modify files in the main repository or other worktrees.\nNEVER force-push to main. NEVER push to origin/main. The Integrate action is local-only.", beanID, wtPath)
+	})
+
 	// Post an info message to the workspace's agent chat when setup finishes.
 	wtManager.SetOnSetupDone(func(worktreeID string, success bool, output string) {
 		if success {
@@ -244,6 +260,13 @@ func runServer(port int, origins []string) error {
 		core.SetOnWorktreeBeansChanged(wtManager.Notify)
 	}
 
+	// Detect git forge (GitHub, GitLab, etc.) for PR integration
+	projectRoot := filepath.Dir(core.Root())
+	forgeProvider := forge.Detect(projectRoot)
+	if forgeProvider != nil {
+		fmt.Printf("[beans] detected forge: %s (using %s CLI)\n", forgeProvider.Name(), forgeProvider.CLIName())
+	}
+
 	// Create GraphQL server with explicit transports
 	es := graph.NewExecutableSchema(graph.Config{
 		Resolvers: &graph.Resolver{
@@ -252,7 +275,8 @@ func runServer(port int, origins []string) error {
 			AgentMgr:    agentMgr,
 			TerminalMgr: termMgr,
 			PortAlloc:   portAlloc,
-			ProjectRoot: filepath.Dir(core.Root()),
+			Forge:       forgeProvider,
+			ProjectRoot: projectRoot,
 		},
 	})
 	gqlHandler := handler.New(es)

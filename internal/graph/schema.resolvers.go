@@ -12,10 +12,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/hmans/beans/internal/agent"
 	"github.com/hmans/beans/internal/gitutil"
 	"github.com/hmans/beans/internal/graph/model"
+	"github.com/hmans/beans/internal/worktree"
 	"github.com/hmans/beans/pkg/bean"
 	"github.com/hmans/beans/pkg/beancore"
 	"github.com/hmans/beans/pkg/config"
@@ -776,6 +779,25 @@ func (r *mutationResolver) ExecuteAgentAction(ctx context.Context, beanID string
 	}
 
 	actCtx := actionContext{WorktreeID: beanID, WorkDir: workDir, MainRepoPath: r.ProjectRoot}
+	actCtx.HasChanges = gitutil.HasChanges(workDir)
+	actCtx.HasUnpushedCommits = gitutil.HasUnpushedCommits(workDir)
+
+	// Populate forge context for actions that need it
+	if r.Forge != nil {
+		actCtx.ForgeCLI = r.Forge.CLIName()
+		if r.WorktreeMgr != nil {
+			if wts, err := r.WorktreeMgr.List(); err == nil {
+				for _, wt := range wts {
+					if wt.ID == beanID {
+						pr, _ := r.Forge.FindPR(ctx, r.ProjectRoot, wt.Branch)
+						actCtx.PullRequest = pr
+						break
+					}
+				}
+			}
+		}
+	}
+
 	if err := r.AgentMgr.SendMessage(beanID, workDir, action.PromptFunc(actCtx), nil); err != nil {
 		return false, err
 	}
@@ -891,7 +913,9 @@ func (r *queryResolver) Worktrees(ctx context.Context) ([]*model.Worktree, error
 
 	result := make([]*model.Worktree, len(wts))
 	for i, wt := range wts {
-		result[i] = worktreeToModel(&wt, r.Core, r.WorktreeMgr.BaseRef(), true)
+		m := worktreeToModel(&wt, r.Core, r.WorktreeMgr.BaseRef(), true)
+		populatePR(ctx, m, r.Forge, r.ProjectRoot)
+		result[i] = m
 	}
 	return result, nil
 }
@@ -1103,11 +1127,19 @@ func (r *queryResolver) HasDirtyBeans(ctx context.Context) (bool, error) {
 }
 
 // AgentActions is the resolver for the agentActions field.
-func (r *queryResolver) AgentActions(ctx context.Context, beanID string) ([]*model.AgentAction, error) {
+func (r *queryResolver) AgentActions(ctx context.Context, beanID string, skipForge *bool) ([]*model.AgentAction, error) {
 	// Build action context for visibility filtering
 	actCtx := actionContext{WorktreeID: beanID}
 
+	// Set integrate mode from config
+	if cfg := r.Core.Config(); cfg != nil {
+		actCtx.IntegrateMode = string(cfg.GetWorktreeIntegrate())
+	} else {
+		actCtx.IntegrateMode = string(config.IntegrateModeLocal)
+	}
+
 	// Check if this worktree exists and gather its state
+	var branch string
 	if r.WorktreeMgr != nil {
 		actCtx.MainRepoHasChanges = gitutil.HasChanges(r.WorktreeMgr.RepoRoot())
 
@@ -1117,9 +1149,24 @@ func (r *queryResolver) AgentActions(ctx context.Context, beanID string) ([]*mod
 					actCtx.WorkDir = wt.Path
 					actCtx.HasChanges = gitutil.HasChanges(wt.Path)
 					actCtx.HasNewCommits = gitutil.HasUnmergedCommits(wt.Path, r.WorktreeMgr.BaseRef())
+					actCtx.HasUnpushedCommits = gitutil.HasUnpushedCommits(wt.Path)
+					actCtx.HasConflicts = gitutil.HasConflicts(wt.Path, r.WorktreeMgr.BaseRef())
+					branch = wt.Branch
 					break
 				}
 			}
+		}
+	}
+
+	// Populate forge context
+	if r.Forge != nil {
+		actCtx.ForgeCLI = r.Forge.CLIName()
+		if skipForge != nil && *skipForge {
+			// Show the PR button in loading state while the full fetch is pending
+			actCtx.ForgeLoading = true
+		} else if branch != "" {
+			pr, _ := r.Forge.FindPR(ctx, r.ProjectRoot, branch)
+			actCtx.PullRequest = pr
 		}
 	}
 
@@ -1128,10 +1175,14 @@ func (r *queryResolver) AgentActions(ctx context.Context, beanID string) ([]*mod
 		if a.Visible != nil && !a.Visible(actCtx) {
 			continue
 		}
+		label := a.Label
+		if a.LabelFunc != nil {
+			label = a.LabelFunc(actCtx)
+		}
 		desc := a.Description
 		action := &model.AgentAction{
 			ID:          a.ID,
-			Label:       a.Label,
+			Label:       label,
 			Description: &desc,
 		}
 		if a.Disabled != nil {
@@ -1187,6 +1238,15 @@ func (r *queryResolver) WorktreeRunCommand(ctx context.Context) (string, error) 
 		return "", nil
 	}
 	return cfg.GetWorktreeRun(), nil
+}
+
+// WorktreeIntegrateMode is the resolver for the worktreeIntegrateMode field.
+func (r *queryResolver) WorktreeIntegrateMode(ctx context.Context) (string, error) {
+	cfg := r.Core.Config()
+	if cfg == nil {
+		return string(config.IntegrateModeLocal), nil
+	}
+	return string(cfg.GetWorktreeIntegrate()), nil
 }
 
 // BeanChanged is the resolver for the beanChanged field.
@@ -1274,24 +1334,67 @@ func (r *subscriptionResolver) WorktreesChanged(ctx context.Context) (<-chan []*
 	ch := r.WorktreeMgr.Subscribe()
 	out := make(chan []*model.Worktree)
 
+	// buildWorktreeList converts worktree structs to GraphQL models without PR data.
+	buildWorktreeList := func(wts []worktree.Worktree) []*model.Worktree {
+		result := make([]*model.Worktree, len(wts))
+		for i, wt := range wts {
+			result[i] = worktreeToModel(&wt, r.Core, r.WorktreeMgr.BaseRef(), false)
+		}
+		return result
+	}
+
+	// populatePRsAsync fetches PR data for all worktrees in parallel,
+	// then re-emits the updated list on the output channel.
+	populatePRsAsync := func(result []*model.Worktree) {
+		if r.Forge == nil || len(result) == 0 {
+			return
+		}
+		var wg sync.WaitGroup
+		for i := range result {
+			wg.Add(1)
+			go func(m *model.Worktree) {
+				defer wg.Done()
+				populatePR(ctx, m, r.Forge, r.ProjectRoot)
+			}(result[i])
+		}
+		wg.Wait()
+		select {
+		case out <- result:
+		case <-ctx.Done():
+		}
+	}
+
 	go func() {
 		defer r.WorktreeMgr.Unsubscribe(ch)
 		defer close(out)
 
-		// Emit the current list immediately
+		// Emit the current list immediately without PR data, then
+		// fetch PR data in the background and re-emit.
 		if wts, err := r.WorktreeMgr.List(); err == nil {
-			result := make([]*model.Worktree, len(wts))
-			for i, wt := range wts {
-				result[i] = worktreeToModel(&wt, r.Core, r.WorktreeMgr.BaseRef(), false)
-			}
+			result := buildWorktreeList(wts)
 			select {
 			case out <- result:
 			case <-ctx.Done():
 				return
 			}
+			go populatePRsAsync(result)
 		}
 
-		// Then emit on each change
+		// Periodically re-fetch PR data so sidebar icons stay current
+		// even when no worktree filesystem events occur.
+		prTicker := time.NewTicker(30 * time.Second)
+		defer prTicker.Stop()
+
+		// refreshPRs fetches the current worktree list with PR data and emits it.
+		refreshPRs := func() {
+			wts, err := r.WorktreeMgr.List()
+			if err != nil {
+				return
+			}
+			result := buildWorktreeList(wts)
+			go populatePRsAsync(result)
+		}
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -1304,15 +1407,15 @@ func (r *subscriptionResolver) WorktreesChanged(ctx context.Context) (<-chan []*
 				if err != nil {
 					continue
 				}
-				result := make([]*model.Worktree, len(wts))
-				for i, wt := range wts {
-					result[i] = worktreeToModel(&wt, r.Core, r.WorktreeMgr.BaseRef(), false)
-				}
+				result := buildWorktreeList(wts)
 				select {
 				case out <- result:
 				case <-ctx.Done():
 					return
 				}
+				go populatePRsAsync(result)
+			case <-prTicker.C:
+				refreshPRs()
 			}
 		}
 	}()

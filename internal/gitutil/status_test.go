@@ -254,7 +254,7 @@ func initBranchedTestRepo(t *testing.T) string {
 
 	// Create the "remote" bare repo
 	bare := t.TempDir()
-	cmd := exec.Command("git", "init", "--bare")
+	cmd := exec.Command("git", "init", "--bare", "-b", "main")
 	cmd.Dir = bare
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git init --bare failed: %s: %v", out, err)

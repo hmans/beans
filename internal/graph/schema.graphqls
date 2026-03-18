@@ -59,9 +59,11 @@ type Query {
   hasDirtyBeans: Boolean!
 
   """
-  Get available agent actions for a bean
+  Get available agent actions for a bean.
+  When skipForge is true, forge-dependent actions (PR buttons) are omitted
+  for a faster response — useful for the initial render before polling kicks in.
   """
-  agentActions(beanId: ID!): [AgentAction!]!
+  agentActions(beanId: ID!, skipForge: Boolean): [AgentAction!]!
 
   """
   Human-readable project name from configuration.
@@ -91,6 +93,14 @@ type Query {
   When non-empty, the UI shows a "Run" button in workspace toolbars.
   """
   worktreeRunCommand: String!
+
+  """
+  The configured integration mode for worktrees (from worktree.integrate config).
+  "local" = squash-merge locally (hides PR buttons).
+  "pr" = push and create PRs (hides Integrate button).
+  Defaults to "local".
+  """
+  worktreeIntegrateMode: String!
 }
 
 type Subscription {
@@ -540,6 +550,30 @@ type Worktree {
   setupStatus: WorktreeSetupStatus
   "Error message if setup failed"
   setupError: String
+  "Open pull/merge request for this worktree's branch (null if none)"
+  pullRequest: PullRequest
+}
+
+"""
+A pull/merge request on a git forge (GitHub, GitLab, etc.)
+"""
+type PullRequest {
+  "PR number on the forge"
+  number: Int!
+  "PR title"
+  title: String!
+  "Current state: open, closed, merged"
+  state: String!
+  "Web URL to view the PR"
+  url: String!
+  "Whether this PR is a draft"
+  isDraft: Boolean!
+  "Aggregate CI check status: pass, fail, pending"
+  checkStatus: String!
+  "Whether review requirements are met"
+  reviewApproved: Boolean!
+  "Whether the forge reports the PR can be merged"
+  mergeable: Boolean!
 }
 
 """
@@ -605,6 +639,8 @@ type AgentSession {
   workDir: String
   "Currently running subagent activities (one per concurrent Agent tool call)"
   subagentActivities: [SubagentActivity!]!
+  "Suggested quick reply messages generated after a turn completes"
+  quickReplies: [String!]!
 }
 
 """

@@ -12,6 +12,7 @@
     effort: string;
     systemStatus: string | null;
     subagentActivities: SubagentActivity[];
+    quickReplies: string[];
     onSend: (message: string, images?: { data: string; mediaType: string }[]) => void;
     onStop: () => void;
     onSetMode: (mode: 'plan' | 'act') => void;
@@ -28,6 +29,7 @@
     effort,
     systemStatus,
     subagentActivities,
+    quickReplies,
     onSend,
     onStop,
     onSetMode,
@@ -167,6 +169,20 @@
           Agent is working...
         {/if}
       </span>
+    </div>
+  {/if}
+  {#if quickReplies.length > 0 && !isRunning}
+    <div class="flex flex-wrap gap-1.5 pb-2">
+      {#each quickReplies as reply (reply)}
+        <button
+          type="button"
+          onclick={() => onSend(reply)}
+          class="cursor-pointer rounded border border-border bg-surface-alt px-3 py-1
+            text-text-muted transition-colors hover:border-accent/40 hover:bg-accent/10 hover:text-accent"
+        >
+          {reply}
+        </button>
+      {/each}
     </div>
   {/if}
   <div

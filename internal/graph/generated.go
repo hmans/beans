@@ -85,6 +85,7 @@ type ComplexityRoot struct {
 		Messages           func(childComplexity int) int
 		PendingInteraction func(childComplexity int) int
 		PlanMode           func(childComplexity int) int
+		QuickReplies       func(childComplexity int) int
 		Status             func(childComplexity int) int
 		SubagentActivities func(childComplexity int) int
 		SystemStatus       func(childComplexity int) int
@@ -183,23 +184,35 @@ type ComplexityRoot struct {
 		Type        func(childComplexity int) int
 	}
 
+	PullRequest struct {
+		CheckStatus    func(childComplexity int) int
+		IsDraft        func(childComplexity int) int
+		Mergeable      func(childComplexity int) int
+		Number         func(childComplexity int) int
+		ReviewApproved func(childComplexity int) int
+		State          func(childComplexity int) int
+		Title          func(childComplexity int) int
+		URL            func(childComplexity int) int
+	}
+
 	Query struct {
-		AgentActions       func(childComplexity int, beanID string) int
-		AgentEnabled       func(childComplexity int) int
-		AgentSession       func(childComplexity int, beanID string) int
-		AllFileChanges     func(childComplexity int, path *string) int
-		AllFileDiff        func(childComplexity int, filePath string, path *string) int
-		Bean               func(childComplexity int, id string) int
-		Beans              func(childComplexity int, filter *model.BeanFilter) int
-		BranchStatus       func(childComplexity int, path *string) int
-		FileChanges        func(childComplexity int, path *string) int
-		FileDiff           func(childComplexity int, filePath string, staged bool, path *string) int
-		HasDirtyBeans      func(childComplexity int) int
-		MainBranch         func(childComplexity int) int
-		ProjectName        func(childComplexity int) int
-		WorktreeBaseRef    func(childComplexity int) int
-		WorktreeRunCommand func(childComplexity int) int
-		Worktrees          func(childComplexity int) int
+		AgentActions          func(childComplexity int, beanID string, skipForge *bool) int
+		AgentEnabled          func(childComplexity int) int
+		AgentSession          func(childComplexity int, beanID string) int
+		AllFileChanges        func(childComplexity int, path *string) int
+		AllFileDiff           func(childComplexity int, filePath string, path *string) int
+		Bean                  func(childComplexity int, id string) int
+		Beans                 func(childComplexity int, filter *model.BeanFilter) int
+		BranchStatus          func(childComplexity int, path *string) int
+		FileChanges           func(childComplexity int, path *string) int
+		FileDiff              func(childComplexity int, filePath string, staged bool, path *string) int
+		HasDirtyBeans         func(childComplexity int) int
+		MainBranch            func(childComplexity int) int
+		ProjectName           func(childComplexity int) int
+		WorktreeBaseRef       func(childComplexity int) int
+		WorktreeIntegrateMode func(childComplexity int) int
+		WorktreeRunCommand    func(childComplexity int) int
+		Worktrees             func(childComplexity int) int
 	}
 
 	SubagentActivity struct {
@@ -227,6 +240,7 @@ type ComplexityRoot struct {
 		ID                 func(childComplexity int) int
 		Name               func(childComplexity int) int
 		Path               func(childComplexity int) int
+		PullRequest        func(childComplexity int) int
 		SetupError         func(childComplexity int) int
 		SetupStatus        func(childComplexity int) int
 	}
@@ -282,12 +296,13 @@ type QueryResolver interface {
 	AllFileDiff(ctx context.Context, filePath string, path *string) (string, error)
 	BranchStatus(ctx context.Context, path *string) (*model.BranchStatus, error)
 	HasDirtyBeans(ctx context.Context) (bool, error)
-	AgentActions(ctx context.Context, beanID string) ([]*model.AgentAction, error)
+	AgentActions(ctx context.Context, beanID string, skipForge *bool) ([]*model.AgentAction, error)
 	ProjectName(ctx context.Context) (string, error)
 	MainBranch(ctx context.Context) (string, error)
 	AgentEnabled(ctx context.Context) (bool, error)
 	WorktreeBaseRef(ctx context.Context) (string, error)
 	WorktreeRunCommand(ctx context.Context) (string, error)
+	WorktreeIntegrateMode(ctx context.Context) (string, error)
 }
 type SubscriptionResolver interface {
 	BeanChanged(ctx context.Context, includeInitial *bool) (<-chan *model.BeanChangeEvent, error)
@@ -445,6 +460,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.AgentSession.PlanMode(childComplexity), true
+	case "AgentSession.quickReplies":
+		if e.complexity.AgentSession.QuickReplies == nil {
+			break
+		}
+
+		return e.complexity.AgentSession.QuickReplies(childComplexity), true
 	case "AgentSession.status":
 		if e.complexity.AgentSession.Status == nil {
 			break
@@ -1016,6 +1037,55 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.PendingInteraction.Type(childComplexity), true
 
+	case "PullRequest.checkStatus":
+		if e.complexity.PullRequest.CheckStatus == nil {
+			break
+		}
+
+		return e.complexity.PullRequest.CheckStatus(childComplexity), true
+	case "PullRequest.isDraft":
+		if e.complexity.PullRequest.IsDraft == nil {
+			break
+		}
+
+		return e.complexity.PullRequest.IsDraft(childComplexity), true
+	case "PullRequest.mergeable":
+		if e.complexity.PullRequest.Mergeable == nil {
+			break
+		}
+
+		return e.complexity.PullRequest.Mergeable(childComplexity), true
+	case "PullRequest.number":
+		if e.complexity.PullRequest.Number == nil {
+			break
+		}
+
+		return e.complexity.PullRequest.Number(childComplexity), true
+	case "PullRequest.reviewApproved":
+		if e.complexity.PullRequest.ReviewApproved == nil {
+			break
+		}
+
+		return e.complexity.PullRequest.ReviewApproved(childComplexity), true
+	case "PullRequest.state":
+		if e.complexity.PullRequest.State == nil {
+			break
+		}
+
+		return e.complexity.PullRequest.State(childComplexity), true
+	case "PullRequest.title":
+		if e.complexity.PullRequest.Title == nil {
+			break
+		}
+
+		return e.complexity.PullRequest.Title(childComplexity), true
+	case "PullRequest.url":
+		if e.complexity.PullRequest.URL == nil {
+			break
+		}
+
+		return e.complexity.PullRequest.URL(childComplexity), true
+
 	case "Query.agentActions":
 		if e.complexity.Query.AgentActions == nil {
 			break
@@ -1026,7 +1096,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Query.AgentActions(childComplexity, args["beanId"].(string)), true
+		return e.complexity.Query.AgentActions(childComplexity, args["beanId"].(string), args["skipForge"].(*bool)), true
 	case "Query.agentEnabled":
 		if e.complexity.Query.AgentEnabled == nil {
 			break
@@ -1145,6 +1215,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.WorktreeBaseRef(childComplexity), true
+	case "Query.worktreeIntegrateMode":
+		if e.complexity.Query.WorktreeIntegrateMode == nil {
+			break
+		}
+
+		return e.complexity.Query.WorktreeIntegrateMode(childComplexity), true
 	case "Query.worktreeRunCommand":
 		if e.complexity.Query.WorktreeRunCommand == nil {
 			break
@@ -1278,6 +1354,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Worktree.Path(childComplexity), true
+	case "Worktree.pullRequest":
+		if e.complexity.Worktree.PullRequest == nil {
+			break
+		}
+
+		return e.complexity.Worktree.PullRequest(childComplexity), true
 	case "Worktree.setupError":
 		if e.complexity.Worktree.SetupError == nil {
 			break
@@ -1853,6 +1935,11 @@ func (ec *executionContext) field_Query_agentActions_args(ctx context.Context, r
 		return nil, err
 	}
 	args["beanId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "skipForge", ec.unmarshalOBoolean2ᚖbool)
+	if err != nil {
+		return nil, err
+	}
+	args["skipForge"] = arg1
 	return args, nil
 }
 
@@ -2787,6 +2874,35 @@ func (ec *executionContext) fieldContext_AgentSession_subagentActivities(_ conte
 				return ec.fieldContext_SubagentActivity_currentTool(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type SubagentActivity", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AgentSession_quickReplies(ctx context.Context, field graphql.CollectedField, obj *model.AgentSession) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AgentSession_quickReplies,
+		func(ctx context.Context) (any, error) {
+			return obj.QuickReplies, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AgentSession_quickReplies(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentSession",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -5091,6 +5207,8 @@ func (ec *executionContext) fieldContext_Mutation_createWorktree(ctx context.Con
 				return ec.fieldContext_Worktree_setupStatus(ctx, field)
 			case "setupError":
 				return ec.fieldContext_Worktree_setupError(ctx, field)
+			case "pullRequest":
+				return ec.fieldContext_Worktree_pullRequest(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Worktree", field.Name)
 		},
@@ -5768,6 +5886,238 @@ func (ec *executionContext) fieldContext_PendingInteraction_questions(_ context.
 	return fc, nil
 }
 
+func (ec *executionContext) _PullRequest_number(ctx context.Context, field graphql.CollectedField, obj *model.PullRequest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PullRequest_number,
+		func(ctx context.Context) (any, error) {
+			return obj.Number, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PullRequest_number(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PullRequest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PullRequest_title(ctx context.Context, field graphql.CollectedField, obj *model.PullRequest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PullRequest_title,
+		func(ctx context.Context) (any, error) {
+			return obj.Title, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PullRequest_title(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PullRequest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PullRequest_state(ctx context.Context, field graphql.CollectedField, obj *model.PullRequest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PullRequest_state,
+		func(ctx context.Context) (any, error) {
+			return obj.State, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PullRequest_state(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PullRequest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PullRequest_url(ctx context.Context, field graphql.CollectedField, obj *model.PullRequest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PullRequest_url,
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PullRequest_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PullRequest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PullRequest_isDraft(ctx context.Context, field graphql.CollectedField, obj *model.PullRequest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PullRequest_isDraft,
+		func(ctx context.Context) (any, error) {
+			return obj.IsDraft, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PullRequest_isDraft(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PullRequest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PullRequest_checkStatus(ctx context.Context, field graphql.CollectedField, obj *model.PullRequest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PullRequest_checkStatus,
+		func(ctx context.Context) (any, error) {
+			return obj.CheckStatus, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PullRequest_checkStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PullRequest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PullRequest_reviewApproved(ctx context.Context, field graphql.CollectedField, obj *model.PullRequest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PullRequest_reviewApproved,
+		func(ctx context.Context) (any, error) {
+			return obj.ReviewApproved, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PullRequest_reviewApproved(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PullRequest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PullRequest_mergeable(ctx context.Context, field graphql.CollectedField, obj *model.PullRequest) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_PullRequest_mergeable,
+		func(ctx context.Context) (any, error) {
+			return obj.Mergeable, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_PullRequest_mergeable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PullRequest",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_bean(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -5998,6 +6348,8 @@ func (ec *executionContext) fieldContext_Query_worktrees(_ context.Context, fiel
 				return ec.fieldContext_Worktree_setupStatus(ctx, field)
 			case "setupError":
 				return ec.fieldContext_Worktree_setupError(ctx, field)
+			case "pullRequest":
+				return ec.fieldContext_Worktree_pullRequest(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Worktree", field.Name)
 		},
@@ -6054,6 +6406,8 @@ func (ec *executionContext) fieldContext_Query_agentSession(ctx context.Context,
 				return ec.fieldContext_AgentSession_workDir(ctx, field)
 			case "subagentActivities":
 				return ec.fieldContext_AgentSession_subagentActivities(ctx, field)
+			case "quickReplies":
+				return ec.fieldContext_AgentSession_quickReplies(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type AgentSession", field.Name)
 		},
@@ -6344,7 +6698,7 @@ func (ec *executionContext) _Query_agentActions(ctx context.Context, field graph
 		ec.fieldContext_Query_agentActions,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Query().AgentActions(ctx, fc.Args["beanId"].(string))
+			return ec.resolvers.Query().AgentActions(ctx, fc.Args["beanId"].(string), fc.Args["skipForge"].(*bool))
 		},
 		nil,
 		ec.marshalNAgentAction2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐAgentActionᚄ,
@@ -6522,6 +6876,35 @@ func (ec *executionContext) _Query_worktreeRunCommand(ctx context.Context, field
 }
 
 func (ec *executionContext) fieldContext_Query_worktreeRunCommand(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_worktreeIntegrateMode(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_worktreeIntegrateMode,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Query().WorktreeIntegrateMode(ctx)
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_worktreeIntegrateMode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
@@ -6857,6 +7240,8 @@ func (ec *executionContext) fieldContext_Subscription_worktreesChanged(_ context
 				return ec.fieldContext_Worktree_setupStatus(ctx, field)
 			case "setupError":
 				return ec.fieldContext_Worktree_setupError(ctx, field)
+			case "pullRequest":
+				return ec.fieldContext_Worktree_pullRequest(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Worktree", field.Name)
 		},
@@ -6913,6 +7298,8 @@ func (ec *executionContext) fieldContext_Subscription_agentSessionChanged(ctx co
 				return ec.fieldContext_AgentSession_workDir(ctx, field)
 			case "subagentActivities":
 				return ec.fieldContext_AgentSession_subagentActivities(ctx, field)
+			case "quickReplies":
+				return ec.fieldContext_AgentSession_quickReplies(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type AgentSession", field.Name)
 		},
@@ -7359,6 +7746,53 @@ func (ec *executionContext) fieldContext_Worktree_setupError(_ context.Context, 
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Worktree_pullRequest(ctx context.Context, field graphql.CollectedField, obj *model.Worktree) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Worktree_pullRequest,
+		func(ctx context.Context) (any, error) {
+			return obj.PullRequest, nil
+		},
+		nil,
+		ec.marshalOPullRequest2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐPullRequest,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_Worktree_pullRequest(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Worktree",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "number":
+				return ec.fieldContext_PullRequest_number(ctx, field)
+			case "title":
+				return ec.fieldContext_PullRequest_title(ctx, field)
+			case "state":
+				return ec.fieldContext_PullRequest_state(ctx, field)
+			case "url":
+				return ec.fieldContext_PullRequest_url(ctx, field)
+			case "isDraft":
+				return ec.fieldContext_PullRequest_isDraft(ctx, field)
+			case "checkStatus":
+				return ec.fieldContext_PullRequest_checkStatus(ctx, field)
+			case "reviewApproved":
+				return ec.fieldContext_PullRequest_reviewApproved(ctx, field)
+			case "mergeable":
+				return ec.fieldContext_PullRequest_mergeable(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PullRequest", field.Name)
 		},
 	}
 	return fc, nil
@@ -9564,6 +9998,11 @@ func (ec *executionContext) _AgentSession(ctx context.Context, sel ast.Selection
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "quickReplies":
+			out.Values[i] = ec._AgentSession_quickReplies(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -10566,6 +11005,80 @@ func (ec *executionContext) _PendingInteraction(ctx context.Context, sel ast.Sel
 	return out
 }
 
+var pullRequestImplementors = []string{"PullRequest"}
+
+func (ec *executionContext) _PullRequest(ctx context.Context, sel ast.SelectionSet, obj *model.PullRequest) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, pullRequestImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PullRequest")
+		case "number":
+			out.Values[i] = ec._PullRequest_number(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "title":
+			out.Values[i] = ec._PullRequest_title(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "state":
+			out.Values[i] = ec._PullRequest_state(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "url":
+			out.Values[i] = ec._PullRequest_url(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isDraft":
+			out.Values[i] = ec._PullRequest_isDraft(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "checkStatus":
+			out.Values[i] = ec._PullRequest_checkStatus(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reviewApproved":
+			out.Values[i] = ec._PullRequest_reviewApproved(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "mergeable":
+			out.Values[i] = ec._PullRequest_mergeable(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var queryImplementors = []string{"Query"}
 
 func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
@@ -10931,6 +11444,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "worktreeIntegrateMode":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_worktreeIntegrateMode(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -11101,6 +11636,8 @@ func (ec *executionContext) _Worktree(ctx context.Context, sel ast.SelectionSet,
 			out.Values[i] = ec._Worktree_setupStatus(ctx, field, obj)
 		case "setupError":
 			out.Values[i] = ec._Worktree_setupError(ctx, field, obj)
+		case "pullRequest":
+			out.Values[i] = ec._Worktree_pullRequest(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -12611,6 +13148,13 @@ func (ec *executionContext) marshalOPendingInteraction2ᚖgithubᚗcomᚋhmans�
 		return graphql.Null
 	}
 	return ec._PendingInteraction(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOPullRequest2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐPullRequest(ctx context.Context, sel ast.SelectionSet, v *model.PullRequest) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._PullRequest(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOReplaceOperation2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐReplaceOperationᚄ(ctx context.Context, v any) ([]*model.ReplaceOperation, error) {

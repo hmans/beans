@@ -34,7 +34,7 @@ function getBinaries() {
  */
 function createBeansTemplate(beansBin: string): string {
   const templateDir = mkdtempSync(join(tmpdir(), 'beans-e2e-template-'));
-  execFileSync('git', ['init'], { cwd: templateDir, timeout: 10_000 });
+  execFileSync('git', ['init', '-b', 'main'], { cwd: templateDir, timeout: 10_000 });
   execFileSync('git', ['commit', '--allow-empty', '-m', 'init'], {
     cwd: templateDir,
     timeout: 10_000,
@@ -187,7 +187,7 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
 
     // Fresh git repo per test (needed for worktree operations)
     const projectDir = mkdtempSync(join(tmpdir(), 'beans-e2e-'));
-    execFileSync('git', ['init'], { cwd: projectDir, timeout: 10_000 });
+    execFileSync('git', ['init', '-b', 'main'], { cwd: projectDir, timeout: 10_000 });
     execFileSync('git', ['commit', '--allow-empty', '-m', 'init'], {
       cwd: projectDir,
       timeout: 10_000,

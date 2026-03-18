@@ -7,6 +7,7 @@ import (
 	"github.com/hmans/beans/internal/agent"
 	"github.com/hmans/beans/internal/gitutil"
 	"github.com/hmans/beans/internal/graph/model"
+	"github.com/hmans/beans/pkg/forge"
 )
 
 // agentSessionToModel converts an agent.Session to the GraphQL model type.
@@ -114,6 +115,9 @@ func agentSessionToModel(s *agent.Session) *model.AgentSession {
 		}
 	}
 
+	quickReplies := make([]string, len(s.QuickReplies))
+	copy(quickReplies, s.QuickReplies)
+
 	return &model.AgentSession{
 		BeanID:             s.ID,
 		AgentType:          s.AgentType,
@@ -127,6 +131,7 @@ func agentSessionToModel(s *agent.Session) *model.AgentSession {
 		PendingInteraction: pending,
 		WorkDir:            workDir,
 		SubagentActivities: subagents,
+		QuickReplies:       quickReplies,
 	}
 }
 
@@ -157,8 +162,14 @@ type actionContext struct {
 	WorkDir            string // working directory (worktree path or project root)
 	HasChanges         bool   // uncommitted changes or untracked files
 	HasNewCommits      bool   // commits ahead of the base branch
+	HasUnpushedCommits bool   // commits ahead of the remote tracking branch
+	HasConflicts       bool   // rebasing onto base branch would produce conflicts
 	MainRepoHasChanges bool   // main repo has uncommitted changes
 	MainRepoPath       string // absolute path to the main repo working directory
+	PullRequest        *forge.PullRequest
+	ForgeCLI           string // "gh", "glab", or "" if no forge detected
+	ForgeLoading       bool   // true when forge is detected but PR state hasn't been fetched yet
+	IntegrateMode      string // "local" or "pr" — controls which integration buttons are visible
 }
 
 // agentActionDef defines a single agent action with its metadata and prompt.
@@ -166,6 +177,8 @@ type agentActionDef struct {
 	ID          string
 	Label       string
 	Description string
+	// LabelFunc returns a dynamic label based on context. Takes precedence over Label if set.
+	LabelFunc func(ctx actionContext) string
 	// PromptFunc generates the prompt from the full action context.
 	PromptFunc func(ctx actionContext) string
 	// Visible determines whether this action should appear. If nil, always visible.
@@ -220,6 +233,12 @@ var agentActions = []agentActionDef{
 		PromptFunc: func(ctx actionContext) string {
 			return fmt.Sprintf(`Squash-merge this worktree's work into main. All commits from this branch must be combined into a single commit on main. Follow these steps in order:
 
+CRITICAL SAFETY RULES — READ BEFORE DOING ANYTHING:
+- NEVER run "git push" to origin/main or any remote. This is a LOCAL-ONLY operation.
+- NEVER run "git push --force" or "git push -f" on ANY branch, especially not main.
+- NEVER run any push command that targets the main branch on any remote.
+- If something goes wrong, STOP and report the error. Do NOT attempt destructive recovery.
+
 1. If there are associated beans, mark them as completed.
 2. If there are uncommitted changes, create a commit (following the usual commit guidelines).
 3. Squash-merge onto main:
@@ -230,14 +249,150 @@ var agentActions = []agentActionDef{
    d. Fast-forward main to the squashed commit (this updates main's ref, index, AND working tree):
       git -C %s merge --ff-only $SQUASH_SHA
    e. If the merge fails (e.g. main moved), go back to step (a) and retry.
-4. Reset this branch to main so it doesn't appear to diverge: git reset --hard main`, ctx.MainRepoPath)
+4. Reset this branch to main so it doesn't appear to diverge: git reset --hard main
+
+REMINDER: Do NOT push anything to any remote. The integrate action is purely local.`, ctx.MainRepoPath)
 		},
 		Visible: func(ctx actionContext) bool {
+			if ctx.IntegrateMode == "pr" {
+				return false
+			}
+			if ctx.PullRequest != nil {
+				return false
+			}
 			return ctx.HasChanges || ctx.HasNewCommits
 		},
 		Disabled: func(ctx actionContext) string {
+			if ctx.HasConflicts {
+				return "Branch has merge conflicts with base branch"
+			}
 			if ctx.MainRepoHasChanges {
 				return "Main workspace has uncommitted changes"
+			}
+			return ""
+		},
+	},
+	{
+		ID:          "create-pr",
+		Label:       "Create PR",
+		Description: "Push branch and create a pull request",
+		LabelFunc: func(ctx actionContext) string {
+			if ctx.ForgeLoading {
+				return "Loading..."
+			}
+			if ctx.PullRequest == nil {
+				return "Create PR"
+			}
+			if ctx.PullRequest.State == "merged" {
+				return "PR Merged" // not visible, but keep a label for completeness
+			}
+			if ctx.HasChanges || ctx.HasUnpushedCommits {
+				return "Update PR"
+			}
+			// Nothing to push — label reflects PR check state
+			switch ctx.PullRequest.Checks {
+			case forge.CheckStatusPass:
+				if ctx.PullRequest.CanMerge() {
+					return "Merge PR"
+				}
+				return "Merge PR"
+			case forge.CheckStatusPending:
+				return "Checks Running"
+			case forge.CheckStatusFail:
+				return "Fix Tests"
+			default:
+				return "Merge PR"
+			}
+		},
+		PromptFunc: func(ctx actionContext) string {
+			cli := ctx.ForgeCLI
+			if ctx.PullRequest != nil {
+				// PR Merged — no action needed; the destroy button handles cleanup
+				if ctx.PullRequest.State == "merged" {
+					return ""
+				}
+
+				// Fix Tests — checks failed, inspect and fix
+				if !ctx.HasChanges && !ctx.HasUnpushedCommits && ctx.PullRequest.Checks == forge.CheckStatusFail {
+					return fmt.Sprintf(`CI checks have failed on pull request %s.
+
+Investigate the failures and fix them:
+
+1. Inspect the failed checks: %s pr checks %d
+2. View the logs of the failed run to understand what went wrong: %s run view --log-failed (pick the relevant run ID from the checks output)
+3. Fix the issue in the code.
+4. Run the project's test suite locally to verify the fix.
+5. Create a commit with the fix and push: git push
+
+After pushing, the checks will re-run automatically.`, ctx.PullRequest.URL, cli, ctx.PullRequest.Number, cli)
+				}
+
+				// Merge PR — everything is pushed, checks pass, ready to merge
+				if !ctx.HasChanges && !ctx.HasUnpushedCommits && ctx.PullRequest.CanMerge() {
+					return fmt.Sprintf(`The pull request %s is ready to merge. All checks are passing and the PR is approved.
+
+Merge the PR using: %s pr merge %d
+
+IMPORTANT: %s pr merge requires a merge strategy flag in non-interactive mode.
+Before merging, check which strategies are allowed on this repo:
+  %s repo view --json mergeCommitAllowed,squashMergeAllowed,rebaseMergeAllowed
+Then pass the appropriate flag (--merge, --squash, or --rebase).
+
+Do NOT switch branches or check out main after merging — stay on the current branch.`, ctx.PullRequest.URL, cli, ctx.PullRequest.Number, cli, cli)
+				}
+
+				// Update PR — push latest commits
+				return fmt.Sprintf(`A pull request already exists for this branch: %s
+
+Push the latest changes to update it:
+
+1. If there are uncommitted changes, create a commit first (following the usual commit guidelines).
+2. Push to the remote: git push
+3. If the push fails because the remote is ahead, pull with rebase first: git pull --rebase && git push
+4. Optionally update the PR title/body if the scope has changed: %s pr edit --title "..." --body "..."`, ctx.PullRequest.URL, cli)
+			}
+
+			// No PR yet — create one
+			return fmt.Sprintf(`Create a pull request for this branch. Follow these steps:
+
+1. If there are uncommitted changes, create a commit first (following the usual commit guidelines).
+2. Push the branch to the remote: git push -u origin HEAD
+3. Create the PR using: %s pr create --title "..." --body "..."
+   - Derive the PR title from the branch name and commit messages. Use a conventional commit style prefix.
+   - Write a meaningful PR body summarizing the changes.
+   - Include any relevant bean IDs.
+4. Report the PR URL when done.`, cli)
+		},
+		Visible: func(ctx actionContext) bool {
+			if ctx.IntegrateMode == "local" {
+				return false
+			}
+			if ctx.ForgeCLI == "" {
+				return false
+			}
+			if ctx.PullRequest == nil {
+				return ctx.HasChanges || ctx.HasNewCommits
+			}
+			// PR merged — hide; the destroy worktree button handles cleanup
+			if ctx.PullRequest.State == "merged" {
+				return false
+			}
+			// PR exists and not merged — show
+			return true
+		},
+		Disabled: func(ctx actionContext) string {
+			if ctx.ForgeLoading {
+				return "Checking PR status..."
+			}
+			if ctx.PullRequest != nil && !ctx.HasChanges && !ctx.HasUnpushedCommits {
+				switch ctx.PullRequest.Checks {
+				case forge.CheckStatusPending:
+					return "CI checks are still running"
+				case forge.CheckStatusPass:
+					if !ctx.PullRequest.Mergeable {
+						return "PR has merge conflicts or branch protection requirements not met"
+					}
+				}
 			}
 			return ""
 		},

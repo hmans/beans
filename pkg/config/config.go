@@ -81,6 +81,14 @@ const (
 	PermissionModePlan PermissionMode = "plan"
 )
 
+// IntegrateMode represents the worktree integration strategy.
+type IntegrateMode string
+
+const (
+	IntegrateModeLocal IntegrateMode = "local"
+	IntegrateModePR    IntegrateMode = "pr"
+)
+
 // WorktreeConfig defines settings for git worktree management.
 type WorktreeConfig struct {
 	// BaseRef is the git ref to use as the starting point for new worktree branches.
@@ -98,6 +106,11 @@ type WorktreeConfig struct {
 	// Run is a shell command to run the project (e.g. "mise dev").
 	// When set, a "Run" button appears in the workspace toolbar.
 	Run string `yaml:"run,omitempty"`
+
+	// Integrate controls the worktree integration strategy.
+	// "local" (default): squash-merge locally, hides PR buttons.
+	// "pr": push and create PRs, hides the local Integrate button.
+	Integrate IntegrateMode `yaml:"integrate,omitempty"`
 }
 
 // AgentConfig defines settings for agent sessions.
@@ -172,7 +185,8 @@ func Default() *Config {
 			DefaultType:   "task",
 		},
 		Worktree: WorktreeConfig{
-			BaseRef: DefaultWorktreeBaseRef,
+			BaseRef:   DefaultWorktreeBaseRef,
+			Integrate: IntegrateModeLocal,
 		},
 		Agent: AgentConfig{
 			Enabled:     boolPtr(true),
@@ -416,6 +430,10 @@ func (c *Config) toYAMLNode() *yaml.Node {
 	runKey := strNode("run")
 	runKey.HeadComment = "Shell command to run the project (adds a \"Run\" button to workspace toolbar)"
 	worktreeMapping.Content = append(worktreeMapping.Content, runKey, strNode(c.Worktree.Run))
+
+	integrateKey := strNode("integrate")
+	integrateKey.HeadComment = "Integration strategy: \"local\" (squash-merge locally) or \"pr\" (push and create PRs)"
+	worktreeMapping.Content = append(worktreeMapping.Content, integrateKey, strNode(string(c.GetWorktreeIntegrate())))
 
 	// Build the agent mapping
 	agentMapping := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
@@ -703,6 +721,17 @@ func (c *Config) GetWorktreeSetup() string {
 // GetWorktreeRun returns the configured run command for worktrees.
 func (c *Config) GetWorktreeRun() string {
 	return c.Worktree.Run
+}
+
+// GetWorktreeIntegrate returns the configured integration mode.
+// Returns "local" if not set or invalid.
+func (c *Config) GetWorktreeIntegrate() IntegrateMode {
+	switch c.Worktree.Integrate {
+	case IntegrateModeLocal, IntegrateModePR:
+		return c.Worktree.Integrate
+	default:
+		return IntegrateModeLocal
+	}
 }
 
 // IsAgentEnabled returns whether agent functionality is enabled.

@@ -4,9 +4,9 @@ Beans is an agentic-first issue tracker. Issues ("beans") live as markdown files
 
 - **CLI** (`beans` binary) — create, list, update, and query beans from the terminal
 - **Terminal TUI** — Bubbletea-based interactive interface
-- **Web TUI** (`beans serve`) — SvelteKit SPA served by an embedded Go HTTP server, communicating via GraphQL (queries, mutations, subscriptions over WebSocket)
+- **Beans UI** (`beans serve`) — SvelteKit SPA served by an embedded Go HTTP server, communicating via GraphQL (queries, mutations, subscriptions over WebSocket)
 
-The web TUI is the primary development focus. It includes a backlog board, per-bean agent chat (spawning Claude Code processes), git worktree management, file change diffs, and terminal sessions.
+The Beans UI is the primary development focus. It includes a backlog board, per-bean agent chat (spawning Claude Code processes), git worktree management, file change diffs, and terminal sessions.
 
 # Commits
 
@@ -26,7 +26,7 @@ Key packages:
 
 - `pkg/bean/` — Bean data model, parsing, sorting, validation (no I/O)
 - `pkg/beancore/` — Core engine: disk I/O, file watching, search indexing, worktree watching
-- `internal/graph/` — GraphQL schema and resolvers (the API layer for both web TUI and CLI)
+- `internal/graph/` — GraphQL schema and resolvers (the API layer for both Beans UI and CLI)
 - `internal/agent/` — Agent session manager: spawns Claude Code processes, parses JSONL output, pub/sub for real-time updates
 - `internal/worktree/` — Git worktree lifecycle management
 - `internal/terminal/` — PTY session management for embedded terminals

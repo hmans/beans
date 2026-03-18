@@ -267,6 +267,26 @@ func HasConflicts(dir, baseBranch string) bool {
 	return false
 }
 
+// HasUnpushedCommits returns true if the current branch has commits
+// that have not been pushed to its remote tracking branch.
+// Returns false if there is no tracking branch (e.g., branch was never pushed).
+func HasUnpushedCommits(dir string) bool {
+	// Check if upstream tracking branch exists
+	cmd := exec.Command("git", "-C", dir, "rev-parse", "--abbrev-ref", "@{upstream}")
+	if err := cmd.Run(); err != nil {
+		// No tracking branch — treat as "has unpushed" since nothing was pushed yet
+		return true
+	}
+	// Count commits ahead of upstream
+	cmd = exec.Command("git", "-C", dir, "rev-list", "--count", "@{upstream}..HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	count, _ := strconv.Atoi(strings.TrimSpace(string(out)))
+	return count > 0
+}
+
 // HasChanges returns true if there are any uncommitted changes or untracked files.
 func HasChanges(dir string) bool {
 	changes, err := FileChanges(dir)

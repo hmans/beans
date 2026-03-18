@@ -7,6 +7,7 @@ class ConfigStore {
   agentEnabled = $state(true);
   worktreeBaseRef = $state('main');
   worktreeRunCommand = $state('');
+  worktreeIntegrateMode = $state<'local' | 'pr'>('local');
 
   async load(): Promise<void> {
     const result = await client.query(ConfigDocument, {}).toPromise();
@@ -20,6 +21,7 @@ class ConfigStore {
       this.agentEnabled = result.data.agentEnabled;
       this.worktreeBaseRef = result.data.worktreeBaseRef;
       this.worktreeRunCommand = result.data.worktreeRunCommand;
+      this.worktreeIntegrateMode = result.data.worktreeIntegrateMode as 'local' | 'pr';
     }
   }
 }

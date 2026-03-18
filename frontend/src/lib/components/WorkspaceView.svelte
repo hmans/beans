@@ -142,14 +142,33 @@
     </button>
     {#snippet right()}
       <AgentActions beanId={worktreeId} {agentBusy} onExecute={() => scrollToBottomTrigger++} />
+      {#if worktree?.pullRequest && configStore.worktreeIntegrateMode === 'pr'}
+        {@const isMerged = worktree.pullRequest.state === 'merged'}
+        <a
+          class={[
+            "btn-toggle ml-1 cursor-pointer",
+            isMerged
+              ? "border-purple-500/30 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20"
+              : "border-accent/30 bg-accent/10 text-accent hover:bg-accent/20"
+          ]}
+          href={worktree.pullRequest.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={`PR #${worktree.pullRequest.number}: ${worktree.pullRequest.title}`}
+        >
+          <span class={["size-4", isMerged ? "icon-[uil--code-branch] rotate-180" : "icon-[uil--external-link-alt]"]}></span>
+          PR #{worktree.pullRequest.number}
+        </a>
+      {/if}
       {#if isWorktree}
         <button
-          class={["btn-toggle ml-1 cursor-pointer border-border bg-transparent text-text-muted", agentBusy ? "opacity-50" : "hover:text-danger"]}
-          title={agentBusy ? "Cannot destroy while agent is running" : "Destroy this worktree"}
+          class={["btn-toggle ml-1 cursor-pointer border-accent/30 bg-accent/10 text-accent", agentBusy ? "opacity-50" : "hover:bg-accent/20"]}
+          title={agentBusy ? "Cannot destroy while agent is running" : "Close this workspace"}
           disabled={agentBusy}
           onclick={() => (confirmingDestroy = true)}
         >
           <span class="icon-[uil--archive] size-4"></span>
+          Close Workspace
         </button>
       {/if}
     {/snippet}

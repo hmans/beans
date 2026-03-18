@@ -31,6 +31,16 @@ fragment WorktreeFields on Worktree {
   }
   setupStatus
   setupError
+  pullRequest {
+    number
+    title
+    state
+    url
+    isDraft
+    checkStatus
+    reviewApproved
+    mergeable
+  }
 }
 
 fragment AgentSessionFields on AgentSession {
@@ -71,6 +81,7 @@ fragment AgentSessionFields on AgentSession {
     description
     currentTool
   }
+  quickReplies
 }
 
 fragment FileChangeFields on FileChange {
@@ -135,6 +146,7 @@ query Config {
   agentEnabled
   worktreeBaseRef
   worktreeRunCommand
+  worktreeIntegrateMode
 }
 
 query Worktrees {
@@ -164,8 +176,8 @@ query BranchStatus($path: String) {
   }
 }
 
-query AgentActions($beanId: ID!) {
-  agentActions(beanId: $beanId) {
+query AgentActions($beanId: ID!, $skipForge: Boolean) {
+  agentActions(beanId: $beanId, skipForge: $skipForge) {
     ...AgentActionFields
   }
 }

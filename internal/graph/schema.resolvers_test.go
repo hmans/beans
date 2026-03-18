@@ -2838,7 +2838,7 @@ func TestQueryAgentActions(t *testing.T) {
 	t.Run("returns always-visible actions for unknown bean", func(t *testing.T) {
 		resolver, _ := setupTestResolver(t)
 		qr := resolver.Query()
-		actions, err := qr.AgentActions(ctx, "any-bean-id")
+		actions, err := qr.AgentActions(ctx, "any-bean-id", nil)
 		if err != nil {
 			t.Fatalf("AgentActions() error = %v", err)
 		}

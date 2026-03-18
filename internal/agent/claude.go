@@ -555,6 +555,9 @@ func (m *Manager) readOutput(beanID string, stdout io.Reader, workDir string, pr
 				go m.onTurnComplete(beanID)
 			}
 
+			// Generate quick reply suggestions asynchronously
+			go m.generateQuickReplies(beanID)
+
 			// After compact, prune orphaned image attachments
 			if m.wasLastUserMessage(beanID, "/compact") {
 				m.pruneOrphanedAttachments(beanID)
@@ -816,6 +819,9 @@ func buildClaudeArgs(session *Session) []string {
 		args = append(args, "--dangerously-skip-permissions")
 	} else if session.PlanMode {
 		args = append(args, "--permission-mode", "plan")
+	}
+	if session.SystemPrompt != "" {
+		args = append(args, "--append-system-prompt", session.SystemPrompt)
 	}
 	if session.SessionID != "" {
 		args = append(args, "--resume", session.SessionID)

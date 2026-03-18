@@ -10,6 +10,10 @@ import (
 // for the given beanID. Return "" to skip injection.
 type ContextProvider func(beanID string) string
 
+// SystemPromptProvider returns a system prompt to append to the default system
+// prompt for the given beanID. Return "" to skip injection.
+type SystemPromptProvider func(beanID string) string
+
 // OnFirstUserMessageFunc is called when the first user message is sent to a new session.
 // Receives the beanID (which is the worktree ID for workspace agents) and
 // the user's message text.
@@ -45,6 +49,7 @@ type Manager struct {
 	processes             map[string]*runningProcess
 	store                 *store // JSONL persistence (nil if no beansDir)
 	contextProvider       ContextProvider
+	systemPromptProvider  SystemPromptProvider
 	onFirstUserMessage    OnFirstUserMessageFunc
 	onTurnComplete        OnTurnCompleteFunc
 	defaultMode   DefaultMode
@@ -84,6 +89,12 @@ func NewManager(beansDir string, contextProvider ContextProvider, defaultMode ..
 	}
 
 	return m
+}
+
+// SetSystemPromptProvider registers a callback that returns a system prompt to
+// append for new sessions. Must be called during initialization.
+func (m *Manager) SetSystemPromptProvider(fn SystemPromptProvider) {
+	m.systemPromptProvider = fn
 }
 
 // SetOnFirstUserMessage registers a callback that fires when the first user message
@@ -171,6 +182,7 @@ func (m *Manager) SendMessage(beanID, workDir, message string, images []ImageUpl
 	session.Error = ""
 	session.PendingInteraction = nil
 	session.ToolInvocations = nil
+	session.QuickReplies = nil
 
 	// Check if this is the first user message in the session (for description
 	// generation). We can't just check !ok because AddInfoMessage may have
@@ -593,6 +605,10 @@ func (m *Manager) applyDefaultMode(s *Session) {
 func (m *Manager) loadOrCreateSession(beanID, workDir string) *Session {
 	session := m.newBaseSession(beanID)
 	session.WorkDir = workDir
+
+	if m.systemPromptProvider != nil {
+		session.SystemPrompt = m.systemPromptProvider(beanID)
+	}
 
 	if m.store != nil {
 		msgs, sessionID, err := m.store.load(beanID)
