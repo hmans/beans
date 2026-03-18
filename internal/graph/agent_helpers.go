@@ -2,10 +2,8 @@ package graph
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/hmans/beans/internal/agent"
-	"github.com/hmans/beans/internal/gitutil"
 	"github.com/hmans/beans/internal/graph/model"
 	"github.com/hmans/beans/pkg/forge"
 )
@@ -306,61 +304,15 @@ REMINDER: Do NOT push anything to any remote. The integrate action is purely loc
 		},
 		PromptFunc: func(ctx actionContext) string {
 			cli := ctx.ForgeCLI
-			if ctx.PullRequest != nil {
-				// PR Merged — no action needed; the destroy button handles cleanup
-				if ctx.PullRequest.State == "merged" {
-					return ""
-				}
+			return fmt.Sprintf(`Manage the pull request for this branch. Check the current state and take the appropriate action:
 
-				// Fix Tests — checks failed, inspect and fix
-				if !ctx.HasChanges && !ctx.HasUnpushedCommits && ctx.PullRequest.Checks == forge.CheckStatusFail {
-					return fmt.Sprintf(`CI checks have failed on pull request %s.
-
-Investigate the failures and fix them:
-
-1. Inspect the failed checks: %s pr checks %d
-2. View the logs of the failed run to understand what went wrong: %s run view --log-failed (pick the relevant run ID from the checks output)
-3. Fix the issue in the code.
-4. Run the project's test suite locally to verify the fix.
-5. Create a commit with the fix and push: git push
-
-After pushing, the checks will re-run automatically.`, ctx.PullRequest.URL, cli, ctx.PullRequest.Number, cli)
-				}
-
-				// Merge PR — everything is pushed, checks pass, ready to merge
-				if !ctx.HasChanges && !ctx.HasUnpushedCommits && ctx.PullRequest.CanMerge() {
-					return fmt.Sprintf(`The pull request %s is ready to merge. All checks are passing and the PR is approved.
-
-Merge the PR using: %s pr merge %d
-
-IMPORTANT: %s pr merge requires a merge strategy flag in non-interactive mode.
-Before merging, check which strategies are allowed on this repo:
-  %s repo view --json mergeCommitAllowed,squashMergeAllowed,rebaseMergeAllowed
-Then pass the appropriate flag (--merge, --squash, or --rebase).
-
-Do NOT switch branches or check out main after merging — stay on the current branch.`, ctx.PullRequest.URL, cli, ctx.PullRequest.Number, cli, cli)
-				}
-
-				// Update PR — push latest commits
-				return fmt.Sprintf(`A pull request already exists for this branch: %s
-
-Push the latest changes to update it:
-
-1. If there are uncommitted changes, create a commit first (following the usual commit guidelines).
-2. Push to the remote: git push
-3. If the push fails because the remote is ahead, pull with rebase first: git pull --rebase && git push
-4. Optionally update the PR title/body if the scope has changed: %s pr edit --title "..." --body "..."`, ctx.PullRequest.URL, cli)
-			}
-
-			// No PR yet — create one
-			return fmt.Sprintf(`Create a pull request for this branch. Follow these steps:
-
-1. If there are uncommitted changes, create a commit first (following the usual commit guidelines).
-2. Push the branch to the remote: git push -u origin HEAD
-3. Create the PR using: %s pr create --title "..." --body "..."
-   - Derive the PR title from the branch name and commit messages. Use a conventional commit style prefix.
-   - Write a meaningful PR body summarizing the changes.
-   - Include any relevant bean IDs.
+1. Check if a PR already exists: %[1]s pr view
+2. Check for uncommitted changes (git status) and unpushed commits (git log @{upstream}..HEAD).
+3. Based on the state:
+   - **No PR exists**: Commit any uncommitted changes, push the branch (git push -u origin HEAD), and create a PR (%[1]s pr create). Derive the title from commit messages using conventional commit style. Include relevant bean IDs.
+   - **PR exists, has local changes or unpushed commits**: Commit if needed, then push (git push). Update the PR title/body if the scope changed.
+   - **PR exists, everything pushed, checks failing**: Inspect the failed checks (%[1]s pr checks, %[1]s run view --log-failed), fix the issue, test locally, commit and push.
+   - **PR exists, everything pushed, checks pass, mergeable**: Merge it. Use %[1]s repo view --json mergeCommitAllowed,squashMergeAllowed,rebaseMergeAllowed to pick the right strategy, then %[1]s pr merge with the appropriate flag. Do NOT switch branches after merging.
 4. Report the PR URL when done.`, cli)
 		},
 		Visible: func(ctx actionContext) bool {
@@ -399,26 +351,9 @@ Push the latest changes to update it:
 	},
 }
 
-// commitPrompt inspects the working directory to generate an appropriate commit prompt.
-func commitPrompt(ctx actionContext) string {
-	changes, err := gitutil.FileChanges(ctx.WorkDir)
-	if err != nil || len(changes) == 0 {
-		return "Create a commit. Examine the git diff and commit the changes with an appropriate message."
-	}
-
-	allBeans := true
-	for _, c := range changes {
-		if !strings.HasPrefix(c.Path, ".beans/") {
-			allBeans = false
-			break
-		}
-	}
-
-	if allBeans {
-		return "Create a commit. The only uncommitted changes are bean files. Examine them and commit with an appropriate message describing the bean updates (e.g. status changes, new beans, archived beans)."
-	}
-
-	return "Create a commit. Make sure there is an associated bean that is up to date, and possibly even marked as completed if you are done with the change. Then only commit changes related to that change."
+// commitPrompt generates a commit prompt. The agent will inspect git state itself.
+func commitPrompt(_ actionContext) string {
+	return "Create a commit. Examine the current git status and diff, then commit with an appropriate message. If there are non-bean changes, make sure there is an associated bean that is up to date. If the only changes are bean files, describe the bean updates in the commit message."
 }
 
 // findAgentAction looks up an action by ID, returning nil if not found.

@@ -778,23 +778,8 @@ func (r *mutationResolver) ExecuteAgentAction(ctx context.Context, beanID string
 	}
 
 	actCtx := actionContext{WorktreeID: beanID, WorkDir: workDir, MainRepoPath: r.ProjectRoot}
-	actCtx.HasChanges = gitutil.HasChanges(workDir)
-	actCtx.HasUnpushedCommits = gitutil.HasUnpushedCommits(workDir)
-
-	// Populate forge context for actions that need it
 	if r.Forge != nil {
 		actCtx.ForgeCLI = r.Forge.CLIName()
-		if r.WorktreeMgr != nil {
-			if wts, err := r.WorktreeMgr.List(); err == nil {
-				for _, wt := range wts {
-					if wt.ID == beanID {
-						pr, _ := r.Forge.FindPR(ctx, r.ProjectRoot, wt.Branch)
-						actCtx.PullRequest = pr
-						break
-					}
-				}
-			}
-		}
 	}
 
 	if err := r.AgentMgr.SendMessage(beanID, workDir, action.PromptFunc(actCtx), nil); err != nil {
