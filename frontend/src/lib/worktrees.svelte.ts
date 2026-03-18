@@ -28,6 +28,8 @@ export interface WorktreeStatus {
 
 class WorktreeStore {
   worktrees = $state<Worktree[]>([]);
+  /** IDs of worktrees currently being destroyed by the backend. */
+  destroying = $state(new Set<string>());
   initialized = $state(false);
   loading = $state(false);
   error = $state<string | null>(null);
@@ -51,6 +53,18 @@ class WorktreeStore {
         if (wts) {
           this.worktrees = wts.map(mapWorktree);
           this.initialized = true;
+
+          // Clear destroying flags for worktrees the backend has fully removed
+          if (this.destroying.size > 0) {
+            const currentIds = new Set(wts.map((wt) => wt.id));
+            const next = new Set<string>();
+            for (const id of this.destroying) {
+              if (currentIds.has(id)) next.add(id);
+            }
+            if (next.size !== this.destroying.size) {
+              this.destroying = next;
+            }
+          }
         }
       })
     );
@@ -95,23 +109,29 @@ class WorktreeStore {
     this.loading = true;
     this.error = null;
 
-    // Eagerly remove from local state so the sidebar updates immediately
-    // without waiting for the subscription to deliver the new list.
-    const previous = this.worktrees;
-    this.worktrees = this.worktrees.filter((wt) => wt.id !== id);
+    // Mark as destroying so the UI can show a visual indicator (low opacity)
+    // instead of optimistically removing. The subscription will handle the
+    // actual removal once the backend finishes cleanup.
+    this.destroying = new Set([...this.destroying, id]);
 
     const result = await client.mutation(RemoveWorktreeDocument, { id }).toPromise();
 
     this.loading = false;
 
     if (result.error) {
-      // Restore on failure so the item reappears
-      this.worktrees = previous;
+      // Clear destroying state on failure
+      const next = new Set(this.destroying);
+      next.delete(id);
+      this.destroying = next;
       this.error = result.error.message;
       return false;
     }
 
     return true;
+  }
+
+  isDestroying(id: string): boolean {
+    return this.destroying.has(id);
   }
 
   hasWorktree(id: string): boolean {

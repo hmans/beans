@@ -109,6 +109,8 @@
     await worktreeStore.removeWorktree(worktreeId);
   }
 
+  const destroying = $derived(worktreeStore.isDestroying(worktreeId));
+
   const worktree = $derived(
     worktreeId === MAIN_WORKSPACE_ID
       ? undefined
@@ -254,9 +256,9 @@
       {/if}
       {#if isWorktree}
         <button
-          class={["btn-toggle ml-1 cursor-pointer border-accent/30 bg-accent/10 text-accent", agentBusy ? "opacity-50" : "hover:bg-accent/20"]}
-          title={agentBusy ? "Cannot destroy while agent is running" : "Close this workspace"}
-          disabled={agentBusy}
+          class={["btn-toggle ml-1 cursor-pointer border-accent/30 bg-accent/10 text-accent", (agentBusy || destroying) ? "opacity-50" : "hover:bg-accent/20"]}
+          title={destroying ? "Destroying..." : agentBusy ? "Cannot destroy while agent is running" : "Close this workspace"}
+          disabled={agentBusy || destroying}
           onclick={() => (confirmingDestroy = true)}
         >
           <span class="icon-[uil--archive] size-4"></span>

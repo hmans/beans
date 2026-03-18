@@ -143,7 +143,6 @@
   async function handleRemoveWorktree(id: string) {
     confirmingRemoveId = null;
     confirmingStatus = null;
-    // Navigate away immediately since the store optimistically removes the item
     if (ui.activeView === id) {
       ui.navigateTo('planning');
     }
@@ -209,10 +208,12 @@
 
       <div class="flex flex-col gap-1">
       {#each workspaceItems as item (item.id)}
+        {@const destroying = worktreeStore.isDestroying(item.id)}
         <div
           transition:fade={{ duration: 150 }}
           class={[
-            'rounded-md border transition-colors',
+            'rounded-md border transition-all',
+            destroying && 'pointer-events-none opacity-30',
             ui.activeView === item.id
               ? 'border-accent/30 bg-surface'
               : 'border-border/50 bg-surface/50 hover:border-border hover:bg-surface'
