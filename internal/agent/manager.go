@@ -23,6 +23,10 @@ type OnFirstUserMessageFunc func(beanID string, message string)
 // Receives the beanID (which is the worktree ID for workspace agents).
 type OnTurnCompleteFunc func(beanID string)
 
+// QuickReplyContextFunc returns workspace context to include in the quick reply
+// generation prompt for the given beanID. Return "" to skip context injection.
+type QuickReplyContextFunc func(beanID string) string
+
 // DefaultMode controls the initial mode for new agent sessions.
 type DefaultMode string
 
@@ -52,6 +56,7 @@ type Manager struct {
 	systemPromptProvider  SystemPromptProvider
 	onFirstUserMessage    OnFirstUserMessageFunc
 	onTurnComplete        OnTurnCompleteFunc
+	quickReplyContext     QuickReplyContextFunc
 	defaultMode   DefaultMode
 	defaultEffort EffortLevel
 
@@ -107,6 +112,12 @@ func (m *Manager) SetOnFirstUserMessage(fn OnFirstUserMessageFunc) {
 // Used to update workspace activity timestamps for sidebar sorting.
 func (m *Manager) SetOnTurnComplete(fn OnTurnCompleteFunc) {
 	m.onTurnComplete = fn
+}
+
+// SetQuickReplyContext registers a callback that returns workspace context
+// (PR status, git state, etc.) for inclusion in quick reply generation prompts.
+func (m *Manager) SetQuickReplyContext(fn QuickReplyContextFunc) {
+	m.quickReplyContext = fn
 }
 
 // GetSession returns a snapshot of the session for the given beanID, or nil.

@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/hmans/beans/internal/agent"
+	"github.com/hmans/beans/internal/gitutil"
 	"github.com/hmans/beans/internal/cors"
 	"github.com/hmans/beans/internal/graph"
 	"github.com/hmans/beans/internal/portalloc"
@@ -266,6 +267,61 @@ func runServer(port int, origins []string) error {
 	if forgeProvider != nil {
 		fmt.Printf("[beans] detected forge: %s (using %s CLI)\n", forgeProvider.Name(), forgeProvider.CLIName())
 	}
+
+	// Provide workspace context (PR status, git state) for quick reply generation.
+	agentMgr.SetQuickReplyContext(func(beanID string) string {
+		if beanID == graph.CentralSessionID || wtManager == nil {
+			return ""
+		}
+		var branch, wtPath string
+		if wts, err := wtManager.List(); err == nil {
+			for _, wt := range wts {
+				if wt.ID == beanID {
+					branch = wt.Branch
+					wtPath = wt.Path
+					break
+				}
+			}
+		}
+		if wtPath == "" {
+			return ""
+		}
+
+		var lines []string
+		if branch != "" {
+			lines = append(lines, fmt.Sprintf("Branch: %s", branch))
+		}
+		if gitutil.HasChanges(wtPath) {
+			lines = append(lines, "Has uncommitted changes: yes")
+		}
+		if gitutil.HasUnmergedCommits(wtPath, wtManager.BaseRef()) {
+			lines = append(lines, "Has commits not yet merged to base branch: yes")
+		}
+		if gitutil.HasUnpushedCommits(wtPath) {
+			lines = append(lines, "Has unpushed commits: yes")
+		}
+		if gitutil.HasConflicts(wtPath, wtManager.BaseRef()) {
+			lines = append(lines, "Has conflicts with base branch: yes")
+		}
+		if forgeProvider != nil && branch != "" {
+			if pr, _ := forgeProvider.FindPR(context.Background(), projectRoot, branch); pr != nil {
+				state := pr.State
+				if pr.IsDraft {
+					state = "draft"
+				}
+				lines = append(lines, fmt.Sprintf("Pull request: #%d (%s)", pr.Number, state))
+				if pr.Checks != "" {
+					lines = append(lines, fmt.Sprintf("CI checks: %s", pr.Checks))
+				}
+				if pr.ReviewApproved {
+					lines = append(lines, "Review: approved")
+				}
+			} else {
+				lines = append(lines, "Pull request: none")
+			}
+		}
+		return strings.Join(lines, "\n")
+	})
 
 	// Create GraphQL server with explicit transports
 	es := graph.NewExecutableSchema(graph.Config{
