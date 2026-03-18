@@ -336,6 +336,16 @@ type UpdateBeanInput struct {
 	IfMatch *string `json:"ifMatch,omitempty"`
 }
 
+// Git status for a workspace (main repo or worktree)
+type WorkspaceStatus struct {
+	// Workspace identifier (__central__ for main repo, worktree ID for worktrees)
+	ID string `json:"id"`
+	// Whether the workspace has uncommitted changes or untracked files
+	HasChanges bool `json:"hasChanges"`
+	// Whether the workspace has commits not yet merged into the base branch
+	HasUnmergedCommits bool `json:"hasUnmergedCommits"`
+}
+
 // A git worktree, either associated with a bean or standalone
 type Worktree struct {
 	// Unique worktree identifier

@@ -1,8 +1,9 @@
 <script lang="ts">
   import { fade } from 'svelte/transition';
   import { onDestroy } from 'svelte';
+  import { pipe, subscribe as wonkaSubscribe } from 'wonka';
   import { worktreeStore, MAIN_WORKSPACE_ID, type WorktreeStatus } from '$lib/worktrees.svelte';
-  import { MainChangesDocument, WorktreeStatusesDocument } from '$lib/graphql/generated';
+  import { WorkspaceStatusesDocument } from '$lib/graphql/generated';
   import { beansStore, type Bean } from '$lib/beans.svelte';
   import { agentStatusesStore } from '$lib/agentStatuses.svelte';
   import { configStore } from '$lib/config.svelte';
@@ -91,7 +92,7 @@
     return false;
   }
 
-  // Poll for uncommitted changes in the main repo and worktree integration readiness
+  // Subscribe to workspace git statuses (main repo + worktrees)
   let mainHasChanges = $state(false);
   let worktreeStatuses = $state(new Map<string, WorktreeStatus>());
   let readyWorktreeIds = $derived(new Set(
@@ -100,22 +101,22 @@
       .map(([id]) => id)
   ));
 
-  async function fetchStatuses() {
-    const [mainResult, wtResult] = await Promise.all([
-      client.query(MainChangesDocument, {}).toPromise(),
-      client.query(WorktreeStatusesDocument, {}).toPromise()
-    ]);
-    mainHasChanges = (mainResult.data?.fileChanges?.length ?? 0) > 0;
-    const statuses = new Map<string, WorktreeStatus>();
-    for (const wt of wtResult.data?.worktrees ?? []) {
-      statuses.set(wt.id, { hasChanges: wt.hasChanges, hasUnmergedCommits: wt.hasUnmergedCommits });
-    }
-    worktreeStatuses = statuses;
-  }
-
-  fetchStatuses();
-  const statusInterval = setInterval(fetchStatuses, 3000);
-  onDestroy(() => clearInterval(statusInterval));
+  const { unsubscribe: unsubStatuses } = pipe(
+    client.subscription(WorkspaceStatusesDocument, {}),
+    wonkaSubscribe((result) => {
+      if (!result.data?.workspaceStatuses) return;
+      const statuses = new Map<string, WorktreeStatus>();
+      for (const ws of result.data.workspaceStatuses) {
+        if (ws.id === MAIN_WORKSPACE_ID) {
+          mainHasChanges = ws.hasChanges;
+        } else {
+          statuses.set(ws.id, { hasChanges: ws.hasChanges, hasUnmergedCommits: ws.hasUnmergedCommits });
+        }
+      }
+      worktreeStatuses = statuses;
+    })
+  );
+  onDestroy(unsubStatuses);
 
   let confirmingRemoveId = $state<string | null>(null);
   let confirmingStatus = $state<WorktreeStatus | null>(null);
@@ -125,10 +126,9 @@
     confirmingStatus = worktreeStatuses.get(id) ?? null;
     confirmingRemoveId = id;
     // Fetch fresh status so warnings update if cache was stale
-    client.query(WorktreeStatusesDocument, {}).toPromise().then((result) => {
-      const fresh = (result.data?.worktrees ?? []).find((wt) => wt.id === id);
+    worktreeStore.getWorktreeStatus(id).then((fresh) => {
       if (confirmingRemoveId === id) {
-        confirmingStatus = fresh ? { hasChanges: fresh.hasChanges, hasUnmergedCommits: fresh.hasUnmergedCommits } : null;
+        confirmingStatus = fresh;
       }
     });
   }

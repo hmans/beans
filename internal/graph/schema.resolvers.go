@@ -1524,6 +1524,100 @@ func (r *subscriptionResolver) ActiveAgentStatuses(ctx context.Context) (<-chan 
 	return out, nil
 }
 
+// WorkspaceStatuses is the resolver for the workspaceStatuses field.
+func (r *subscriptionResolver) WorkspaceStatuses(ctx context.Context) (<-chan []*model.WorkspaceStatus, error) {
+	out := make(chan []*model.WorkspaceStatus)
+
+	go func() {
+		defer close(out)
+
+		var wtCh chan struct{}
+		if r.WorktreeMgr != nil {
+			wtCh = r.WorktreeMgr.Subscribe()
+			defer r.WorktreeMgr.Unsubscribe(wtCh)
+		}
+
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+
+		// Track last emitted state to avoid sending duplicates.
+		type statusKey struct{ hasChanges, hasUnmergedCommits bool }
+		var lastStatuses map[string]statusKey
+
+		compute := func() []*model.WorkspaceStatus {
+			var result []*model.WorkspaceStatus
+
+			// Main workspace status
+			result = append(result, &model.WorkspaceStatus{
+				ID:         CentralSessionID,
+				HasChanges: gitutil.HasChanges(r.ProjectRoot),
+			})
+
+			// Worktree statuses
+			if r.WorktreeMgr != nil {
+				baseRef := r.WorktreeMgr.BaseRef()
+				if wts, err := r.WorktreeMgr.List(); err == nil {
+					for _, wt := range wts {
+						result = append(result, &model.WorkspaceStatus{
+							ID:                 wt.ID,
+							HasChanges:         gitutil.HasChanges(wt.Path),
+							HasUnmergedCommits: gitutil.HasUnmergedCommits(wt.Path, baseRef),
+						})
+					}
+				}
+			}
+
+			return result
+		}
+
+		changed := func(statuses []*model.WorkspaceStatus) bool {
+			if len(statuses) != len(lastStatuses) {
+				return true
+			}
+			for _, s := range statuses {
+				prev, ok := lastStatuses[s.ID]
+				if !ok || prev.hasChanges != s.HasChanges || prev.hasUnmergedCommits != s.HasUnmergedCommits {
+					return true
+				}
+			}
+			return false
+		}
+
+		emit := func() {
+			statuses := compute()
+			if !changed(statuses) {
+				return
+			}
+			lastStatuses = make(map[string]statusKey, len(statuses))
+			for _, s := range statuses {
+				lastStatuses[s.ID] = statusKey{s.HasChanges, s.HasUnmergedCommits}
+			}
+			select {
+			case out <- statuses:
+			case <-ctx.Done():
+			}
+		}
+
+		emit() // initial state
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				emit()
+			case _, ok := <-wtCh:
+				if !ok {
+					return
+				}
+				emit()
+			}
+		}
+	}()
+
+	return out, nil
+}
+
 // Bean returns BeanResolver implementation.
 func (r *Resolver) Bean() BeanResolver { return &beanResolver{r} }
 

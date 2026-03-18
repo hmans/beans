@@ -226,7 +226,14 @@ type ComplexityRoot struct {
 		ActiveAgentStatuses func(childComplexity int) int
 		AgentSessionChanged func(childComplexity int, beanID string) int
 		BeanChanged         func(childComplexity int, includeInitial *bool) int
+		WorkspaceStatuses   func(childComplexity int) int
 		WorktreesChanged    func(childComplexity int) int
+	}
+
+	WorkspaceStatus struct {
+		HasChanges         func(childComplexity int) int
+		HasUnmergedCommits func(childComplexity int) int
+		ID                 func(childComplexity int) int
 	}
 
 	Worktree struct {
@@ -309,6 +316,7 @@ type SubscriptionResolver interface {
 	WorktreesChanged(ctx context.Context) (<-chan []*model.Worktree, error)
 	AgentSessionChanged(ctx context.Context, beanID string) (<-chan *model.AgentSession, error)
 	ActiveAgentStatuses(ctx context.Context) (<-chan []*model.ActiveAgentStatus, error)
+	WorkspaceStatuses(ctx context.Context) (<-chan []*model.WorkspaceStatus, error)
 }
 
 type executableSchema struct {
@@ -1287,12 +1295,37 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Subscription.BeanChanged(childComplexity, args["includeInitial"].(*bool)), true
+	case "Subscription.workspaceStatuses":
+		if e.complexity.Subscription.WorkspaceStatuses == nil {
+			break
+		}
+
+		return e.complexity.Subscription.WorkspaceStatuses(childComplexity), true
 	case "Subscription.worktreesChanged":
 		if e.complexity.Subscription.WorktreesChanged == nil {
 			break
 		}
 
 		return e.complexity.Subscription.WorktreesChanged(childComplexity), true
+
+	case "WorkspaceStatus.hasChanges":
+		if e.complexity.WorkspaceStatus.HasChanges == nil {
+			break
+		}
+
+		return e.complexity.WorkspaceStatus.HasChanges(childComplexity), true
+	case "WorkspaceStatus.hasUnmergedCommits":
+		if e.complexity.WorkspaceStatus.HasUnmergedCommits == nil {
+			break
+		}
+
+		return e.complexity.WorkspaceStatus.HasUnmergedCommits(childComplexity), true
+	case "WorkspaceStatus.id":
+		if e.complexity.WorkspaceStatus.ID == nil {
+			break
+		}
+
+		return e.complexity.WorkspaceStatus.ID(childComplexity), true
 
 	case "Worktree.beans":
 		if e.complexity.Worktree.Beans == nil {
@@ -7353,6 +7386,130 @@ func (ec *executionContext) fieldContext_Subscription_activeAgentStatuses(_ cont
 	return fc, nil
 }
 
+func (ec *executionContext) _Subscription_workspaceStatuses(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Subscription_workspaceStatuses,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.Subscription().WorkspaceStatuses(ctx)
+		},
+		nil,
+		ec.marshalNWorkspaceStatus2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐWorkspaceStatusᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Subscription_workspaceStatuses(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_WorkspaceStatus_id(ctx, field)
+			case "hasChanges":
+				return ec.fieldContext_WorkspaceStatus_hasChanges(ctx, field)
+			case "hasUnmergedCommits":
+				return ec.fieldContext_WorkspaceStatus_hasUnmergedCommits(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type WorkspaceStatus", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkspaceStatus_id(ctx context.Context, field graphql.CollectedField, obj *model.WorkspaceStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkspaceStatus_id,
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkspaceStatus_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkspaceStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkspaceStatus_hasChanges(ctx context.Context, field graphql.CollectedField, obj *model.WorkspaceStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkspaceStatus_hasChanges,
+		func(ctx context.Context) (any, error) {
+			return obj.HasChanges, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkspaceStatus_hasChanges(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkspaceStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WorkspaceStatus_hasUnmergedCommits(ctx context.Context, field graphql.CollectedField, obj *model.WorkspaceStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_WorkspaceStatus_hasUnmergedCommits,
+		func(ctx context.Context) (any, error) {
+			return obj.HasUnmergedCommits, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_WorkspaceStatus_hasUnmergedCommits(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WorkspaceStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Worktree_id(ctx context.Context, field graphql.CollectedField, obj *model.Worktree) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -11572,9 +11729,60 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_agentSessionChanged(ctx, fields[0])
 	case "activeAgentStatuses":
 		return ec._Subscription_activeAgentStatuses(ctx, fields[0])
+	case "workspaceStatuses":
+		return ec._Subscription_workspaceStatuses(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
+}
+
+var workspaceStatusImplementors = []string{"WorkspaceStatus"}
+
+func (ec *executionContext) _WorkspaceStatus(ctx context.Context, sel ast.SelectionSet, obj *model.WorkspaceStatus) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, workspaceStatusImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WorkspaceStatus")
+		case "id":
+			out.Values[i] = ec._WorkspaceStatus_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "hasChanges":
+			out.Values[i] = ec._WorkspaceStatus_hasChanges(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "hasUnmergedCommits":
+			out.Values[i] = ec._WorkspaceStatus_hasUnmergedCommits(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
 }
 
 var worktreeImplementors = []string{"Worktree"}
@@ -12658,6 +12866,60 @@ func (ec *executionContext) marshalNTime2ᚖtimeᚐTime(ctx context.Context, sel
 func (ec *executionContext) unmarshalNUpdateBeanInput2githubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐUpdateBeanInput(ctx context.Context, v any) (model.UpdateBeanInput, error) {
 	res, err := ec.unmarshalInputUpdateBeanInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNWorkspaceStatus2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐWorkspaceStatusᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.WorkspaceStatus) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNWorkspaceStatus2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐWorkspaceStatus(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNWorkspaceStatus2ᚖgithubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐWorkspaceStatus(ctx context.Context, sel ast.SelectionSet, v *model.WorkspaceStatus) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._WorkspaceStatus(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNWorktree2githubᚗcomᚋhmansᚋbeansᚋinternalᚋgraphᚋmodelᚐWorktree(ctx context.Context, sel ast.SelectionSet, v model.Worktree) graphql.Marshaler {

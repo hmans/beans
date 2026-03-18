@@ -136,6 +136,14 @@ subscription ActiveAgentStatuses {
   }
 }
 
+subscription WorkspaceStatuses {
+  workspaceStatuses {
+    id
+    hasChanges
+    hasUnmergedCommits
+  }
+}
+
 # =============================================================================
 # Queries
 # =============================================================================
@@ -190,19 +198,6 @@ query AllFileDiff($filePath: String!, $path: String) {
   allFileDiff(filePath: $filePath, path: $path)
 }
 
-query MainChanges {
-  fileChanges {
-    path
-  }
-}
-
-query WorktreeStatuses {
-  worktrees {
-    id
-    hasChanges
-    hasUnmergedCommits
-  }
-}
 
 # =============================================================================
 # Mutations
