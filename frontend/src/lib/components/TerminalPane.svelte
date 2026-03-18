@@ -7,9 +7,11 @@
   import '@xterm/xterm/css/xterm.css';
   interface Props {
     sessionId: string;
+    hideToolbar?: boolean;
+    onSessionEnd?: () => void;
   }
 
-  let { sessionId }: Props = $props();
+  let { sessionId, hideToolbar = false, onSessionEnd }: Props = $props();
 
   let terminalEl: HTMLDivElement | undefined = $state();
   let terminal: Terminal | undefined;
@@ -97,6 +99,7 @@
     socket.addEventListener('close', (e) => {
       if (e.code === 1000 && e.reason === 'shell exited') {
         term.write('\r\n\x1b[90m[session ended]\x1b[0m\r\n');
+        onSessionEnd?.();
       } else {
         // Connection lost — reset terminal and reconnect
         // The server will replay scrollback to restore the display
@@ -176,11 +179,17 @@
   });
 </script>
 
-<div class="flex h-full min-h-0 flex-col bg-surface">
-  <div class="pane-toolbar">
-    <span>Terminal</span>
-    <div class="flex-1"></div>
-    <button onclick={() => ui.toggleTerminal()} class="btn-icon" title="Close"> &#x2715; </button>
+{#if hideToolbar}
+  <div class="flex h-full min-h-0 flex-col bg-surface">
+    <div class="min-h-0 flex-1 p-2" bind:this={terminalEl}></div>
   </div>
-  <div class="min-h-0 flex-1 p-2" bind:this={terminalEl}></div>
-</div>
+{:else}
+  <div class="flex h-full min-h-0 flex-col bg-surface">
+    <div class="pane-toolbar">
+      <span>Terminal</span>
+      <div class="flex-1"></div>
+      <button onclick={() => ui.toggleTerminal()} class="btn-icon" title="Close"> &#x2715; </button>
+    </div>
+    <div class="min-h-0 flex-1 p-2" bind:this={terminalEl}></div>
+  </div>
+{/if}

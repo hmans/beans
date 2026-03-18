@@ -433,8 +433,16 @@ export type Mutation = {
   setAgentPlanMode: Scalars['Boolean']['output'];
   /** Set or clear the parent of a bean (validates type hierarchy) */
   setParent: Bean;
+  /**
+   * Start the configured run command in a dedicated terminal session for a workspace.
+   * Returns the allocated port number for the workspace.
+   * If a run session is already active, it is stopped first.
+   */
+  startRun: Scalars['Int']['output'];
   /** Stop the running agent in a worktree. */
   stopAgent: Scalars['Boolean']['output'];
+  /** Stop the run session for a workspace. */
+  stopRun: Scalars['Boolean']['output'];
   /** Update an existing bean */
   updateBean: Bean;
   /**
@@ -565,8 +573,18 @@ export type MutationSetParentArgs = {
 };
 
 
+export type MutationStartRunArgs = {
+  workspaceId: Scalars['ID']['input'];
+};
+
+
 export type MutationStopAgentArgs = {
   beanId: Scalars['ID']['input'];
+};
+
+
+export type MutationStopRunArgs = {
+  workspaceId: Scalars['ID']['input'];
 };
 
 
@@ -654,6 +672,8 @@ export type Query = {
   fileDiff: Scalars['String']['output'];
   /** Whether any beans have unsaved runtime changes */
   hasDirtyBeans: Scalars['Boolean']['output'];
+  /** Check whether a run session is alive for a workspace. */
+  isRunning: Scalars['Boolean']['output'];
   /** The current branch of the main repository. */
   mainBranch: Scalars['String']['output'];
   /**
@@ -661,6 +681,8 @@ export type Query = {
    * Returns empty string if not configured.
    */
   projectName: Scalars['String']['output'];
+  /** Get the allocated port for a workspace. Returns 0 if not allocated. */
+  workspacePort: Scalars['Int']['output'];
   /**
    * The configured base ref for worktree branches (from worktree.base_ref config).
    * Used as the rebase target. Defaults to "main".
@@ -729,6 +751,16 @@ export type QueryFileDiffArgs = {
   filePath: Scalars['String']['input'];
   path?: InputMaybe<Scalars['String']['input']>;
   staged: Scalars['Boolean']['input'];
+};
+
+
+export type QueryIsRunningArgs = {
+  workspaceId: Scalars['ID']['input'];
+};
+
+
+export type QueryWorkspacePortArgs = {
+  workspaceId: Scalars['ID']['input'];
 };
 
 /** A single text replacement operation. */
@@ -1109,6 +1141,34 @@ export type OpenInEditorMutationVariables = Exact<{
 
 export type OpenInEditorMutation = { openInEditor: boolean };
 
+export type StartRunMutationVariables = Exact<{
+  workspaceId: Scalars['ID']['input'];
+}>;
+
+
+export type StartRunMutation = { startRun: number };
+
+export type StopRunMutationVariables = Exact<{
+  workspaceId: Scalars['ID']['input'];
+}>;
+
+
+export type StopRunMutation = { stopRun: boolean };
+
+export type IsRunningQueryVariables = Exact<{
+  workspaceId: Scalars['ID']['input'];
+}>;
+
+
+export type IsRunningQuery = { isRunning: boolean };
+
+export type WorkspacePortQueryVariables = Exact<{
+  workspaceId: Scalars['ID']['input'];
+}>;
+
+
+export type WorkspacePortQuery = { workspacePort: number };
+
 export const BeanFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BeanFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Bean"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"slug"}},{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"title"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"priority"}},{"kind":"Field","name":{"kind":"Name","value":"tags"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"updatedAt"}},{"kind":"Field","name":{"kind":"Name","value":"body"}},{"kind":"Field","name":{"kind":"Name","value":"order"}},{"kind":"Field","name":{"kind":"Name","value":"parentId"}},{"kind":"Field","name":{"kind":"Name","value":"blockingIds"}},{"kind":"Field","name":{"kind":"Name","value":"worktreeId"}}]}}]} as unknown as DocumentNode<BeanFieldsFragment, unknown>;
 export const WorktreeFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"WorktreeFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Worktree"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"branch"}},{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"beans"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}}]}},{"kind":"Field","name":{"kind":"Name","value":"setupStatus"}},{"kind":"Field","name":{"kind":"Name","value":"setupError"}},{"kind":"Field","name":{"kind":"Name","value":"pullRequest"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"title"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"isDraft"}},{"kind":"Field","name":{"kind":"Name","value":"checkStatus"}},{"kind":"Field","name":{"kind":"Name","value":"reviewApproved"}},{"kind":"Field","name":{"kind":"Name","value":"mergeable"}}]}}]}}]} as unknown as DocumentNode<WorktreeFieldsFragment, unknown>;
 export const AgentSessionFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"AgentSessionFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"AgentSession"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"beanId"}},{"kind":"Field","name":{"kind":"Name","value":"agentType"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"messages"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"role"}},{"kind":"Field","name":{"kind":"Name","value":"content"}},{"kind":"Field","name":{"kind":"Name","value":"images"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"url"}},{"kind":"Field","name":{"kind":"Name","value":"mediaType"}}]}},{"kind":"Field","name":{"kind":"Name","value":"diff"}}]}},{"kind":"Field","name":{"kind":"Name","value":"error"}},{"kind":"Field","name":{"kind":"Name","value":"effort"}},{"kind":"Field","name":{"kind":"Name","value":"planMode"}},{"kind":"Field","name":{"kind":"Name","value":"actMode"}},{"kind":"Field","name":{"kind":"Name","value":"systemStatus"}},{"kind":"Field","name":{"kind":"Name","value":"pendingInteraction"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"planContent"}},{"kind":"Field","name":{"kind":"Name","value":"questions"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"header"}},{"kind":"Field","name":{"kind":"Name","value":"question"}},{"kind":"Field","name":{"kind":"Name","value":"multiSelect"}},{"kind":"Field","name":{"kind":"Name","value":"options"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"label"}},{"kind":"Field","name":{"kind":"Name","value":"description"}}]}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"workDir"}},{"kind":"Field","name":{"kind":"Name","value":"subagentActivities"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"taskId"}},{"kind":"Field","name":{"kind":"Name","value":"index"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"currentTool"}}]}},{"kind":"Field","name":{"kind":"Name","value":"quickReplies"}}]}}]} as unknown as DocumentNode<AgentSessionFieldsFragment, unknown>;
@@ -1145,3 +1205,7 @@ export const ExecuteAgentActionDocument = {"kind":"Document","definitions":[{"ki
 export const WriteTerminalInputDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"WriteTerminalInput"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"data"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"writeTerminalInput"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"sessionId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"sessionId"}}},{"kind":"Argument","name":{"kind":"Name","value":"data"},"value":{"kind":"Variable","name":{"kind":"Name","value":"data"}}}]}]}}]} as unknown as DocumentNode<WriteTerminalInputMutation, WriteTerminalInputMutationVariables>;
 export const DiscardFileChangeDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DiscardFileChange"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"filePath"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"staged"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Boolean"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"path"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"discardFileChange"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"filePath"},"value":{"kind":"Variable","name":{"kind":"Name","value":"filePath"}}},{"kind":"Argument","name":{"kind":"Name","value":"staged"},"value":{"kind":"Variable","name":{"kind":"Name","value":"staged"}}},{"kind":"Argument","name":{"kind":"Name","value":"path"},"value":{"kind":"Variable","name":{"kind":"Name","value":"path"}}}]}]}}]} as unknown as DocumentNode<DiscardFileChangeMutation, DiscardFileChangeMutationVariables>;
 export const OpenInEditorDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"OpenInEditor"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"workspaceId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"openInEditor"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"workspaceId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"workspaceId"}}}]}]}}]} as unknown as DocumentNode<OpenInEditorMutation, OpenInEditorMutationVariables>;
+export const StartRunDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"StartRun"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"workspaceId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startRun"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"workspaceId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"workspaceId"}}}]}]}}]} as unknown as DocumentNode<StartRunMutation, StartRunMutationVariables>;
+export const StopRunDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"StopRun"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"workspaceId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"stopRun"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"workspaceId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"workspaceId"}}}]}]}}]} as unknown as DocumentNode<StopRunMutation, StopRunMutationVariables>;
+export const IsRunningDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"IsRunning"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"workspaceId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"isRunning"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"workspaceId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"workspaceId"}}}]}]}}]} as unknown as DocumentNode<IsRunningQuery, IsRunningQueryVariables>;
+export const WorkspacePortDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"WorkspacePort"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"workspaceId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"workspacePort"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"workspaceId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"workspaceId"}}}]}]}}]} as unknown as DocumentNode<WorkspacePortQuery, WorkspacePortQueryVariables>;

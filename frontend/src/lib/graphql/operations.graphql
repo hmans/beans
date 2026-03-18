@@ -288,3 +288,19 @@ mutation DiscardFileChange($filePath: String!, $staged: Boolean!, $path: String)
 mutation OpenInEditor($workspaceId: ID!) {
   openInEditor(workspaceId: $workspaceId)
 }
+
+mutation StartRun($workspaceId: ID!) {
+  startRun(workspaceId: $workspaceId)
+}
+
+mutation StopRun($workspaceId: ID!) {
+  stopRun(workspaceId: $workspaceId)
+}
+
+query IsRunning($workspaceId: ID!) {
+  isRunning(workspaceId: $workspaceId)
+}
+
+query WorkspacePort($workspaceId: ID!) {
+  workspacePort(workspaceId: $workspaceId)
+}

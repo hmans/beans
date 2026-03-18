@@ -273,6 +273,50 @@ func (m *Manager) createLocked(sessionID, workDir string, cols, rows uint16) (*S
 	return sess, nil
 }
 
+// CreateWithCommand spawns a new PTY session that runs a specific command
+// (via shell -c) instead of an interactive login shell. The session ends
+// when the command exits.
+func (m *Manager) CreateWithCommand(sessionID, workDir string, cols, rows uint16, command string) (*Session, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if existing, ok := m.sessions[sessionID]; ok {
+		existing.Close()
+		delete(m.sessions, sessionID)
+	}
+
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		shell = "/bin/sh"
+	}
+
+	cmd := exec.Command(shell, "-l", "-c", command)
+	cmd.Dir = workDir
+	env := append(os.Environ(), "TERM=xterm-256color")
+	if m.envFunc != nil {
+		env = append(env, m.envFunc(sessionID)...)
+	}
+	cmd.Env = env
+
+	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: cols, Rows: rows})
+	if err != nil {
+		return nil, fmt.Errorf("failed to start PTY: %w", err)
+	}
+
+	sess := &Session{
+		id:         sessionID,
+		cmd:        cmd,
+		ptyF:       ptmx,
+		scrollback: NewRingBuffer(scrollbackSize),
+		done:       make(chan struct{}),
+	}
+
+	go sess.readLoop()
+
+	m.sessions[sessionID] = sess
+	return sess, nil
+}
+
 // Get retrieves an existing session.
 func (m *Manager) Get(sessionID string) *Session {
 	m.mu.Lock()

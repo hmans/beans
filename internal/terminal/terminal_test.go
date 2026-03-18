@@ -311,3 +311,118 @@ func containsSubstring(data []byte, sub string) bool {
 	return len(data) >= len(sub) && strings.Contains(string(data), sub)
 }
 
+func TestCreateWithCommand(t *testing.T) {
+	mgr := NewManager(nil)
+	defer mgr.Shutdown()
+
+	// Run a simple command that exits
+	sess, err := mgr.CreateWithCommand("test-cmd", os.TempDir(), 80, 24, "echo cmd-output")
+	if err != nil {
+		t.Fatalf("CreateWithCommand failed: %v", err)
+	}
+
+	_, output := sess.Attach()
+
+	// Collect output until the command finishes
+	deadline := time.After(5 * time.Second)
+	var collected []byte
+	for {
+		select {
+		case data := <-output:
+			collected = append(collected, data...)
+			if containsSubstring(collected, "cmd-output") {
+				// Command produced expected output
+				return
+			}
+		case <-sess.Done():
+			// Session ended — check what we collected
+			if containsSubstring(collected, "cmd-output") {
+				return
+			}
+			t.Fatalf("session ended without expected output; got: %q", string(collected))
+		case <-deadline:
+			t.Fatalf("timed out; collected output: %q", string(collected))
+		}
+	}
+}
+
+func TestCreateWithCommandExits(t *testing.T) {
+	mgr := NewManager(nil)
+	defer mgr.Shutdown()
+
+	// Run a command that exits immediately
+	sess, err := mgr.CreateWithCommand("test-cmd-exit", os.TempDir(), 80, 24, "true")
+	if err != nil {
+		t.Fatalf("CreateWithCommand failed: %v", err)
+	}
+
+	// The session should become dead after the command exits
+	select {
+	case <-sess.Done():
+		// Success — command exited and session closed
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for command to exit")
+	}
+
+	if sess.Alive() {
+		t.Fatal("session should not be alive after command exits")
+	}
+}
+
+func TestCreateWithCommandReplacesExisting(t *testing.T) {
+	mgr := NewManager(nil)
+	defer mgr.Shutdown()
+
+	sess1, err := mgr.CreateWithCommand("test-cmd-replace", os.TempDir(), 80, 24, "sleep 60")
+	if err != nil {
+		t.Fatalf("first CreateWithCommand failed: %v", err)
+	}
+
+	sess2, err := mgr.CreateWithCommand("test-cmd-replace", os.TempDir(), 80, 24, "sleep 60")
+	if err != nil {
+		t.Fatalf("second CreateWithCommand failed: %v", err)
+	}
+
+	if sess1 == sess2 {
+		t.Fatal("expected different session objects")
+	}
+
+	got := mgr.Get("test-cmd-replace")
+	if got != sess2 {
+		t.Fatal("Get should return the new session")
+	}
+}
+
+func TestCreateWithCommandEnvFunc(t *testing.T) {
+	mgr := NewManager(func(sessionID string) []string {
+		return []string{"TEST_PORT=12345"}
+	})
+	defer mgr.Shutdown()
+
+	sess, err := mgr.CreateWithCommand("test-cmd-env", os.TempDir(), 80, 24, "echo PORT=$TEST_PORT")
+	if err != nil {
+		t.Fatalf("CreateWithCommand failed: %v", err)
+	}
+
+	_, output := sess.Attach()
+
+	deadline := time.After(5 * time.Second)
+	var collected []byte
+	for {
+		select {
+		case data := <-output:
+			collected = append(collected, data...)
+			if containsSubstring(collected, "PORT=12345") {
+				return
+			}
+		case <-sess.Done():
+			if containsSubstring(collected, "PORT=12345") {
+				return
+			}
+			t.Fatalf("session ended without expected output; got: %q", string(collected))
+		case <-deadline:
+			t.Fatalf("timed out; collected output: %q", string(collected))
+		}
+	}
+}
+

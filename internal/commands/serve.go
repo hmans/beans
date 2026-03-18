@@ -151,9 +151,12 @@ func runServer(port int, origins []string) error {
 		}
 	}
 
-	// Create terminal session manager with workspace port injection
+	// Create terminal session manager with workspace port injection.
+	// Run sessions use "${workspaceId}__run" as session ID — strip the
+	// suffix so they share the same port as the workspace's shell session.
 	termMgr := terminal.NewManager(func(sessionID string) []string {
-		port, err := portAlloc.Get(sessionID)
+		workspaceID := strings.TrimSuffix(sessionID, "__run")
+		port, err := portAlloc.Get(workspaceID)
 		if err != nil {
 			return nil
 		}

@@ -95,6 +95,16 @@ type Query {
   worktreeRunCommand: String!
 
   """
+  Get the allocated port for a workspace. Returns 0 if not allocated.
+  """
+  workspacePort(workspaceId: ID!): Int!
+
+  """
+  Check whether a run session is alive for a workspace.
+  """
+  isRunning(workspaceId: ID!): Boolean!
+
+  """
   The configured integration mode for worktrees (from worktree.integrate config).
   "local" = squash-merge locally (hides PR buttons).
   "pr" = push and create PRs (hides Integrate button).
@@ -232,6 +242,18 @@ type Mutation {
   Creates the session if it doesn't exist yet.
   """
   writeTerminalInput(sessionId: String!, data: String!): Boolean!
+
+  """
+  Start the configured run command in a dedicated terminal session for a workspace.
+  Returns the allocated port number for the workspace.
+  If a run session is already active, it is stopped first.
+  """
+  startRun(workspaceId: ID!): Int!
+
+  """
+  Stop the run session for a workspace.
+  """
+  stopRun(workspaceId: ID!): Boolean!
 
   """
   Create a new worktree. Returns the created worktree with a generated ID.

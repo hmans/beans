@@ -21,6 +21,10 @@ import (
 // that runs in the project root (not a worktree).
 const CentralSessionID = "__central__"
 
+// RunSessionSuffix is appended to workspace IDs to form the terminal session ID
+// for run command sessions (e.g., "worktree-abc__run").
+const RunSessionSuffix = "__run"
+
 // Resolver is the root resolver for the GraphQL schema.
 // It holds a reference to beancore.Core for data access.
 type Resolver struct {

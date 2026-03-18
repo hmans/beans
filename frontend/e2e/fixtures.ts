@@ -1,6 +1,6 @@
 import { test as base } from '@playwright/test';
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -157,6 +157,7 @@ class BeansCLI {
 
 type Fixtures = {
   beans: BeansCLI;
+  beansWithRun: BeansCLI;
   backlogPage: BacklogPage;
   boardPage: BoardPage;
 };
@@ -219,6 +220,50 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
       // Set the base URL for this test's page
       await page.goto(`http://localhost:${port}/`);
       // Navigate away so tests start fresh with goto()
+      await page.goto('about:blank');
+
+      const cli = new BeansCLI(beansPath, projectDir, beansBin, `http://localhost:${port}`);
+      await use(cli);
+    } finally {
+      server.kill();
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  },
+
+  beansWithRun: async ({ page, beansTemplate }, use, testInfo) => {
+    const { beans: beansBin, beansServe } = getBinaries();
+
+    const projectDir = mkdtempSync(join(tmpdir(), 'beans-e2e-'));
+    execFileSync('git', ['init', '-b', 'main'], { cwd: projectDir, timeout: 10_000 });
+    execFileSync('git', ['commit', '--allow-empty', '-m', 'init'], {
+      cwd: projectDir,
+      timeout: 10_000,
+      env: GIT_ENV
+    });
+    cpSync(join(beansTemplate, '.beans'), join(projectDir, '.beans'), { recursive: true });
+    cpSync(join(beansTemplate, '.beans.yml'), join(projectDir, '.beans.yml'));
+
+    // Add a run command to the config — a long-running process we can stop
+    const configPath = join(projectDir, '.beans.yml');
+    const config = readFileSync(configPath, 'utf-8');
+    writeFileSync(configPath, config.replace(/run: ""/g, 'run: "sleep 300"'));
+
+    const beansPath = join(projectDir, '.beans');
+    const port = BASE_PORT + testInfo.workerIndex * 100 + testInfo.parallelIndex;
+
+    const server: ChildProcess = spawn(
+      beansServe,
+      ['--port', String(port), '--beans-path', beansPath],
+      {
+        cwd: projectDir,
+        env: { ...process.env, GIN_MODE: 'release' },
+        stdio: 'pipe'
+      }
+    );
+
+    try {
+      await waitForServer(port);
+      await page.goto(`http://localhost:${port}/`);
       await page.goto('about:blank');
 
       const cli = new BeansCLI(beansPath, projectDir, beansBin, `http://localhost:${port}`);

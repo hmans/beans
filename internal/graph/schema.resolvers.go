@@ -565,6 +565,53 @@ func (r *mutationResolver) WriteTerminalInput(ctx context.Context, sessionID str
 	return true, nil
 }
 
+// StartRun is the resolver for the startRun field.
+func (r *mutationResolver) StartRun(ctx context.Context, workspaceID string) (int, error) {
+	if r.TerminalMgr == nil {
+		return 0, fmt.Errorf("terminal support not available")
+	}
+
+	cfg := r.Core.Config()
+	if cfg == nil || cfg.GetWorktreeRun() == "" {
+		return 0, fmt.Errorf("no run command configured")
+	}
+
+	var workDir string
+	if workspaceID == CentralSessionID {
+		workDir = r.ProjectRoot
+	} else if r.WorktreeMgr != nil {
+		workDir = r.WorktreeMgr.WorktreePath(workspaceID)
+	}
+	if workDir == "" {
+		return 0, fmt.Errorf("cannot resolve work directory for workspace %q", workspaceID)
+	}
+
+	sessionID := workspaceID + RunSessionSuffix
+	if _, err := r.TerminalMgr.CreateWithCommand(sessionID, workDir, 80, 24, cfg.GetWorktreeRun()); err != nil {
+		return 0, fmt.Errorf("failed to start run session: %w", err)
+	}
+
+	port := 0
+	if r.PortAlloc != nil {
+		if p, err := r.PortAlloc.Get(workspaceID); err == nil {
+			port = p
+		}
+	}
+
+	return port, nil
+}
+
+// StopRun is the resolver for the stopRun field.
+func (r *mutationResolver) StopRun(ctx context.Context, workspaceID string) (bool, error) {
+	if r.TerminalMgr == nil {
+		return false, fmt.Errorf("terminal support not available")
+	}
+
+	sessionID := workspaceID + RunSessionSuffix
+	r.TerminalMgr.Close(sessionID)
+	return true, nil
+}
+
 // CreateWorktree is the resolver for the createWorktree field.
 func (r *mutationResolver) CreateWorktree(ctx context.Context, name string) (*model.Worktree, error) {
 	if r.WorktreeMgr == nil {
@@ -1236,6 +1283,31 @@ func (r *queryResolver) WorktreeRunCommand(ctx context.Context) (string, error) 
 		return "", nil
 	}
 	return cfg.GetWorktreeRun(), nil
+}
+
+// WorkspacePort is the resolver for the workspacePort field.
+func (r *queryResolver) WorkspacePort(ctx context.Context, workspaceID string) (int, error) {
+	if r.PortAlloc == nil {
+		return 0, nil
+	}
+	port, err := r.PortAlloc.Get(workspaceID)
+	if err != nil {
+		return 0, nil
+	}
+	return port, nil
+}
+
+// IsRunning is the resolver for the isRunning field.
+func (r *queryResolver) IsRunning(ctx context.Context, workspaceID string) (bool, error) {
+	if r.TerminalMgr == nil {
+		return false, nil
+	}
+	sessionID := workspaceID + RunSessionSuffix
+	sess := r.TerminalMgr.Get(sessionID)
+	if sess == nil {
+		return false, nil
+	}
+	return sess.Alive(), nil
 }
 
 // WorktreeIntegrateMode is the resolver for the worktreeIntegrateMode field.

@@ -1,6 +1,11 @@
 <script lang="ts">
   import { AgentChatStore } from '$lib/agentChat.svelte';
-  import { WriteTerminalInputDocument, OpenInEditorDocument } from '$lib/graphql/generated';
+  import {
+    StartRunDocument,
+    StopRunDocument,
+    IsRunningDocument,
+    OpenInEditorDocument
+  } from '$lib/graphql/generated';
   import { changesStore } from '$lib/changes.svelte';
   import { configStore } from '$lib/config.svelte';
   import { client } from '$lib/graphqlClient';
@@ -17,19 +22,44 @@
   import AgentActions from './AgentActions.svelte';
   import ConfirmModal from './ConfirmModal.svelte';
 
-  async function handleRun() {
-    // Show and initialize the terminal
-    ui.terminalInitialized = true;
-    ui.showTerminal = true;
+  // Run session state
+  let isRunning = $state(false);
+  let runPort = $state(0);
+  let terminalTab = $state<'shell' | 'run'>('shell');
 
-    // Write the run command — the resolver creates the session on demand
-    // if the terminal pane hasn't connected via WebSocket yet.
-    await client
-      .mutation(WriteTerminalInputDocument, {
-        sessionId: worktreeId,
-        data: configStore.worktreeRunCommand + '\n'
-      })
+  const runSessionId = $derived(worktreeId + '__run');
+  const hasRunCommand = $derived(!!configStore.worktreeRunCommand);
+
+  async function handleRun() {
+    const result = await client
+      .mutation(StartRunDocument, { workspaceId: worktreeId })
       .toPromise();
+
+    if (result.data) {
+      isRunning = true;
+      runPort = result.data.startRun;
+      terminalTab = 'run';
+
+      // Show and initialize the terminal pane
+      ui.terminalInitialized = true;
+      ui.showTerminal = true;
+    }
+  }
+
+  async function handleStop() {
+    await client.mutation(StopRunDocument, { workspaceId: worktreeId }).toPromise();
+    isRunning = false;
+  }
+
+  function handleRunSessionEnd() {
+    isRunning = false;
+    terminalTab = 'shell';
+  }
+
+  function handleOpenApp() {
+    if (runPort > 0) {
+      window.open(`http://localhost:${runPort}/`, '_blank', 'noopener');
+    }
   }
 
   async function handleOpenInEditor() {
@@ -51,6 +81,16 @@
   $effect(() => {
     changesStore.startPolling(worktreePath);
     return () => changesStore.stopPolling();
+  });
+
+  // Check initial run state on mount
+  $effect(() => {
+    const id = worktreeId;
+    client.query(IsRunningDocument, { workspaceId: id }).toPromise().then((result) => {
+      if (result.data?.isRunning) {
+        isRunning = true;
+      }
+    });
   });
 
   onDestroy(() => {
@@ -92,7 +132,36 @@
 
 {#snippet terminalPanel()}
   {#if ui.terminalInitialized}
-    <TerminalPane sessionId={worktreeId} />
+    <div class="flex h-full min-h-0 flex-col bg-surface">
+      <div class="pane-toolbar">
+        {#if isRunning}
+          <button
+            class={["btn-tab-sm cursor-pointer", terminalTab === 'shell' ? "btn-tab-active" : "btn-tab-inactive"]}
+            onclick={() => (terminalTab = 'shell')}
+          >
+            Shell
+          </button>
+          <button
+            class={["btn-tab-sm cursor-pointer", terminalTab === 'run' ? "btn-tab-active" : "btn-tab-inactive"]}
+            onclick={() => (terminalTab = 'run')}
+          >
+            Run
+          </button>
+        {:else}
+          <span>Terminal</span>
+        {/if}
+        <div class="flex-1"></div>
+        <button onclick={() => ui.toggleTerminal()} class="btn-icon cursor-pointer" title="Close">&#x2715;</button>
+      </div>
+      {#if terminalTab === 'shell' || !isRunning}
+        <TerminalPane sessionId={worktreeId} hideToolbar />
+      {/if}
+      {#if terminalTab === 'run' && isRunning}
+        {#key runSessionId}
+          <TerminalPane sessionId={runSessionId} hideToolbar onSessionEnd={handleRunSessionEnd} />
+        {/key}
+      {/if}
+    </div>
   {/if}
 {/snippet}
 
@@ -120,17 +189,40 @@
 
 <div class="flex h-full flex-col">
   <ViewToolbar>
-    {#if configStore.worktreeRunCommand}
-      <button
-        class="btn-toggle btn-toggle-inactive ml-1 cursor-pointer"
-        title={`Run: ${configStore.worktreeRunCommand}`}
-        onclick={handleRun}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4">
-          <path d="M6.3 2.84A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.27l9.344-5.891a1.5 1.5 0 000-2.538L6.3 2.84z" />
-        </svg>
-        Run
-      </button>
+    {#if hasRunCommand}
+      {#if isRunning}
+        <button
+          class="btn-toggle ml-1 cursor-pointer border-danger/30 bg-danger/10 text-danger hover:bg-danger/20"
+          title="Stop the running process"
+          onclick={handleStop}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4">
+            <rect x="4" y="4" width="12" height="12" rx="1" />
+          </svg>
+          Stop
+        </button>
+        {#if runPort > 0}
+          <button
+            class="btn-toggle ml-1 cursor-pointer border-accent/30 bg-accent/10 text-accent hover:bg-accent/20"
+            title={`Open http://localhost:${runPort}/`}
+            onclick={handleOpenApp}
+          >
+            <span class="icon-[uil--external-link-alt] size-4"></span>
+            Open
+          </button>
+        {/if}
+      {:else}
+        <button
+          class="btn-toggle btn-toggle-inactive ml-1 cursor-pointer"
+          title={`Run: ${configStore.worktreeRunCommand}`}
+          onclick={handleRun}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4">
+            <path d="M6.3 2.84A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.27l9.344-5.891a1.5 1.5 0 000-2.538L6.3 2.84z" />
+          </svg>
+          Run
+        </button>
+      {/if}
     {/if}
     <button
       class="btn-toggle btn-toggle-inactive ml-1 cursor-pointer"

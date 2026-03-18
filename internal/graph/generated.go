@@ -173,7 +173,9 @@ type ComplexityRoot struct {
 		SetAgentPendingInteraction func(childComplexity int, beanID string, typeArg model.InteractionType, planContent *string) int
 		SetAgentPlanMode           func(childComplexity int, beanID string, planMode bool) int
 		SetParent                  func(childComplexity int, id string, parentID *string, ifMatch *string) int
+		StartRun                   func(childComplexity int, workspaceID string) int
 		StopAgent                  func(childComplexity int, beanID string) int
+		StopRun                    func(childComplexity int, workspaceID string) int
 		UpdateBean                 func(childComplexity int, id string, input model.UpdateBeanInput) int
 		WriteTerminalInput         func(childComplexity int, sessionID string, data string) int
 	}
@@ -207,8 +209,10 @@ type ComplexityRoot struct {
 		FileChanges           func(childComplexity int, path *string) int
 		FileDiff              func(childComplexity int, filePath string, staged bool, path *string) int
 		HasDirtyBeans         func(childComplexity int) int
+		IsRunning             func(childComplexity int, workspaceID string) int
 		MainBranch            func(childComplexity int) int
 		ProjectName           func(childComplexity int) int
+		WorkspacePort         func(childComplexity int, workspaceID string) int
 		WorktreeBaseRef       func(childComplexity int) int
 		WorktreeIntegrateMode func(childComplexity int) int
 		WorktreeRunCommand    func(childComplexity int) int
@@ -276,6 +280,8 @@ type MutationResolver interface {
 	AddBlockedBy(ctx context.Context, id string, targetID string, ifMatch *string) (*bean.Bean, error)
 	RemoveBlockedBy(ctx context.Context, id string, targetID string, ifMatch *string) (*bean.Bean, error)
 	WriteTerminalInput(ctx context.Context, sessionID string, data string) (bool, error)
+	StartRun(ctx context.Context, workspaceID string) (int, error)
+	StopRun(ctx context.Context, workspaceID string) (bool, error)
 	CreateWorktree(ctx context.Context, name string) (*model.Worktree, error)
 	RemoveWorktree(ctx context.Context, id string) (bool, error)
 	SendAgentMessage(ctx context.Context, beanID string, message string, images []*model.ImageInput) (bool, error)
@@ -309,6 +315,8 @@ type QueryResolver interface {
 	AgentEnabled(ctx context.Context) (bool, error)
 	WorktreeBaseRef(ctx context.Context) (string, error)
 	WorktreeRunCommand(ctx context.Context) (string, error)
+	WorkspacePort(ctx context.Context, workspaceID string) (int, error)
+	IsRunning(ctx context.Context, workspaceID string) (bool, error)
 	WorktreeIntegrateMode(ctx context.Context) (string, error)
 }
 type SubscriptionResolver interface {
@@ -992,6 +1000,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.SetParent(childComplexity, args["id"].(string), args["parentId"].(*string), args["ifMatch"].(*string)), true
+	case "Mutation.startRun":
+		if e.complexity.Mutation.StartRun == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_startRun_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.StartRun(childComplexity, args["workspaceId"].(string)), true
 	case "Mutation.stopAgent":
 		if e.complexity.Mutation.StopAgent == nil {
 			break
@@ -1003,6 +1022,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.StopAgent(childComplexity, args["beanId"].(string)), true
+	case "Mutation.stopRun":
+		if e.complexity.Mutation.StopRun == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_stopRun_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.StopRun(childComplexity, args["workspaceId"].(string)), true
 	case "Mutation.updateBean":
 		if e.complexity.Mutation.UpdateBean == nil {
 			break
@@ -1205,6 +1235,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.HasDirtyBeans(childComplexity), true
+	case "Query.isRunning":
+		if e.complexity.Query.IsRunning == nil {
+			break
+		}
+
+		args, err := ec.field_Query_isRunning_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.IsRunning(childComplexity, args["workspaceId"].(string)), true
 	case "Query.mainBranch":
 		if e.complexity.Query.MainBranch == nil {
 			break
@@ -1217,6 +1258,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.ProjectName(childComplexity), true
+	case "Query.workspacePort":
+		if e.complexity.Query.WorkspacePort == nil {
+			break
+		}
+
+		args, err := ec.field_Query_workspacePort_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.WorkspacePort(childComplexity, args["workspaceId"].(string)), true
 	case "Query.worktreeBaseRef":
 		if e.complexity.Query.WorktreeBaseRef == nil {
 			break
@@ -1906,6 +1958,17 @@ func (ec *executionContext) field_Mutation_setParent_args(ctx context.Context, r
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_startRun_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "workspaceId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["workspaceId"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_stopAgent_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -1914,6 +1977,17 @@ func (ec *executionContext) field_Mutation_stopAgent_args(ctx context.Context, r
 		return nil, err
 	}
 	args["beanId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_stopRun_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "workspaceId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["workspaceId"] = arg0
 	return args, nil
 }
 
@@ -2076,6 +2150,28 @@ func (ec *executionContext) field_Query_fileDiff_args(ctx context.Context, rawAr
 		return nil, err
 	}
 	args["path"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_isRunning_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "workspaceId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["workspaceId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_workspacePort_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "workspaceId", ec.unmarshalNID2string)
+	if err != nil {
+		return nil, err
+	}
+	args["workspaceId"] = arg0
 	return args, nil
 }
 
@@ -5191,6 +5287,88 @@ func (ec *executionContext) fieldContext_Mutation_writeTerminalInput(ctx context
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_startRun(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_startRun,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().StartRun(ctx, fc.Args["workspaceId"].(string))
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_startRun(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_startRun_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_stopRun(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_stopRun,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Mutation().StopRun(ctx, fc.Args["workspaceId"].(string))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_stopRun(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_stopRun_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createWorktree(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -6917,6 +7095,88 @@ func (ec *executionContext) fieldContext_Query_worktreeRunCommand(_ context.Cont
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_workspacePort(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_workspacePort,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().WorkspacePort(ctx, fc.Args["workspaceId"].(string))
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_workspacePort(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_workspacePort_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_isRunning(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_isRunning,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().IsRunning(ctx, fc.Args["workspaceId"].(string))
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_isRunning(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_isRunning_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -10991,6 +11251,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "startRun":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_startRun(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "stopRun":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_stopRun(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createWorktree":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createWorktree(ctx, field)
@@ -11589,6 +11863,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_worktreeRunCommand(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "workspacePort":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_workspacePort(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "isRunning":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_isRunning(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
