@@ -23,8 +23,18 @@ type OnTurnCompleteFunc func(beanID string)
 type DefaultMode string
 
 const (
-	DefaultModeAct DefaultMode = "act"
+	DefaultModeAct  DefaultMode = "act"
 	DefaultModePlan DefaultMode = "plan"
+)
+
+// EffortLevel controls the thinking effort for new agent sessions.
+type EffortLevel string
+
+const (
+	EffortLevelLow    EffortLevel = "low"
+	EffortLevelMedium EffortLevel = "medium"
+	EffortLevelHigh   EffortLevel = "high"
+	EffortLevelMax    EffortLevel = "max"
 )
 
 // Manager manages agent sessions — one per worktree (keyed by beanID).
@@ -38,7 +48,7 @@ type Manager struct {
 	onFirstUserMessage    OnFirstUserMessageFunc
 	onTurnComplete        OnTurnCompleteFunc
 	defaultMode   DefaultMode
-	defaultEffort string
+	defaultEffort EffortLevel
 
 	subMu       sync.Mutex
 	subscribers map[string][]chan struct{}
@@ -549,7 +559,7 @@ func (m *Manager) Shutdown() {
 
 // SetDefaultEffort sets the default effort level applied to newly created sessions.
 // Must be called during initialization, before any sessions are created.
-func (m *Manager) SetDefaultEffort(effort string) {
+func (m *Manager) SetDefaultEffort(effort EffortLevel) {
 	m.defaultEffort = effort
 }
 
@@ -559,7 +569,7 @@ func (m *Manager) newBaseSession(beanID string) *Session {
 		ID:           beanID,
 		AgentType:    "claude",
 		Status:       StatusIdle,
-		Effort:       m.defaultEffort,
+		Effort:       string(m.defaultEffort),
 		streamingIdx: -1,
 	}
 	m.applyDefaultMode(s)

@@ -971,7 +971,7 @@ func TestShutdown(t *testing.T) {
 
 func TestSetDefaultEffort_AppliedToNewSession(t *testing.T) {
 	m := NewManager("", nil)
-	m.SetDefaultEffort("medium")
+	m.SetDefaultEffort(EffortLevelMedium)
 
 	// loadOrCreateSession is called by SendMessage internally; invoke it directly
 	// via the exported path by checking the session after AddInfoMessage creates one.
