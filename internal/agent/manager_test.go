@@ -968,3 +968,35 @@ func TestShutdown(t *testing.T) {
 	// Just verify it doesn't panic with no processes
 	m.Shutdown()
 }
+
+func TestSetDefaultEffort_AppliedToNewSession(t *testing.T) {
+	m := NewManager("", nil)
+	m.SetDefaultEffort("medium")
+
+	// loadOrCreateSession is called by SendMessage internally; invoke it directly
+	// via the exported path by checking the session after AddInfoMessage creates one.
+	m.AddInfoMessage("test-bean", "hello")
+
+	snap := m.GetSession("test-bean")
+	if snap == nil {
+		t.Fatal("expected session to exist")
+	}
+	if snap.Effort != "medium" {
+		t.Errorf("expected default effort 'medium', got %q", snap.Effort)
+	}
+}
+
+func TestSetDefaultEffort_EmptyMeansNoEffort(t *testing.T) {
+	m := NewManager("", nil)
+	// default is empty — no effort applied
+
+	m.AddInfoMessage("test-bean", "hello")
+
+	snap := m.GetSession("test-bean")
+	if snap == nil {
+		t.Fatal("expected session to exist")
+	}
+	if snap.Effort != "" {
+		t.Errorf("expected empty effort, got %q", snap.Effort)
+	}
+}

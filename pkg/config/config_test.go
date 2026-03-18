@@ -912,6 +912,32 @@ func TestIsValidPermissionMode(t *testing.T) {
 	}
 }
 
+func TestGetDefaultEffort(t *testing.T) {
+	tests := []struct {
+		name     string
+		effort   string
+		expected string
+	}{
+		{"empty returns empty", "", ""},
+		{"low", "low", "low"},
+		{"medium", "medium", "medium"},
+		{"high", "high", "high"},
+		{"max", "max", "max"},
+		{"invalid returns empty", "ultra", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Default()
+			cfg.Agent.DefaultEffort = tt.effort
+			got := cfg.GetDefaultEffort()
+			if got != tt.expected {
+				t.Errorf("GetDefaultEffort() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestLoadAgentPermissionMode(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, ConfigFileName)

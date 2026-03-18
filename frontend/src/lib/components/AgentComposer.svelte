@@ -287,7 +287,7 @@
         disabled={isRunning}
         class={[
           'btn-tab-sm cursor-pointer border-l-0',
-          effort === 'high' || !effort
+          effort === 'high'
             ? 'border-accent/30 bg-accent/10 text-accent'
             : 'btn-tab-sm-inactive'
         ]}
