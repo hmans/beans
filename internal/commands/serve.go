@@ -187,7 +187,9 @@ func runServer(port int, origins []string) error {
 		}
 		return sb.String()
 	}, agent.DefaultMode(cfg.GetDefaultMode()))
-	agentMgr.SetDefaultEffort(agent.EffortLevel(cfg.GetDefaultEffort()))
+	if effort := cfg.GetDefaultEffort(); config.IsValidEffortLevel(effort) {
+		agentMgr.SetDefaultEffort(agent.EffortLevel(effort))
+	}
 	defer agentMgr.Shutdown()
 
 	// Post an info message to the workspace's agent chat when setup finishes.

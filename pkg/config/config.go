@@ -727,14 +727,19 @@ func (c *Config) GetDefaultMode() PermissionMode {
 	}
 }
 
-// GetDefaultEffort returns the configured default effort level for agent sessions.
-// Returns empty string if not set or invalid, which means "use CLI default".
+// GetDefaultEffort returns the raw configured default effort level for agent sessions.
+// Returns empty string if not set. Use IsValidEffortLevel to validate before use.
 func (c *Config) GetDefaultEffort() string {
-	switch c.Agent.DefaultEffort {
+	return c.Agent.DefaultEffort
+}
+
+// IsValidEffortLevel returns true if the effort level is a valid value.
+func IsValidEffortLevel(effort string) bool {
+	switch effort {
 	case "low", "medium", "high", "max":
-		return c.Agent.DefaultEffort
+		return true
 	default:
-		return ""
+		return false
 	}
 }
 

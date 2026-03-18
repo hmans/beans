@@ -62,6 +62,15 @@ Note: Cycles cannot be auto-fixed and require manual intervention.`,
 			}
 		}
 
+		// 2c. Check agent.default_effort is a valid effort level
+		if effort := cfg.GetDefaultEffort(); effort != "" && !config.IsValidEffortLevel(effort) {
+			configErrors = append(configErrors, fmt.Sprintf("agent.default_effort '%s' is not valid (use low, medium, high, or max)", effort))
+		} else if effort != "" {
+			if !checkJSON {
+				fmt.Printf("  %s Default effort '%s' is valid\n", ui.Success.Render("✓"), effort)
+			}
+		}
+
 		// 3. Check all status colors are valid (hardcoded statuses)
 		for _, s := range config.DefaultStatuses {
 			if !ui.IsValidColor(s.Color) {

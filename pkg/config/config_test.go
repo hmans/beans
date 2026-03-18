@@ -914,25 +914,47 @@ func TestIsValidPermissionMode(t *testing.T) {
 
 func TestGetDefaultEffort(t *testing.T) {
 	tests := []struct {
-		name     string
 		effort   string
 		expected string
 	}{
-		{"empty returns empty", "", ""},
-		{"low", "low", "low"},
-		{"medium", "medium", "medium"},
-		{"high", "high", "high"},
-		{"max", "max", "max"},
-		{"invalid returns empty", "ultra", ""},
+		{"", ""},
+		{"low", "low"},
+		{"medium", "medium"},
+		{"high", "high"},
+		{"max", "max"},
+		{"ultra", "ultra"}, // raw value returned; validation is caller's responsibility
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.effort, func(t *testing.T) {
 			cfg := Default()
 			cfg.Agent.DefaultEffort = tt.effort
 			got := cfg.GetDefaultEffort()
 			if got != tt.expected {
 				t.Errorf("GetDefaultEffort() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsValidEffortLevel(t *testing.T) {
+	tests := []struct {
+		effort string
+		want   bool
+	}{
+		{"low", true},
+		{"medium", true},
+		{"high", true},
+		{"max", true},
+		{"", false},
+		{"ultra", false},
+		{"High", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.effort, func(t *testing.T) {
+			if got := IsValidEffortLevel(tt.effort); got != tt.want {
+				t.Errorf("IsValidEffortLevel(%q) = %v, want %v", tt.effort, got, tt.want)
 			}
 		})
 	}
