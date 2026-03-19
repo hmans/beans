@@ -825,8 +825,21 @@ func (r *mutationResolver) ExecuteAgentAction(ctx context.Context, beanID string
 	}
 
 	actCtx := actionContext{WorktreeID: beanID, WorkDir: workDir, MainRepoPath: r.ProjectRoot}
+
+	// Populate git state
+	actCtx.HasChanges = gitutil.HasChanges(workDir)
+	if r.WorktreeMgr != nil {
+		actCtx.HasNewCommits = gitutil.HasUnmergedCommits(workDir, r.WorktreeMgr.BaseRef())
+		actCtx.HasUnpushedCommits = gitutil.HasUnpushedCommits(workDir)
+	}
+
+	// Populate forge/PR state
 	if r.Forge != nil {
 		actCtx.ForgeCLI = r.Forge.CLIName()
+		if branch, ok := gitutil.CurrentBranch(workDir); ok {
+			pr, _ := r.Forge.FindPR(ctx, r.ProjectRoot, branch)
+			actCtx.PullRequest = pr
+		}
 	}
 
 	if err := r.AgentMgr.SendMessage(beanID, workDir, action.PromptFunc(actCtx), nil); err != nil {
