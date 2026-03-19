@@ -302,19 +302,7 @@ REMINDER: Do NOT push anything to any remote. The integrate action is purely loc
 				return "Merge PR"
 			}
 		},
-		PromptFunc: func(ctx actionContext) string {
-			cli := ctx.ForgeCLI
-			return fmt.Sprintf(`Manage the pull request for this branch. Check the current state and take the appropriate action:
-
-1. Check if a PR already exists: %[1]s pr view
-2. Check for uncommitted changes (git status) and unpushed commits (git log @{upstream}..HEAD).
-3. Based on the state:
-   - **No PR exists**: Commit any uncommitted changes, push the branch (git push -u origin HEAD), and create a PR (%[1]s pr create). Derive the title from commit messages using conventional commit style. Include relevant bean IDs.
-   - **PR exists, has local changes or unpushed commits**: Commit if needed, then push (git push). Update the PR title/body if the scope changed.
-   - **PR exists, everything pushed, checks failing**: Inspect the failed checks (%[1]s pr checks, %[1]s run view --log-failed), fix the issue, test locally, commit and push.
-   - **PR exists, everything pushed, checks pass, mergeable**: Merge it. Use %[1]s repo view --json mergeCommitAllowed,squashMergeAllowed,rebaseMergeAllowed to pick the right strategy, then %[1]s pr merge with the appropriate flag. Do NOT switch branches after merging.
-4. Report the PR URL when done.`, cli)
-		},
+		PromptFunc: prPrompt,
 		Visible: func(ctx actionContext) bool {
 			if ctx.IntegrateMode == "local" {
 				return false
@@ -349,6 +337,59 @@ REMINDER: Do NOT push anything to any remote. The integrate action is purely loc
 			return ""
 		},
 	},
+}
+
+// prPrompt generates a state-specific prompt for the PR action based on the current context.
+// Instead of a single catch-all prompt that could lead to unintended merges, each state
+// gets a focused prompt that only instructs the agent to perform the relevant action.
+func prPrompt(ctx actionContext) string {
+	cli := ctx.ForgeCLI
+
+	// No PR exists yet — create one
+	if ctx.PullRequest == nil {
+		return fmt.Sprintf(`Create a pull request for this branch.
+
+1. If there are uncommitted changes, create a commit first (following conventional commit conventions, include relevant bean IDs).
+2. Push the branch: git push -u origin HEAD
+3. Create the PR: %s pr create
+   - Derive the title from commit messages using conventional commit style. Include relevant bean IDs.
+   - Write a clear description summarizing the changes.
+4. Report the PR URL when done.`, cli)
+	}
+
+	// PR exists, has local changes or unpushed commits — update it
+	if ctx.HasChanges || ctx.HasUnpushedCommits {
+		return fmt.Sprintf(`Update the existing pull request for this branch.
+
+1. If there are uncommitted changes, create a commit (following conventional commit conventions, include relevant bean IDs).
+2. Push: git push
+3. If the scope of the PR changed significantly, update the PR title/body using %s pr edit.
+4. Report the PR URL when done.
+
+IMPORTANT: Do NOT merge the PR. Only commit and push updates.`, cli)
+	}
+
+	// PR exists, everything pushed, checks failing — fix them
+	if ctx.PullRequest.Checks == forge.CheckStatusFail {
+		return fmt.Sprintf(`The CI checks on this PR are failing. Investigate and fix the failures.
+
+1. Inspect the failed checks: %[1]s pr checks
+2. View the failure logs: %[1]s run view --log-failed
+3. Fix the issue locally.
+4. Run the project's test suite to verify the fix.
+5. Commit the fix and push.
+6. Report the PR URL when done.
+
+IMPORTANT: Do NOT merge the PR. Only fix the failing checks.`, cli)
+	}
+
+	// PR exists, everything pushed, checks pass, mergeable — merge it
+	return fmt.Sprintf(`Merge this pull request.
+
+1. Determine the merge strategy: %[1]s repo view --json mergeCommitAllowed,squashMergeAllowed,rebaseMergeAllowed
+2. Merge using the appropriate strategy: %[1]s pr merge with the right flag (--squash, --merge, or --rebase).
+3. Do NOT switch branches or delete the worktree after merging.
+4. Report the PR URL when done.`, cli)
 }
 
 // commitPrompt generates a commit prompt. The agent will inspect git state itself.
