@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hmans/beans/internal/agent"
@@ -1411,9 +1412,14 @@ func (r *subscriptionResolver) WorktreesChanged(ctx context.Context) (<-chan []*
 		return result
 	}
 
+	// wg tracks in-flight populatePRsAsync goroutines so we can wait for them
+	// to finish before closing the out channel, preventing send-on-closed-channel panics.
+	var wg sync.WaitGroup
+
 	// populatePRsAsync fetches PR data for all worktrees in a single batch query,
 	// then re-emits the updated list on the output channel.
 	populatePRsAsync := func(result []*model.Worktree) {
+		defer wg.Done()
 		if r.Forge == nil || len(result) == 0 {
 			return
 		}
@@ -1427,6 +1433,7 @@ func (r *subscriptionResolver) WorktreesChanged(ctx context.Context) (<-chan []*
 	go func() {
 		defer r.WorktreeMgr.Unsubscribe(ch)
 		defer close(out)
+		defer wg.Wait()
 
 		// Emit the current list immediately without PR data, then
 		// fetch PR data in the background and re-emit.
@@ -1437,6 +1444,7 @@ func (r *subscriptionResolver) WorktreesChanged(ctx context.Context) (<-chan []*
 			case <-ctx.Done():
 				return
 			}
+			wg.Add(1)
 			go populatePRsAsync(result)
 		}
 
@@ -1452,6 +1460,7 @@ func (r *subscriptionResolver) WorktreesChanged(ctx context.Context) (<-chan []*
 				return
 			}
 			result := buildWorktreeList(wts)
+			wg.Add(1)
 			go populatePRsAsync(result)
 		}
 
@@ -1473,6 +1482,7 @@ func (r *subscriptionResolver) WorktreesChanged(ctx context.Context) (<-chan []*
 				case <-ctx.Done():
 					return
 				}
+				wg.Add(1)
 				go populatePRsAsync(result)
 			case <-prTicker.C:
 				refreshPRs()
