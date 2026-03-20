@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -111,6 +112,12 @@ type WorktreeConfig struct {
 	// "local" (default): squash-merge locally, hides PR buttons.
 	// "pr": push and create PRs, hides the local Integrate button.
 	Integrate IntegrateMode `yaml:"integrate,omitempty"`
+
+	// FetchTimeout is the timeout in seconds for the git fetch that runs before
+	// creating a new worktree. This fetch updates the base ref from the remote.
+	// Set to 0 to disable the fetch entirely (useful for airgapped environments).
+	// Default: 10 (seconds).
+	FetchTimeout *int `yaml:"fetch_timeout,omitempty"`
 }
 
 // AgentConfig defines settings for agent sessions.
@@ -721,6 +728,15 @@ func (c *Config) GetWorktreeSetup() string {
 // GetWorktreeRun returns the configured run command for worktrees.
 func (c *Config) GetWorktreeRun() string {
 	return c.Worktree.Run
+}
+
+// GetWorktreeFetchTimeout returns the configured fetch timeout as a time.Duration.
+// Returns 10s by default. Returns 0 if explicitly set to 0 (disables fetch).
+func (c *Config) GetWorktreeFetchTimeout() time.Duration {
+	if c.Worktree.FetchTimeout == nil {
+		return 10 * time.Second
+	}
+	return time.Duration(*c.Worktree.FetchTimeout) * time.Second
 }
 
 // GetWorktreeIntegrate returns the configured integration mode.

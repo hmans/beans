@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestDefault(t *testing.T) {
@@ -1369,6 +1370,71 @@ worktree:
 		content := string(data)
 		if !strings.Contains(content, "integrate: local") {
 			t.Errorf("expected integrate: local in saved config, got:\n%s", content)
+		}
+	})
+}
+
+func TestGetWorktreeFetchTimeout(t *testing.T) {
+	t.Run("default is 10s", func(t *testing.T) {
+		cfg := Default()
+		if got := cfg.GetWorktreeFetchTimeout(); got != 10*time.Second {
+			t.Errorf("GetWorktreeFetchTimeout() = %v, want 10s", got)
+		}
+	})
+
+	t.Run("explicit zero disables fetch", func(t *testing.T) {
+		cfg := Default()
+		zero := 0
+		cfg.Worktree.FetchTimeout = &zero
+		if got := cfg.GetWorktreeFetchTimeout(); got != 0 {
+			t.Errorf("GetWorktreeFetchTimeout() = %v, want 0", got)
+		}
+	})
+
+	t.Run("custom value", func(t *testing.T) {
+		cfg := Default()
+		thirty := 30
+		cfg.Worktree.FetchTimeout = &thirty
+		if got := cfg.GetWorktreeFetchTimeout(); got != 30*time.Second {
+			t.Errorf("GetWorktreeFetchTimeout() = %v, want 30s", got)
+		}
+	})
+
+	t.Run("loads from config file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		configPath := filepath.Join(tmpDir, ConfigFileName)
+
+		configContent := "beans:\n  prefix: test-\nworktree:\n  fetch_timeout: 5\n"
+		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+			t.Fatalf("WriteFile error = %v", err)
+		}
+
+		cfg, err := Load(configPath)
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		if got := cfg.GetWorktreeFetchTimeout(); got != 5*time.Second {
+			t.Errorf("GetWorktreeFetchTimeout() = %v, want 5s", got)
+		}
+	})
+
+	t.Run("loads zero from config file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		configPath := filepath.Join(tmpDir, ConfigFileName)
+
+		configContent := "beans:\n  prefix: test-\nworktree:\n  fetch_timeout: 0\n"
+		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+			t.Fatalf("WriteFile error = %v", err)
+		}
+
+		cfg, err := Load(configPath)
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		if got := cfg.GetWorktreeFetchTimeout(); got != 0 {
+			t.Errorf("GetWorktreeFetchTimeout() = %v, want 0", got)
 		}
 	})
 }

@@ -368,6 +368,69 @@ func TestCreateUsesBaseRef(t *testing.T) {
 	}
 }
 
+func TestFetchTimeoutDefault(t *testing.T) {
+	mgr := NewManager("", "", "main", "")
+	if mgr.fetchTimeout != DefaultFetchTimeout {
+		t.Errorf("default fetchTimeout = %v, want %v", mgr.fetchTimeout, DefaultFetchTimeout)
+	}
+}
+
+func TestFetchTimeoutCustom(t *testing.T) {
+	mgr := NewManager("", "", "main", "", WithFetchTimeout(30*time.Second))
+	if mgr.fetchTimeout != 30*time.Second {
+		t.Errorf("fetchTimeout = %v, want 30s", mgr.fetchTimeout)
+	}
+}
+
+func TestFetchTimeoutZeroSkipsFetch(t *testing.T) {
+	repoDir, _, wtRoot := initTestRepo(t)
+
+	// Create a manager with fetch timeout = 0 (disables fetch)
+	mgr := NewManager(repoDir, wtRoot, "main", "", WithFetchTimeout(0))
+
+	// Create should succeed without attempting to fetch
+	wt, err := mgr.Create("skip-fetch-test")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if wt == nil {
+		t.Fatal("expected worktree, got nil")
+	}
+}
+
+func TestFetchBaseRefTimesOut(t *testing.T) {
+	repoDir, _, _ := initTestRepo(t)
+
+	// Configure git to use a "fetch" command that just sleeps, simulating a hanging remote.
+	// GIT_SSH_COMMAND is used by git when fetching over SSH.
+	cmd := exec.Command("git", "remote", "add", "hangremote", "git@localhost:nonexistent.git")
+	cmd.Dir = repoDir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("add remote: %s: %v", out, err)
+	}
+
+	// Override the SSH command to just sleep forever
+	gitConfigCmd := exec.Command("git", "config", "core.sshCommand", "sleep 60")
+	gitConfigCmd.Dir = repoDir
+	if out, err := gitConfigCmd.CombinedOutput(); err != nil {
+		t.Fatalf("config sshCommand: %s: %v", out, err)
+	}
+
+	mgr := NewManager(repoDir, "", "hangremote/main", "",
+		WithFetchTimeout(1*time.Second),
+	)
+
+	// fetchBaseRef should complete within the timeout (not hang for 60s)
+	start := time.Now()
+	mgr.fetchBaseRef()
+	elapsed := time.Since(start)
+
+	// Should complete within ~3s (1s timeout + process cleanup overhead), not 60s
+	if elapsed > 5*time.Second {
+		t.Errorf("fetchBaseRef took %v, expected it to time out within ~1s", elapsed)
+	}
+}
+
 func TestSubscription(t *testing.T) {
 	repoDir, _, wtRoot := initTestRepo(t)
 	mgr := NewManager(repoDir, wtRoot, "", "")

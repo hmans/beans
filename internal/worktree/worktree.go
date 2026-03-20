@@ -3,6 +3,7 @@ package worktree
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -17,6 +18,11 @@ import (
 	"github.com/hmans/beans/internal/gitutil"
 	"github.com/hmans/beans/pkg/bean"
 )
+
+// DefaultFetchTimeout is the default timeout for git fetch operations during
+// worktree creation. Set below the HTTP server's WriteTimeout (15s) to prevent
+// the HTTP connection from dying before the fetch completes.
+const DefaultFetchTimeout = 10 * time.Second
 
 const branchPrefix = "beans/"
 
@@ -52,7 +58,8 @@ type Manager struct {
 	repoRoot     string
 	worktreeRoot string // directory where worktrees are created (e.g. ~/.beans/worktrees/<project>/)
 	baseRef      string
-	setupCommand string // shell command to run after worktree creation
+	setupCommand string        // shell command to run after worktree creation
+	fetchTimeout time.Duration // timeout for git fetch during worktree creation (0 = skip fetch)
 	mu           sync.RWMutex
 
 	// setupStatuses tracks runtime setup status for worktrees (not persisted)
@@ -76,8 +83,30 @@ type setupState struct {
 // worktreeRoot is the directory where worktrees are created (e.g. ~/.beans/worktrees/<project>/).
 // baseRef is the git ref to use as the starting point for new branches (e.g. "main").
 // setupCommand is an optional shell command to run inside new worktrees after creation.
-func NewManager(repoRoot, worktreeRoot, baseRef, setupCommand string) *Manager {
-	return &Manager{repoRoot: repoRoot, worktreeRoot: worktreeRoot, baseRef: baseRef, setupCommand: setupCommand, setupStatuses: make(map[string]setupState)}
+// ManagerOption is a functional option for configuring a Manager.
+type ManagerOption func(*Manager)
+
+// WithFetchTimeout sets the timeout for git fetch operations during worktree creation.
+// A value of 0 disables the fetch entirely. Negative values use the default timeout.
+func WithFetchTimeout(d time.Duration) ManagerOption {
+	return func(m *Manager) {
+		m.fetchTimeout = d
+	}
+}
+
+func NewManager(repoRoot, worktreeRoot, baseRef, setupCommand string, opts ...ManagerOption) *Manager {
+	m := &Manager{
+		repoRoot:      repoRoot,
+		worktreeRoot:  worktreeRoot,
+		baseRef:       baseRef,
+		setupCommand:  setupCommand,
+		fetchTimeout:  DefaultFetchTimeout,
+		setupStatuses: make(map[string]setupState),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
 }
 
 // RepoRoot returns the path to the main repository root.
@@ -94,8 +123,17 @@ func (m *Manager) BaseRef() string {
 // from the latest code. Handles both plain refs ("main") and remote-tracking
 // refs ("origin/main"). Logs warnings on failure but does not return an error —
 // a stale ref is better than refusing to create a worktree.
+//
+// The fetch is bounded by m.fetchTimeout. If the timeout is 0, the fetch is
+// skipped entirely (useful for airgapped environments or when the remote is
+// known to be unavailable).
 func (m *Manager) fetchBaseRef() {
 	if m.baseRef == "" {
+		return
+	}
+
+	if m.fetchTimeout == 0 {
+		log.Printf("[worktree] fetch timeout is 0, skipping remote fetch")
 		return
 	}
 
@@ -117,10 +155,17 @@ func (m *Manager) fetchBaseRef() {
 		return
 	}
 
-	cmd := exec.Command("git", "fetch", remote, ref)
+	ctx, cancel := context.WithTimeout(context.Background(), m.fetchTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "git", "fetch", remote, ref)
 	cmd.Dir = m.repoRoot
 	if out, err := cmd.CombinedOutput(); err != nil {
-		log.Printf("[worktree] warning: git fetch %s %s failed: %s", remote, ref, strings.TrimSpace(string(out)))
+		if ctx.Err() == context.DeadlineExceeded {
+			log.Printf("[worktree] warning: git fetch %s %s timed out after %s", remote, ref, m.fetchTimeout)
+		} else {
+			log.Printf("[worktree] warning: git fetch %s %s failed: %s", remote, ref, strings.TrimSpace(string(out)))
+		}
 	}
 }
 

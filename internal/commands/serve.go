@@ -130,7 +130,9 @@ func runServer(port int, origins []string) error {
 		log.Printf("[beans] WARNING: found old worktrees in %s — worktrees are now created in %s. You may want to recreate existing worktrees and remove the old directory.", oldWorktreeDir, worktreeRoot)
 	}
 
-	wtManager := worktree.NewManager(cfg.ConfigDir(), worktreeRoot, cfg.GetWorktreeBaseRef(), cfg.GetWorktreeSetup())
+	wtManager := worktree.NewManager(cfg.ConfigDir(), worktreeRoot, cfg.GetWorktreeBaseRef(), cfg.GetWorktreeSetup(),
+		worktree.WithFetchTimeout(cfg.GetWorktreeFetchTimeout()),
+	)
 
 	// Watch existing worktrees for bean changes
 	if existingWTs, err := wtManager.List(); err == nil {
