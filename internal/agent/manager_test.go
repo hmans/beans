@@ -781,6 +781,36 @@ func TestBuildClaudeArgs_ActMode(t *testing.T) {
 	if !found {
 		t.Errorf("expected --dangerously-skip-permissions in args, got %v", args)
 	}
+
+	// Act mode should also include --allowedTools for sensitive Claude config files
+	foundAllowed := false
+	for i, a := range args {
+		if a == "--allowedTools" {
+			foundAllowed = true
+			// Verify the expected tool patterns follow
+			remaining := args[i+1:]
+			expected := []string{
+				"Edit(CLAUDE.md)", "Write(CLAUDE.md)",
+				"Edit(.claude/**)", "Write(.claude/**)",
+			}
+			for _, e := range expected {
+				found := false
+				for _, r := range remaining {
+					if r == e {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected %q in --allowedTools args, got %v", e, remaining)
+				}
+			}
+			break
+		}
+	}
+	if !foundAllowed {
+		t.Errorf("expected --allowedTools in act mode args, got %v", args)
+	}
 }
 
 func TestBuildClaudeArgs_ActOverridesPlan(t *testing.T) {
