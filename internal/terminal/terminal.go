@@ -188,6 +188,15 @@ func (s *Session) Close() {
 	_ = s.cmd.Wait()
 }
 
+// closeSlave closes the slave end of a Unix PTY in the parent process after
+// the child has been started. This is necessary on Linux so the master gets
+// EOF when the child exits. On non-Unix platforms this is a no-op.
+func closeSlave(p gopty.Pty) {
+	if up, ok := p.(gopty.UnixPty); ok {
+		up.Slave().Close()
+	}
+}
+
 // defaultShell returns the default shell for the current platform.
 func defaultShell() string {
 	if runtime.GOOS == "windows" {
@@ -282,6 +291,8 @@ func (m *Manager) createLocked(sessionID, workDir string, cols, rows uint16) (*S
 		return nil, fmt.Errorf("failed to start PTY: %w", err)
 	}
 
+	closeSlave(p)
+
 	sess := &Session{
 		id:         sessionID,
 		pty:        p,
@@ -333,6 +344,8 @@ func (m *Manager) CreateWithCommand(sessionID, workDir string, cols, rows uint16
 		p.Close()
 		return nil, fmt.Errorf("failed to start PTY: %w", err)
 	}
+
+	closeSlave(p)
 
 	sess := &Session{
 		id:         sessionID,
