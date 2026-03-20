@@ -1,11 +1,154 @@
 package agent
 
 import (
+	"encoding/json"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+// TestSendToProcessImageOnlyNoEmptyTextBlock verifies that sending an image
+// with no text does not produce an empty text content block, which would cause
+// the Anthropic API to reject the message with "text content blocks must be non-empty".
+func TestSendToProcessImageOnlyNoEmptyTextBlock(t *testing.T) {
+	// Set up a temp store with a fake image file
+	tmpDir := t.TempDir()
+	beanID := "beans-test1"
+	attachDir := filepath.Join(tmpDir, "attachments", beanID)
+	if err := os.MkdirAll(attachDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	imgID := "test-image.png"
+	if err := os.WriteFile(filepath.Join(attachDir, imgID), []byte("fake-png-data"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	m := &Manager{
+		sessions:    make(map[string]*Session),
+		processes:   make(map[string]*runningProcess),
+		subscribers: make(map[string][]chan struct{}),
+		store:       &store{dir: tmpDir},
+	}
+
+	// Use a pipe to capture what sendToProcess writes
+	pr, pw := io.Pipe()
+	proc := &runningProcess{stdin: pw, done: make(chan struct{})}
+
+	images := []ImageRef{{ID: imgID, MediaType: "image/png"}}
+
+	// Read output in a goroutine
+	var output []byte
+	readDone := make(chan struct{})
+	go func() {
+		defer close(readDone)
+		output, _ = io.ReadAll(pr)
+	}()
+
+	err := m.sendToProcess(proc, beanID, "", images)
+	if err != nil {
+		t.Fatalf("sendToProcess failed: %v", err)
+	}
+	pw.Close()
+	<-readDone
+
+	// Parse the JSON output
+	var msg map[string]interface{}
+	if err := json.Unmarshal(output, &msg); err != nil {
+		t.Fatalf("failed to parse output JSON: %v\nraw: %s", err, output)
+	}
+
+	message := msg["message"].(map[string]interface{})
+	content := message["content"].([]interface{})
+
+	// Verify: no text block should be present
+	for i, block := range content {
+		b := block.(map[string]interface{})
+		if b["type"] == "text" {
+			text := b["text"].(string)
+			if text == "" {
+				t.Errorf("content[%d] is an empty text block — this will be rejected by the API", i)
+			}
+		}
+	}
+
+	// Verify: should have exactly one image block
+	if len(content) != 1 {
+		t.Errorf("expected 1 content block (image only), got %d", len(content))
+	}
+	first := content[0].(map[string]interface{})
+	if first["type"] != "image" {
+		t.Errorf("expected image block, got %q", first["type"])
+	}
+}
+
+// TestSendToProcessImageWithText verifies that when both text and image are
+// provided, both blocks are included in the correct order.
+func TestSendToProcessImageWithText(t *testing.T) {
+	tmpDir := t.TempDir()
+	beanID := "beans-test2"
+	attachDir := filepath.Join(tmpDir, "attachments", beanID)
+	if err := os.MkdirAll(attachDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	imgID := "test-image.png"
+	if err := os.WriteFile(filepath.Join(attachDir, imgID), []byte("fake-png-data"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	m := &Manager{
+		sessions:    make(map[string]*Session),
+		processes:   make(map[string]*runningProcess),
+		subscribers: make(map[string][]chan struct{}),
+		store:       &store{dir: tmpDir},
+	}
+
+	pr, pw := io.Pipe()
+	proc := &runningProcess{stdin: pw, done: make(chan struct{})}
+
+	images := []ImageRef{{ID: imgID, MediaType: "image/png"}}
+
+	var output []byte
+	readDone := make(chan struct{})
+	go func() {
+		defer close(readDone)
+		output, _ = io.ReadAll(pr)
+	}()
+
+	err := m.sendToProcess(proc, beanID, "Describe this image", images)
+	if err != nil {
+		t.Fatalf("sendToProcess failed: %v", err)
+	}
+	pw.Close()
+	<-readDone
+
+	var msg map[string]interface{}
+	if err := json.Unmarshal(output, &msg); err != nil {
+		t.Fatalf("failed to parse output JSON: %v", err)
+	}
+
+	message := msg["message"].(map[string]interface{})
+	content := message["content"].([]interface{})
+
+	// Should have text + image = 2 blocks
+	if len(content) != 2 {
+		t.Fatalf("expected 2 content blocks, got %d", len(content))
+	}
+
+	// First block should be text
+	textBlock := content[0].(map[string]interface{})
+	if textBlock["type"] != "text" || textBlock["text"] != "Describe this image" {
+		t.Errorf("expected text block with message, got %v", textBlock)
+	}
+
+	// Second block should be image
+	imgBlock := content[1].(map[string]interface{})
+	if imgBlock["type"] != "image" {
+		t.Errorf("expected image block, got %v", imgBlock)
+	}
+}
 
 // TestReadOutputMessageOrder verifies that tool messages appear between
 // the assistant text that precedes and follows them, not grouped at the end.

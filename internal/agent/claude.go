@@ -66,8 +66,9 @@ func (m *Manager) sendToProcess(proc *runningProcess, beanID, message string, im
 	var content interface{} = message
 
 	if len(images) > 0 && m.store != nil {
-		blocks := []interface{}{
-			map[string]string{"type": "text", "text": message},
+		var blocks []interface{}
+		if message != "" {
+			blocks = append(blocks, map[string]string{"type": "text", "text": message})
 		}
 		for _, img := range images {
 			path, err := m.store.attachmentPath(beanID, img.ID)
