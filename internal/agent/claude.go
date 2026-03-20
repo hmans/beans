@@ -820,10 +820,17 @@ func buildClaudeArgs(session *Session) []string {
 		args = append(args, "--dangerously-skip-permissions")
 		// Explicitly allow editing Claude's own config files, which are
 		// classified as "sensitive" and blocked even with --dangerously-skip-permissions.
-		args = append(args, "--allowedTools",
-			"Edit(CLAUDE.md)", "Write(CLAUDE.md)",
-			"Edit(.claude/**)", "Write(.claude/**)",
-		)
+		// Patterns must use absolute paths because Claude Code's Edit/Write tools
+		// operate on absolute file paths internally.
+		if session.WorkDir != "" {
+			dir := session.WorkDir
+			args = append(args,
+				"--allowedTools", "Edit("+dir+"/CLAUDE.md)",
+				"--allowedTools", "Write("+dir+"/CLAUDE.md)",
+				"--allowedTools", "Edit("+dir+"/.claude/**)",
+				"--allowedTools", "Write("+dir+"/.claude/**)",
+			)
+		}
 	} else if session.PlanMode {
 		args = append(args, "--permission-mode", "plan")
 	}

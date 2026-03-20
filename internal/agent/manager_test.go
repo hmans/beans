@@ -770,7 +770,7 @@ func TestSetActMode_IncludedInSnapshot(t *testing.T) {
 }
 
 func TestBuildClaudeArgs_ActMode(t *testing.T) {
-	args := buildClaudeArgs(&Session{ActMode: true})
+	args := buildClaudeArgs(&Session{ActMode: true, WorkDir: "/tmp/test-project"})
 	found := false
 	for _, a := range args {
 		if a == "--dangerously-skip-permissions" {
@@ -782,34 +782,25 @@ func TestBuildClaudeArgs_ActMode(t *testing.T) {
 		t.Errorf("expected --dangerously-skip-permissions in args, got %v", args)
 	}
 
-	// Act mode should also include --allowedTools for sensitive Claude config files
-	foundAllowed := false
-	for i, a := range args {
-		if a == "--allowedTools" {
-			foundAllowed = true
-			// Verify the expected tool patterns follow
-			remaining := args[i+1:]
-			expected := []string{
-				"Edit(CLAUDE.md)", "Write(CLAUDE.md)",
-				"Edit(.claude/**)", "Write(.claude/**)",
-			}
-			for _, e := range expected {
-				found := false
-				for _, r := range remaining {
-					if r == e {
-						found = true
-						break
-					}
-				}
-				if !found {
-					t.Errorf("expected %q in --allowedTools args, got %v", e, remaining)
-				}
-			}
-			break
-		}
+	// Act mode should include --allowedTools with absolute paths for sensitive Claude config files.
+	// Each pattern must be preceded by its own --allowedTools flag.
+	expected := []string{
+		"Edit(/tmp/test-project/CLAUDE.md)",
+		"Write(/tmp/test-project/CLAUDE.md)",
+		"Edit(/tmp/test-project/.claude/**)",
+		"Write(/tmp/test-project/.claude/**)",
 	}
-	if !foundAllowed {
-		t.Errorf("expected --allowedTools in act mode args, got %v", args)
+	for _, e := range expected {
+		found := false
+		for i, a := range args {
+			if a == "--allowedTools" && i+1 < len(args) && args[i+1] == e {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected --allowedTools %q in args, got %v", e, args)
+		}
 	}
 }
 
