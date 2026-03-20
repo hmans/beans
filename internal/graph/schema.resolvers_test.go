@@ -2989,8 +2989,8 @@ func TestExecuteAgentAction(t *testing.T) {
 			t.Fatal("expected session to exist")
 		}
 		lastMsg := session.Messages[len(session.Messages)-1]
-		if lastMsg.Content != "Ask a subagent for a thorough code review." {
-			t.Fatalf("expected review prompt, got: %s", lastMsg.Content)
+		if !strings.Contains(lastMsg.Content, "Do NOT fix anything automatically") {
+			t.Fatalf("expected review prompt with no-auto-fix instruction, got: %s", lastMsg.Content)
 		}
 	})
 
