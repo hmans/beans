@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"sync"
 
-	"github.com/creack/pty"
+	gopty "github.com/aymanbagabas/go-pty"
 )
 
 const scrollbackSize = 64 * 1024 // 64KB
@@ -67,10 +68,10 @@ func (r *RingBuffer) Bytes() []byte {
 
 // Session represents an active PTY session with scrollback buffering.
 type Session struct {
-	id   string
-	cmd  *exec.Cmd
-	ptyF *os.File // PTY master file descriptor
-	mu   sync.Mutex
+	id  string
+	pty gopty.Pty
+	cmd *gopty.Cmd
+	mu  sync.Mutex
 
 	scrollback *RingBuffer
 	scrollMu   sync.Mutex
@@ -85,14 +86,14 @@ type Session struct {
 
 // Write sends input to the PTY.
 func (s *Session) Write(data []byte) (int, error) {
-	return s.ptyF.Write(data)
+	return s.pty.Write(data)
 }
 
 // Resize changes the PTY window size.
 func (s *Session) Resize(cols, rows uint16) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return pty.Setsize(s.ptyF, &pty.Winsize{Cols: cols, Rows: rows})
+	return s.pty.Resize(int(cols), int(rows))
 }
 
 // Attach connects a client to receive PTY output.
@@ -149,7 +150,7 @@ func (s *Session) readLoop() {
 	defer close(s.done)
 	buf := make([]byte, 4096)
 	for {
-		n, err := s.ptyF.Read(buf)
+		n, err := s.pty.Read(buf)
 		if n > 0 {
 			data := make([]byte, n)
 			copy(data, buf[:n])
@@ -183,8 +184,22 @@ func (s *Session) Close() {
 	if s.cmd.Process != nil {
 		_ = s.cmd.Process.Kill()
 	}
-	_ = s.ptyF.Close()
+	_ = s.pty.Close()
 	_ = s.cmd.Wait()
+}
+
+// defaultShell returns the default shell for the current platform.
+func defaultShell() string {
+	if runtime.GOOS == "windows" {
+		if ps, err := exec.LookPath("pwsh.exe"); err == nil {
+			return ps
+		}
+		return "cmd.exe"
+	}
+	if shell := os.Getenv("SHELL"); shell != "" {
+		return shell
+	}
+	return "/bin/sh"
 }
 
 // EnvFunc returns extra environment variables for a given session ID.
@@ -241,28 +256,36 @@ func (m *Manager) GetOrCreate(sessionID, workDir string, cols, rows uint16) (*Se
 }
 
 func (m *Manager) createLocked(sessionID, workDir string, cols, rows uint16) (*Session, error) {
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		shell = "/bin/sh"
+	shell := defaultShell()
+
+	p, err := gopty.New()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create PTY: %w", err)
 	}
 
-	cmd := exec.Command(shell, "-l")
-	cmd.Dir = workDir
+	if err := p.Resize(int(cols), int(rows)); err != nil {
+		p.Close()
+		return nil, fmt.Errorf("failed to resize PTY: %w", err)
+	}
+
 	env := append(os.Environ(), "TERM=xterm-256color")
 	if m.envFunc != nil {
 		env = append(env, m.envFunc(sessionID)...)
 	}
+
+	cmd := p.Command(shell, "-l")
+	cmd.Dir = workDir
 	cmd.Env = env
 
-	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: cols, Rows: rows})
-	if err != nil {
+	if err := cmd.Start(); err != nil {
+		p.Close()
 		return nil, fmt.Errorf("failed to start PTY: %w", err)
 	}
 
 	sess := &Session{
 		id:         sessionID,
+		pty:        p,
 		cmd:        cmd,
-		ptyF:       ptmx,
 		scrollback: NewRingBuffer(scrollbackSize),
 		done:       make(chan struct{}),
 	}
@@ -285,28 +308,36 @@ func (m *Manager) CreateWithCommand(sessionID, workDir string, cols, rows uint16
 		delete(m.sessions, sessionID)
 	}
 
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		shell = "/bin/sh"
+	shell := defaultShell()
+
+	p, err := gopty.New()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create PTY: %w", err)
 	}
 
-	cmd := exec.Command(shell, "-l", "-c", command)
-	cmd.Dir = workDir
+	if err := p.Resize(int(cols), int(rows)); err != nil {
+		p.Close()
+		return nil, fmt.Errorf("failed to resize PTY: %w", err)
+	}
+
 	env := append(os.Environ(), "TERM=xterm-256color")
 	if m.envFunc != nil {
 		env = append(env, m.envFunc(sessionID)...)
 	}
+
+	cmd := p.Command(shell, "-l", "-c", command)
+	cmd.Dir = workDir
 	cmd.Env = env
 
-	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: cols, Rows: rows})
-	if err != nil {
+	if err := cmd.Start(); err != nil {
+		p.Close()
 		return nil, fmt.Errorf("failed to start PTY: %w", err)
 	}
 
 	sess := &Session{
 		id:         sessionID,
+		pty:        p,
 		cmd:        cmd,
-		ptyF:       ptmx,
 		scrollback: NewRingBuffer(scrollbackSize),
 		done:       make(chan struct{}),
 	}
