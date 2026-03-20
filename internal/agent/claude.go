@@ -818,6 +818,12 @@ func buildClaudeArgs(session *Session) []string {
 	}
 	if session.ActMode {
 		args = append(args, "--dangerously-skip-permissions")
+		// Explicitly allow editing Claude's own config files, which are
+		// classified as "sensitive" and blocked even with --dangerously-skip-permissions.
+		args = append(args, "--allowedTools",
+			"Edit(CLAUDE.md)", "Write(CLAUDE.md)",
+			"Edit(.claude/**)", "Write(.claude/**)",
+		)
 	} else if session.PlanMode {
 		args = append(args, "--permission-mode", "plan")
 	}
