@@ -199,7 +199,9 @@ var agentActions = []agentActionDef{
 		Label:       "Review",
 		Description: "Ask for a code review",
 		PromptFunc: func(_ actionContext) string {
-			return "Ask a subagent for a thorough code review."
+			return `Review the changes in this branch. Identify any issues, concerns, or suggestions, and present them as a clear list.
+
+IMPORTANT: Do NOT fix anything automatically. Only identify and list the issues, then ask the user which ones (if any) they'd like you to address.`
 		},
 	},
 	{
