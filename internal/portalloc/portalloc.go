@@ -14,7 +14,8 @@ const (
 )
 
 // Allocator assigns unique ports to workspace IDs.
-// Ports are managed in RAM only — no persistence.
+// The allocator itself is in-memory; persistence is handled externally
+// via worktree metadata files.
 type Allocator struct {
 	mu        sync.Mutex
 	basePort  int
@@ -75,6 +76,63 @@ func (a *Allocator) Free(workspaceID string) {
 
 	delete(a.assigned, workspaceID)
 	a.freed = append(a.freed, port)
+}
+
+// AllocateSpecific assigns a specific port to the given workspace ID.
+// If the workspace already has a port, the existing one is returned unchanged.
+// If the requested port is already taken by another workspace, a new port is
+// allocated instead. Returns the actually assigned port.
+func (a *Allocator) AllocateSpecific(workspaceID string, port int) int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// Already allocated — return existing.
+	if existing, ok := a.assigned[workspaceID]; ok {
+		return existing
+	}
+
+	// Check if the requested port is taken by another workspace.
+	taken := false
+	for _, p := range a.assigned {
+		if p == port {
+			taken = true
+			break
+		}
+	}
+
+	if !taken {
+		a.assigned[workspaceID] = port
+		// Remove from freed list if present.
+		for i, p := range a.freed {
+			if p == port {
+				a.freed = append(a.freed[:i], a.freed[i+1:]...)
+				break
+			}
+		}
+		// Advance nextIndex past this port if needed, to avoid future collisions.
+		idx := (port - a.basePort) / a.step
+		if idx+1 > a.nextIndex {
+			a.nextIndex = idx + 1
+		}
+		return port
+	}
+
+	// Port taken — fall back to normal allocation (lock already held).
+	port = a.allocateNext()
+	a.assigned[workspaceID] = port
+	return port
+}
+
+// allocateNext assigns the next available port. Must be called with a.mu held.
+func (a *Allocator) allocateNext() int {
+	if len(a.freed) > 0 {
+		port := a.freed[len(a.freed)-1]
+		a.freed = a.freed[:len(a.freed)-1]
+		return port
+	}
+	port := a.basePort + a.nextIndex*a.step
+	a.nextIndex++
+	return port
 }
 
 // Get returns the port assigned to the given workspace ID.

@@ -95,6 +95,71 @@ func TestFreeAndGetReturnsError(t *testing.T) {
 	}
 }
 
+func TestAllocateSpecific(t *testing.T) {
+	a := New(44000, 10)
+
+	// Allocate a specific port
+	port := a.AllocateSpecific("ws-1", 44050)
+	if port != 44050 {
+		t.Errorf("specific port = %d, want 44050", port)
+	}
+
+	// Verify it's retrievable
+	got, err := a.Get("ws-1")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got != 44050 {
+		t.Errorf("Get = %d, want 44050", got)
+	}
+}
+
+func TestAllocateSpecificIdempotent(t *testing.T) {
+	a := New(44000, 10)
+
+	port1 := a.AllocateSpecific("ws-1", 44050)
+	port2 := a.AllocateSpecific("ws-1", 44060) // different port requested
+
+	if port1 != port2 {
+		t.Errorf("same workspace got different ports: %d vs %d", port1, port2)
+	}
+	if port1 != 44050 {
+		t.Errorf("port = %d, want 44050 (original)", port1)
+	}
+}
+
+func TestAllocateSpecificConflict(t *testing.T) {
+	a := New(44000, 10)
+
+	a.Allocate("ws-1") // takes 44000
+	port := a.AllocateSpecific("ws-2", 44000) // conflict
+
+	if port == 44000 {
+		t.Errorf("conflicting port should not be 44000")
+	}
+	// Should get the next available port
+	if port != 44010 {
+		t.Errorf("fallback port = %d, want 44010", port)
+	}
+}
+
+func TestAllocateSpecificAdvancesNextIndex(t *testing.T) {
+	a := New(44000, 10)
+
+	// Allocate a port well ahead of the current nextIndex
+	a.AllocateSpecific("ws-1", 44050)
+
+	// Next sequential allocation should not collide
+	port := a.Allocate("ws-2")
+	if port == 44050 {
+		t.Errorf("sequential allocation collided with specific allocation")
+	}
+	// nextIndex should have advanced past index 5 (44050)
+	if port != 44060 {
+		t.Errorf("next port = %d, want 44060", port)
+	}
+}
+
 func TestNewDefault(t *testing.T) {
 	a := NewDefault()
 

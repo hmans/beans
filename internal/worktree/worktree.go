@@ -459,6 +459,7 @@ func (m *Manager) Create(name string) (*Worktree, error) {
 type worktreeMeta struct {
 	Name         string     `json:"name"`
 	Description  string     `json:"description,omitempty"`
+	Port         int        `json:"port,omitempty"`
 	LastActiveAt *time.Time `json:"last_active_at,omitempty"`
 }
 
@@ -494,6 +495,30 @@ func (m *Manager) removeMeta(id string) {
 	os.Remove(m.metaPath(id))
 }
 
+
+// SavePort persists the allocated port for a worktree into its metadata file.
+func (m *Manager) SavePort(id string, port int) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	meta := m.loadMeta(id)
+	if meta == nil {
+		meta = &worktreeMeta{}
+	}
+	meta.Port = port
+	return m.saveMeta(id, meta)
+}
+
+// GetPort returns the persisted port for a worktree, or 0 if none is stored.
+func (m *Manager) GetPort(id string) int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if meta := m.loadMeta(id); meta != nil {
+		return meta.Port
+	}
+	return 0
+}
 
 // TouchLastActive updates the LastActiveAt timestamp for a worktree to now
 // and notifies subscribers. Called when an agent completes a turn.

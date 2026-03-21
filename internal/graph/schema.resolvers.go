@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"log"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -211,9 +212,14 @@ func (r *mutationResolver) CreateWorktree(ctx context.Context, name string) (*mo
 		return nil, err
 	}
 
-	// Allocate a workspace port for this worktree
+	// Allocate a workspace port for this worktree and persist it
 	if r.PortAlloc != nil {
-		r.PortAlloc.Allocate(wt.ID)
+		port := r.PortAlloc.Allocate(wt.ID)
+		if r.WorktreeMgr != nil {
+			if err := r.WorktreeMgr.SavePort(wt.ID, port); err != nil {
+				log.Printf("[worktree] warning: failed to save port for %s: %v", wt.ID, err)
+			}
+		}
 	}
 
 	// Start watching the worktree's .beans/ directory for bean changes

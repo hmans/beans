@@ -57,6 +57,7 @@ Key packages:
 - `beans-serve` watches active worktrees' `.beans/` dirs and merges file changes into runtime state as "dirty" (not persisted to main disk).
 - The `startWork` mutation uses `WithPersist(false)` — status changes are runtime-only until the PR merges.
 - When a PR merges and the bean file lands on main, the main watcher picks it up and the dirty flag clears.
+- Each worktree has a **metadata file** (`<id>.meta.json`) stored as a sibling in the worktree root directory (e.g. `~/.beans/worktrees/<project>/<id>.meta.json`). This file persists per-worktree state that must survive server restarts: name, description, allocated port, and last-active timestamp. Use `worktree.Manager.SavePort`/`GetPort` etc. to read and write fields — don't access the file directly.
 
 # Agent Architecture
 
