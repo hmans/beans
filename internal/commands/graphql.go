@@ -16,6 +16,7 @@ import (
 	"github.com/vektah/gqlparser/v2/formatter"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 	"github.com/hmans/beans/internal/graph"
+	"github.com/hmans/beans/pkg/beangraph"
 )
 
 var (
@@ -138,7 +139,7 @@ func readFromStdin() (string, error) {
 // On error, it returns an error so the CLI can handle it appropriately.
 func executeQuery(query string, variables map[string]any, operationName string) ([]byte, error) {
 	es := graph.NewExecutableSchema(graph.Config{
-		Resolvers: &graph.Resolver{Core: core},
+		Resolvers: &graph.Resolver{CoreResolver: &beangraph.CoreResolver{Core: core}},
 	})
 
 	exec := executor.New(es)
@@ -191,7 +192,7 @@ func printSchema() error {
 // This is exported so it can be used by other commands like prompt.
 func GetGraphQLSchema() string {
 	es := graph.NewExecutableSchema(graph.Config{
-		Resolvers: &graph.Resolver{Core: core},
+		Resolvers: &graph.Resolver{CoreResolver: &beangraph.CoreResolver{Core: core}},
 	})
 
 	var buf bytes.Buffer

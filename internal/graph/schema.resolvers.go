@@ -17,519 +17,106 @@ import (
 
 	"github.com/hmans/beans/internal/agent"
 	"github.com/hmans/beans/internal/gitutil"
-	"github.com/hmans/beans/internal/graph/model"
 	"github.com/hmans/beans/internal/worktree"
 	"github.com/hmans/beans/pkg/bean"
 	"github.com/hmans/beans/pkg/beancore"
+	"github.com/hmans/beans/pkg/beangraph/model"
 	"github.com/hmans/beans/pkg/config"
 )
 
 // IsDirty is the resolver for the isDirty field.
 func (r *beanResolver) IsDirty(ctx context.Context, obj *bean.Bean) (bool, error) {
-	return r.Core.IsDirty(obj.ID), nil
+	return r.CoreResolver.BeanIsDirty(ctx, obj)
 }
 
 // WorktreeID is the resolver for the worktreeId field.
 func (r *beanResolver) WorktreeID(ctx context.Context, obj *bean.Bean) (*string, error) {
-	wtPath := r.Core.WorktreeForBean(obj.ID)
-	if wtPath == "" {
-		return nil, nil
-	}
-	// Extract worktree ID from the path (last path component)
-	id := filepath.Base(wtPath)
-	return &id, nil
+	return r.CoreResolver.BeanWorktreeID(ctx, obj)
 }
 
 // ParentID is the resolver for the parentId field.
 func (r *beanResolver) ParentID(ctx context.Context, obj *bean.Bean) (*string, error) {
-	if obj.Parent == "" {
-		return nil, nil
-	}
-	return &obj.Parent, nil
+	return r.CoreResolver.BeanParentID(ctx, obj)
 }
 
 // BlockingIds is the resolver for the blockingIds field.
 func (r *beanResolver) BlockingIds(ctx context.Context, obj *bean.Bean) ([]string, error) {
-	return obj.Blocking, nil
+	return r.CoreResolver.BeanBlockingIds(ctx, obj)
 }
 
 // BlockedByIds is the resolver for the blockedByIds field.
 func (r *beanResolver) BlockedByIds(ctx context.Context, obj *bean.Bean) ([]string, error) {
-	return obj.BlockedBy, nil
+	return r.CoreResolver.BeanBlockedByIds(ctx, obj)
 }
 
 // BlockedBy is the resolver for the blockedBy field.
-// Combines both directions: the bean's own blocked_by field AND incoming
-// blocking links (other beans that list this bean in their blocking field).
 func (r *beanResolver) BlockedBy(ctx context.Context, obj *bean.Bean, filter *model.BeanFilter) ([]*bean.Bean, error) {
-	seen := make(map[string]bool)
-	var result []*bean.Bean
-
-	// 1. Resolve beans from the direct blocked_by field
-	for _, blockerID := range obj.BlockedBy {
-		if !seen[blockerID] {
-			seen[blockerID] = true
-			if blocker, err := r.Core.Get(blockerID); err == nil {
-				result = append(result, blocker)
-			}
-		}
-	}
-
-	// 2. Resolve beans from incoming blocking links (other beans blocking this one)
-	incoming := r.Core.FindIncomingLinks(obj.ID)
-	for _, link := range incoming {
-		if link.LinkType == "blocking" && !seen[link.FromBean.ID] {
-			seen[link.FromBean.ID] = true
-			result = append(result, link.FromBean)
-		}
-	}
-
-	filtered := ApplyFilter(result, filter, r.Core)
-	cfg := r.Core.Config()
-	bean.SortByStatusPriorityAndType(filtered, cfg.StatusNames(), cfg.PriorityNames(), cfg.TypeNames())
-	return filtered, nil
+	return r.CoreResolver.BeanBlockedBy(ctx, obj, filter)
 }
 
 // Blocking is the resolver for the blocking field.
 func (r *beanResolver) Blocking(ctx context.Context, obj *bean.Bean, filter *model.BeanFilter) ([]*bean.Bean, error) {
-	var result []*bean.Bean
-	for _, targetID := range obj.Blocking {
-		// Filter out broken links
-		if target, err := r.Core.Get(targetID); err == nil {
-			result = append(result, target)
-		}
-	}
-	filtered := ApplyFilter(result, filter, r.Core)
-	cfg := r.Core.Config()
-	bean.SortByStatusPriorityAndType(filtered, cfg.StatusNames(), cfg.PriorityNames(), cfg.TypeNames())
-	return filtered, nil
+	return r.CoreResolver.BeanBlocking(ctx, obj, filter)
 }
 
 // Parent is the resolver for the parent field.
 func (r *beanResolver) Parent(ctx context.Context, obj *bean.Bean) (*bean.Bean, error) {
-	if obj.Parent == "" {
-		return nil, nil
-	}
-	// Filter out broken links
-	parent, err := r.Core.Get(obj.Parent)
-	if err == beancore.ErrNotFound {
-		return nil, nil
-	}
-	return parent, err
+	return r.CoreResolver.BeanParent(ctx, obj)
 }
 
 // Children is the resolver for the children field.
 func (r *beanResolver) Children(ctx context.Context, obj *bean.Bean, filter *model.BeanFilter) ([]*bean.Bean, error) {
-	incoming := r.Core.FindIncomingLinks(obj.ID)
-	var result []*bean.Bean
-	for _, link := range incoming {
-		if link.LinkType == "parent" {
-			result = append(result, link.FromBean)
-		}
-	}
-	filtered := ApplyFilter(result, filter, r.Core)
-	cfg := r.Core.Config()
-	bean.SortByStatusPriorityAndType(filtered, cfg.StatusNames(), cfg.PriorityNames(), cfg.TypeNames())
-	return filtered, nil
+	return r.CoreResolver.BeanChildren(ctx, obj, filter)
 }
 
 // ImplicitStatus is the resolver for the implicitStatus field.
 func (r *beanResolver) ImplicitStatus(ctx context.Context, obj *bean.Bean) (*string, error) {
-	status, _ := r.Core.ImplicitStatus(obj.ID)
-	if status == "" {
-		return nil, nil
-	}
-	return &status, nil
+	return r.CoreResolver.BeanImplicitStatus(ctx, obj)
 }
 
 // ImplicitStatusFrom is the resolver for the implicitStatusFrom field.
 func (r *beanResolver) ImplicitStatusFrom(ctx context.Context, obj *bean.Bean) (*string, error) {
-	_, fromID := r.Core.ImplicitStatus(obj.ID)
-	if fromID == "" {
-		return nil, nil
-	}
-	return &fromID, nil
+	return r.CoreResolver.BeanImplicitStatusFrom(ctx, obj)
 }
 
 // CreateBean is the resolver for the createBean field.
 func (r *mutationResolver) CreateBean(ctx context.Context, input model.CreateBeanInput) (*bean.Bean, error) {
-	b := &bean.Bean{
-		Slug:     bean.Slugify(input.Title),
-		Title:    input.Title,
-		Type:     "task", // default
-		Blocking: []string{},
-	}
-
-	// Optional fields with defaults documented in schema
-	if input.Type != nil {
-		b.Type = *input.Type
-	}
-	if input.Status != nil {
-		b.Status = *input.Status
-	}
-	if input.Priority != nil {
-		b.Priority = *input.Priority
-	}
-	if input.Body != nil {
-		b.Body = *input.Body
-	}
-	if len(input.Tags) > 0 {
-		b.Tags = input.Tags
-	}
-
-	// Handle parent (with validation)
-	if input.Parent != nil && *input.Parent != "" {
-		// Normalise short ID to full ID
-		parentID, _ := r.Core.NormalizeID(*input.Parent)
-		if err := r.Core.ValidateParent(b, parentID); err != nil {
-			return nil, err
-		}
-		b.Parent = parentID
-	}
-
-	// Handle blocking (with validation)
-	if len(input.Blocking) > 0 {
-		// Normalise short IDs to full IDs
-		normalizedBlocking := make([]string, len(input.Blocking))
-		for i, id := range input.Blocking {
-			normalizedBlocking[i], _ = r.Core.NormalizeID(id)
-			// Verify target exists
-			if _, err := r.Core.Get(normalizedBlocking[i]); err != nil {
-				return nil, fmt.Errorf("target bean not found: %s", id)
-			}
-		}
-		b.Blocking = normalizedBlocking
-	}
-
-	// Handle blocked_by (with cycle validation)
-	if len(input.BlockedBy) > 0 {
-		// Normalise short IDs to full IDs
-		normalizedBlockedBy := make([]string, len(input.BlockedBy))
-		for i, id := range input.BlockedBy {
-			normalizedBlockedBy[i], _ = r.Core.NormalizeID(id)
-			// Verify blocker exists
-			if _, err := r.Core.Get(normalizedBlockedBy[i]); err != nil {
-				return nil, fmt.Errorf("blocker bean not found: %s", id)
-			}
-		}
-		// Check for cycles with blocking relationships
-		// (new bean being blocked_by X means X→newBean, check if newBean→X exists via blocking)
-		for _, blockerID := range normalizedBlockedBy {
-			for _, blockingID := range b.Blocking {
-				if blockerID == blockingID {
-					return nil, fmt.Errorf("would create cycle: new bean both blocks and is blocked by %s", blockerID)
-				}
-			}
-		}
-		b.BlockedBy = normalizedBlockedBy
-	}
-
-	// Handle custom prefix - pre-generate ID if prefix is provided
-	if input.Prefix != nil && *input.Prefix != "" {
-		idLength := 4 // default
-		if cfg := r.Core.Config(); cfg != nil && cfg.Beans.IDLength > 0 {
-			idLength = cfg.Beans.IDLength
-		}
-		id, err := bean.NewID(*input.Prefix, idLength)
-		if err != nil {
-			return nil, fmt.Errorf("generating bean ID: %w", err)
-		}
-		b.ID = id
-	}
-
-	if err := r.Core.Create(b); err != nil {
-		return nil, err
-	}
-
-	return b, nil
+	return r.CoreResolver.CreateBean(ctx, input)
 }
 
 // UpdateBean is the resolver for the updateBean field.
 func (r *mutationResolver) UpdateBean(ctx context.Context, id string, input model.UpdateBeanInput) (*bean.Bean, error) {
-	b, err := r.Core.Get(id)
-	if err != nil {
-		return nil, err
-	}
-
-	// Validate body and bodyMod are mutually exclusive
-	if input.Body != nil && input.BodyMod != nil {
-		return nil, fmt.Errorf("cannot specify both body and bodyMod")
-	}
-
-	// Validate tags and addTags/removeTags are mutually exclusive
-	if input.Tags != nil && (input.AddTags != nil || input.RemoveTags != nil) {
-		return nil, fmt.Errorf("cannot specify both tags and addTags/removeTags")
-	}
-
-	// Update fields if provided
-	if input.Title != nil {
-		b.Title = *input.Title
-	}
-	if input.Status != nil {
-		b.Status = *input.Status
-	}
-	if input.Type != nil {
-		b.Type = *input.Type
-	}
-	if input.Priority != nil {
-		b.Priority = *input.Priority
-	}
-	if input.Order != nil {
-		b.Order = *input.Order
-	}
-	if input.Body != nil {
-		b.Body = *input.Body
-	} else if input.BodyMod != nil {
-		// Apply body modifications
-		workingBody := b.Body
-
-		// Apply replacements sequentially
-		if input.BodyMod.Replace != nil {
-			for i, replaceOp := range input.BodyMod.Replace {
-				newBody, err := bean.ReplaceOnce(workingBody, replaceOp.Old, replaceOp.New)
-				if err != nil {
-					return nil, fmt.Errorf("replacement %d failed: %w", i, err)
-				}
-				workingBody = newBody
-			}
-		}
-
-		// Apply append if provided
-		if input.BodyMod.Append != nil && *input.BodyMod.Append != "" {
-			workingBody = bean.AppendWithSeparator(workingBody, *input.BodyMod.Append)
-		}
-
-		b.Body = workingBody
-	}
-	// Handle tags
-	if input.Tags != nil {
-		b.Tags = input.Tags
-	} else if input.AddTags != nil || input.RemoveTags != nil {
-		// Build a set of current tags
-		tagSet := make(map[string]bool)
-		for _, tag := range b.Tags {
-			tagSet[tag] = true
-		}
-
-		// Add new tags
-		if input.AddTags != nil {
-			for _, tag := range input.AddTags {
-				tagSet[tag] = true
-			}
-		}
-
-		// Remove tags
-		if input.RemoveTags != nil {
-			for _, tag := range input.RemoveTags {
-				delete(tagSet, tag)
-			}
-		}
-
-		// Convert back to slice
-		newTags := make([]string, 0, len(tagSet))
-		for tag := range tagSet {
-			newTags = append(newTags, tag)
-		}
-		b.Tags = newTags
-	}
-
-	// Handle parent relationship
-	if input.Parent != nil {
-		if err := r.validateAndSetParent(b, *input.Parent); err != nil {
-			return nil, err
-		}
-	}
-
-	// Handle blocking relationships
-	if input.AddBlocking != nil {
-		if err := r.validateAndAddBlocking(b, input.AddBlocking); err != nil {
-			return nil, err
-		}
-	}
-	if input.RemoveBlocking != nil {
-		r.removeBlockingRelationships(b, input.RemoveBlocking)
-	}
-
-	// Handle blocked-by relationships
-	if input.AddBlockedBy != nil {
-		if err := r.validateAndAddBlockedBy(b, input.AddBlockedBy); err != nil {
-			return nil, err
-		}
-	}
-	if input.RemoveBlockedBy != nil {
-		r.removeBlockedByRelationships(b, input.RemoveBlockedBy)
-	}
-
-	// ETag validation now happens inside Update() under write lock.
-	// If the bean is linked to a worktree, Core auto-routes the write there.
-	if err := r.Core.Update(b, input.IfMatch); err != nil {
-		return nil, err
-	}
-
-	return b, nil
+	return r.CoreResolver.UpdateBean(ctx, id, input)
 }
 
 // DeleteBean is the resolver for the deleteBean field.
 func (r *mutationResolver) DeleteBean(ctx context.Context, id string) (bool, error) {
-	// Verify bean exists
-	_, err := r.Core.Get(id)
-	if err != nil {
-		return false, err
-	}
-
-	// Remove incoming links first
-	if _, err := r.Core.RemoveLinksTo(id); err != nil {
-		return false, err
-	}
-
-	// Delete the bean
-	if err := r.Core.Delete(id); err != nil {
-		return false, err
-	}
-
-	return true, nil
+	return r.CoreResolver.DeleteBean(ctx, id)
 }
 
 // SetParent is the resolver for the setParent field.
 func (r *mutationResolver) SetParent(ctx context.Context, id string, parentID *string, ifMatch *string) (*bean.Bean, error) {
-	b, err := r.Core.Get(id)
-	if err != nil {
-		return nil, err
-	}
-
-	newParent := ""
-	if parentID != nil {
-		// Normalise short ID to full ID
-		newParent, _ = r.Core.NormalizeID(*parentID)
-	}
-
-	// Validate parent type hierarchy
-	if newParent != "" {
-		if err := r.Core.ValidateParent(b, newParent); err != nil {
-			return nil, err
-		}
-		// Check for cycles
-		if cycle := r.Core.DetectCycle(b.ID, "parent", newParent); cycle != nil {
-			return nil, fmt.Errorf("would create cycle: %v", cycle)
-		}
-	}
-
-	b.Parent = newParent
-	// ETag validation now happens inside Update() under write lock
-	if err := r.Core.Update(b, ifMatch); err != nil {
-		return nil, err
-	}
-	return b, nil
+	return r.CoreResolver.SetParent(ctx, id, parentID, ifMatch)
 }
 
 // AddBlocking is the resolver for the addBlocking field.
 func (r *mutationResolver) AddBlocking(ctx context.Context, id string, targetID string, ifMatch *string) (*bean.Bean, error) {
-	b, err := r.Core.Get(id)
-	if err != nil {
-		return nil, err
-	}
-
-	// Normalise short ID to full ID
-	normalizedTargetID, _ := r.Core.NormalizeID(targetID)
-
-	if normalizedTargetID == b.ID {
-		return nil, fmt.Errorf("bean cannot block itself")
-	}
-
-	// Check target exists
-	if _, err := r.Core.Get(normalizedTargetID); err != nil {
-		return nil, fmt.Errorf("target bean not found: %s", targetID)
-	}
-
-	// Check for cycles in both directions:
-	// 1. Check if targetId already has a path to id via blocking links
-	if cycle := r.Core.DetectCycle(b.ID, "blocking", normalizedTargetID); cycle != nil {
-		return nil, fmt.Errorf("would create cycle: %v", cycle)
-	}
-	// 2. Check if targetId already has a path to id via blocked_by links
-	if cycle := r.Core.DetectCycle(normalizedTargetID, "blocked_by", b.ID); cycle != nil {
-		return nil, fmt.Errorf("would create cycle: %v", cycle)
-	}
-
-	b.AddBlocking(normalizedTargetID)
-	// ETag validation now happens inside Update() under write lock
-	if err := r.Core.Update(b, ifMatch); err != nil {
-		return nil, err
-	}
-	return b, nil
+	return r.CoreResolver.AddBlocking(ctx, id, targetID, ifMatch)
 }
 
 // RemoveBlocking is the resolver for the removeBlocking field.
 func (r *mutationResolver) RemoveBlocking(ctx context.Context, id string, targetID string, ifMatch *string) (*bean.Bean, error) {
-	b, err := r.Core.Get(id)
-	if err != nil {
-		return nil, err
-	}
-
-	// Normalise short ID to full ID
-	normalizedTargetID, _ := r.Core.NormalizeID(targetID)
-
-	b.RemoveBlocking(normalizedTargetID)
-	// ETag validation now happens inside Update() under write lock
-	if err := r.Core.Update(b, ifMatch); err != nil {
-		return nil, err
-	}
-	return b, nil
+	return r.CoreResolver.RemoveBlocking(ctx, id, targetID, ifMatch)
 }
 
 // AddBlockedBy is the resolver for the addBlockedBy field.
 func (r *mutationResolver) AddBlockedBy(ctx context.Context, id string, targetID string, ifMatch *string) (*bean.Bean, error) {
-	b, err := r.Core.Get(id)
-	if err != nil {
-		return nil, err
-	}
-
-	// Normalise short ID to full ID
-	normalizedTargetID, _ := r.Core.NormalizeID(targetID)
-
-	if normalizedTargetID == b.ID {
-		return nil, fmt.Errorf("bean cannot be blocked by itself")
-	}
-
-	// Check target exists
-	if _, err := r.Core.Get(normalizedTargetID); err != nil {
-		return nil, fmt.Errorf("blocker bean not found: %s", targetID)
-	}
-
-	// Check for cycles in both directions:
-	// 1. Check if targetId already has a path to id via blocking links
-	if cycle := r.Core.DetectCycle(normalizedTargetID, "blocking", b.ID); cycle != nil {
-		return nil, fmt.Errorf("would create cycle: %v", cycle)
-	}
-	// 2. Check if id already has a path to targetId via blocked_by links
-	if cycle := r.Core.DetectCycle(b.ID, "blocked_by", normalizedTargetID); cycle != nil {
-		return nil, fmt.Errorf("would create cycle: %v", cycle)
-	}
-
-	b.AddBlockedBy(normalizedTargetID)
-	// ETag validation now happens inside Update() under write lock
-	if err := r.Core.Update(b, ifMatch); err != nil {
-		return nil, err
-	}
-	return b, nil
+	return r.CoreResolver.AddBlockedBy(ctx, id, targetID, ifMatch)
 }
 
 // RemoveBlockedBy is the resolver for the removeBlockedBy field.
 func (r *mutationResolver) RemoveBlockedBy(ctx context.Context, id string, targetID string, ifMatch *string) (*bean.Bean, error) {
-	b, err := r.Core.Get(id)
-	if err != nil {
-		return nil, err
-	}
-
-	// Normalise short ID to full ID
-	normalizedTargetID, _ := r.Core.NormalizeID(targetID)
-
-	b.RemoveBlockedBy(normalizedTargetID)
-	// ETag validation now happens inside Update() under write lock
-	if err := r.Core.Update(b, ifMatch); err != nil {
-		return nil, err
-	}
-	return b, nil
+	return r.CoreResolver.RemoveBlockedBy(ctx, id, targetID, ifMatch)
 }
 
 // WriteTerminalInput is the resolver for the writeTerminalInput field.
@@ -784,10 +371,7 @@ func (r *mutationResolver) ClearAgentSession(ctx context.Context, beanID string)
 
 // ArchiveBean is the resolver for the archiveBean field.
 func (r *mutationResolver) ArchiveBean(ctx context.Context, id string) (bool, error) {
-	if err := r.Core.Archive(id); err != nil {
-		return false, err
-	}
-	return true, nil
+	return r.CoreResolver.ArchiveBean(ctx, id)
 }
 
 // SaveDirtyBeans is the resolver for the saveDirtyBeans field.
@@ -914,35 +498,12 @@ func (r *mutationResolver) OpenInEditor(ctx context.Context, workspaceID string)
 
 // Bean is the resolver for the bean field.
 func (r *queryResolver) Bean(ctx context.Context, id string) (*bean.Bean, error) {
-	b, err := r.Core.Get(id)
-	if err == beancore.ErrNotFound {
-		return nil, nil
-	}
-	return b, err
+	return r.CoreResolver.Bean(ctx, id)
 }
 
 // Beans is the resolver for the beans field.
 func (r *queryResolver) Beans(ctx context.Context, filter *model.BeanFilter) ([]*bean.Bean, error) {
-	var beans []*bean.Bean
-
-	// If search filter is provided, start with search results
-	if filter != nil && filter.Search != nil && *filter.Search != "" {
-		searchResults, err := r.Core.Search(*filter.Search)
-		if err != nil {
-			return nil, err
-		}
-		beans = searchResults
-	} else {
-		beans = r.Core.All()
-	}
-
-	result := ApplyFilter(beans, filter, r.Core)
-
-	// Sort using the same logic as CLI and TUI
-	cfg := r.Core.Config()
-	bean.SortByStatusPriorityAndType(result, cfg.StatusNames(), cfg.PriorityNames(), cfg.TypeNames())
-
-	return result, nil
+	return r.CoreResolver.Beans(ctx, filter)
 }
 
 // Worktrees is the resolver for the worktrees field.
@@ -1242,19 +803,12 @@ func (r *queryResolver) AgentActions(ctx context.Context, beanID string, skipFor
 
 // ProjectName is the resolver for the projectName field.
 func (r *queryResolver) ProjectName(ctx context.Context) (string, error) {
-	cfg := r.Core.Config()
-	if cfg == nil {
-		return "", nil
-	}
-	return cfg.GetProjectName(), nil
+	return r.CoreResolver.ProjectName(ctx)
 }
 
 // MainBranch is the resolver for the mainBranch field.
 func (r *queryResolver) MainBranch(ctx context.Context) (string, error) {
-	if branch, ok := gitutil.CurrentBranch(r.ProjectRoot); ok {
-		return branch, nil
-	}
-	return "main", nil
+	return r.CoreResolver.MainBranch(ctx, r.ProjectRoot)
 }
 
 // AgentEnabled is the resolver for the agentEnabled field.

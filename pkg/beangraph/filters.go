@@ -1,9 +1,9 @@
-package graph
+package beangraph
 
 import (
 	"github.com/hmans/beans/pkg/bean"
+	"github.com/hmans/beans/pkg/beangraph/model"
 	"github.com/hmans/beans/pkg/beancore"
-	"github.com/hmans/beans/internal/graph/model"
 )
 
 // ApplyFilter applies BeanFilter to a slice of beans and returns filtered results.

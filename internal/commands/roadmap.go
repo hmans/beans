@@ -13,7 +13,7 @@ import (
 	"text/template"
 
 	"github.com/hmans/beans/pkg/bean"
-	"github.com/hmans/beans/internal/graph"
+	"github.com/hmans/beans/pkg/beangraph"
 	"github.com/spf13/cobra"
 )
 
@@ -60,8 +60,8 @@ var roadmapCmd = &cobra.Command{
 	Short: "Generate a Markdown roadmap from milestones and epics",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Query all beans via GraphQL resolver
-		resolver := &graph.Resolver{Core: core}
-		allBeans, err := resolver.Query().Beans(context.Background(), nil)
+		resolver := &beangraph.CoreResolver{Core: core}
+		allBeans, err := resolver.Beans(context.Background(), nil)
 		if err != nil {
 			return fmt.Errorf("querying beans: %w", err)
 		}

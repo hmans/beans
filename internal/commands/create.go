@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/hmans/beans/pkg/config"
-	"github.com/hmans/beans/internal/graph"
-	"github.com/hmans/beans/internal/graph/model"
+	"github.com/hmans/beans/pkg/beangraph"
+	"github.com/hmans/beans/pkg/beangraph/model"
 	"github.com/hmans/beans/internal/output"
 	"github.com/hmans/beans/internal/ui"
 	"github.com/spf13/cobra"
@@ -98,9 +98,9 @@ var createCmd = &cobra.Command{
 			input.Prefix = &createPrefix
 		}
 
-		// Create via GraphQL mutation
-		resolver := &graph.Resolver{Core: core}
-		b, err := resolver.Mutation().CreateBean(context.Background(), input)
+		// Create via core resolver
+		resolver := &beangraph.CoreResolver{Core: core}
+		b, err := resolver.CreateBean(context.Background(), input)
 		if err != nil {
 			return cmdError(createJSON, output.ErrFileError, "failed to create bean: %v", err)
 		}

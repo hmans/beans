@@ -9,7 +9,7 @@ import (
 
 	"github.com/hmans/beans/pkg/bean"
 	"github.com/hmans/beans/pkg/beancore"
-	"github.com/hmans/beans/internal/graph"
+	"github.com/hmans/beans/pkg/beangraph"
 	"github.com/hmans/beans/internal/output"
 	"github.com/spf13/cobra"
 )
@@ -36,12 +36,12 @@ warned and those references will be removed after confirmation. Use -f to skip a
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
-		resolver := &graph.Resolver{Core: core}
+		resolver := &beangraph.CoreResolver{Core: core}
 
 		// Collect all beans and their incoming links upfront (validate before deleting)
 		var targets []beanWithLinks
 		for _, id := range args {
-			b, err := resolver.Query().Bean(ctx, id)
+			b, err := resolver.Bean(ctx, id)
 			if err != nil {
 				return cmdError(deleteJSON, output.ErrNotFound, "failed to find bean: %v", err)
 			}
@@ -66,7 +66,7 @@ warned and those references will be removed after confirmation. Use -f to skip a
 		var deleted []*bean.Bean
 		var totalLinksRemoved int
 		for _, target := range targets {
-			_, err := resolver.Mutation().DeleteBean(ctx, target.bean.ID)
+			_, err := resolver.DeleteBean(ctx, target.bean.ID)
 			if err != nil {
 				return cmdError(deleteJSON, output.ErrFileError, "failed to delete bean %s: %v", target.bean.ID, err)
 			}

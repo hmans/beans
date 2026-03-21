@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/hmans/beans/internal/agent"
-	"github.com/hmans/beans/internal/graph/model"
+	"github.com/hmans/beans/pkg/beangraph/model"
 	"github.com/hmans/beans/pkg/forge"
 )
 

@@ -10,8 +10,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/hmans/beans/pkg/bean"
 	"github.com/hmans/beans/pkg/config"
-	"github.com/hmans/beans/internal/graph"
-	"github.com/hmans/beans/internal/graph/model"
+	"github.com/hmans/beans/pkg/beangraph"
+	"github.com/hmans/beans/pkg/beangraph/model"
 	"github.com/hmans/beans/internal/ui"
 )
 
@@ -105,7 +105,7 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 // listModel is the model for the bean list view
 type listModel struct {
 	list     list.Model
-	resolver *graph.Resolver
+	resolver *beangraph.CoreResolver
 	config   *config.Config
 	width    int
 	height   int
@@ -126,7 +126,7 @@ type listModel struct {
 	statusMessage string
 }
 
-func newListModel(resolver *graph.Resolver, cfg *config.Config) listModel {
+func newListModel(resolver *beangraph.CoreResolver, cfg *config.Config) listModel {
 	selectedBeans := make(map[string]bool)
 	delegate := itemDelegate{cfg: cfg, selectedBeans: &selectedBeans}
 
@@ -176,13 +176,13 @@ func (m listModel) loadBeans() tea.Msg {
 	}
 
 	// Query filtered beans
-	filteredBeans, err := m.resolver.Query().Beans(context.Background(), filter)
+	filteredBeans, err := m.resolver.Beans(context.Background(), filter)
 	if err != nil {
 		return errMsg{err}
 	}
 
 	// Query all beans for tree context (ancestors)
-	allBeans, err := m.resolver.Query().Beans(context.Background(), nil)
+	allBeans, err := m.resolver.Beans(context.Background(), nil)
 	if err != nil {
 		return errMsg{err}
 	}

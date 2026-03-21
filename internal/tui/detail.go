@@ -15,7 +15,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/hmans/beans/pkg/bean"
 	"github.com/hmans/beans/pkg/config"
-	"github.com/hmans/beans/internal/graph"
+	"github.com/hmans/beans/pkg/beangraph"
 	"github.com/hmans/beans/internal/ui"
 )
 
@@ -129,7 +129,7 @@ func (d linkDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 type detailModel struct {
 	viewport      viewport.Model
 	bean          *bean.Bean
-	resolver      *graph.Resolver
+	resolver      *beangraph.CoreResolver
 	config        *config.Config
 	width         int
 	height        int
@@ -141,7 +141,7 @@ type detailModel struct {
 	statusMessage string               // Status message to display in footer
 }
 
-func newDetailModel(b *bean.Bean, resolver *graph.Resolver, cfg *config.Config, width, height int) detailModel {
+func newDetailModel(b *bean.Bean, resolver *beangraph.CoreResolver, cfg *config.Config, width, height int) detailModel {
 	m := detailModel{
 		bean:        b,
 		resolver:    resolver,
@@ -554,25 +554,23 @@ func (m detailModel) formatLinkLabel(linkType string, incoming bool) string {
 func (m detailModel) resolveAllLinks() []resolvedLink {
 	var links []resolvedLink
 	ctx := context.Background()
-	beanResolver := m.resolver.Bean()
-
-	// Resolve outgoing links via GraphQL resolvers
-	if blocking, _ := beanResolver.Blocking(ctx, m.bean, nil); blocking != nil {
+	// Resolve outgoing links via core resolver
+	if blocking, _ := m.resolver.BeanBlocking(ctx, m.bean, nil); blocking != nil {
 		for _, b := range blocking {
 			links = append(links, resolvedLink{linkType: "blocking", bean: b, incoming: false})
 		}
 	}
-	if parent, _ := beanResolver.Parent(ctx, m.bean); parent != nil {
+	if parent, _ := m.resolver.BeanParent(ctx, m.bean); parent != nil {
 		links = append(links, resolvedLink{linkType: "parent", bean: parent, incoming: false})
 	}
 
-	// Resolve incoming links via GraphQL resolvers
-	if blockedBy, _ := beanResolver.BlockedBy(ctx, m.bean, nil); blockedBy != nil {
+	// Resolve incoming links via core resolver
+	if blockedBy, _ := m.resolver.BeanBlockedBy(ctx, m.bean, nil); blockedBy != nil {
 		for _, b := range blockedBy {
 			links = append(links, resolvedLink{linkType: "blocking", bean: b, incoming: true})
 		}
 	}
-	if children, _ := beanResolver.Children(ctx, m.bean, nil); children != nil {
+	if children, _ := m.resolver.BeanChildren(ctx, m.bean, nil); children != nil {
 		for _, b := range children {
 			links = append(links, resolvedLink{linkType: "parent", bean: b, incoming: true})
 		}

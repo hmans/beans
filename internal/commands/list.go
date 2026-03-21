@@ -7,9 +7,9 @@ import (
 	"sort"
 
 	"github.com/hmans/beans/pkg/bean"
+	"github.com/hmans/beans/pkg/beangraph"
+	"github.com/hmans/beans/pkg/beangraph/model"
 	"github.com/hmans/beans/pkg/config"
-	"github.com/hmans/beans/internal/graph"
-	"github.com/hmans/beans/internal/graph/model"
 	"github.com/hmans/beans/internal/output"
 	"github.com/hmans/beans/internal/ui"
 	"github.com/spf13/cobra"
@@ -111,9 +111,9 @@ Search Syntax (--search/-S):
 			filter.ExcludeImplicitTerminal = &excludeImplicitTerminal
 		}
 
-		// Execute query via GraphQL resolver
-		resolver := &graph.Resolver{Core: core}
-		beans, err := resolver.Query().Beans(context.Background(), filter)
+		// Execute query via core resolver
+		resolver := &beangraph.CoreResolver{Core: core}
+		beans, err := resolver.Beans(context.Background(), filter)
 		if err != nil {
 			return fmt.Errorf("querying beans: %w", err)
 		}
@@ -141,7 +141,7 @@ Search Syntax (--search/-S):
 
 		// Default: tree view
 		// We need all beans to find ancestors for context
-		allBeans, err := resolver.Query().Beans(context.Background(), nil)
+		allBeans, err := resolver.Beans(context.Background(), nil)
 		if err != nil {
 			return fmt.Errorf("querying all beans for tree: %w", err)
 		}

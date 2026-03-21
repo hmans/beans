@@ -12,7 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/hmans/beans/pkg/bean"
 	"github.com/hmans/beans/pkg/config"
-	"github.com/hmans/beans/internal/graph"
+	"github.com/hmans/beans/pkg/beangraph"
 	"github.com/hmans/beans/internal/ui"
 )
 
@@ -101,9 +101,9 @@ type blockingPickerModel struct {
 	height           int
 }
 
-func newBlockingPickerModel(beanID, beanTitle string, currentBlocking []string, resolver *graph.Resolver, cfg *config.Config, width, height int) blockingPickerModel {
+func newBlockingPickerModel(beanID, beanTitle string, currentBlocking []string, resolver *beangraph.CoreResolver, cfg *config.Config, width, height int) blockingPickerModel {
 	// Fetch all beans
-	allBeans, _ := resolver.Query().Beans(context.Background(), nil)
+	allBeans, _ := resolver.Beans(context.Background(), nil)
 
 	// Create maps for original and pending state
 	originalBlocking := make(map[string]bool)

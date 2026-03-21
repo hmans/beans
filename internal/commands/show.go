@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/hmans/beans/pkg/bean"
-	"github.com/hmans/beans/internal/graph"
+	"github.com/hmans/beans/pkg/beangraph"
 	"github.com/hmans/beans/internal/output"
 	"github.com/hmans/beans/internal/ui"
 	"github.com/spf13/cobra"
@@ -27,12 +27,12 @@ var showCmd = &cobra.Command{
 	Long:  `Displays the full contents of one or more beans, including front matter and body.`,
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		resolver := &graph.Resolver{Core: core}
+		resolver := &beangraph.CoreResolver{Core: core}
 
 		// Collect all beans
 		var beans []*bean.Bean
 		for _, id := range args {
-			b, err := resolver.Query().Bean(context.Background(), id)
+			b, err := resolver.Bean(context.Background(), id)
 			if err != nil {
 				if showJSON {
 					return output.Error(output.ErrNotFound, err.Error())

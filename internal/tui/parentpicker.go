@@ -13,7 +13,7 @@ import (
 	"github.com/hmans/beans/pkg/bean"
 	"github.com/hmans/beans/pkg/beancore"
 	"github.com/hmans/beans/pkg/config"
-	"github.com/hmans/beans/internal/graph"
+	"github.com/hmans/beans/pkg/beangraph"
 	"github.com/hmans/beans/internal/ui"
 )
 
@@ -92,7 +92,7 @@ type parentPickerModel struct {
 	height        int
 }
 
-func newParentPickerModel(beanIDs []string, beanTitle string, beanTypes []string, currentParent string, resolver *graph.Resolver, cfg *config.Config, width, height int) parentPickerModel {
+func newParentPickerModel(beanIDs []string, beanTitle string, beanTypes []string, currentParent string, resolver *beangraph.CoreResolver, cfg *config.Config, width, height int) parentPickerModel {
 	// Get valid parent types - for multi-select, find types valid for ALL beans
 	var validParentTypes []string
 	for i, beanType := range beanTypes {
@@ -106,7 +106,7 @@ func newParentPickerModel(beanIDs []string, beanTitle string, beanTypes []string
 	}
 
 	// Fetch all beans and filter to eligible parents
-	allBeans, _ := resolver.Query().Beans(context.Background(), nil)
+	allBeans, _ := resolver.Beans(context.Background(), nil)
 
 	// Collect all descendants of all selected beans (to prevent cycles)
 	allDescendants := make(map[string]bool)

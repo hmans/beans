@@ -9,8 +9,8 @@ import (
 	"github.com/hmans/beans/pkg/bean"
 	"github.com/hmans/beans/pkg/beancore"
 	"github.com/hmans/beans/pkg/config"
-	"github.com/hmans/beans/internal/graph"
-	"github.com/hmans/beans/internal/graph/model"
+	"github.com/hmans/beans/pkg/beangraph"
+	"github.com/hmans/beans/pkg/beangraph/model"
 	"github.com/hmans/beans/internal/output"
 	"github.com/hmans/beans/internal/ui"
 	"github.com/spf13/cobra"
@@ -46,10 +46,10 @@ var updateCmd = &cobra.Command{
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
-		resolver := &graph.Resolver{Core: core}
+		resolver := &beangraph.CoreResolver{Core: core}
 
 		// Find the bean
-		b, err := resolver.Query().Bean(ctx, args[0])
+		b, err := resolver.Bean(ctx, args[0])
 		if err != nil {
 			return cmdError(updateJSON, output.ErrNotFound, "failed to find bean: %v", err)
 		}
@@ -62,7 +62,7 @@ var updateCmd = &cobra.Command{
 				return cmdError(updateJSON, output.ErrNotFound, "bean not found: %s", args[0])
 			}
 			// Re-query to get the model.Bean
-			b, err = resolver.Query().Bean(ctx, unarchived.ID)
+			b, err = resolver.Bean(ctx, unarchived.ID)
 			if err != nil || b == nil {
 				return cmdError(updateJSON, output.ErrNotFound, "bean not found: %s", args[0])
 			}
@@ -93,7 +93,7 @@ var updateCmd = &cobra.Command{
 		// Apply all updates atomically via single UpdateBean mutation
 		// This includes field updates, body modifications, and relationship changes
 		if hasFieldUpdates(input) {
-			b, err = resolver.Mutation().UpdateBean(ctx, b.ID, input)
+			b, err = resolver.UpdateBean(ctx, b.ID, input)
 			if err != nil {
 				return mutationError(updateJSON, err)
 			}

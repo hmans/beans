@@ -9,7 +9,7 @@ exec:
   package: graph
 
 model:
-  filename: internal/graph/model/models_gen.go
+  filename: pkg/beangraph/model/models_gen.go
   package: model
 
 resolver:

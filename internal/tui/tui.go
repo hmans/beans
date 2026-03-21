@@ -14,8 +14,8 @@ import (
 	"github.com/hmans/beans/pkg/beancore"
 	"github.com/hmans/beans/pkg/config"
 	"github.com/hmans/beans/pkg/safepath"
-	"github.com/hmans/beans/internal/graph"
-	"github.com/hmans/beans/internal/graph/model"
+	"github.com/hmans/beans/pkg/beangraph"
+	"github.com/hmans/beans/pkg/beangraph/model"
 )
 
 // viewState represents which view is currently active
@@ -110,7 +110,7 @@ type App struct {
 	helpOverlay    helpOverlayModel
 	history        []detailModel // stack of previous detail views for back navigation
 	core           *beancore.Core
-	resolver       *graph.Resolver
+	resolver       *beangraph.CoreResolver
 	config         *config.Config
 	width          int
 	height         int
@@ -129,7 +129,7 @@ type App struct {
 
 // New creates a new TUI application
 func New(core *beancore.Core, cfg *config.Config) *App {
-	resolver := &graph.Resolver{Core: core}
+	resolver := &beangraph.CoreResolver{Core: core}
 	return &App{
 		state:    viewList,
 		core:     core,
@@ -221,7 +221,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Update preview with the newly highlighted bean
 		_, rightWidth := calculatePaneWidths(a.width)
 		if msg.beanID != "" {
-			bean, err := a.resolver.Query().Bean(context.Background(), msg.beanID)
+			bean, err := a.resolver.Bean(context.Background(), msg.beanID)
 			if err == nil && bean != nil {
 				a.preview = newPreviewModel(bean, rightWidth, a.height-2)
 			}
@@ -246,7 +246,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Beans changed on disk - refresh
 		if a.state == viewDetail {
 			// Try to reload the current bean via GraphQL
-			updatedBean, err := a.resolver.Query().Bean(context.Background(), a.detail.bean.ID)
+			updatedBean, err := a.resolver.Bean(context.Background(), a.detail.bean.ID)
 			if err != nil || updatedBean == nil {
 				// Bean was deleted - return to list
 				a.state = viewList
@@ -307,7 +307,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case statusSelectedMsg:
 		// Update all beans' status via GraphQL mutations
 		for _, beanID := range msg.beanIDs {
-			_, err := a.resolver.Mutation().UpdateBean(context.Background(), beanID, model.UpdateBeanInput{
+			_, err := a.resolver.UpdateBean(context.Background(), beanID, model.UpdateBeanInput{
 				Status: &msg.status,
 			})
 			if err != nil {
@@ -320,7 +320,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Clear selection after batch edit
 		clear(a.list.selectedBeans)
 		if a.state == viewDetail && len(msg.beanIDs) == 1 {
-			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanIDs[0])
+			updatedBean, _ := a.resolver.Bean(context.Background(), msg.beanIDs[0])
 			if updatedBean != nil {
 				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height)
 			}
@@ -341,7 +341,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case typeSelectedMsg:
 		// Update all beans' type via GraphQL mutations
 		for _, beanID := range msg.beanIDs {
-			_, err := a.resolver.Mutation().UpdateBean(context.Background(), beanID, model.UpdateBeanInput{
+			_, err := a.resolver.UpdateBean(context.Background(), beanID, model.UpdateBeanInput{
 				Type: &msg.beanType,
 			})
 			if err != nil {
@@ -354,7 +354,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Clear selection after batch edit
 		clear(a.list.selectedBeans)
 		if a.state == viewDetail && len(msg.beanIDs) == 1 {
-			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanIDs[0])
+			updatedBean, _ := a.resolver.Bean(context.Background(), msg.beanIDs[0])
 			if updatedBean != nil {
 				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height)
 			}
@@ -375,7 +375,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case prioritySelectedMsg:
 		// Update all beans' priority via GraphQL mutations
 		for _, beanID := range msg.beanIDs {
-			_, err := a.resolver.Mutation().UpdateBean(context.Background(), beanID, model.UpdateBeanInput{
+			_, err := a.resolver.UpdateBean(context.Background(), beanID, model.UpdateBeanInput{
 				Priority: &msg.priority,
 			})
 			if err != nil {
@@ -388,7 +388,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Clear selection after batch edit
 		clear(a.list.selectedBeans)
 		if a.state == viewDetail && len(msg.beanIDs) == 1 {
-			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanIDs[0])
+			updatedBean, _ := a.resolver.Bean(context.Background(), msg.beanIDs[0])
 			if updatedBean != nil {
 				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height)
 			}
@@ -419,14 +419,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case blockingConfirmedMsg:
 		// Apply all blocking changes via GraphQL mutations
 		for _, targetID := range msg.toAdd {
-			_, err := a.resolver.Mutation().AddBlocking(context.Background(), msg.beanID, targetID, nil)
+			_, err := a.resolver.AddBlocking(context.Background(), msg.beanID, targetID, nil)
 			if err != nil {
 				// Continue with other changes even if one fails
 				continue
 			}
 		}
 		for _, targetID := range msg.toRemove {
-			_, err := a.resolver.Mutation().RemoveBlocking(context.Background(), msg.beanID, targetID, nil)
+			_, err := a.resolver.RemoveBlocking(context.Background(), msg.beanID, targetID, nil)
 			if err != nil {
 				// Continue with other changes even if one fails
 				continue
@@ -435,7 +435,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Return to previous view and refresh
 		a.state = a.previousState
 		if a.state == viewDetail {
-			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanID)
+			updatedBean, _ := a.resolver.Bean(context.Background(), msg.beanID)
 			if updatedBean != nil {
 				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height)
 			}
@@ -455,7 +455,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case beanCreatedMsg:
 		// Create the bean via GraphQL mutation with draft status
 		draftStatus := "draft"
-		createdBean, err := a.resolver.Mutation().CreateBean(context.Background(), model.CreateBeanInput{
+		createdBean, err := a.resolver.CreateBean(context.Background(), model.CreateBeanInput{
 			Title:  msg.title,
 			Status: &draftStatus,
 		})
@@ -525,7 +525,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			parentID = &msg.parentID
 		}
 		for _, beanID := range msg.beanIDs {
-			_, err := a.resolver.Mutation().SetParent(context.Background(), beanID, parentID, nil)
+			_, err := a.resolver.SetParent(context.Background(), beanID, parentID, nil)
 			if err != nil {
 				// Continue with other beans even if one fails
 				continue
@@ -537,7 +537,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		clear(a.list.selectedBeans)
 		if a.state == viewDetail && len(msg.beanIDs) == 1 {
 			// Refresh the bean to show updated parent
-			updatedBean, _ := a.resolver.Query().Bean(context.Background(), msg.beanIDs[0])
+			updatedBean, _ := a.resolver.Bean(context.Background(), msg.beanIDs[0])
 			if updatedBean != nil {
 				a.detail = newDetailModel(updatedBean, a.resolver, a.config, a.width, a.height)
 			}
@@ -621,7 +621,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // collectTagsWithCounts returns all tags with their usage counts
 func (a *App) collectTagsWithCounts() []tagWithCount {
-	beans, _ := a.resolver.Query().Beans(context.Background(), nil)
+	beans, _ := a.resolver.Beans(context.Background(), nil)
 	tagCounts := make(map[string]int)
 	for _, b := range beans {
 		for _, tag := range b.Tags {

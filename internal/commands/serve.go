@@ -27,6 +27,7 @@ import (
 	"github.com/hmans/beans/internal/terminal"
 	"github.com/hmans/beans/internal/web"
 	"github.com/hmans/beans/internal/worktree"
+	"github.com/hmans/beans/pkg/beangraph"
 	"github.com/hmans/beans/pkg/config"
 	"github.com/hmans/beans/pkg/forge"
 )
@@ -331,13 +332,13 @@ func runServer(port int, origins []string) error {
 	// Create GraphQL server with explicit transports
 	es := graph.NewExecutableSchema(graph.Config{
 		Resolvers: &graph.Resolver{
-			Core:        core,
-			WorktreeMgr: wtManager,
-			AgentMgr:    agentMgr,
-			TerminalMgr: termMgr,
-			PortAlloc:   portAlloc,
-			Forge:       forgeProvider,
-			ProjectRoot: projectRoot,
+			CoreResolver: &beangraph.CoreResolver{Core: core},
+			WorktreeMgr:  wtManager,
+			AgentMgr:     agentMgr,
+			TerminalMgr:  termMgr,
+			PortAlloc:    portAlloc,
+			Forge:        forgeProvider,
+			ProjectRoot:  projectRoot,
 		},
 	})
 	gqlHandler := handler.New(es)
