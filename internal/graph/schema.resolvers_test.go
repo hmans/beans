@@ -3,10 +3,12 @@ package graph
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hmans/beans/internal/agent"
 	"github.com/hmans/beans/internal/graph/model"
@@ -1143,6 +1145,50 @@ func TestSubscriptionBeanChanged(t *testing.T) {
 			// Expected: no events ready
 		}
 	})
+}
+
+func TestAgentSessionSubscription_DeliversLatestState(t *testing.T) {
+	// Verify that when multiple rapid notifications occur, the subscriber
+	// eventually receives the latest state (not a stale intermediate).
+	mgr := agent.NewManager("", nil)
+
+	beanID := "test-latest-value"
+	resolver := &Resolver{AgentMgr: mgr}
+	sr := resolver.Subscription()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ch, err := sr.AgentSessionChanged(ctx, beanID)
+	if err != nil {
+		t.Fatalf("AgentSessionChanged() error = %v", err)
+	}
+
+	// No session exists yet, so no initial emission. Fire rapid
+	// notifications by adding multiple info messages without reading.
+	for i := range 10 {
+		mgr.AddInfoMessage(beanID, fmt.Sprintf("msg-%d", i))
+	}
+
+	// Drain the channel. Use a short idle timeout: once we stop receiving
+	// updates for 100ms, assume all coalesced notifications have been delivered.
+	var lastSession *model.AgentSession
+	for {
+		select {
+		case s := <-ch:
+			lastSession = s
+		case <-time.After(100 * time.Millisecond):
+			goto done
+		}
+	}
+done:
+	if lastSession == nil {
+		t.Fatal("received no updates")
+	}
+	// The final state must include all info messages
+	if len(lastSession.Messages) != 10 {
+		t.Errorf("last update had %d messages, want 10", len(lastSession.Messages))
+	}
 }
 
 func TestRelationshipFieldsWithFilter(t *testing.T) {

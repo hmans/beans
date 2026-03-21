@@ -1508,6 +1508,19 @@ func (r *subscriptionResolver) AgentSessionChanged(ctx context.Context, beanID s
 		defer r.AgentMgr.Unsubscribe(beanID, ch)
 		defer close(out)
 
+		fetchState := func() *model.AgentSession {
+			if s := r.AgentMgr.GetSession(beanID); s != nil {
+				return agentSessionToModel(s)
+			}
+			// Session was cleared — send an empty session so the UI resets
+			return &model.AgentSession{
+				BeanID:    beanID,
+				AgentType: "claude",
+				Status:    model.AgentSessionStatusIdle,
+				Messages:  []*model.AgentMessage{},
+			}
+		}
+
 		// Emit current state immediately (if session exists)
 		if s := r.AgentMgr.GetSession(beanID); s != nil {
 			select {
@@ -1517,30 +1530,34 @@ func (r *subscriptionResolver) AgentSessionChanged(ctx context.Context, beanID s
 			}
 		}
 
-		// Then emit on each change
+		// Use a latest-value pattern: if new notifications arrive while
+		// we're blocked sending to out, refresh the pending state so the
+		// frontend always receives the most recent session state. This
+		// prevents missed status transitions (e.g. IDLE→RUNNING) when
+		// the WebSocket transport is slow to consume.
+		var pending *model.AgentSession
 		for {
-			select {
-			case <-ctx.Done():
-				return
-			case _, ok := <-ch:
-				if !ok {
-					return
-				}
-				s := r.AgentMgr.GetSession(beanID)
-				var ms *model.AgentSession
-				if s != nil {
-					ms = agentSessionToModel(s)
-				} else {
-					// Session was cleared — send an empty session so the UI resets
-					ms = &model.AgentSession{
-						BeanID:    beanID,
-						AgentType: "claude",
-						Status:    model.AgentSessionStatusIdle,
-						Messages:  []*model.AgentMessage{},
-					}
-				}
+			if pending == nil {
+				// Wait for a notification
 				select {
-				case out <- ms:
+				case <-ctx.Done():
+					return
+				case _, ok := <-ch:
+					if !ok {
+						return
+					}
+					pending = fetchState()
+				}
+			} else {
+				// Try to send, but refresh if a new notification arrives
+				select {
+				case out <- pending:
+					pending = nil
+				case _, ok := <-ch:
+					if !ok {
+						return
+					}
+					pending = fetchState()
 				case <-ctx.Done():
 					return
 				}
@@ -1573,17 +1590,30 @@ func (r *subscriptionResolver) ActiveAgentStatuses(ctx context.Context) (<-chan 
 			return
 		}
 
-		// Then emit on each change
+		// Latest-value pattern (same as AgentSessionChanged above):
+		// refresh pending state when new notifications arrive during
+		// a blocked send.
+		var pending []*model.ActiveAgentStatus
 		for {
-			select {
-			case <-ctx.Done():
-				return
-			case _, ok := <-ch:
-				if !ok {
-					return
-				}
+			if pending == nil {
 				select {
-				case out <- activeAgentsToModel(r.AgentMgr.ListRunningSessions()):
+				case <-ctx.Done():
+					return
+				case _, ok := <-ch:
+					if !ok {
+						return
+					}
+					pending = activeAgentsToModel(r.AgentMgr.ListRunningSessions())
+				}
+			} else {
+				select {
+				case out <- pending:
+					pending = nil
+				case _, ok := <-ch:
+					if !ok {
+						return
+					}
+					pending = activeAgentsToModel(r.AgentMgr.ListRunningSessions())
 				case <-ctx.Done():
 					return
 				}
