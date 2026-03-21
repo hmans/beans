@@ -20,8 +20,8 @@ test.describe('Workspace creation', () => {
     });
     await expect(activeWorkspace).toBeVisible({ timeout: 5_000 });
 
-    // The agent chat composer textarea should be focused
-    const composer = page.locator('textarea[placeholder="Send a message..."]');
+    // The agent chat composer editor should be focused
+    const composer = page.locator('.composer-editor[contenteditable="true"]');
     await expect(composer).toBeFocused({ timeout: 5_000 });
   });
 

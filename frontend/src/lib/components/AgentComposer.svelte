@@ -1,5 +1,8 @@
 <script lang="ts">
   import type { SubagentActivity } from '$lib/agentChat.svelte';
+  import { Editor, Extension } from '@tiptap/core';
+  import StarterKit from '@tiptap/starter-kit';
+  import Placeholder from '@tiptap/extension-placeholder';
 
   const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
   const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
@@ -43,20 +46,110 @@
   let pendingImages = $state<{ data: string; mediaType: string; preview: string }[]>([]);
   let isDragging = $state(false);
   let fileInputEl: HTMLInputElement | undefined = $state();
-  let textareaEl: HTMLTextAreaElement | undefined = $state();
+  let editorEl: HTMLDivElement | undefined = $state();
+  let editor: Editor | undefined = $state();
 
-  // Focus the textarea when switching to a new bean/workspace
+  // Create a tiptap extension for keyboard shortcuts that need access to component state.
+  // We use closures so the handlers always read the latest reactive values.
+  function createComposerKeymap() {
+    return Extension.create({
+      name: 'composerKeymap',
+      addKeyboardShortcuts() {
+        return {
+          Enter: () => {
+            send();
+            return true;
+          },
+          'Shift-Tab': () => {
+            if (!isRunning) {
+              onSetMode(agentMode === 'plan' ? 'act' : 'plan');
+            }
+            return true;
+          },
+          Escape: () => {
+            if (isRunning) {
+              onStop();
+            }
+            return true;
+          }
+        };
+      }
+    });
+  }
+
+  // Initialize the tiptap editor when the DOM element is available
+  $effect(() => {
+    if (!editorEl) return;
+
+    const initialContent = localStorage.getItem(inputStorageKey) ?? '';
+
+    const instance = new Editor({
+      element: editorEl,
+      extensions: [
+        StarterKit.configure({
+          // Disable features we don't need in a chat composer
+          heading: false,
+          blockquote: false,
+          codeBlock: false,
+          horizontalRule: false,
+          bulletList: false,
+          orderedList: false,
+          listItem: false
+        }),
+        Placeholder.configure({
+          placeholder: 'Send a message...'
+        }),
+        createComposerKeymap()
+      ],
+      content: initialContent ? `<p>${initialContent.replace(/\n/g, '<br>')}</p>` : '',
+      editorProps: {
+        attributes: {
+          class: 'composer-editor'
+        },
+        handlePaste: (_view, event) => {
+          if (!event.clipboardData) return false;
+          const items = Array.from(event.clipboardData.items);
+          const imageItems = items.filter((item) => ALLOWED_IMAGE_TYPES.includes(item.type));
+          if (imageItems.length === 0) return false;
+          for (const item of imageItems) {
+            const file = item.getAsFile();
+            if (file) addImageFile(file);
+          }
+          // If there's also text content, let tiptap handle the text paste
+          const hasText = items.some((item) => item.type === 'text/plain');
+          return !hasText;
+        }
+      },
+      onUpdate: ({ editor: e }) => {
+        inputText = e.getText();
+      }
+    });
+
+    editor = instance;
+    instance.commands.focus();
+
+    return () => {
+      instance.destroy();
+      editor = undefined;
+    };
+  });
+
+  // Focus the editor when switching to a new bean/workspace
   $effect(() => {
     beanId;
-    textareaEl?.focus();
+    editor?.commands.focus();
   });
 
   // Load persisted composer input when beanId changes
   $effect(() => {
-    inputText = localStorage.getItem(inputStorageKey) ?? '';
+    const saved = localStorage.getItem(inputStorageKey) ?? '';
+    if (editor && !editor.isDestroyed) {
+      editor.commands.setContent(saved ? `<p>${saved.replace(/\n/g, '<br>')}</p>` : '');
+      inputText = saved;
+    }
   });
 
-  // Persist composer input to localStorage so it survives navigation/reloads
+  // Persist composer input to localStorage
   $effect(() => {
     if (inputText) {
       localStorage.setItem(inputStorageKey, inputText);
@@ -73,7 +166,6 @@
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
-      // Strip the data URL prefix to get raw base64
       const base64 = result.split(',')[1];
       pendingImages = [...pendingImages, { data: base64, mediaType: file.type, preview }];
     };
@@ -83,21 +175,6 @@
   function removeImage(index: number) {
     URL.revokeObjectURL(pendingImages[index].preview);
     pendingImages = pendingImages.filter((_, i) => i !== index);
-  }
-
-  function handlePaste(e: ClipboardEvent) {
-    if (!e.clipboardData) return;
-    const items = Array.from(e.clipboardData.items);
-    const imageItems = items.filter((item) => ALLOWED_IMAGE_TYPES.includes(item.type));
-    if (imageItems.length === 0) return;
-    // Only prevent default text paste when there's no text content
-    // (i.e., this is a screenshot paste, not a rich-text copy with inline images)
-    const hasText = items.some((item) => item.type === 'text/plain');
-    if (!hasText) e.preventDefault();
-    for (const item of imageItems) {
-      const file = item.getAsFile();
-      if (file) addImageFile(file);
-    }
   }
 
   function handleFileInput(e: Event) {
@@ -139,20 +216,8 @@
     for (const img of pendingImages) URL.revokeObjectURL(img.preview);
     pendingImages = [];
     inputText = '';
+    editor?.commands.clearContent(true);
     onSend(text, images);
-  }
-
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      send();
-    } else if (e.key === 'Tab' && e.shiftKey && !isRunning) {
-      e.preventDefault();
-      onSetMode(agentMode === 'plan' ? 'act' : 'plan');
-    } else if (e.key === 'Escape' && isRunning) {
-      e.preventDefault();
-      onStop();
-    }
   }
 </script>
 
@@ -196,17 +261,7 @@
     ondragleave={handleDragLeave}
     ondrop={handleDrop}
   >
-    <textarea
-      bind:this={textareaEl}
-      bind:value={inputText}
-      onkeydown={handleKeydown}
-      onpaste={handlePaste}
-      placeholder="Send a message..."
-      rows={1}
-      class="max-h-48 resize-none rounded bg-transparent px-3 py-2
-				text-text [field-sizing:content] placeholder:text-text-faint
-				focus:outline-none"
-    ></textarea>
+    <div bind:this={editorEl} class="composer-editor-wrapper"></div>
     <div class="flex items-center gap-1 px-2 pb-1.5">
       <input
         bind:this={fileInputEl}
@@ -391,5 +446,27 @@
     to {
       transform: rotate(360deg);
     }
+  }
+
+  .composer-editor-wrapper :global(.composer-editor) {
+    max-height: 12rem;
+    overflow-y: auto;
+    border-radius: 0.25rem;
+    background-color: transparent;
+    padding: 0.5rem 0.75rem;
+    color: var(--th-text);
+    outline: none;
+  }
+
+  .composer-editor-wrapper :global(.composer-editor p) {
+    margin: 0;
+  }
+
+  .composer-editor-wrapper :global(.composer-editor p.is-editor-empty:first-child::before) {
+    pointer-events: none;
+    float: left;
+    height: 0;
+    color: var(--th-text-faint);
+    content: attr(data-placeholder);
   }
 </style>
