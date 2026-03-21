@@ -215,10 +215,8 @@ func (r *mutationResolver) CreateWorktree(ctx context.Context, name string) (*mo
 	// Allocate a workspace port for this worktree and persist it
 	if r.PortAlloc != nil {
 		port := r.PortAlloc.Allocate(wt.ID)
-		if r.WorktreeMgr != nil {
-			if err := r.WorktreeMgr.SavePort(wt.ID, port); err != nil {
-				log.Printf("[worktree] warning: failed to save port for %s: %v", wt.ID, err)
-			}
+		if err := r.WorktreeMgr.SavePort(wt.ID, port); err != nil {
+			log.Printf("[worktree] warning: failed to save port for %s: %v", wt.ID, err)
 		}
 	}
 

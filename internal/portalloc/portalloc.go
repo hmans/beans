@@ -50,15 +50,7 @@ func (a *Allocator) Allocate(workspaceID string) int {
 		return port
 	}
 
-	var port int
-	if len(a.freed) > 0 {
-		port = a.freed[len(a.freed)-1]
-		a.freed = a.freed[:len(a.freed)-1]
-	} else {
-		port = a.basePort + a.nextIndex*a.step
-		a.nextIndex++
-	}
-
+	port := a.allocateNext()
 	a.assigned[workspaceID] = port
 	return port
 }

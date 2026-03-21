@@ -495,7 +495,6 @@ func (m *Manager) removeMeta(id string) {
 	os.Remove(m.metaPath(id))
 }
 
-
 // SavePort persists the allocated port for a worktree into its metadata file.
 func (m *Manager) SavePort(id string, port int) error {
 	m.mu.Lock()
