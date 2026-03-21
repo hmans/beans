@@ -122,6 +122,7 @@ export class AgentChatStore {
             role: AgentMessageRole.User,
             content: message,
             images: [],
+            attachments: attachments?.map(a => a.path) ?? [],
             diff: null
           }
         ]

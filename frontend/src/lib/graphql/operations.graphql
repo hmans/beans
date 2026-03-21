@@ -54,6 +54,7 @@ fragment AgentSessionFields on AgentSession {
       url
       mediaType
     }
+    attachments
     diff
   }
   error

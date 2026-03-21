@@ -164,8 +164,9 @@ func (m *Manager) spawnAndRun(beanID string, session *Session) {
 	log.Printf("[agent:%s] spawned claude process (pid=%d, dir=%s)", beanID, cmd.Process.Pid, session.WorkDir)
 
 	// Send the initial user message, prepending bean context on first spawn
+	// and any file attachment context from @-mentions
 	lastMsg := session.Messages[len(session.Messages)-1]
-	initialMsg := lastMsg.Content
+	initialMsg := lastMsg.ContextPrefix + lastMsg.Content
 	if session.SessionID == "" && m.contextProvider != nil {
 		if ctx := m.contextProvider(beanID); ctx != "" {
 			initialMsg = ctx + "\n\n---\n\n" + initialMsg

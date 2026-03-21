@@ -84,6 +84,13 @@
         // instead of being interpreted as HTML tags by the markdown parser.
         const content = msg.role === 'USER' ? escapeHtml(msg.content) : msg.content;
         renderMarkdown(content).then((html) => {
+          // Replace {{file:path}} markers with inline pills for user messages
+          if (msg.role === 'USER') {
+            html = html.replace(
+              /\{\{file:([^}]+)\}\}/g,
+              '<span class="file-mention-pill">$1</span>'
+            );
+          }
           renderedMessages = new Map(renderedMessages).set(key, html);
         });
       }

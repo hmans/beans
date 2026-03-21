@@ -65,10 +65,11 @@ type ComplexityRoot struct {
 	}
 
 	AgentMessage struct {
-		Content func(childComplexity int) int
-		Diff    func(childComplexity int) int
-		Images  func(childComplexity int) int
-		Role    func(childComplexity int) int
+		Attachments func(childComplexity int) int
+		Content     func(childComplexity int) int
+		Diff        func(childComplexity int) int
+		Images      func(childComplexity int) int
+		Role        func(childComplexity int) int
 	}
 
 	AgentMessageImage struct {
@@ -397,6 +398,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.AgentAction.Label(childComplexity), true
 
+	case "AgentMessage.attachments":
+		if e.complexity.AgentMessage.Attachments == nil {
+			break
+		}
+
+		return e.complexity.AgentMessage.Attachments(childComplexity), true
 	case "AgentMessage.content":
 		if e.complexity.AgentMessage.Content == nil {
 			break
@@ -2603,6 +2610,35 @@ func (ec *executionContext) fieldContext_AgentMessage_images(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _AgentMessage_attachments(ctx context.Context, field graphql.CollectedField, obj *model.AgentMessage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AgentMessage_attachments,
+		func(ctx context.Context) (any, error) {
+			return obj.Attachments, nil
+		},
+		nil,
+		ec.marshalNString2ᚕstringᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AgentMessage_attachments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentMessage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _AgentMessage_diff(ctx context.Context, field graphql.CollectedField, obj *model.AgentMessage) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -2807,6 +2843,8 @@ func (ec *executionContext) fieldContext_AgentSession_messages(_ context.Context
 				return ec.fieldContext_AgentMessage_content(ctx, field)
 			case "images":
 				return ec.fieldContext_AgentMessage_images(ctx, field)
+			case "attachments":
+				return ec.fieldContext_AgentMessage_attachments(ctx, field)
 			case "diff":
 				return ec.fieldContext_AgentMessage_diff(ctx, field)
 			}
@@ -10477,6 +10515,11 @@ func (ec *executionContext) _AgentMessage(ctx context.Context, sel ast.Selection
 			}
 		case "images":
 			out.Values[i] = ec._AgentMessage_images(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "attachments":
+			out.Values[i] = ec._AgentMessage_attachments(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

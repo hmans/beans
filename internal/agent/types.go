@@ -40,10 +40,15 @@ type ImageUpload struct {
 
 // Message represents a single chat message in an agent conversation.
 type Message struct {
-	Role    MessageRole
-	Content string
-	Images  []ImageRef // optional attached images (typically only on user messages)
-	Diff    string     // unified diff output (only on tool messages for Write/Edit)
+	Role        MessageRole
+	Content     string
+	Images      []ImageRef // optional attached images (typically only on user messages)
+	Diff        string     // unified diff output (only on tool messages for Write/Edit)
+	Attachments []string   // file/directory paths attached via @-mention
+
+	// ContextPrefix is prepended to Content when sending to Claude but is NOT
+	// persisted to disk or displayed in the UI. Used for @-mention file context.
+	ContextPrefix string `json:"-"`
 }
 
 // ToolInvocation records a tool call with its name and input summary.

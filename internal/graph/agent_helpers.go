@@ -34,11 +34,16 @@ func agentSessionToModel(s *agent.Session) *model.AgentSession {
 		if m.Diff != "" {
 			diff = &m.Diff
 		}
+		attachments := m.Attachments
+		if attachments == nil {
+			attachments = []string{}
+		}
 		msgs[i] = &model.AgentMessage{
-			Role:    role,
-			Content: m.Content,
-			Images:  images,
-			Diff:    diff,
+			Role:        role,
+			Content:     m.Content,
+			Images:      images,
+			Attachments: attachments,
+			Diff:        diff,
 		}
 	}
 

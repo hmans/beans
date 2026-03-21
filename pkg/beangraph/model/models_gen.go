@@ -41,6 +41,8 @@ type AgentMessage struct {
 	Content string `json:"content"`
 	// Attached images (empty for assistant/tool messages)
 	Images []*AgentMessageImage `json:"images"`
+	// File/directory paths attached via @-mention (only present on user messages)
+	Attachments []string `json:"attachments"`
 	// Unified diff output (only present on tool messages for Write/Edit tools)
 	Diff *string `json:"diff,omitempty"`
 }

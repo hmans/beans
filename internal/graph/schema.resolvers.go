@@ -279,14 +279,9 @@ func (r *mutationResolver) SendAgentMessage(ctx context.Context, beanID string, 
 		}
 	}
 
-	// Prepend attached file/directory paths as context hints
-	if len(attachments) > 0 {
-		var paths []string
-		for _, a := range attachments {
-			paths = append(paths, a.Path)
-		}
-		message = fmt.Sprintf("[The user has attached the following files/directories for context: %s]\n\n%s",
-			strings.Join(paths, ", "), message)
+	var attachmentPaths []string
+	for _, a := range attachments {
+		attachmentPaths = append(attachmentPaths, a.Path)
 	}
 
 	var uploads []agent.ImageUpload
@@ -298,7 +293,7 @@ func (r *mutationResolver) SendAgentMessage(ctx context.Context, beanID string, 
 		uploads = append(uploads, agent.ImageUpload{Data: data, MediaType: img.MediaType})
 	}
 
-	if err := r.AgentMgr.SendMessage(beanID, workDir, message, uploads); err != nil {
+	if err := r.AgentMgr.SendMessage(beanID, workDir, message, uploads, attachmentPaths...); err != nil {
 		return false, err
 	}
 	return true, nil

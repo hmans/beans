@@ -3,6 +3,7 @@ package agent
 import (
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 )
 
@@ -160,7 +161,7 @@ func (m *Manager) GetSession(beanID string) *Session {
 // SendMessage sends a user message to the agent for the given worktree.
 // If no session exists, one is created. If no process is running, one is spawned.
 // Images are optional base64-decoded uploads that will be stored and forwarded to Claude.
-func (m *Manager) SendMessage(beanID, workDir, message string, images []ImageUpload) error {
+func (m *Manager) SendMessage(beanID, workDir, message string, images []ImageUpload, attachmentPaths ...string) error {
 	// Save images to disk before acquiring the lock
 	var imageRefs []ImageRef
 	if m.store != nil && len(images) > 0 {
@@ -187,8 +188,16 @@ func (m *Manager) SendMessage(beanID, workDir, message string, images []ImageUpl
 		session.WorkDir = workDir
 	}
 
+	// Build context prefix from attached file paths (injected into Claude's
+	// stdin message but NOT stored in the conversation or shown in the UI)
+	var contextPrefix string
+	if len(attachmentPaths) > 0 {
+		contextPrefix = fmt.Sprintf("[The user has attached the following files/directories for context: %s]\n\n",
+			strings.Join(attachmentPaths, ", "))
+	}
+
 	// Append user message and clear turn state
-	userMsg := Message{Role: RoleUser, Content: message, Images: imageRefs}
+	userMsg := Message{Role: RoleUser, Content: message, Images: imageRefs, Attachments: attachmentPaths, ContextPrefix: contextPrefix}
 	session.Messages = append(session.Messages, userMsg)
 	session.Error = ""
 	session.PendingInteraction = nil
@@ -223,7 +232,7 @@ func (m *Manager) SendMessage(beanID, workDir, message string, images []ImageUpl
 	if hasProc && proc != nil {
 		// Send message to existing process via stdin — Claude Code's stream-json
 		// protocol handles interleaving even if the agent is mid-turn
-		return m.sendToProcess(proc, beanID, message, imageRefs)
+		return m.sendToProcess(proc, beanID, contextPrefix+message, imageRefs)
 	}
 
 	// Spawn a new process

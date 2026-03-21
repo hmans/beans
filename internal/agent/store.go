@@ -37,12 +37,13 @@ type entryImage struct {
 
 // entry is a single line in the JSONL file.
 type entry struct {
-	Type      string       `json:"type"`                // "message" or "meta"
-	Role      string       `json:"role,omitempty"`       // for messages: "user" or "assistant"
-	Content   string       `json:"content,omitempty"`    // for messages
-	Images    []entryImage `json:"images,omitempty"`     // for messages with attachments
-	Diff      string       `json:"diff,omitempty"`       // for tool messages: unified diff output
-	SessionID string       `json:"session_id,omitempty"` // for meta
+	Type        string       `json:"type"`                  // "message" or "meta"
+	Role        string       `json:"role,omitempty"`         // for messages: "user" or "assistant"
+	Content     string       `json:"content,omitempty"`      // for messages
+	Images      []entryImage `json:"images,omitempty"`       // for messages with image attachments
+	Diff        string       `json:"diff,omitempty"`         // for tool messages: unified diff output
+	Attachments []string     `json:"attachments,omitempty"`  // file paths from @-mentions
+	SessionID   string       `json:"session_id,omitempty"`   // for meta
 }
 
 // newStore creates the conversations directory if needed.
@@ -83,9 +84,10 @@ func (s *store) load(beanID string) ([]Message, string, error) {
 		switch e.Type {
 		case "message":
 			msg := Message{
-				Role:    MessageRole(e.Role),
-				Content: e.Content,
-				Diff:    e.Diff,
+				Role:        MessageRole(e.Role),
+				Content:     e.Content,
+				Diff:        e.Diff,
+				Attachments: e.Attachments,
 			}
 			for _, img := range e.Images {
 				msg.Images = append(msg.Images, ImageRef{ID: img.ID, MediaType: img.MediaType})
@@ -104,10 +106,11 @@ func (s *store) load(beanID string) ([]Message, string, error) {
 // appendMessage appends a message entry to the JSONL file.
 func (s *store) appendMessage(beanID string, msg Message) error {
 	e := entry{
-		Type:    "message",
-		Role:    string(msg.Role),
-		Content: msg.Content,
-		Diff:    msg.Diff,
+		Type:        "message",
+		Role:        string(msg.Role),
+		Content:     msg.Content,
+		Diff:        msg.Diff,
+		Attachments: msg.Attachments,
 	}
 	for _, img := range msg.Images {
 		e.Images = append(e.Images, entryImage{ID: img.ID, MediaType: img.MediaType})
