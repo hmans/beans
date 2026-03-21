@@ -3,12 +3,15 @@
   import { Editor, Extension } from '@tiptap/core';
   import StarterKit from '@tiptap/starter-kit';
   import Placeholder from '@tiptap/extension-placeholder';
+  import { ListFilesDocument } from '$lib/graphql/generated';
+  import { client } from '$lib/graphqlClient';
 
   const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
   const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
   interface Props {
     beanId: string;
+    workspaceId: string;
     isRunning: boolean;
     hasMessages: boolean;
     agentMode: 'plan' | 'act';
@@ -16,7 +19,7 @@
     systemStatus: string | null;
     subagentActivities: SubagentActivity[];
     quickReplies: string[];
-    onSend: (message: string, images?: { data: string; mediaType: string }[]) => void;
+    onSend: (message: string, images?: { data: string; mediaType: string }[], attachments?: { path: string }[]) => void;
     onStop: () => void;
     onSetMode: (mode: 'plan' | 'act') => void;
     onSetEffort: (effort: string) => void;
@@ -26,6 +29,7 @@
 
   let {
     beanId,
+    workspaceId,
     isRunning,
     hasMessages,
     agentMode,
@@ -49,26 +53,137 @@
   let editorEl: HTMLDivElement | undefined = $state();
   let editor: Editor | undefined = $state();
 
-  // Create a tiptap extension for keyboard shortcuts that need access to component state.
-  // We use closures so the handlers always read the latest reactive values.
+  // @-mention autocomplete state
+  let pendingAttachments = $state<{ path: string; isDir: boolean }[]>([]);
+  let showMention = $state(false);
+  let mentionResults = $state<{ path: string; isDir: boolean }[]>([]);
+  let mentionSelectedIndex = $state(0);
+  let mentionStartIndex = $state(-1);
+  let mentionDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function removeAttachment(index: number) {
+    pendingAttachments = pendingAttachments.filter((_, i) => i !== index);
+  }
+
+  function closeMention() {
+    showMention = false;
+    mentionResults = [];
+    mentionSelectedIndex = 0;
+    mentionStartIndex = -1;
+  }
+
+  async function queryFiles(query: string) {
+    const result = await client.query(ListFilesDocument, {
+      workspaceId,
+      prefix: query,
+      limit: 20
+    }).toPromise();
+    if (result.data?.listFiles) {
+      mentionResults = result.data.listFiles;
+      mentionSelectedIndex = 0;
+    }
+  }
+
+  function scrollSelectedIntoView() {
+    const container = document.querySelector('[data-mention-list]');
+    const selected = container?.querySelector('[data-selected]');
+    selected?.scrollIntoView({ block: 'nearest' });
+  }
+
+  // Detect @-mention triggers in the editor content.
+  // For single-paragraph content, PM position = text index + 1.
+  function handleMentionDetection(e: Editor) {
+    const text = e.getText();
+    const { from } = e.state.selection;
+    const cursorTextIndex = from - 1;
+
+    if (showMention) {
+      if (cursorTextIndex <= mentionStartIndex || text[mentionStartIndex] !== '@') {
+        closeMention();
+        return;
+      }
+      const query = text.slice(mentionStartIndex + 1, cursorTextIndex);
+      if (mentionDebounceTimer) clearTimeout(mentionDebounceTimer);
+      mentionDebounceTimer = setTimeout(() => queryFiles(query), 100);
+    } else {
+      if (cursorTextIndex > 0 && text[cursorTextIndex - 1] === '@') {
+        const charBefore = cursorTextIndex >= 2 ? text[cursorTextIndex - 2] : undefined;
+        if (charBefore === undefined || /\s/.test(charBefore)) {
+          mentionStartIndex = cursorTextIndex - 1;
+          showMention = true;
+          if (mentionDebounceTimer) clearTimeout(mentionDebounceTimer);
+          mentionDebounceTimer = setTimeout(() => queryFiles(''), 100);
+        }
+      }
+    }
+  }
+
+  function selectMentionItem(item: { path: string; isDir: boolean }) {
+    if (!editor) return;
+
+    // Delete @query from editor (PM pos = text index + 1)
+    const pmStart = mentionStartIndex + 1;
+    const pmEnd = editor.state.selection.from;
+    editor.chain().deleteRange({ from: pmStart, to: pmEnd }).run();
+
+    if (!pendingAttachments.some(a => a.path === item.path)) {
+      pendingAttachments = [...pendingAttachments, { path: item.path, isDir: item.isDir }];
+    }
+    closeMention();
+    editor.commands.focus();
+  }
+
+  // TipTap extension for keyboard shortcuts (closures read latest reactive state)
   function createComposerKeymap() {
     return Extension.create({
       name: 'composerKeymap',
       addKeyboardShortcuts() {
         return {
+          ArrowDown: () => {
+            if (showMention && mentionResults.length > 0) {
+              mentionSelectedIndex = (mentionSelectedIndex + 1) % mentionResults.length;
+              setTimeout(scrollSelectedIntoView, 0);
+              return true;
+            }
+            return false;
+          },
+          ArrowUp: () => {
+            if (showMention && mentionResults.length > 0) {
+              mentionSelectedIndex = (mentionSelectedIndex - 1 + mentionResults.length) % mentionResults.length;
+              setTimeout(scrollSelectedIntoView, 0);
+              return true;
+            }
+            return false;
+          },
           Enter: () => {
+            if (showMention && mentionResults.length > 0) {
+              selectMentionItem(mentionResults[mentionSelectedIndex]);
+              return true;
+            }
             send();
             return true;
+          },
+          Tab: () => {
+            if (showMention && mentionResults.length > 0) {
+              selectMentionItem(mentionResults[mentionSelectedIndex]);
+              return true;
+            }
+            return false;
+          },
+          Escape: () => {
+            if (showMention) {
+              closeMention();
+              return true;
+            }
+            if (isRunning) {
+              onStop();
+              return true;
+            }
+            return false;
           },
           'Shift-Tab': () => {
             if (!isRunning) {
               onSetMode(agentMode === 'plan' ? 'act' : 'plan');
-            }
-            return true;
-          },
-          Escape: () => {
-            if (isRunning) {
-              onStop();
             }
             return true;
           }
@@ -77,7 +192,7 @@
     });
   }
 
-  // Initialize the tiptap editor when the DOM element is available
+  // Initialize TipTap editor
   $effect(() => {
     if (!editorEl) return;
 
@@ -87,7 +202,6 @@
       element: editorEl,
       extensions: [
         StarterKit.configure({
-          // Disable features we don't need in a chat composer
           heading: false,
           blockquote: false,
           codeBlock: false,
@@ -115,13 +229,13 @@
             const file = item.getAsFile();
             if (file) addImageFile(file);
           }
-          // If there's also text content, let tiptap handle the text paste
           const hasText = items.some((item) => item.type === 'text/plain');
           return !hasText;
         }
       },
       onUpdate: ({ editor: e }) => {
         inputText = e.getText();
+        handleMentionDetection(e);
       }
     });
 
@@ -208,16 +322,22 @@
 
   function send() {
     const text = inputText.trim();
-    if (!text && pendingImages.length === 0) return;
+    if (!text && pendingImages.length === 0 && pendingAttachments.length === 0) return;
     const images =
       pendingImages.length > 0
         ? pendingImages.map(({ data, mediaType }) => ({ data, mediaType }))
         : undefined;
+    const attachments =
+      pendingAttachments.length > 0
+        ? pendingAttachments.map(({ path }) => ({ path }))
+        : undefined;
     for (const img of pendingImages) URL.revokeObjectURL(img.preview);
     pendingImages = [];
+    pendingAttachments = [];
     inputText = '';
     editor?.commands.clearContent(true);
-    onSend(text, images);
+    closeMention();
+    onSend(text, images, attachments);
   }
 </script>
 
@@ -261,7 +381,38 @@
     ondragleave={handleDragLeave}
     ondrop={handleDrop}
   >
+    {#if showMention && mentionResults.length > 0}
+      <div data-mention-list class="absolute bottom-full left-0 z-50 mb-1 max-h-48 w-full overflow-y-auto rounded border border-border bg-surface shadow-lg">
+        {#each mentionResults as item, i (item.path)}
+          <button
+            type="button"
+            data-selected={i === mentionSelectedIndex ? '' : undefined}
+            class={[
+              'flex w-full cursor-pointer items-center gap-2 px-2 py-1 text-left text-xs',
+              i === mentionSelectedIndex ? 'bg-accent/10 text-accent' : 'text-text-muted hover:bg-surface-alt'
+            ]}
+            onmousedown={(e) => { e.preventDefault(); selectMentionItem(item); }}
+          >
+            <span class={[item.isDir ? 'icon-[uil--folder]' : 'icon-[uil--file]', 'size-3.5 shrink-0']}></span>
+            <span class="truncate">{item.path}</span>
+          </button>
+        {/each}
+      </div>
+    {/if}
     <div bind:this={editorEl} class="composer-editor-wrapper"></div>
+    {#if pendingAttachments.length > 0}
+      <div class="flex flex-wrap gap-1 px-2 py-1">
+        {#each pendingAttachments as att, i (att.path)}
+          <span class="inline-flex items-center gap-1 rounded bg-accent/10 px-1.5 py-0.5 text-xs text-accent">
+            <span class={[att.isDir ? 'icon-[uil--folder]' : 'icon-[uil--file]', 'size-3']}></span>
+            {att.path}
+            <button type="button" class="cursor-pointer" onclick={() => removeAttachment(i)} aria-label="Remove {att.path}">
+              <span class="icon-[uil--times] size-3"></span>
+            </button>
+          </span>
+        {/each}
+      </div>
+    {/if}
     <div class="flex items-center gap-1 px-2 pb-1.5">
       <input
         bind:this={fileInputEl}
@@ -291,7 +442,7 @@
       {/if}
       <button
         onclick={send}
-        disabled={!inputText.trim() && pendingImages.length === 0}
+        disabled={!inputText.trim() && pendingImages.length === 0 && pendingAttachments.length === 0}
         class="cursor-pointer rounded p-1 text-text-muted transition-colors hover:bg-surface hover:text-text
 					disabled:cursor-not-allowed disabled:opacity-30"
         aria-label="Send message"

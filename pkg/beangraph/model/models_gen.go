@@ -219,6 +219,12 @@ type CreateBeanInput struct {
 	Prefix *string `json:"prefix,omitempty"`
 }
 
+// Input for attaching a file or directory as context to an agent message.
+type FileAttachmentInput struct {
+	// Relative file or directory path
+	Path string `json:"path"`
+}
+
 // A changed file in a git working tree
 type FileChange struct {
 	// File path relative to the repo/worktree root
@@ -231,6 +237,14 @@ type FileChange struct {
 	Deletions int `json:"deletions"`
 	// Whether this change is staged
 	Staged bool `json:"staged"`
+}
+
+// A file or directory entry in the project, used for @-mention autocomplete.
+type FileEntry struct {
+	// Relative path from the workspace root
+	Path string `json:"path"`
+	// Whether this entry is a directory
+	IsDir bool `json:"isDir"`
 }
 
 // Input for uploading an image attachment

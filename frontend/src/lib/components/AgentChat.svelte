@@ -89,7 +89,8 @@
     {systemStatus}
     {subagentActivities}
     {quickReplies}
-    onSend={(text, images) => { internalScrollTrigger++; store.sendMessage(beanId, text, images); }}
+    workspaceId={beanId}
+    onSend={(text, images, attachments) => { internalScrollTrigger++; store.sendMessage(beanId, text, images, attachments); }}
     onStop={() => store.stop(beanId)}
     onSetMode={setAgentMode}
     onSetEffort={(effort) => store.setEffort(beanId, effort)}

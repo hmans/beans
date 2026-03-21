@@ -111,6 +111,13 @@ type Query {
   Defaults to "local".
   """
   worktreeIntegrateMode: String!
+
+  """
+  List files tracked by git in a workspace directory, filtered by path prefix.
+  Returns one level of depth below the prefix, with directories deduplicated.
+  Used for @-mention autocomplete in the agent chat composer.
+  """
+  listFiles(workspaceId: ID, prefix: String!, limit: Int): [FileEntry!]!
 }
 
 type Subscription {
@@ -269,7 +276,7 @@ type Mutation {
   Send a message to the agent in a worktree. Starts a session if none exists.
   Optionally attach images (base64-encoded).
   """
-  sendAgentMessage(beanId: ID!, message: String!, images: [ImageInput!]): Boolean!
+  sendAgentMessage(beanId: ID!, message: String!, images: [ImageInput!], attachments: [FileAttachmentInput!]): Boolean!
 
   """
   Stop the running agent in a worktree.
@@ -784,6 +791,24 @@ input ImageInput {
   data: String!
   "MIME type (image/jpeg, image/png, image/gif, image/webp)"
   mediaType: String!
+}
+
+"""
+A file or directory entry in the project, used for @-mention autocomplete.
+"""
+type FileEntry {
+  "Relative path from the workspace root"
+  path: String!
+  "Whether this entry is a directory"
+  isDir: Boolean!
+}
+
+"""
+Input for attaching a file or directory as context to an agent message.
+"""
+input FileAttachmentInput {
+  "Relative file or directory path"
+  path: String!
 }
 
 """

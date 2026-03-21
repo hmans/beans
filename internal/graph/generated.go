@@ -151,6 +151,11 @@ type ComplexityRoot struct {
 		Status    func(childComplexity int) int
 	}
 
+	FileEntry struct {
+		IsDir func(childComplexity int) int
+		Path  func(childComplexity int) int
+	}
+
 	Mutation struct {
 		AddBlockedBy               func(childComplexity int, id string, targetID string, ifMatch *string) int
 		AddBlocking                func(childComplexity int, id string, targetID string, ifMatch *string) int
@@ -167,7 +172,7 @@ type ComplexityRoot struct {
 		RemoveWorktree             func(childComplexity int, id string) int
 		SaveBean                   func(childComplexity int, id string) int
 		SaveDirtyBeans             func(childComplexity int) int
-		SendAgentMessage           func(childComplexity int, beanID string, message string, images []*model.ImageInput) int
+		SendAgentMessage           func(childComplexity int, beanID string, message string, images []*model.ImageInput, attachments []*model.FileAttachmentInput) int
 		SetAgentActMode            func(childComplexity int, beanID string, actMode bool) int
 		SetAgentEffort             func(childComplexity int, beanID string, effort string) int
 		SetAgentPendingInteraction func(childComplexity int, beanID string, typeArg model.InteractionType, planContent *string) int
@@ -210,6 +215,7 @@ type ComplexityRoot struct {
 		FileDiff              func(childComplexity int, filePath string, staged bool, path *string) int
 		HasDirtyBeans         func(childComplexity int) int
 		IsRunning             func(childComplexity int, workspaceID string) int
+		ListFiles             func(childComplexity int, workspaceID *string, prefix string, limit *int) int
 		MainBranch            func(childComplexity int) int
 		ProjectName           func(childComplexity int) int
 		WorkspacePort         func(childComplexity int, workspaceID string) int
@@ -284,7 +290,7 @@ type MutationResolver interface {
 	StopRun(ctx context.Context, workspaceID string) (bool, error)
 	CreateWorktree(ctx context.Context, name string) (*model.Worktree, error)
 	RemoveWorktree(ctx context.Context, id string) (bool, error)
-	SendAgentMessage(ctx context.Context, beanID string, message string, images []*model.ImageInput) (bool, error)
+	SendAgentMessage(ctx context.Context, beanID string, message string, images []*model.ImageInput, attachments []*model.FileAttachmentInput) (bool, error)
 	StopAgent(ctx context.Context, beanID string) (bool, error)
 	SetAgentPlanMode(ctx context.Context, beanID string, planMode bool) (bool, error)
 	SetAgentActMode(ctx context.Context, beanID string, actMode bool) (bool, error)
@@ -318,6 +324,7 @@ type QueryResolver interface {
 	WorkspacePort(ctx context.Context, workspaceID string) (int, error)
 	IsRunning(ctx context.Context, workspaceID string) (bool, error)
 	WorktreeIntegrateMode(ctx context.Context) (string, error)
+	ListFiles(ctx context.Context, workspaceID *string, prefix string, limit *int) ([]*model.FileEntry, error)
 }
 type SubscriptionResolver interface {
 	BeanChanged(ctx context.Context, includeInitial *bool) (<-chan *model.BeanChangeEvent, error)
@@ -774,6 +781,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.FileChange.Status(childComplexity), true
 
+	case "FileEntry.isDir":
+		if e.complexity.FileEntry.IsDir == nil {
+			break
+		}
+
+		return e.complexity.FileEntry.IsDir(childComplexity), true
+	case "FileEntry.path":
+		if e.complexity.FileEntry.Path == nil {
+			break
+		}
+
+		return e.complexity.FileEntry.Path(childComplexity), true
+
 	case "Mutation.addBlockedBy":
 		if e.complexity.Mutation.AddBlockedBy == nil {
 			break
@@ -944,7 +964,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.SendAgentMessage(childComplexity, args["beanId"].(string), args["message"].(string), args["images"].([]*model.ImageInput)), true
+		return e.complexity.Mutation.SendAgentMessage(childComplexity, args["beanId"].(string), args["message"].(string), args["images"].([]*model.ImageInput), args["attachments"].([]*model.FileAttachmentInput)), true
 	case "Mutation.setAgentActMode":
 		if e.complexity.Mutation.SetAgentActMode == nil {
 			break
@@ -1246,6 +1266,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Query.IsRunning(childComplexity, args["workspaceId"].(string)), true
+	case "Query.listFiles":
+		if e.complexity.Query.ListFiles == nil {
+			break
+		}
+
+		args, err := ec.field_Query_listFiles_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.ListFiles(childComplexity, args["workspaceId"].(*string), args["prefix"].(string), args["limit"].(*int)), true
 	case "Query.mainBranch":
 		if e.complexity.Query.MainBranch == nil {
 			break
@@ -1469,6 +1500,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputBeanFilter,
 		ec.unmarshalInputBodyModification,
 		ec.unmarshalInputCreateBeanInput,
+		ec.unmarshalInputFileAttachmentInput,
 		ec.unmarshalInputImageInput,
 		ec.unmarshalInputReplaceOperation,
 		ec.unmarshalInputUpdateBeanInput,
@@ -1865,6 +1897,11 @@ func (ec *executionContext) field_Mutation_sendAgentMessage_args(ctx context.Con
 		return nil, err
 	}
 	args["images"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "attachments", ec.unmarshalOFileAttachmentInput2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeangraphᚋmodelᚐFileAttachmentInputᚄ)
+	if err != nil {
+		return nil, err
+	}
+	args["attachments"] = arg3
 	return args, nil
 }
 
@@ -2161,6 +2198,27 @@ func (ec *executionContext) field_Query_isRunning_args(ctx context.Context, rawA
 		return nil, err
 	}
 	args["workspaceId"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_listFiles_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "workspaceId", ec.unmarshalOID2ᚖstring)
+	if err != nil {
+		return nil, err
+	}
+	args["workspaceId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "prefix", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["prefix"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "limit", ec.unmarshalOInt2ᚖint)
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg2
 	return args, nil
 }
 
@@ -4568,6 +4626,64 @@ func (ec *executionContext) fieldContext_FileChange_staged(_ context.Context, fi
 	return fc, nil
 }
 
+func (ec *executionContext) _FileEntry_path(ctx context.Context, field graphql.CollectedField, obj *model.FileEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FileEntry_path,
+		func(ctx context.Context) (any, error) {
+			return obj.Path, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FileEntry_path(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FileEntry",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FileEntry_isDir(ctx context.Context, field graphql.CollectedField, obj *model.FileEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_FileEntry_isDir,
+		func(ctx context.Context) (any, error) {
+			return obj.IsDir, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_FileEntry_isDir(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FileEntry",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createBean(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -5487,7 +5603,7 @@ func (ec *executionContext) _Mutation_sendAgentMessage(ctx context.Context, fiel
 		ec.fieldContext_Mutation_sendAgentMessage,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Mutation().SendAgentMessage(ctx, fc.Args["beanId"].(string), fc.Args["message"].(string), fc.Args["images"].([]*model.ImageInput))
+			return ec.resolvers.Mutation().SendAgentMessage(ctx, fc.Args["beanId"].(string), fc.Args["message"].(string), fc.Args["images"].([]*model.ImageInput), fc.Args["attachments"].([]*model.FileAttachmentInput))
 		},
 		nil,
 		ec.marshalNBoolean2bool,
@@ -7206,6 +7322,53 @@ func (ec *executionContext) fieldContext_Query_worktreeIntegrateMode(_ context.C
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_listFiles(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_listFiles,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.resolvers.Query().ListFiles(ctx, fc.Args["workspaceId"].(*string), fc.Args["prefix"].(string), fc.Args["limit"].(*int))
+		},
+		nil,
+		ec.marshalNFileEntry2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeangraphᚋmodelᚐFileEntryᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_listFiles(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "path":
+				return ec.fieldContext_FileEntry_path(ctx, field)
+			case "isDir":
+				return ec.fieldContext_FileEntry_isDir(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type FileEntry", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_listFiles_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -9959,6 +10122,33 @@ func (ec *executionContext) unmarshalInputCreateBeanInput(ctx context.Context, o
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputFileAttachmentInput(ctx context.Context, obj any) (model.FileAttachmentInput, error) {
+	var it model.FileAttachmentInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"path"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "path":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("path"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Path = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputImageInput(ctx context.Context, obj any) (model.ImageInput, error) {
 	var it model.ImageInput
 	asMap := map[string]any{}
@@ -11169,6 +11359,50 @@ func (ec *executionContext) _FileChange(ctx context.Context, sel ast.SelectionSe
 	return out
 }
 
+var fileEntryImplementors = []string{"FileEntry"}
+
+func (ec *executionContext) _FileEntry(ctx context.Context, sel ast.SelectionSet, obj *model.FileEntry) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, fileEntryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FileEntry")
+		case "path":
+			out.Values[i] = ec._FileEntry_path(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isDir":
+			out.Values[i] = ec._FileEntry_isDir(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var mutationImplementors = []string{"Mutation"}
 
 func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
@@ -11929,6 +12163,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_worktreeIntegrateMode(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "listFiles":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_listFiles(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -12953,6 +13209,11 @@ func (ec *executionContext) unmarshalNCreateBeanInput2githubᚗcomᚋhmansᚋbea
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) unmarshalNFileAttachmentInput2ᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeangraphᚋmodelᚐFileAttachmentInput(ctx context.Context, v any) (*model.FileAttachmentInput, error) {
+	res, err := ec.unmarshalInputFileAttachmentInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNFileChange2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeangraphᚋmodelᚐFileChangeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.FileChange) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
@@ -13005,6 +13266,60 @@ func (ec *executionContext) marshalNFileChange2ᚖgithubᚗcomᚋhmansᚋbeans�
 		return graphql.Null
 	}
 	return ec._FileChange(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNFileEntry2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeangraphᚋmodelᚐFileEntryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.FileEntry) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNFileEntry2ᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeangraphᚋmodelᚐFileEntry(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNFileEntry2ᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeangraphᚋmodelᚐFileEntry(ctx context.Context, sel ast.SelectionSet, v *model.FileEntry) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._FileEntry(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNID2string(ctx context.Context, v any) (string, error) {
@@ -13705,6 +14020,42 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
+func (ec *executionContext) unmarshalOFileAttachmentInput2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeangraphᚋmodelᚐFileAttachmentInputᚄ(ctx context.Context, v any) ([]*model.FileAttachmentInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]*model.FileAttachmentInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNFileAttachmentInput2ᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeangraphᚋmodelᚐFileAttachmentInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalOID2ᚖstring(ctx context.Context, v any) (*string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalID(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOID2ᚖstring(ctx context.Context, sel ast.SelectionSet, v *string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalID(*v)
+	return res
+}
+
 func (ec *executionContext) unmarshalOImageInput2ᚕᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeangraphᚋmodelᚐImageInputᚄ(ctx context.Context, v any) ([]*model.ImageInput, error) {
 	if v == nil {
 		return nil, nil
@@ -13721,6 +14072,24 @@ func (ec *executionContext) unmarshalOImageInput2ᚕᚖgithubᚗcomᚋhmansᚋbe
 		}
 	}
 	return res, nil
+}
+
+func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v any) (*int, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalInt(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.SelectionSet, v *int) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalInt(*v)
+	return res
 }
 
 func (ec *executionContext) marshalOPendingInteraction2ᚖgithubᚗcomᚋhmansᚋbeansᚋpkgᚋbeangraphᚋmodelᚐPendingInteraction(ctx context.Context, sel ast.SelectionSet, v *model.PendingInteraction) graphql.Marshaler {

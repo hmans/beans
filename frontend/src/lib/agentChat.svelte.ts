@@ -18,6 +18,7 @@ import {
   type SubagentActivity as GqlSubagentActivity,
   type InteractionType,
   type ImageInput,
+  type FileAttachmentInput,
 } from './graphql/generated';
 
 export type AgentMessageImage = GqlAgentMessageImage;
@@ -29,6 +30,7 @@ export type PendingInteraction = GqlPendingInteraction;
 export type SubagentActivity = GqlSubagentActivity;
 export type AgentSession = AgentSessionFieldsFragment;
 export type ImageUploadInput = ImageInput;
+export type FileAttachment = FileAttachmentInput;
 
 export class AgentChatStore {
   session = $state<AgentSession | null>(null);
@@ -104,7 +106,8 @@ export class AgentChatStore {
   async sendMessage(
     beanId: string,
     message: string,
-    images?: ImageUploadInput[]
+    images?: ImageUploadInput[],
+    attachments?: FileAttachment[]
   ): Promise<boolean> {
     this.sending = true;
     this.error = null;
@@ -129,7 +132,8 @@ export class AgentChatStore {
       .mutation(SendAgentMessageDocument, {
         beanId,
         message,
-        images: images ?? null
+        images: images ?? null,
+        attachments: attachments?.length ? attachments : null
       })
       .toPromise();
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -3133,6 +3134,120 @@ func TestRemoveBlockingWithETag(t *testing.T) {
 		var mismatchErr *beancore.ETagMismatchError
 		if !errors.As(err, &mismatchErr) {
 			t.Errorf("Expected ETagMismatchError, got %T: %v", err, err)
+		}
+	})
+}
+
+func TestListFiles(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary git repo with some files
+	tmpDir := t.TempDir()
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = tmpDir
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %s failed: %v\n%s", strings.Join(args, " "), err, out)
+		}
+	}
+
+	run("init", "-b", "main")
+	run("config", "user.email", "test@test.com")
+	run("config", "user.name", "Test")
+
+	// Create files
+	for _, f := range []string{
+		"README.md",
+		"main.go",
+		"pkg/bean/bean.go",
+		"pkg/bean/sort.go",
+		"pkg/beancore/core.go",
+		"internal/graph/resolver.go",
+		"internal/graph/schema.go",
+		"internal/agent/manager.go",
+	} {
+		dir := filepath.Dir(filepath.Join(tmpDir, f))
+		os.MkdirAll(dir, 0755)
+		os.WriteFile(filepath.Join(tmpDir, f), []byte("package test"), 0644)
+	}
+	run("add", "-A")
+	run("commit", "-m", "init")
+
+	resolver := &Resolver{
+		CoreResolver: &beangraph.CoreResolver{},
+		ProjectRoot:  tmpDir,
+	}
+	qr := resolver.Query().(*queryResolver)
+
+	t.Run("empty query returns all files", func(t *testing.T) {
+		results, err := qr.ListFiles(ctx, nil, "", nil)
+		if err != nil {
+			t.Fatalf("ListFiles() error: %v", err)
+		}
+		if len(results) != 8 {
+			t.Errorf("expected 8 results, got %d", len(results))
+		}
+	})
+
+	t.Run("substring matches across full path", func(t *testing.T) {
+		results, err := qr.ListFiles(ctx, nil, "resolver", nil)
+		if err != nil {
+			t.Fatalf("ListFiles() error: %v", err)
+		}
+		if len(results) != 1 {
+			t.Fatalf("expected 1 result, got %d", len(results))
+		}
+		if results[0].Path != "internal/graph/resolver.go" {
+			t.Errorf("expected internal/graph/resolver.go, got %s", results[0].Path)
+		}
+	})
+
+	t.Run("case insensitive matching", func(t *testing.T) {
+		results, err := qr.ListFiles(ctx, nil, "README", nil)
+		if err != nil {
+			t.Fatalf("ListFiles() error: %v", err)
+		}
+		if len(results) != 1 {
+			t.Fatalf("expected 1 result, got %d", len(results))
+		}
+		if results[0].Path != "README.md" {
+			t.Errorf("expected README.md, got %s", results[0].Path)
+		}
+	})
+
+	t.Run("multiple terms all must match", func(t *testing.T) {
+		results, err := qr.ListFiles(ctx, nil, "bean sort", nil)
+		if err != nil {
+			t.Fatalf("ListFiles() error: %v", err)
+		}
+		if len(results) != 1 {
+			t.Fatalf("expected 1 result, got %d", len(results))
+		}
+		if results[0].Path != "pkg/bean/sort.go" {
+			t.Errorf("expected pkg/bean/sort.go, got %s", results[0].Path)
+		}
+	})
+
+	t.Run("limit caps results", func(t *testing.T) {
+		limit := 2
+		results, err := qr.ListFiles(ctx, nil, "", &limit)
+		if err != nil {
+			t.Fatalf("ListFiles() error: %v", err)
+		}
+		if len(results) > 2 {
+			t.Errorf("expected at most 2 results, got %d", len(results))
+		}
+	})
+
+	t.Run("non-matching query returns empty", func(t *testing.T) {
+		results, err := qr.ListFiles(ctx, nil, "nonexistent", nil)
+		if err != nil {
+			t.Fatalf("ListFiles() error: %v", err)
+		}
+		if len(results) != 0 {
+			t.Errorf("expected 0 results, got %d", len(results))
 		}
 	})
 }

@@ -261,7 +261,7 @@ func (r *mutationResolver) RemoveWorktree(ctx context.Context, id string) (bool,
 }
 
 // SendAgentMessage is the resolver for the sendAgentMessage field.
-func (r *mutationResolver) SendAgentMessage(ctx context.Context, beanID string, message string, images []*model.ImageInput) (bool, error) {
+func (r *mutationResolver) SendAgentMessage(ctx context.Context, beanID string, message string, images []*model.ImageInput, attachments []*model.FileAttachmentInput) (bool, error) {
 	if r.AgentMgr == nil {
 		return false, fmt.Errorf("agent manager not available")
 	}
@@ -277,6 +277,16 @@ func (r *mutationResolver) SendAgentMessage(ctx context.Context, beanID string, 
 		if err != nil {
 			return false, err
 		}
+	}
+
+	// Prepend attached file/directory paths as context hints
+	if len(attachments) > 0 {
+		var paths []string
+		for _, a := range attachments {
+			paths = append(paths, a.Path)
+		}
+		message = fmt.Sprintf("[The user has attached the following files/directories for context: %s]\n\n%s",
+			strings.Join(paths, ", "), message)
 	}
 
 	var uploads []agent.ImageUpload
@@ -874,6 +884,64 @@ func (r *queryResolver) WorktreeIntegrateMode(ctx context.Context) (string, erro
 		return string(config.IntegrateModeLocal), nil
 	}
 	return string(cfg.GetWorktreeIntegrate()), nil
+}
+
+// ListFiles is the resolver for the listFiles field.
+// It does case-insensitive substring matching across all git-tracked file paths.
+// Each query term (space-separated) must match somewhere in the path.
+func (r *queryResolver) ListFiles(ctx context.Context, workspaceID *string, prefix string, limit *int) ([]*model.FileEntry, error) {
+	dir := r.ProjectRoot
+	if workspaceID != nil && *workspaceID != CentralSessionID {
+		path, err := r.findWorktreePath(*workspaceID)
+		if err != nil {
+			return nil, err
+		}
+		dir = path
+	}
+
+	maxResults := 50
+	if limit != nil && *limit > 0 {
+		maxResults = *limit
+	}
+
+	cmd := exec.CommandContext(ctx, "git", "ls-files")
+	cmd.Dir = dir
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("git ls-files: %w", err)
+	}
+
+	query := strings.ToLower(strings.TrimSpace(prefix))
+	terms := strings.Fields(query)
+
+	var results []*model.FileEntry
+
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		if line == "" {
+			continue
+		}
+
+		// All terms must match (case-insensitive) somewhere in the path
+		lower := strings.ToLower(line)
+		match := true
+		for _, term := range terms {
+			if !strings.Contains(lower, term) {
+				match = false
+				break
+			}
+		}
+		if !match {
+			continue
+		}
+
+		results = append(results, &model.FileEntry{Path: line, IsDir: false})
+
+		if len(results) >= maxResults {
+			break
+		}
+	}
+
+	return results, nil
 }
 
 // BeanChanged is the resolver for the beanChanged field.
