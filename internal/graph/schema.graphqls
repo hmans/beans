@@ -113,9 +113,9 @@ type Query {
   worktreeIntegrateMode: String!
 
   """
-  List files tracked by git in a workspace directory, filtered by path prefix.
-  Returns one level of depth below the prefix, with directories deduplicated.
-  Used for @-mention autocomplete in the agent chat composer.
+  List files tracked by git in a workspace directory.
+  Performs case-insensitive substring matching — space-separated terms must all
+  match somewhere in the file path. Used for @-mention autocomplete.
   """
   listFiles(workspaceId: ID, prefix: String!, limit: Int): [FileEntry!]!
 }
@@ -796,13 +796,11 @@ input ImageInput {
 }
 
 """
-A file or directory entry in the project, used for @-mention autocomplete.
+A file entry in the project, used for @-mention autocomplete.
 """
 type FileEntry {
   "Relative path from the workspace root"
   path: String!
-  "Whether this entry is a directory"
-  isDir: Boolean!
 }
 
 """

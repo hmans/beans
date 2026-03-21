@@ -241,12 +241,10 @@ type FileChange struct {
 	Staged bool `json:"staged"`
 }
 
-// A file or directory entry in the project, used for @-mention autocomplete.
+// A file entry in the project, used for @-mention autocomplete.
 type FileEntry struct {
 	// Relative path from the workspace root
 	Path string `json:"path"`
-	// Whether this entry is a directory
-	IsDir bool `json:"isDir"`
 }
 
 // Input for uploading an image attachment

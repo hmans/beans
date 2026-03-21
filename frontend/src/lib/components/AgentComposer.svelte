@@ -57,27 +57,52 @@
 
   // @-mention autocomplete state
   let showMention = $state(false);
-  let mentionResults = $state<{ path: string; isDir: boolean }[]>([]);
+  let mentionResults = $state<{ path: string }[]>([]);
   let mentionSelectedIndex = $state(0);
   let mentionStartPos = $state(-1); // ProseMirror position of the @
-  let mentionDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+  // Full file list fetched once per mention session, filtered client-side
+  let allFiles: { path: string }[] = [];
+  let allFilesLoaded = false;
+
+  const MIN_QUERY_LENGTH = 2; // Don't fetch until user types at least this many chars
 
   function closeMention() {
     showMention = false;
     mentionResults = [];
     mentionSelectedIndex = 0;
     mentionStartPos = -1;
+    allFiles = [];
+    allFilesLoaded = false;
   }
 
-  async function queryFiles(query: string) {
+  function filterFiles(query: string) {
+    const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+    if (terms.length === 0) {
+      mentionResults = allFiles.slice(0, 50);
+    } else {
+      const filtered: typeof allFiles = [];
+      for (const file of allFiles) {
+        const lower = file.path.toLowerCase();
+        if (terms.every(t => lower.includes(t))) {
+          filtered.push(file);
+          if (filtered.length >= 50) break;
+        }
+      }
+      mentionResults = filtered;
+    }
+    mentionSelectedIndex = 0;
+  }
+
+  async function fetchAllFiles() {
+    if (allFilesLoaded) return;
     const result = await client.query(ListFilesDocument, {
       workspaceId,
-      prefix: query,
-      limit: 20
-    }).toPromise();
+      prefix: '',
+      limit: null
+    }, { requestPolicy: 'network-only' }).toPromise();
     if (result.data?.listFiles) {
-      mentionResults = result.data.listFiles;
-      mentionSelectedIndex = 0;
+      allFiles = result.data.listFiles;
+      allFilesLoaded = true;
     }
   }
 
@@ -104,8 +129,16 @@
         return;
       }
       const query = e.state.doc.textBetween(mentionStartPos + 1, from);
-      if (mentionDebounceTimer) clearTimeout(mentionDebounceTimer);
-      mentionDebounceTimer = setTimeout(() => queryFiles(query), 100);
+      if (query.length < MIN_QUERY_LENGTH) {
+        mentionResults = [];
+        return;
+      }
+      if (!allFilesLoaded) {
+        // First time reaching the threshold — fetch the full list, then filter
+        fetchAllFiles().then(() => filterFiles(query));
+      } else {
+        filterFiles(query);
+      }
     } else {
       if (from > 1) {
         const charBefore = e.state.doc.textBetween(from - 1, from);
@@ -114,15 +147,13 @@
           if (!charBeforeThat || /\s/.test(charBeforeThat)) {
             mentionStartPos = from - 1;
             showMention = true;
-            if (mentionDebounceTimer) clearTimeout(mentionDebounceTimer);
-            mentionDebounceTimer = setTimeout(() => queryFiles(''), 100);
           }
         }
       }
     }
   }
 
-  function selectMentionItem(item: { path: string; isDir: boolean }) {
+  function selectMentionItem(item: { path: string }) {
     if (!editor) return;
 
     const { from } = editor.state.selection;
@@ -421,7 +452,7 @@
             ]}
             onmousedown={(e) => { e.preventDefault(); selectMentionItem(item); }}
           >
-            <span class={[item.isDir ? 'icon-[uil--folder]' : 'icon-[uil--file]', 'size-3.5 shrink-0']}></span>
+            <span class="icon-[uil--file] size-3.5 shrink-0"></span>
             <span class="truncate">{item.path}</span>
           </button>
         {/each}

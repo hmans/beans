@@ -257,7 +257,6 @@ mutation SendAgentMessage($beanId: ID!, $message: String!, $images: [ImageInput!
 query ListFiles($workspaceId: ID, $prefix: String!, $limit: Int) {
   listFiles(workspaceId: $workspaceId, prefix: $prefix, limit: $limit) {
     path
-    isDir
   }
 }
 

@@ -894,7 +894,7 @@ func (r *queryResolver) ListFiles(ctx context.Context, workspaceID *string, pref
 		dir = path
 	}
 
-	maxResults := 50
+	maxResults := 0 // 0 = no limit
 	if limit != nil && *limit > 0 {
 		maxResults = *limit
 	}
@@ -929,9 +929,9 @@ func (r *queryResolver) ListFiles(ctx context.Context, workspaceID *string, pref
 			continue
 		}
 
-		results = append(results, &model.FileEntry{Path: line, IsDir: false})
+		results = append(results, &model.FileEntry{Path: line})
 
-		if len(results) >= maxResults {
+		if maxResults > 0 && len(results) >= maxResults {
 			break
 		}
 	}

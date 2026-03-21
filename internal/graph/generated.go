@@ -153,8 +153,7 @@ type ComplexityRoot struct {
 	}
 
 	FileEntry struct {
-		IsDir func(childComplexity int) int
-		Path  func(childComplexity int) int
+		Path func(childComplexity int) int
 	}
 
 	Mutation struct {
@@ -788,12 +787,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.FileChange.Status(childComplexity), true
 
-	case "FileEntry.isDir":
-		if e.complexity.FileEntry.IsDir == nil {
-			break
-		}
-
-		return e.complexity.FileEntry.IsDir(childComplexity), true
 	case "FileEntry.path":
 		if e.complexity.FileEntry.Path == nil {
 			break
@@ -4693,35 +4686,6 @@ func (ec *executionContext) fieldContext_FileEntry_path(_ context.Context, field
 	return fc, nil
 }
 
-func (ec *executionContext) _FileEntry_isDir(ctx context.Context, field graphql.CollectedField, obj *model.FileEntry) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_FileEntry_isDir,
-		func(ctx context.Context) (any, error) {
-			return obj.IsDir, nil
-		},
-		nil,
-		ec.marshalNBoolean2bool,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_FileEntry_isDir(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "FileEntry",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _Mutation_createBean(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -7391,8 +7355,6 @@ func (ec *executionContext) fieldContext_Query_listFiles(ctx context.Context, fi
 			switch field.Name {
 			case "path":
 				return ec.fieldContext_FileEntry_path(ctx, field)
-			case "isDir":
-				return ec.fieldContext_FileEntry_isDir(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type FileEntry", field.Name)
 		},
@@ -11415,11 +11377,6 @@ func (ec *executionContext) _FileEntry(ctx context.Context, sel ast.SelectionSet
 			out.Values[i] = graphql.MarshalString("FileEntry")
 		case "path":
 			out.Values[i] = ec._FileEntry_path(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "isDir":
-			out.Values[i] = ec._FileEntry_isDir(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
