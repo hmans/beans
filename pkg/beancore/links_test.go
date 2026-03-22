@@ -616,6 +616,124 @@ func TestFindActiveBlockers(t *testing.T) {
 	})
 }
 
+func TestActiveBlockedByIds(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	activeTodo := &bean.Bean{ID: "blocker-todo", Title: "Active Todo", Status: "todo"}
+	activeInProgress := &bean.Bean{ID: "blocker-inprogress", Title: "Active In-Progress", Status: "in-progress"}
+	completedBlocker := &bean.Bean{ID: "blocker-completed", Title: "Completed", Status: "completed"}
+	scrappedBlocker := &bean.Bean{ID: "blocker-scrapped", Title: "Scrapped", Status: "scrapped"}
+	target := &bean.Bean{
+		ID:        "target",
+		Title:     "Target",
+		Status:    "todo",
+		BlockedBy: []string{"blocker-todo", "blocker-inprogress", "blocker-completed", "blocker-scrapped"},
+	}
+	noBlockedBy := &bean.Bean{ID: "no-blocked-by", Title: "No blocked-by", Status: "todo"}
+
+	for _, b := range []*bean.Bean{activeTodo, activeInProgress, completedBlocker, scrappedBlocker, target, noBlockedBy} {
+		if err := core.Create(b); err != nil {
+			t.Fatalf("Create error: %v", err)
+		}
+	}
+
+	t.Run("returns only active blocked-by IDs", func(t *testing.T) {
+		ids := core.ActiveBlockedByIds("target")
+		if len(ids) != 2 {
+			t.Errorf("ActiveBlockedByIds() returned %d IDs, want 2: %v", len(ids), ids)
+		}
+		idSet := make(map[string]bool)
+		for _, id := range ids {
+			idSet[id] = true
+		}
+		if !idSet["blocker-todo"] {
+			t.Error("expected blocker-todo in result")
+		}
+		if !idSet["blocker-inprogress"] {
+			t.Error("expected blocker-inprogress in result")
+		}
+		if idSet["blocker-completed"] {
+			t.Error("completed blocker should not be in result")
+		}
+		if idSet["blocker-scrapped"] {
+			t.Error("scrapped blocker should not be in result")
+		}
+	})
+
+	t.Run("returns nil for bean with no blocked-by", func(t *testing.T) {
+		ids := core.ActiveBlockedByIds("no-blocked-by")
+		if ids != nil {
+			t.Errorf("ActiveBlockedByIds() returned %v, want nil", ids)
+		}
+	})
+
+	t.Run("returns nil for nonexistent bean", func(t *testing.T) {
+		ids := core.ActiveBlockedByIds("nonexistent")
+		if ids != nil {
+			t.Errorf("ActiveBlockedByIds() returned %v, want nil", ids)
+		}
+	})
+}
+
+func TestActiveBlockingIds(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	activeTodo := &bean.Bean{ID: "active-todo", Title: "Active Todo", Status: "todo"}
+	activeInProgress := &bean.Bean{ID: "active-inprogress", Title: "Active In-Progress", Status: "in-progress"}
+	completed := &bean.Bean{ID: "completed-target", Title: "Completed Target", Status: "completed"}
+	scrapped := &bean.Bean{ID: "scrapped-target", Title: "Scrapped Target", Status: "scrapped"}
+	blocker := &bean.Bean{
+		ID:       "the-blocker",
+		Title:    "The Blocker",
+		Status:   "todo",
+		Blocking: []string{"active-todo", "active-inprogress", "completed-target", "scrapped-target"},
+	}
+	noBlocking := &bean.Bean{ID: "no-blocking", Title: "No blocking", Status: "todo"}
+
+	for _, b := range []*bean.Bean{activeTodo, activeInProgress, completed, scrapped, blocker, noBlocking} {
+		if err := core.Create(b); err != nil {
+			t.Fatalf("Create error: %v", err)
+		}
+	}
+
+	t.Run("returns only active blocking IDs", func(t *testing.T) {
+		ids := core.ActiveBlockingIds("the-blocker")
+		if len(ids) != 2 {
+			t.Errorf("ActiveBlockingIds() returned %d IDs, want 2: %v", len(ids), ids)
+		}
+		idSet := make(map[string]bool)
+		for _, id := range ids {
+			idSet[id] = true
+		}
+		if !idSet["active-todo"] {
+			t.Error("expected active-todo in result")
+		}
+		if !idSet["active-inprogress"] {
+			t.Error("expected active-inprogress in result")
+		}
+		if idSet["completed-target"] {
+			t.Error("completed target should not be in result")
+		}
+		if idSet["scrapped-target"] {
+			t.Error("scrapped target should not be in result")
+		}
+	})
+
+	t.Run("returns nil for bean with no blocking", func(t *testing.T) {
+		ids := core.ActiveBlockingIds("no-blocking")
+		if ids != nil {
+			t.Errorf("ActiveBlockingIds() returned %v, want nil", ids)
+		}
+	})
+
+	t.Run("returns nil for nonexistent bean", func(t *testing.T) {
+		ids := core.ActiveBlockingIds("nonexistent")
+		if ids != nil {
+			t.Errorf("ActiveBlockingIds() returned %v, want nil", ids)
+		}
+	})
+}
+
 func TestImplicitStatus(t *testing.T) {
 	core, _ := setupTestCore(t)
 

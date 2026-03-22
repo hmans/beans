@@ -50,6 +50,10 @@ var showCmd = &cobra.Command{
 
 		// JSON output
 		if showJSON {
+			for _, b := range beans {
+				b.BlockedBy = core.ActiveBlockedByIds(b.ID)
+				b.Blocking = core.ActiveBlockingIds(b.ID)
+			}
 			if len(beans) == 1 {
 				return output.SuccessSingle(beans[0])
 			}

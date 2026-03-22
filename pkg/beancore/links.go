@@ -537,6 +537,44 @@ func (c *Core) IsImplicitlyBlocked(beanID string) bool {
 	return found
 }
 
+// ActiveBlockedByIds returns the subset of a bean's blocked_by IDs that are
+// still active (not completed or scrapped), reusing the isResolvedStatus check.
+func (c *Core) ActiveBlockedByIds(beanID string) []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	b, ok := c.beans[beanID]
+	if !ok {
+		return nil
+	}
+	var result []string
+	for _, id := range b.BlockedBy {
+		if blocker, ok := c.beans[id]; ok && !isResolvedStatus(blocker.Status) {
+			result = append(result, id)
+		}
+	}
+	return result
+}
+
+// ActiveBlockingIds returns the subset of a bean's blocking IDs that are
+// still active (not completed or scrapped), reusing the isResolvedStatus check.
+func (c *Core) ActiveBlockingIds(beanID string) []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	b, ok := c.beans[beanID]
+	if !ok {
+		return nil
+	}
+	var result []string
+	for _, id := range b.Blocking {
+		if target, ok := c.beans[id]; ok && !isResolvedStatus(target.Status) {
+			result = append(result, id)
+		}
+	}
+	return result
+}
+
 // FindActiveBlockers returns all beans that are explicitly (directly) blocking
 // the given bean. A blocker is "active" if its status is NOT completed/scrapped.
 // This includes blockers from both the blocked_by field and incoming blocking links.

@@ -33,14 +33,24 @@ func (r *CoreResolver) BeanParentID(ctx context.Context, obj *bean.Bean) (*strin
 	return &obj.Parent, nil
 }
 
-// BeanBlockingIds returns the blocking IDs slice.
+// BeanBlockingIds returns the active (non-resolved) blocking IDs for a bean.
+// Completed or scrapped beans are excluded so consumers only see live blockers.
 func (r *CoreResolver) BeanBlockingIds(ctx context.Context, obj *bean.Bean) ([]string, error) {
-	return obj.Blocking, nil
+	ids := r.Core.ActiveBlockingIds(obj.ID)
+	if ids == nil {
+		ids = []string{}
+	}
+	return ids, nil
 }
 
-// BeanBlockedByIds returns the blocked-by IDs slice.
+// BeanBlockedByIds returns the active (non-resolved) blocked-by IDs for a bean.
+// Completed or scrapped beans are excluded so consumers only see live blockers.
 func (r *CoreResolver) BeanBlockedByIds(ctx context.Context, obj *bean.Bean) ([]string, error) {
-	return obj.BlockedBy, nil
+	ids := r.Core.ActiveBlockedByIds(obj.ID)
+	if ids == nil {
+		ids = []string{}
+	}
+	return ids, nil
 }
 
 // BeanBlockedBy resolves the full list of beans blocking this one.
