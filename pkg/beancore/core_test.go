@@ -2088,6 +2088,43 @@ func TestDirtyTracking(t *testing.T) {
 	})
 }
 
+func TestNewResolvesSymlinkedRoot(t *testing.T) {
+	// Regression test: when the beans root is a symlink, New() must resolve it
+	// so that filepath.WalkDir paths match c.root. Without resolution, the
+	// dot-prefix guard in loadFromDisk skips the entire root directory because
+	// the walked root path (real path) != c.root (symlink path).
+	tmpDir := t.TempDir()
+	realDir := filepath.Join(tmpDir, "real-.beans")
+	if err := os.MkdirAll(realDir, 0755); err != nil {
+		t.Fatalf("mkdir real dir: %v", err)
+	}
+
+	// Write a bean directly into the real directory
+	content := "---\ntitle: Symlink Bean\nstatus: todo\ntype: task\n---\n"
+	if err := os.WriteFile(filepath.Join(realDir, "i-sym1--symlink-bean.md"), []byte(content), 0644); err != nil {
+		t.Fatalf("write bean: %v", err)
+	}
+
+	// Create a symlink pointing to the real directory; the symlink name starts
+	// with "." to exercise the exact failure mode (dot-prefix guard).
+	symlinkPath := filepath.Join(tmpDir, ".beans")
+	if err := os.Symlink(realDir, symlinkPath); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+
+	cfg := config.Default()
+	core := New(symlinkPath, cfg)
+	core.SetWarnWriter(nil)
+	if err := core.Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	all := core.All()
+	if len(all) != 1 {
+		t.Fatalf("expected 1 bean via symlinked root, got %d", len(all))
+	}
+}
+
 func TestLoadSkipsDotPrefixedSubdirectories(t *testing.T) {
 	core, beansDir := setupTestCore(t)
 

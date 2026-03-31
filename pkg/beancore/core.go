@@ -74,6 +74,13 @@ type Core struct {
 
 // New creates a new Core with the given root path and configuration.
 func New(root string, cfg *config.Config) *Core {
+	// Resolve symlinks so that c.root matches the real paths returned by
+	// filepath.WalkDir. Without this, walking a symlinked directory (e.g.
+	// .beans -> repo/beans/.beans) causes the dot-prefix guard in
+	// loadFromDisk to skip the entire root because path != c.root.
+	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+		root = resolved
+	}
 	return &Core{
 		root:        root,
 		config:      cfg,
