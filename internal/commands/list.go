@@ -123,10 +123,14 @@ Search Syntax (--search/-S):
 
 		// JSON output (flat list)
 		if listJSON {
-			if !listFull {
-				for _, b := range beans {
+			for _, b := range beans {
+				if !listFull {
 					b.Body = ""
 				}
+				// Strip resolved (completed/scrapped) blockers so agents and
+				// scripts don't mistake stale links for active blockers.
+				b.BlockedBy = core.ActiveBlockedByIds(b.ID)
+				b.Blocking = core.ActiveBlockingIds(b.ID)
 			}
 			return output.SuccessMultiple(beans)
 		}
