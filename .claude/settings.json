@@ -1,4 +1,15 @@
 {
+  "extraKnownMarketplaces": {
+    "beans": {
+      "source": {
+        "source": "github",
+        "repo": "hmans/beans"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "beans-prime@beans": true
+  },
   "hooks": {
     "SessionStart": [
       {
