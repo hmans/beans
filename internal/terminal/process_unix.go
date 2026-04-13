@@ -5,25 +5,20 @@ package terminal
 import (
 	"syscall"
 	"time"
-
-	gopty "github.com/aymanbagabas/go-pty"
 )
 
 const processGroupGrace = 3 * time.Second
 
-func setProcessGroup(cmd *gopty.Cmd) {
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-}
-
-// closeProcessGroup sends SIGTERM to the process group, waits for it to exit,
-// and escalates to SIGKILL after the grace period.
-func closeProcessGroup(pgid int, done <-chan struct{}) {
-	_ = syscall.Kill(-pgid, syscall.SIGTERM)
+// killProcessGroup sends SIGTERM to the process group, then escalates to
+// SIGKILL after the grace period. go-pty sets Setsid on every spawned command,
+// so the PID is always the process group leader.
+func killProcessGroup(pid int, done <-chan struct{}) {
+	_ = syscall.Kill(-pid, syscall.SIGTERM)
 
 	select {
 	case <-done:
 		return
 	case <-time.After(processGroupGrace):
-		_ = syscall.Kill(-pgid, syscall.SIGKILL)
+		_ = syscall.Kill(-pid, syscall.SIGKILL)
 	}
 }

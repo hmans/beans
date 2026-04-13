@@ -2,8 +2,10 @@
 
 package terminal
 
-import gopty "github.com/aymanbagabas/go-pty"
+import "os"
 
-func setProcessGroup(_ *gopty.Cmd) {}
-
-func closeProcessGroup(_ int, _ <-chan struct{}) {}
+func killProcessGroup(pid int, _ <-chan struct{}) {
+	if p, err := os.FindProcess(pid); err == nil {
+		_ = p.Kill()
+	}
+}
