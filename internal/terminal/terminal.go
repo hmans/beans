@@ -177,12 +177,13 @@ func (s *Session) readLoop() {
 	}
 }
 
-// Close kills the process and closes the PTY.
+// Close kills the process group and closes the PTY. go-pty sets Setsid on
+// every spawned command, so the PID is always the process group leader.
 func (s *Session) Close() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.cmd.Process != nil {
-		_ = s.cmd.Process.Kill()
+		killProcessGroup(s.cmd.Process.Pid, s.done)
 	}
 	_ = s.pty.Close()
 	_ = s.cmd.Wait()

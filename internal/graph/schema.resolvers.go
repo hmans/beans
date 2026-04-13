@@ -243,18 +243,21 @@ func (r *mutationResolver) RemoveWorktree(ctx context.Context, id string) (bool,
 		}
 	}
 
+	// Clean up sessions before removing the worktree directory
+	if r.AgentMgr != nil {
+		r.AgentMgr.StopSession(id)
+	}
+	if r.TerminalMgr != nil {
+		r.TerminalMgr.Close(id)
+		r.TerminalMgr.Close(id + RunSessionSuffix)
+	}
+
 	if err := r.WorktreeMgr.Remove(id); err != nil {
 		return false, err
 	}
 
-	// Free the workspace port
 	if r.PortAlloc != nil {
 		r.PortAlloc.Free(id)
-	}
-
-	// Close any terminal session associated with this worktree
-	if r.TerminalMgr != nil {
-		r.TerminalMgr.Close(id)
 	}
 
 	return true, nil
