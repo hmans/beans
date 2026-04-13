@@ -68,10 +68,11 @@ func (r *RingBuffer) Bytes() []byte {
 
 // Session represents an active PTY session with scrollback buffering.
 type Session struct {
-	id  string
-	pty gopty.Pty
-	cmd *gopty.Cmd
-	mu  sync.Mutex
+	id   string
+	pty  gopty.Pty
+	cmd  *gopty.Cmd
+	pgid int // non-zero when using process group isolation
+	mu   sync.Mutex
 
 	scrollback *RingBuffer
 	scrollMu   sync.Mutex
@@ -177,12 +178,16 @@ func (s *Session) readLoop() {
 	}
 }
 
-// Close kills the process and closes the PTY.
+// Close kills the process (and its process group, if isolated) and closes the PTY.
 func (s *Session) Close() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.cmd.Process != nil {
-		_ = s.cmd.Process.Kill()
+		if s.pgid != 0 {
+			closeProcessGroup(s.pgid, s.done)
+		} else {
+			_ = s.cmd.Process.Kill()
+		}
 	}
 	_ = s.pty.Close()
 	_ = s.cmd.Wait()
@@ -339,6 +344,7 @@ func (m *Manager) CreateWithCommand(sessionID, workDir string, cols, rows uint16
 	cmd := p.Command(shell, "-l", "-c", command)
 	cmd.Dir = workDir
 	cmd.Env = env
+	setProcessGroup(cmd)
 
 	if err := cmd.Start(); err != nil {
 		p.Close()
@@ -351,6 +357,7 @@ func (m *Manager) CreateWithCommand(sessionID, workDir string, cols, rows uint16
 		id:         sessionID,
 		pty:        p,
 		cmd:        cmd,
+		pgid:       cmd.Process.Pid,
 		scrollback: NewRingBuffer(scrollbackSize),
 		done:       make(chan struct{}),
 	}
