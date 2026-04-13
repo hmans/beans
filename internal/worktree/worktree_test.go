@@ -11,10 +11,6 @@ import (
 	"github.com/hmans/beans/internal/testutil"
 )
 
-func initTestRepo(t *testing.T) (repoDir, beansDir, worktreeRoot string) {
-	t.Helper()
-	return testutil.InitTestRepo(t)
-}
 
 func TestParsePorcelain(t *testing.T) {
 	tests := []struct {
@@ -145,7 +141,7 @@ branch refs/heads/beans/beans-good
 }
 
 func TestCreateAndList(t *testing.T) {
-	repoDir, _, wtRoot := initTestRepo(t)
+	repoDir, _, wtRoot := testutil.InitTestRepo(t)
 	mgr := NewManager(repoDir, wtRoot, "", "")
 
 	// List should be empty initially
@@ -200,7 +196,7 @@ func TestCreateAndList(t *testing.T) {
 }
 
 func TestCreateEmptyName(t *testing.T) {
-	repoDir, _, wtRoot := initTestRepo(t)
+	repoDir, _, wtRoot := testutil.InitTestRepo(t)
 	mgr := NewManager(repoDir, wtRoot, "", "")
 
 	_, err := mgr.Create("")
@@ -210,7 +206,7 @@ func TestCreateEmptyName(t *testing.T) {
 }
 
 func TestRemove(t *testing.T) {
-	repoDir, _, wtRoot := initTestRepo(t)
+	repoDir, _, wtRoot := testutil.InitTestRepo(t)
 	mgr := NewManager(repoDir, wtRoot, "", "")
 
 	wt, err := mgr.Create("to-remove")
@@ -238,7 +234,7 @@ func TestRemove(t *testing.T) {
 }
 
 func TestRemoveDirtyWorktree(t *testing.T) {
-	repoDir, _, wtRoot := initTestRepo(t)
+	repoDir, _, wtRoot := testutil.InitTestRepo(t)
 	mgr := NewManager(repoDir, wtRoot, "", "")
 
 	wt, err := mgr.Create("dirty-wt")
@@ -264,7 +260,7 @@ func TestRemoveDirtyWorktree(t *testing.T) {
 }
 
 func TestRemoveStaleWorktree(t *testing.T) {
-	repoDir, _, wtRoot := initTestRepo(t)
+	repoDir, _, wtRoot := testutil.InitTestRepo(t)
 	mgr := NewManager(repoDir, wtRoot, "", "")
 
 	// Create a worktree, then delete its directory out from under git
@@ -283,7 +279,7 @@ func TestRemoveStaleWorktree(t *testing.T) {
 }
 
 func TestRemoveNonexistent(t *testing.T) {
-	repoDir, _, wtRoot := initTestRepo(t)
+	repoDir, _, wtRoot := testutil.InitTestRepo(t)
 	mgr := NewManager(repoDir, wtRoot, "", "")
 
 	// Remove a worktree that doesn't exist should return an error
@@ -297,7 +293,7 @@ func TestRemoveNonexistent(t *testing.T) {
 }
 
 func TestCreateUsesBaseRef(t *testing.T) {
-	repoDir, _, wtRoot := initTestRepo(t)
+	repoDir, _, wtRoot := testutil.InitTestRepo(t)
 
 	// Create a second commit on a new branch so we have a distinct ref to branch from
 	commands := [][]string{
@@ -358,7 +354,7 @@ func TestFetchTimeoutCustom(t *testing.T) {
 }
 
 func TestFetchTimeoutZeroSkipsFetch(t *testing.T) {
-	repoDir, _, wtRoot := initTestRepo(t)
+	repoDir, _, wtRoot := testutil.InitTestRepo(t)
 
 	// Create a manager with fetch timeout = 0 (disables fetch)
 	mgr := NewManager(repoDir, wtRoot, "main", "", WithFetchTimeout(0))
@@ -374,7 +370,7 @@ func TestFetchTimeoutZeroSkipsFetch(t *testing.T) {
 }
 
 func TestFetchBaseRefTimesOut(t *testing.T) {
-	repoDir, _, _ := initTestRepo(t)
+	repoDir, _, _ := testutil.InitTestRepo(t)
 
 	// Configure git to use a "fetch" command that just sleeps, simulating a hanging remote.
 	// GIT_SSH_COMMAND is used by git when fetching over SSH.
@@ -407,7 +403,7 @@ func TestFetchBaseRefTimesOut(t *testing.T) {
 }
 
 func TestSubscription(t *testing.T) {
-	repoDir, _, wtRoot := initTestRepo(t)
+	repoDir, _, wtRoot := testutil.InitTestRepo(t)
 	mgr := NewManager(repoDir, wtRoot, "", "")
 
 	ch := mgr.Subscribe()
@@ -440,7 +436,7 @@ func TestSubscription(t *testing.T) {
 }
 
 func TestDetectBeanIDs(t *testing.T) {
-	repoDir, beansDir, wtRoot := initTestRepo(t)
+	repoDir, beansDir, wtRoot := testutil.InitTestRepo(t)
 
 	// Commit a file in .beans so the directory exists on main
 	if err := os.WriteFile(filepath.Join(beansDir, ".gitkeep"), []byte(""), 0644); err != nil {
@@ -515,7 +511,7 @@ func TestDetectBeanIDs(t *testing.T) {
 }
 
 func TestDetectBeanIDs_NoChanges(t *testing.T) {
-	repoDir, _, wtRoot := initTestRepo(t)
+	repoDir, _, wtRoot := testutil.InitTestRepo(t)
 	mgr := NewManager(repoDir, wtRoot, "main", "")
 
 	// Create a worktree with no bean changes
@@ -531,7 +527,7 @@ func TestDetectBeanIDs_NoChanges(t *testing.T) {
 }
 
 func TestDetectBeanIDs_UncommittedChanges(t *testing.T) {
-	repoDir, beansDir, wtRoot := initTestRepo(t)
+	repoDir, beansDir, wtRoot := testutil.InitTestRepo(t)
 
 	// Commit a file in .beans so the directory exists on main
 	if err := os.WriteFile(filepath.Join(beansDir, ".gitkeep"), []byte(""), 0644); err != nil {
@@ -568,7 +564,7 @@ func TestDetectBeanIDs_UncommittedChanges(t *testing.T) {
 }
 
 func TestDetectBeanIDs_DeletedFile(t *testing.T) {
-	repoDir, beansDir, wtRoot := initTestRepo(t)
+	repoDir, beansDir, wtRoot := testutil.InitTestRepo(t)
 
 	// Create a bean on main
 	if err := os.WriteFile(filepath.Join(beansDir, "beans-del1--to-delete.md"), []byte("---\ntitle: To Delete\nstatus: todo\ntype: task\n---\n"), 0644); err != nil {
@@ -601,7 +597,7 @@ func TestDetectBeanIDs_DeletedFile(t *testing.T) {
 }
 
 func TestUpdateDescription(t *testing.T) {
-	repoDir, _, wtRoot := initTestRepo(t)
+	repoDir, _, wtRoot := testutil.InitTestRepo(t)
 	mgr := NewManager(repoDir, wtRoot, "", "")
 
 	// Create a worktree
@@ -645,7 +641,7 @@ func TestUpdateDescription(t *testing.T) {
 }
 
 func TestCreateRunsSetupCommand(t *testing.T) {
-	repoDir, _, wtRoot := initTestRepo(t)
+	repoDir, _, wtRoot := testutil.InitTestRepo(t)
 
 	// Use a setup command that creates a marker file
 	mgr := NewManager(repoDir, wtRoot, "", "touch .setup-done")
@@ -695,7 +691,7 @@ func TestCreateRunsSetupCommand(t *testing.T) {
 }
 
 func TestCreateNoSetupCommand(t *testing.T) {
-	repoDir, _, wtRoot := initTestRepo(t)
+	repoDir, _, wtRoot := testutil.InitTestRepo(t)
 
 	// No setup command — should still create fine
 	mgr := NewManager(repoDir, wtRoot, "", "")
@@ -712,7 +708,7 @@ func TestCreateNoSetupCommand(t *testing.T) {
 }
 
 func TestTouchLastActive(t *testing.T) {
-	repoDir, _, wtRoot := initTestRepo(t)
+	repoDir, _, wtRoot := testutil.InitTestRepo(t)
 	mgr := NewManager(repoDir, wtRoot, "", "")
 
 	// Create a worktree
@@ -756,7 +752,7 @@ func TestTouchLastActive(t *testing.T) {
 }
 
 func TestListKeepsCreationOrder(t *testing.T) {
-	repoDir, _, wtRoot := initTestRepo(t)
+	repoDir, _, wtRoot := testutil.InitTestRepo(t)
 	mgr := NewManager(repoDir, wtRoot, "", "")
 
 	// Create three worktrees in a specific order
@@ -804,7 +800,7 @@ func TestListKeepsCreationOrder(t *testing.T) {
 }
 
 func TestCreateSetsLastActiveAt(t *testing.T) {
-	repoDir, _, wtRoot := initTestRepo(t)
+	repoDir, _, wtRoot := testutil.InitTestRepo(t)
 	mgr := NewManager(repoDir, wtRoot, "", "")
 
 	before := time.Now().UTC().Add(-time.Second)

@@ -3255,11 +3255,12 @@ func TestListFiles(t *testing.T) {
 	})
 }
 
-func TestRemoveWorktreeClosesRunSession(t *testing.T) {
+func TestRemoveWorktreeCleansUpSessions(t *testing.T) {
 	repoDir, beansDir, wtRoot := testutil.InitTestRepo(t)
 	wtMgr := worktree.NewManager(repoDir, wtRoot, "main", "")
 	termMgr := terminal.NewManager(nil)
 	defer termMgr.Shutdown()
+	agentMgr := agent.NewManager("", nil)
 
 	cfg := config.Default()
 	core := beancore.New(beansDir, cfg)
@@ -3271,6 +3272,7 @@ func TestRemoveWorktreeClosesRunSession(t *testing.T) {
 		CoreResolver: &beangraph.CoreResolver{Core: core},
 		WorktreeMgr:  wtMgr,
 		TerminalMgr:  termMgr,
+		AgentMgr:     agentMgr,
 	}
 
 	// Create a worktree
@@ -3279,20 +3281,24 @@ func TestRemoveWorktreeClosesRunSession(t *testing.T) {
 		t.Fatalf("Create worktree: %v", err)
 	}
 
-	// Create both a regular terminal session and a run session for this worktree
+	// Create terminal sessions and an agent session for this worktree
 	if _, err := termMgr.Create(wt.ID, os.TempDir(), 80, 24); err != nil {
 		t.Fatalf("Create terminal session: %v", err)
 	}
 	if _, err := termMgr.Create(wt.ID+RunSessionSuffix, os.TempDir(), 80, 24); err != nil {
 		t.Fatalf("Create run session: %v", err)
 	}
+	agentMgr.AddInfoMessage(wt.ID, "test")
 
-	// Verify both sessions exist
+	// Verify all sessions exist
 	if termMgr.Get(wt.ID) == nil {
 		t.Fatal("terminal session should exist before removal")
 	}
 	if termMgr.Get(wt.ID+RunSessionSuffix) == nil {
 		t.Fatal("run session should exist before removal")
+	}
+	if agentMgr.GetSession(wt.ID) == nil {
+		t.Fatal("agent session should exist before removal")
 	}
 
 	// Remove the worktree
@@ -3301,12 +3307,15 @@ func TestRemoveWorktreeClosesRunSession(t *testing.T) {
 		t.Fatalf("RemoveWorktree: %v", err)
 	}
 
-	// Both sessions should be closed
+	// All sessions should be closed/stopped
 	if termMgr.Get(wt.ID) != nil {
 		t.Error("terminal session should be closed after worktree removal")
 	}
 	if termMgr.Get(wt.ID+RunSessionSuffix) != nil {
 		t.Error("run session should be closed after worktree removal")
+	}
+	if s := agentMgr.GetSession(wt.ID); s != nil && s.Status != agent.StatusIdle {
+		t.Errorf("agent session status = %q, want %q", s.Status, agent.StatusIdle)
 	}
 }
 
