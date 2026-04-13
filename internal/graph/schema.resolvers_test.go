@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/hmans/beans/internal/agent"
+	"github.com/hmans/beans/internal/terminal"
+	"github.com/hmans/beans/internal/worktree"
 	"github.com/hmans/beans/pkg/beangraph"
 	"github.com/hmans/beans/pkg/beangraph/model"
 	"github.com/hmans/beans/pkg/bean"
@@ -3250,5 +3252,80 @@ func TestListFiles(t *testing.T) {
 			t.Errorf("expected 0 results, got %d", len(results))
 		}
 	})
+}
+
+func TestRemoveWorktreeClosesRunSession(t *testing.T) {
+	// Set up a real git repo so the worktree manager works
+	repoDir := t.TempDir()
+	for _, args := range [][]string{
+		{"git", "init", "-b", "main"},
+		{"git", "config", "user.email", "test@test.com"},
+		{"git", "config", "user.name", "Test"},
+		{"git", "commit", "--allow-empty", "-m", "initial"},
+	} {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = repoDir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v failed: %s: %v", args, out, err)
+		}
+	}
+
+	beansDir := filepath.Join(repoDir, ".beans")
+	if err := os.MkdirAll(beansDir, 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	wtRoot := t.TempDir()
+	wtMgr := worktree.NewManager(repoDir, wtRoot, "main", "")
+	termMgr := terminal.NewManager(nil)
+	defer termMgr.Shutdown()
+
+	cfg := config.Default()
+	core := beancore.New(beansDir, cfg)
+	if err := core.Load(); err != nil {
+		t.Fatalf("core.Load: %v", err)
+	}
+
+	resolver := &Resolver{
+		CoreResolver: &beangraph.CoreResolver{Core: core},
+		WorktreeMgr:  wtMgr,
+		TerminalMgr:  termMgr,
+	}
+
+	// Create a worktree
+	wt, err := wtMgr.Create("test-wt")
+	if err != nil {
+		t.Fatalf("Create worktree: %v", err)
+	}
+
+	// Create both a regular terminal session and a run session for this worktree
+	if _, err := termMgr.Create(wt.ID, os.TempDir(), 80, 24); err != nil {
+		t.Fatalf("Create terminal session: %v", err)
+	}
+	if _, err := termMgr.Create(wt.ID+RunSessionSuffix, os.TempDir(), 80, 24); err != nil {
+		t.Fatalf("Create run session: %v", err)
+	}
+
+	// Verify both sessions exist
+	if termMgr.Get(wt.ID) == nil {
+		t.Fatal("terminal session should exist before removal")
+	}
+	if termMgr.Get(wt.ID+RunSessionSuffix) == nil {
+		t.Fatal("run session should exist before removal")
+	}
+
+	// Remove the worktree
+	mr := resolver.Mutation()
+	if _, err := mr.RemoveWorktree(context.Background(), wt.ID); err != nil {
+		t.Fatalf("RemoveWorktree: %v", err)
+	}
+
+	// Both sessions should be closed
+	if termMgr.Get(wt.ID) != nil {
+		t.Error("terminal session should be closed after worktree removal")
+	}
+	if termMgr.Get(wt.ID+RunSessionSuffix) != nil {
+		t.Error("run session should be closed after worktree removal")
+	}
 }
 

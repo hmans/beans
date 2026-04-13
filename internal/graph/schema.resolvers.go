@@ -252,9 +252,10 @@ func (r *mutationResolver) RemoveWorktree(ctx context.Context, id string) (bool,
 		r.PortAlloc.Free(id)
 	}
 
-	// Close any terminal session associated with this worktree
+	// Close any terminal sessions associated with this worktree
 	if r.TerminalMgr != nil {
 		r.TerminalMgr.Close(id)
+		r.TerminalMgr.Close(id + RunSessionSuffix)
 	}
 
 	return true, nil
