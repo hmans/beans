@@ -3261,6 +3261,7 @@ func TestRemoveWorktreeCleansUpSessions(t *testing.T) {
 	termMgr := terminal.NewManager(nil)
 	defer termMgr.Shutdown()
 	agentMgr := agent.NewManager("", nil)
+	defer agentMgr.Shutdown()
 
 	cfg := config.Default()
 	core := beancore.New(beansDir, cfg)
@@ -3289,6 +3290,7 @@ func TestRemoveWorktreeCleansUpSessions(t *testing.T) {
 		t.Fatalf("Create run session: %v", err)
 	}
 	agentMgr.AddInfoMessage(wt.ID, "test")
+	agentMgr.GetSession(wt.ID).Status = agent.StatusRunning
 
 	// Verify all sessions exist
 	if termMgr.Get(wt.ID) == nil {
@@ -3314,7 +3316,9 @@ func TestRemoveWorktreeCleansUpSessions(t *testing.T) {
 	if termMgr.Get(wt.ID+RunSessionSuffix) != nil {
 		t.Error("run session should be closed after worktree removal")
 	}
-	if s := agentMgr.GetSession(wt.ID); s != nil && s.Status != agent.StatusIdle {
+	if s := agentMgr.GetSession(wt.ID); s == nil {
+		t.Error("agent session should still exist after worktree removal")
+	} else if s.Status != agent.StatusIdle {
 		t.Errorf("agent session status = %q, want %q", s.Status, agent.StatusIdle)
 	}
 }

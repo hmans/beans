@@ -11,7 +11,6 @@ import (
 	"github.com/hmans/beans/internal/testutil"
 )
 
-
 func TestParsePorcelain(t *testing.T) {
 	tests := []struct {
 		name         string

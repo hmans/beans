@@ -243,24 +243,21 @@ func (r *mutationResolver) RemoveWorktree(ctx context.Context, id string) (bool,
 		}
 	}
 
-	if err := r.WorktreeMgr.Remove(id); err != nil {
-		return false, err
-	}
-
-	// Free the workspace port
-	if r.PortAlloc != nil {
-		r.PortAlloc.Free(id)
-	}
-
-	// Clean up sessions associated with this worktree
+	// Clean up sessions before removing the worktree directory
 	if r.AgentMgr != nil {
-		if err := r.AgentMgr.StopSession(id); err != nil {
-			fmt.Printf("[beans] warning: failed to stop agent session for worktree %s: %v\n", id, err)
-		}
+		r.AgentMgr.StopSession(id)
 	}
 	if r.TerminalMgr != nil {
 		r.TerminalMgr.Close(id)
 		r.TerminalMgr.Close(id + RunSessionSuffix)
+	}
+
+	if err := r.WorktreeMgr.Remove(id); err != nil {
+		return false, err
+	}
+
+	if r.PortAlloc != nil {
+		r.PortAlloc.Free(id)
 	}
 
 	return true, nil
