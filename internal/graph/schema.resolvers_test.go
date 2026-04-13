@@ -13,6 +13,7 @@ import (
 
 	"github.com/hmans/beans/internal/agent"
 	"github.com/hmans/beans/internal/terminal"
+	"github.com/hmans/beans/internal/testutil"
 	"github.com/hmans/beans/internal/worktree"
 	"github.com/hmans/beans/pkg/beangraph"
 	"github.com/hmans/beans/pkg/beangraph/model"
@@ -3255,27 +3256,7 @@ func TestListFiles(t *testing.T) {
 }
 
 func TestRemoveWorktreeClosesRunSession(t *testing.T) {
-	// Set up a real git repo so the worktree manager works
-	repoDir := t.TempDir()
-	for _, args := range [][]string{
-		{"git", "init", "-b", "main"},
-		{"git", "config", "user.email", "test@test.com"},
-		{"git", "config", "user.name", "Test"},
-		{"git", "commit", "--allow-empty", "-m", "initial"},
-	} {
-		cmd := exec.Command(args[0], args[1:]...)
-		cmd.Dir = repoDir
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("%v failed: %s: %v", args, out, err)
-		}
-	}
-
-	beansDir := filepath.Join(repoDir, ".beans")
-	if err := os.MkdirAll(beansDir, 0755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
-
-	wtRoot := t.TempDir()
+	repoDir, beansDir, wtRoot := testutil.InitTestRepo(t)
 	wtMgr := worktree.NewManager(repoDir, wtRoot, "main", "")
 	termMgr := terminal.NewManager(nil)
 	defer termMgr.Shutdown()

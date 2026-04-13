@@ -7,38 +7,13 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/hmans/beans/internal/testutil"
 )
 
-// initTestRepo creates a temporary git repo with an initial commit,
-// a .beans directory inside it, and a separate worktree root directory.
 func initTestRepo(t *testing.T) (repoDir, beansDir, worktreeRoot string) {
 	t.Helper()
-	dir := t.TempDir()
-
-	commands := [][]string{
-		{"git", "init", "-b", "main"},
-		{"git", "config", "user.email", "test@test.com"},
-		{"git", "config", "user.name", "Test"},
-		{"git", "commit", "--allow-empty", "-m", "initial"},
-	}
-
-	for _, args := range commands {
-		cmd := exec.Command(args[0], args[1:]...)
-		cmd.Dir = dir
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("%v failed: %s: %v", args, out, err)
-		}
-	}
-
-	bd := filepath.Join(dir, ".beans")
-	if err := os.MkdirAll(bd, 0755); err != nil {
-		t.Fatalf("MkdirAll .beans: %v", err)
-	}
-
-	// Create a separate worktree root directory (outside the repo)
-	wtRoot := t.TempDir()
-
-	return dir, bd, wtRoot
+	return testutil.InitTestRepo(t)
 }
 
 func TestParsePorcelain(t *testing.T) {
