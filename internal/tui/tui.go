@@ -460,7 +460,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Status: &draftStatus,
 		})
 		if err != nil {
-			// TODO: Show error to user
+			a.errorMsg = fmt.Sprintf("Failed to create bean: %v", err)
 			a.state = a.previousState
 			return a, nil
 		}
