@@ -14,6 +14,7 @@ type TreeNode struct {
 	Children        []*TreeNode
 	Matched         bool   // true if this bean matched the filter (vs. shown for context)
 	ImplicitStatus string // implicit terminal status from an ancestor, if any
+	Blocked         bool   // true if this bean has at least one active (non-archive) blocker
 }
 
 // TreeNodeJSON is the JSON-serializable version of TreeNode.
@@ -61,7 +62,11 @@ func (n *TreeNode) ToJSON(includeFull bool) *TreeNodeJSON {
 // allBeans: all beans (needed to find ancestors)
 // sortFn: function to sort beans at each level
 // implicitStatuses: optional map of beanID -> implicit terminal status (may be nil)
-func BuildTree(matchedBeans []*bean.Bean, allBeans []*bean.Bean, sortFn func([]*bean.Bean), implicitStatuses map[string]string) []*TreeNode {
+// activeBlockers: optional map of beanID -> list of active blocker IDs (may be nil).
+//   When non-nil, siblings are topologically reordered within their existing sort
+//   bucket so that an active sibling blocker appears before the bean it blocks.
+//   A bean with at least one entry in this map is marked Blocked=true.
+func BuildTree(matchedBeans []*bean.Bean, allBeans []*bean.Bean, sortFn func([]*bean.Bean), implicitStatuses map[string]string, activeBlockers map[string][]string) []*TreeNode {
 	// Build index of all beans by ID
 	beanByID := make(map[string]*bean.Bean)
 	for _, b := range allBeans {
@@ -97,9 +102,10 @@ func BuildTree(matchedBeans []*bean.Bean, allBeans []*bean.Bean, sortFn func([]*
 		}
 	}
 
-	// Sort children at each level
+	// Sort children at each level, then apply sibling-blocker topo reorder.
 	for parentID := range children {
 		sortFn(children[parentID])
+		children[parentID] = reorderByActiveBlockers(children[parentID], activeBlockers)
 	}
 
 	// Find root beans (no parent or parent not in needed set)
@@ -115,9 +121,77 @@ func BuildTree(matchedBeans []*bean.Bean, allBeans []*bean.Bean, sortFn func([]*
 		}
 	}
 	sortFn(roots)
+	roots = reorderByActiveBlockers(roots, activeBlockers)
 
 	// Build tree nodes recursively
-	return buildNodes(roots, children, matchedSet, implicitStatuses)
+	return buildNodes(roots, children, matchedSet, implicitStatuses, activeBlockers)
+}
+
+// reorderByActiveBlockers returns a permutation of `siblings` where, for any
+// pair (A, B) of siblings such that A is an active blocker of B, A appears
+// before B. Pairs unrelated by an active-blocker edge keep their incoming order
+// (stable). Edges to non-siblings are ignored. Cycles can't occur — the core
+// already rejects them at write time.
+func reorderByActiveBlockers(siblings []*bean.Bean, activeBlockers map[string][]string) []*bean.Bean {
+	if len(activeBlockers) == 0 || len(siblings) < 2 {
+		return siblings
+	}
+	// Build a set of sibling IDs for fast lookup.
+	siblingSet := make(map[string]bool, len(siblings))
+	for _, s := range siblings {
+		siblingSet[s.ID] = true
+	}
+	// In-degree counts only sibling edges. Adjacency: blocker -> [blockee...].
+	indeg := make(map[string]int, len(siblings))
+	adj := make(map[string][]string, len(siblings))
+	for _, s := range siblings {
+		for _, blockerID := range activeBlockers[s.ID] {
+			if siblingSet[blockerID] {
+				indeg[s.ID]++
+				adj[blockerID] = append(adj[blockerID], s.ID)
+			}
+		}
+	}
+	if len(adj) == 0 {
+		return siblings // no sibling-level blocker edges
+	}
+	// Kahn's algorithm, processing siblings in their incoming order to keep
+	// the sort stable for unrelated pairs.
+	out := make([]*bean.Bean, 0, len(siblings))
+	enqueued := make(map[string]bool, len(siblings))
+	byID := make(map[string]*bean.Bean, len(siblings))
+	for _, s := range siblings {
+		byID[s.ID] = s
+	}
+	var queue []string
+	for _, s := range siblings {
+		if indeg[s.ID] == 0 {
+			queue = append(queue, s.ID)
+			enqueued[s.ID] = true
+		}
+	}
+	for len(queue) > 0 {
+		id := queue[0]
+		queue = queue[1:]
+		out = append(out, byID[id])
+		for _, next := range adj[id] {
+			indeg[next]--
+			if indeg[next] == 0 && !enqueued[next] {
+				queue = append(queue, next)
+				enqueued[next] = true
+			}
+		}
+	}
+	// Defensive: if a cycle ever slipped through, append remaining in original
+	// order so we never drop beans from the tree.
+	if len(out) != len(siblings) {
+		for _, s := range siblings {
+			if !enqueued[s.ID] {
+				out = append(out, s)
+			}
+		}
+	}
+	return out
 }
 
 // addAncestors recursively adds all ancestors of a bean to the needed set.
@@ -137,14 +211,15 @@ func addAncestors(b *bean.Bean, beanByID map[string]*bean.Bean, needed map[strin
 }
 
 // buildNodes recursively builds TreeNodes from beans.
-func buildNodes(beans []*bean.Bean, children map[string][]*bean.Bean, matchedSet map[string]bool, implicitStatuses map[string]string) []*TreeNode {
+func buildNodes(beans []*bean.Bean, children map[string][]*bean.Bean, matchedSet map[string]bool, implicitStatuses map[string]string, activeBlockers map[string][]string) []*TreeNode {
 	nodes := make([]*TreeNode, len(beans))
 	for i, b := range beans {
 		nodes[i] = &TreeNode{
 			Bean:            b,
 			Matched:         matchedSet[b.ID],
-			Children:        buildNodes(children[b.ID], children, matchedSet, implicitStatuses),
+			Children:        buildNodes(children[b.ID], children, matchedSet, implicitStatuses, activeBlockers),
 			ImplicitStatus: implicitStatuses[b.ID],
+			Blocked:         len(activeBlockers[b.ID]) > 0,
 		}
 	}
 	return nodes
@@ -300,6 +375,7 @@ func renderNode(sb *strings.Builder, node *TreeNode, depth int, isLast bool, anc
 		Dimmed:          !node.Matched,
 		IDColWidth:      renderCfg.treeColWidth,
 		ImplicitStatus: node.ImplicitStatus,
+		Blocked:         node.Blocked,
 	})
 
 	sb.WriteString(row)
@@ -315,6 +391,7 @@ type FlatItem struct {
 	Matched         bool   // true if bean matched filter (vs. shown for context)
 	TreePrefix      string // pre-computed tree prefix (e.g., "  └─")
 	ImplicitStatus string // implicit terminal status from an ancestor, if any
+	Blocked         bool   // true if this bean has at least one active blocker
 }
 
 // FlattenTree converts a tree into a flat slice with tree context preserved.
@@ -357,6 +434,7 @@ func flattenNodes(nodes []*TreeNode, depth int, ancestry []bool, items *[]FlatIt
 			Matched:         node.Matched,
 			TreePrefix:      prefix,
 			ImplicitStatus: node.ImplicitStatus,
+			Blocked:         node.Blocked,
 		})
 
 		// Recurse into children, passing updated ancestry

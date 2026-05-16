@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -22,6 +23,7 @@ type beanItem struct {
 	treePrefix      string // tree prefix for rendering (e.g., "├─" or "  └─")
 	matched         bool   // true if bean matched filter (vs. ancestor shown for context)
 	implicitStatus string // implicit terminal status from an ancestor, if any
+	blocked         bool   // true if bean has at least one active blocker
 }
 
 func (i beanItem) Title() string       { return i.bean.Title }
@@ -96,6 +98,7 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 			IDColWidth:      d.idColWidth,
 			UseFullNames:    d.cols.UseFullTypeStatus,
 			ImplicitStatus: item.implicitStatus,
+			Blocked:         item.blocked,
 		},
 	)
 
@@ -118,6 +121,7 @@ type listModel struct {
 
 	// Active filters
 	tagFilter string // if set, only show beans with this tag
+	readyOnly bool   // if true, hide beans that are explicitly blocked
 
 	// Multi-select state
 	selectedBeans map[string]bool // IDs of beans marked for multi-edit
@@ -169,11 +173,8 @@ func (m listModel) Init() tea.Cmd {
 }
 
 func (m listModel) loadBeans() tea.Msg {
-	// Build filter if tag filter is set
-	var filter *model.BeanFilter
-	if m.tagFilter != "" {
-		filter = &model.BeanFilter{Tags: []string{m.tagFilter}}
-	}
+	// Build filter from active filter state
+	filter := m.buildFilter()
 
 	// Query filtered beans
 	filteredBeans, err := m.resolver.Beans(context.Background(), filter)
@@ -200,8 +201,23 @@ func (m listModel) loadBeans() tea.Msg {
 		}
 	}
 
+	// Pre-compute active blocker IDs per bean for sibling reordering and the
+	// blocked annotation.
+	activeBlockers := make(map[string][]string, len(allBeans))
+	for _, b := range allBeans {
+		blockers := m.resolver.Core.FindActiveBlockers(b.ID)
+		if len(blockers) == 0 {
+			continue
+		}
+		ids := make([]string, len(blockers))
+		for i, blk := range blockers {
+			ids[i] = blk.ID
+		}
+		activeBlockers[b.ID] = ids
+	}
+
 	// Build tree and flatten it
-	tree := ui.BuildTree(filteredBeans, allBeans, sortFn, implicitStatuses)
+	tree := ui.BuildTree(filteredBeans, allBeans, sortFn, implicitStatuses, activeBlockers)
 	items := ui.FlattenTree(tree)
 
 	// Calculate ID column width based on max ID length and tree depth
@@ -226,14 +242,53 @@ func (m *listModel) setTagFilter(tag string) {
 	m.tagFilter = tag
 }
 
-// clearFilter clears all active filters
+// clearFilter clears the user-controlled tag filter.
+// Does not affect readyOnly, which is a separate visibility toggle.
 func (m *listModel) clearFilter() {
 	m.tagFilter = ""
 }
 
-// hasActiveFilter returns true if any filter is active
+// hasActiveFilter returns true if the tag filter is active.
 func (m *listModel) hasActiveFilter() bool {
 	return m.tagFilter != ""
+}
+
+// toggleReadyOnly toggles whether explicitly-blocked beans are hidden.
+func (m *listModel) toggleReadyOnly() {
+	m.readyOnly = !m.readyOnly
+}
+
+// buildFilter composes the BeanFilter from active filter state.
+// Returns nil when no filtering is needed.
+func (m *listModel) buildFilter() *model.BeanFilter {
+	hasTag := m.tagFilter != ""
+	if !hasTag && !m.readyOnly {
+		return nil
+	}
+	f := &model.BeanFilter{}
+	if hasTag {
+		f.Tags = []string{m.tagFilter}
+	}
+	if m.readyOnly {
+		falsy := false
+		f.IsExplicitlyBlocked = &falsy
+	}
+	return f
+}
+
+// buildTitle builds the list title with active-filter indicators.
+func (m *listModel) buildTitle() string {
+	var parts []string
+	if m.tagFilter != "" {
+		parts = append(parts, fmt.Sprintf("tag: %s", m.tagFilter))
+	}
+	if m.readyOnly {
+		parts = append(parts, "ready")
+	}
+	if len(parts) == 0 {
+		return "Beans"
+	}
+	return fmt.Sprintf("Beans [%s]", strings.Join(parts, "] ["))
 }
 
 func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
@@ -264,6 +319,7 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 				treePrefix:      flatItem.TreePrefix,
 				matched:         flatItem.Matched,
 				implicitStatus: flatItem.ImplicitStatus,
+				blocked:         flatItem.Blocked,
 			}
 			if len(flatItem.Bean.Tags) > 0 {
 				m.hasTags = true
@@ -418,6 +474,10 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 				return m, func() tea.Msg {
 					return openCreateModalMsg{}
 				}
+			case "r":
+				// Toggle "ready only" — hide explicitly-blocked beans
+				m.toggleReadyOnly()
+				return m, m.loadBeans
 			case "e":
 				// Open editor for selected bean
 				if item, ok := m.list.SelectedItem().(beanItem); ok {
@@ -501,12 +561,7 @@ func (m listModel) View() string {
 		return "Loading..."
 	}
 
-	// Update title based on active filter
-	if m.tagFilter != "" {
-		m.list.Title = fmt.Sprintf("Beans [tag: %s]", m.tagFilter)
-	} else {
-		m.list.Title = "Beans"
-	}
+	m.list.Title = m.buildTitle()
 
 	// Inner height: total height minus border (2) minus footer (1) minus padding (1)
 	return m.viewContent(m.height-4) + "\n" + m.Footer()
@@ -527,6 +582,12 @@ func (m listModel) viewContent(innerHeight int) string {
 // Footer renders the help/status footer for the list view.
 func (m listModel) Footer() string {
 	var help string
+
+	// "r" key label flips based on current state
+	rLabel := "ready only"
+	if m.readyOnly {
+		rLabel = "show blocked"
+	}
 
 	// Show selection count if any beans are selected
 	var selectionPrefix string
@@ -553,6 +614,7 @@ func (m listModel) Footer() string {
 			helpKeyStyle.Render("e") + " " + helpStyle.Render("edit") + "  " +
 			helpKeyStyle.Render("p") + " " + helpStyle.Render("parent") + "  " +
 			helpKeyStyle.Render("P") + " " + helpStyle.Render("priority") + "  " +
+			helpKeyStyle.Render("r") + " " + helpStyle.Render(rLabel) + "  " +
 			helpKeyStyle.Render("s") + " " + helpStyle.Render("status") + "  " +
 			helpKeyStyle.Render("t") + " " + helpStyle.Render("type") + "  " +
 			helpKeyStyle.Render("y") + " " + helpStyle.Render("copy id") + "  " +
@@ -567,6 +629,7 @@ func (m listModel) Footer() string {
 			helpKeyStyle.Render("e") + " " + helpStyle.Render("edit") + "  " +
 			helpKeyStyle.Render("p") + " " + helpStyle.Render("parent") + "  " +
 			helpKeyStyle.Render("P") + " " + helpStyle.Render("priority") + "  " +
+			helpKeyStyle.Render("r") + " " + helpStyle.Render(rLabel) + "  " +
 			helpKeyStyle.Render("s") + " " + helpStyle.Render("status") + "  " +
 			helpKeyStyle.Render("t") + " " + helpStyle.Render("type") + "  " +
 			helpKeyStyle.Render("y") + " " + helpStyle.Render("copy id") + "  " +
@@ -603,12 +666,7 @@ func (m listModel) ViewConstrained(width, height int) string {
 	m.cols = ui.CalculateResponsiveColumns(width, m.hasTags)
 	m.updateDelegate()
 
-	// Update title based on active filter
-	if m.tagFilter != "" {
-		m.list.Title = fmt.Sprintf("Beans [tag: %s]", m.tagFilter)
-	} else {
-		m.list.Title = "Beans"
-	}
+	m.list.Title = m.buildTitle()
 
 	return m.viewContent(innerHeight)
 }

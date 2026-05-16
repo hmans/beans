@@ -154,13 +154,28 @@ Search Syntax (--search/-S):
 			}
 		}
 
+		// Pre-compute active blocker IDs per bean for sibling reordering
+		// and the blocked annotation.
+		activeBlockers := make(map[string][]string, len(allBeans))
+		for _, b := range allBeans {
+			blockers := core.FindActiveBlockers(b.ID)
+			if len(blockers) == 0 {
+				continue
+			}
+			ids := make([]string, len(blockers))
+			for i, blk := range blockers {
+				ids[i] = blk.ID
+			}
+			activeBlockers[b.ID] = ids
+		}
+
 		// Create sort function for tree building
 		sortFn := func(b []*bean.Bean) {
 			sortBeans(b, listSort, cfg)
 		}
 
 		// Build tree
-		tree := ui.BuildTree(beans, allBeans, sortFn, implicitStatuses)
+		tree := ui.BuildTree(beans, allBeans, sortFn, implicitStatuses, activeBlockers)
 
 		if len(tree) == 0 {
 			fmt.Println(ui.Muted.Render("No beans found. Create one with: beans new <title>"))

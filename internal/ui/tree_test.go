@@ -24,7 +24,7 @@ func TestBuildTree(t *testing.T) {
 	noSort := func(b []*bean.Bean) {}
 
 	t.Run("all beans matched", func(t *testing.T) {
-		tree := BuildTree(allBeans, allBeans, noSort, nil)
+		tree := BuildTree(allBeans, allBeans, noSort, nil, nil)
 
 		// Should have 2 root nodes: milestone1 and task2
 		if len(tree) != 2 {
@@ -68,7 +68,7 @@ func TestBuildTree(t *testing.T) {
 	t.Run("filter leaf only - ancestors included", func(t *testing.T) {
 		// Only task1 matched, but ancestors should be included
 		matchedBeans := []*bean.Bean{task1}
-		tree := BuildTree(matchedBeans, allBeans, noSort, nil)
+		tree := BuildTree(matchedBeans, allBeans, noSort, nil, nil)
 
 		// Should have 1 root: milestone (as ancestor)
 		if len(tree) != 1 {
@@ -105,7 +105,7 @@ func TestBuildTree(t *testing.T) {
 	t.Run("filter middle - ancestors included", func(t *testing.T) {
 		// Only epic1 matched
 		matchedBeans := []*bean.Bean{epic1}
-		tree := BuildTree(matchedBeans, allBeans, noSort, nil)
+		tree := BuildTree(matchedBeans, allBeans, noSort, nil, nil)
 
 		// Should have 1 root: milestone (ancestor)
 		if len(tree) != 1 {
@@ -130,7 +130,7 @@ func TestBuildTree(t *testing.T) {
 
 	t.Run("orphan bean", func(t *testing.T) {
 		matchedBeans := []*bean.Bean{task2}
-		tree := BuildTree(matchedBeans, allBeans, noSort, nil)
+		tree := BuildTree(matchedBeans, allBeans, noSort, nil, nil)
 
 		if len(tree) != 1 {
 			t.Errorf("expected 1 root node, got %d", len(tree))
@@ -149,7 +149,7 @@ func TestBuildTree(t *testing.T) {
 		matchedBeans := []*bean.Bean{brokenBean}
 		allBeansWithBroken := append(allBeans, brokenBean)
 
-		tree := BuildTree(matchedBeans, allBeansWithBroken, noSort, nil)
+		tree := BuildTree(matchedBeans, allBeansWithBroken, noSort, nil, nil)
 
 		// Should be treated as root (parent not found)
 		if len(tree) != 1 {
@@ -205,6 +205,134 @@ func TestTreeNodeToJSON(t *testing.T) {
 		json := node.ToJSON(true)
 		if json.Body != "Test body content" {
 			t.Errorf("expected body content, got %s", json.Body)
+		}
+	})
+}
+
+func TestBuildTreeReorderByActiveBlockers(t *testing.T) {
+	// Parent epic with three sibling tasks A, B, C.
+	// Active blocker edges: C is blocked by A; B is unrelated.
+	// Existing sort puts them in title order A, B, C.
+	// Expected after reorder: A, B, C is already valid (A precedes C, B unrelated).
+	// To prove the reorder works, build a case where the existing order is wrong:
+	// title-sorted A, B, C but B is blocked by C → output must be A, C, B.
+	epic := &bean.Bean{ID: "e1", Title: "Epic", Type: "epic"}
+	a := &bean.Bean{ID: "a", Title: "Aaa", Type: "task", Parent: "e1"}
+	b := &bean.Bean{ID: "b", Title: "Bbb", Type: "task", Parent: "e1"}
+	c := &bean.Bean{ID: "c", Title: "Ccc", Type: "task", Parent: "e1"}
+	allBeans := []*bean.Bean{epic, a, b, c}
+
+	titleSort := func(beans []*bean.Bean) {
+		// stable title sort
+		for i := 1; i < len(beans); i++ {
+			for j := i; j > 0 && beans[j].Title < beans[j-1].Title; j-- {
+				beans[j], beans[j-1] = beans[j-1], beans[j]
+			}
+		}
+	}
+
+	t.Run("blocker pulled before blockee within siblings", func(t *testing.T) {
+		activeBlockers := map[string][]string{
+			"b": {"c"}, // B is blocked by C — C must appear before B
+		}
+		tree := BuildTree(allBeans, allBeans, titleSort, nil, activeBlockers)
+		if len(tree) != 1 {
+			t.Fatalf("expected 1 root, got %d", len(tree))
+		}
+		children := tree[0].Children
+		if len(children) != 3 {
+			t.Fatalf("expected 3 children, got %d", len(children))
+		}
+		got := []string{children[0].Bean.ID, children[1].Bean.ID, children[2].Bean.ID}
+		want := []string{"a", "c", "b"}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("child[%d] = %q, want %q (full order: %v)", i, got[i], want[i], got)
+			}
+		}
+		// B should be marked Blocked, C and A should not.
+		byID := map[string]*TreeNode{}
+		for _, ch := range children {
+			byID[ch.Bean.ID] = ch
+		}
+		if !byID["b"].Blocked {
+			t.Error("b should be marked Blocked")
+		}
+		if byID["c"].Blocked || byID["a"].Blocked {
+			t.Error("a and c should not be Blocked")
+		}
+	})
+
+	t.Run("no edges leaves order untouched", func(t *testing.T) {
+		tree := BuildTree(allBeans, allBeans, titleSort, nil, nil)
+		children := tree[0].Children
+		got := []string{children[0].Bean.ID, children[1].Bean.ID, children[2].Bean.ID}
+		want := []string{"a", "b", "c"}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("child[%d] = %q, want %q", i, got[i], want[i])
+			}
+		}
+	})
+
+	t.Run("non-sibling blocker ignored", func(t *testing.T) {
+		// A is blocked by a bean outside this parent's children.
+		// Sibling order should not change; A should still be Blocked=true.
+		activeBlockers := map[string][]string{
+			"a": {"x-outside"},
+		}
+		tree := BuildTree(allBeans, allBeans, titleSort, nil, activeBlockers)
+		children := tree[0].Children
+		got := []string{children[0].Bean.ID, children[1].Bean.ID, children[2].Bean.ID}
+		want := []string{"a", "b", "c"}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("child[%d] = %q, want %q", i, got[i], want[i])
+			}
+		}
+		byID := map[string]*TreeNode{}
+		for _, ch := range children {
+			byID[ch.Bean.ID] = ch
+		}
+		if !byID["a"].Blocked {
+			t.Error("a should still be Blocked (non-sibling blocker)")
+		}
+	})
+
+	t.Run("chain reorder: A<-B<-C", func(t *testing.T) {
+		// C blocked by B; B blocked by A; existing title order is A, B, C
+		// (already topologically correct). Verify it stays A, B, C and both
+		// B and C are marked Blocked.
+		activeBlockers := map[string][]string{
+			"b": {"a"},
+			"c": {"b"},
+		}
+		tree := BuildTree(allBeans, allBeans, titleSort, nil, activeBlockers)
+		children := tree[0].Children
+		got := []string{children[0].Bean.ID, children[1].Bean.ID, children[2].Bean.ID}
+		want := []string{"a", "b", "c"}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("child[%d] = %q, want %q", i, got[i], want[i])
+			}
+		}
+	})
+
+	t.Run("chain reorder: reverses bad order", func(t *testing.T) {
+		// titleSort gives A, B, C but we want order C, B, A:
+		// A blocked by B, B blocked by C → must end up C, B, A.
+		activeBlockers := map[string][]string{
+			"a": {"b"},
+			"b": {"c"},
+		}
+		tree := BuildTree(allBeans, allBeans, titleSort, nil, activeBlockers)
+		children := tree[0].Children
+		got := []string{children[0].Bean.ID, children[1].Bean.ID, children[2].Bean.ID}
+		want := []string{"c", "b", "a"}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("child[%d] = %q, want %q (full: %v)", i, got[i], want[i], got)
+			}
 		}
 	})
 }

@@ -281,3 +281,60 @@ func TestCompareBeansByStatusPriorityAndType(t *testing.T) {
 		}
 	})
 }
+
+func TestListModelBuildFilterReadyOnly(t *testing.T) {
+	t.Run("default returns nil filter", func(t *testing.T) {
+		m := &listModel{}
+		if got := m.buildFilter(); got != nil {
+			t.Errorf("expected nil, got %+v", got)
+		}
+	})
+	t.Run("readyOnly sets IsExplicitlyBlocked=false", func(t *testing.T) {
+		m := &listModel{readyOnly: true}
+		got := m.buildFilter()
+		if got == nil {
+			t.Fatal("expected non-nil filter")
+		}
+		if got.IsExplicitlyBlocked == nil {
+			t.Fatal("expected IsExplicitlyBlocked to be set")
+		}
+		if *got.IsExplicitlyBlocked {
+			t.Errorf("IsExplicitlyBlocked = true, want false")
+		}
+	})
+	t.Run("readyOnly + tag composes", func(t *testing.T) {
+		m := &listModel{readyOnly: true, tagFilter: "idea"}
+		got := m.buildFilter()
+		if got == nil {
+			t.Fatal("expected non-nil filter")
+		}
+		if got.IsExplicitlyBlocked == nil || *got.IsExplicitlyBlocked {
+			t.Error("expected IsExplicitlyBlocked=false")
+		}
+		if len(got.Tags) != 1 || got.Tags[0] != "idea" {
+			t.Errorf("Tags = %v, want [idea]", got.Tags)
+		}
+	})
+}
+
+func TestListModelBuildTitleReadyOnly(t *testing.T) {
+	tests := []struct {
+		name      string
+		tagFilter string
+		readyOnly bool
+		want      string
+	}{
+		{"default", "", false, "Beans"},
+		{"readyOnly", "", true, "Beans [ready]"},
+		{"tagOnly", "idea", false, "Beans [tag: idea]"},
+		{"tagAndReady", "idea", true, "Beans [tag: idea] [ready]"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &listModel{tagFilter: tt.tagFilter, readyOnly: tt.readyOnly}
+			if got := m.buildTitle(); got != tt.want {
+				t.Errorf("buildTitle() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

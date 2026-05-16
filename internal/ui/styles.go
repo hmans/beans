@@ -365,6 +365,7 @@ type BeanRowConfig struct {
 	IDColWidth      int      // Width of ID column (0 = default of ColWidthID)
 	UseFullNames    bool     // Use full type/status names instead of single-char abbreviations
 	ImplicitStatus string   // Implicit terminal status from an ancestor (e.g., "scrapped")
+	Blocked         bool     // True if the bean has at least one active (non-archive) blocker
 }
 
 // Base column widths for bean lists (minimum sizes)
@@ -589,6 +590,10 @@ func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string
 	var implicitAnnotation string
 	if cfg.ImplicitStatus != "" && !cfg.Dimmed {
 		implicitAnnotation = Muted.Render(" ↑" + cfg.ImplicitStatus)
+	}
+	// Blocked annotation (muted suffix, only when not dimmed)
+	if cfg.Blocked && !cfg.Dimmed {
+		implicitAnnotation += Muted.Render(" ⊘")
 	}
 
 	if cfg.ShowTags {
