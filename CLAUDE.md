@@ -68,6 +68,60 @@ Key packages:
 
 - Use the `idea` tag for ideas and proposals.
 
+# Common failure modes when invoked by agents
+
+A failure analysis of 307 agent-driven `beans` invocations surfaced these recurring traps. Avoid them.
+
+## Multi-line GraphQL mutations break under shell quoting
+
+The single most common failure. Bodies containing `"`, `\n`, `()`, or `'` consistently break zsh's parser inside a `'...'` literal — surfacing as `unmatched "`, `parse error near ')'`, or (when an embedded `\n` splits the argv) `Error: accepts at most 1 argument`.
+
+```bash
+# BAD — embedded ) and " trip zsh before the query is ever sent
+beans query 'mutation { updateBean(id: "x", input: { bodyMod: { append: "Don'\''t..." } }) { id } }'
+```
+
+Use one of these instead:
+
+```bash
+# 1. Pipe from stdin (beans query reads stdin when no arg is given)
+cat <<'EOF' | beans query
+mutation { updateBean(id: "x", input: { bodyMod: { append: "..." } }) { id } }
+EOF
+
+# 2. Use --variables for the dynamic parts; keep the mutation string trivial
+beans query --variables '{"id":"x","body":"..."}' \
+  'mutation($id: ID!, $body: String!) { updateBean(id: $id, input: { bodyMod: { append: $body } }) { id } }'
+
+# 3. Prefer dedicated subcommands (beans update, beans create) — their flags sidestep GraphQL entirely.
+```
+
+## `bodyMod.replace` is exact-match — read the body first
+
+Replacements fail with `text not found in body` whenever the on-disk form has drifted (e.g., `- [ ]` vs `[ ]`, rewrapped task lines). Fetch the current body before scripting a replacement:
+
+```bash
+beans show <id> --body-only
+```
+
+…and copy `old` strings verbatim from that output.
+
+## `beans update` has no `--body-replace-old`/`--body-replace-new` flags
+
+Those are GraphQL `bodyMod` fields, not CLI flags. Real `beans update` body flags: `--body`, `--body-append`, `--body-file`. Run `beans update --help` rather than guessing.
+
+## Don't guess GraphQL filter field names
+
+The `BeanFilter` type uses `parentId` (not `parent`), and it takes a single `String`, not `[String]`. When unsure, check the schema:
+
+```bash
+beans query --schema | grep -A 30 'input BeanFilter'
+```
+
+## `beans show <id>` errors hard on unknown IDs
+
+If you don't have the exact ID, list first (`beans list --json --ready`, `beans list --json -S "<keyword>"`) rather than guessing.
+
 # Testing
 
 - Always write or update tests for the changes you make.
