@@ -60,13 +60,13 @@ func ApplyFilter(beans []*bean.Bean, filter *model.BeanFilter, core *beancore.Co
 
 	// Blocking filters
 	if filter.HasBlocking != nil && *filter.HasBlocking {
-		result = filterByHasBlocking(result)
+		result = filterByHasBlocking(result, core)
 	}
 	if filter.BlockingID != nil && *filter.BlockingID != "" {
-		result = filterByBlockingID(result, *filter.BlockingID)
+		result = filterByBlockingID(result, *filter.BlockingID, core)
 	}
 	if filter.NoBlocking != nil && *filter.NoBlocking {
-		result = filterByNoBlocking(result)
+		result = filterByNoBlocking(result, core)
 	}
 	if filter.IsBlocked != nil {
 		if *filter.IsBlocked {
@@ -247,36 +247,44 @@ func filterByParentID(beans []*bean.Bean, parentID string) []*bean.Bean {
 	return result
 }
 
-// filterByHasBlocking filters beans that are blocking other beans.
-func filterByHasBlocking(beans []*bean.Bean) []*bean.Bean {
+// filterByHasBlocking filters beans that actively block at least one non-resolved
+// dependent — direction-symmetric (forward blocking list OR reverse blocked_by
+// edge) and active-only, mirroring --is-blocked. The reverse index is built once.
+func filterByHasBlocking(beans []*bean.Bean, core *beancore.Core) []*bean.Bean {
+	index := core.ActiveBlockerIndex()
 	var result []*bean.Bean
 	for _, b := range beans {
-		if len(b.Blocking) > 0 {
+		if index[b.ID] {
 			result = append(result, b)
 		}
 	}
 	return result
 }
 
-// filterByBlockingID filters beans that are blocking a specific bean ID.
-func filterByBlockingID(beans []*bean.Bean, targetID string) []*bean.Bean {
+// filterByBlockingID filters beans that are blocking a specific bean ID, honoring
+// both forward blocking entries and reverse blocked_by edges (active-only).
+func filterByBlockingID(beans []*bean.Bean, targetID string, core *beancore.Core) []*bean.Bean {
+	normalized := targetID
+	if id, ok := core.NormalizeID(targetID); ok {
+		normalized = id
+	}
+	blockers := core.ActiveBlockersOfIndex()[normalized]
 	var result []*bean.Bean
 	for _, b := range beans {
-		for _, blocked := range b.Blocking {
-			if blocked == targetID {
-				result = append(result, b)
-				break
-			}
+		if blockers[b.ID] {
+			result = append(result, b)
 		}
 	}
 	return result
 }
 
-// filterByNoBlocking filters beans that aren't blocking other beans.
-func filterByNoBlocking(beans []*bean.Bean) []*bean.Bean {
+// filterByNoBlocking filters beans that aren't actively blocking any non-resolved
+// dependent. Exact negation of filterByHasBlocking.
+func filterByNoBlocking(beans []*bean.Bean, core *beancore.Core) []*bean.Bean {
+	index := core.ActiveBlockerIndex()
 	var result []*bean.Bean
 	for _, b := range beans {
-		if len(b.Blocking) == 0 {
+		if !index[b.ID] {
 			result = append(result, b)
 		}
 	}
