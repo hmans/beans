@@ -119,11 +119,17 @@ func buildRoadmap(allBeans []*bean.Bean, includeDone bool, statusFilter, noStatu
 		if len(noStatusFilter) > 0 && containsStatus(noStatusFilter, b.Status) {
 			continue
 		}
+		// Explicit archive filter: drop scrapped/completed milestones unless
+		// --include-done is set, so exclusion is intentional, not incidental.
+		if !includeDone && cfg.IsArchiveStatus(b.Status) {
+			continue
+		}
 		milestones = append(milestones, b)
 	}
 
-	// Sort milestones by status order, then by created date
-	sortByStatusThenCreated(milestones, cfg)
+	// Sort milestones by the canonical status -> priority -> type -> title order
+	// so output is deterministic and matches the rest of the CLI/TUI.
+	bean.SortByStatusPriorityAndType(milestones, cfg.StatusNames(), cfg.PriorityNames(), cfg.TypeNames())
 
 	// Build milestone groups
 	var milestoneGroups []milestoneGroup
@@ -284,26 +290,6 @@ func filterChildren(children []*bean.Bean, includeDone bool) []*bean.Bean {
 // containsStatus checks if a status is in the list.
 func containsStatus(statuses []string, status string) bool {
 	return slices.Contains(statuses, status)
-}
-
-// sortByStatusThenCreated sorts beans by status order, then by created date.
-func sortByStatusThenCreated(beans []*bean.Bean, cfg interface{ StatusNames() []string }) {
-	statusOrder := make(map[string]int)
-	for i, s := range cfg.StatusNames() {
-		statusOrder[s] = i
-	}
-
-	sort.Slice(beans, func(i, j int) bool {
-		oi, oj := statusOrder[beans[i].Status], statusOrder[beans[j].Status]
-		if oi != oj {
-			return oi < oj
-		}
-		// Then by created date (oldest first for milestones)
-		if beans[i].CreatedAt != nil && beans[j].CreatedAt != nil {
-			return beans[i].CreatedAt.Before(*beans[j].CreatedAt)
-		}
-		return beans[i].ID < beans[j].ID
-	})
 }
 
 // sortByTypeThenStatus sorts beans by type order, then status order, then by ID.
