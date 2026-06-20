@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -122,6 +123,139 @@ func TestBuildRoadmap(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestRoadmapMilestoneOrderingIsDeterministic builds more than 12 milestones
+// (Go's sort.Slice switches from insertion sort to a heap/quicksort above ~12
+// elements, so order must not depend on input order), all status=todo with an
+// identical CreatedAt, titled "Wave 1 —".."Wave N —" each with one live child,
+// and asserts the milestone group order is stable across shuffled inputs.
+func TestRoadmapMilestoneOrderingIsDeterministic(t *testing.T) {
+	oldCfg := cfg
+	defer func() { cfg = oldCfg }()
+	cfg = config.Default()
+
+	created := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	const n = 16
+
+	// Build canonical (sorted) input, then derive shuffled permutations from it.
+	base := make([]*bean.Bean, 0, n*2)
+	for i := 1; i <= n; i++ {
+		mID := fmt.Sprintf("m%02d", i)
+		base = append(base, &bean.Bean{
+			ID:        mID,
+			Type:      "milestone",
+			Title:     fmt.Sprintf("Wave %d — phase", i),
+			Status:    "todo",
+			CreatedAt: &created,
+		})
+		base = append(base, &bean.Bean{
+			ID:     fmt.Sprintf("c%02d", i),
+			Type:   "task",
+			Title:  fmt.Sprintf("Child %d", i),
+			Status: "todo",
+			Parent: mID,
+		})
+	}
+
+	// The canonical sort (SortByStatusPriorityAndType) falls through to a stable,
+	// case-insensitive title tiebreaker here (all milestones share status, no
+	// priority/order/type difference). That makes the order deterministic and
+	// input-order-independent — which is the property under test. Derive the
+	// expected order by sorting the canonical input's titles the same way.
+	canonical := make([]*bean.Bean, 0, n)
+	for _, b := range base {
+		if b.Type == "milestone" {
+			canonical = append(canonical, b)
+		}
+	}
+	bean.SortByStatusPriorityAndType(canonical, cfg.StatusNames(), cfg.PriorityNames(), cfg.TypeNames())
+	want := make([]string, len(canonical))
+	for i, b := range canonical {
+		want[i] = b.Title
+	}
+
+	// A few deterministic permutations of the input slice.
+	permute := func(in []*bean.Bean, step int) []*bean.Bean {
+		out := make([]*bean.Bean, len(in))
+		for i := range in {
+			out[i] = in[(i*step+step)%len(in)]
+		}
+		// Ensure it's a real permutation by falling back to reverse if collisions.
+		seen := make(map[*bean.Bean]bool, len(out))
+		dup := false
+		for _, b := range out {
+			if seen[b] {
+				dup = true
+				break
+			}
+			seen[b] = true
+		}
+		if dup {
+			for i := range in {
+				out[i] = in[len(in)-1-i]
+			}
+		}
+		return out
+	}
+
+	for _, step := range []int{1, 3, 5, 7} {
+		input := permute(base, step)
+		result := buildRoadmap(input, false, nil, nil)
+		got := make([]string, len(result.Milestones))
+		for i, mg := range result.Milestones {
+			got[i] = mg.Milestone.Title
+		}
+		if len(got) != len(want) {
+			t.Fatalf("step %d: got %d milestones, want %d (%v)", step, len(got), len(want), got)
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Fatalf("step %d: milestone order[%d] = %q, want %q\nfull: %v", step, i, got[i], want[i], got)
+			}
+		}
+	}
+}
+
+// TestRoadmapExcludesScrappedMilestoneByDefault verifies a scrapped milestone
+// with a live child is dropped by default but surfaces under includeDone.
+func TestRoadmapExcludesScrappedMilestoneByDefault(t *testing.T) {
+	oldCfg := cfg
+	defer func() { cfg = oldCfg }()
+	cfg = config.Default()
+
+	now := time.Now()
+	beans := []*bean.Bean{
+		{ID: "m-live", Type: "milestone", Title: "Live Wave", Status: "todo", CreatedAt: &now},
+		{ID: "c-live", Type: "task", Title: "Live Child", Status: "todo", Parent: "m-live"},
+		{ID: "m-scrapped", Type: "milestone", Title: "Scrapped Wave", Status: "scrapped", CreatedAt: &now},
+		{ID: "c-scrapped-child", Type: "task", Title: "Live child of scrapped", Status: "todo", Parent: "m-scrapped"},
+	}
+
+	t.Run("default excludes scrapped milestone", func(t *testing.T) {
+		result := buildRoadmap(beans, false, nil, nil)
+		for _, mg := range result.Milestones {
+			if mg.Milestone.ID == "m-scrapped" {
+				t.Fatalf("scrapped milestone must be excluded by default, got %v", mg.Milestone.ID)
+			}
+		}
+		if len(result.Milestones) != 1 || result.Milestones[0].Milestone.ID != "m-live" {
+			t.Fatalf("expected only m-live, got %d milestones", len(result.Milestones))
+		}
+	})
+
+	t.Run("includeDone surfaces scrapped milestone", func(t *testing.T) {
+		result := buildRoadmap(beans, true, nil, nil)
+		found := false
+		for _, mg := range result.Milestones {
+			if mg.Milestone.ID == "m-scrapped" {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("scrapped milestone must surface under includeDone=true")
+		}
+	})
 }
 
 func TestFirstParagraph(t *testing.T) {
