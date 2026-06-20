@@ -511,6 +511,80 @@ func (c *Core) IsBlocked(beanID string) bool {
 	return len(c.FindAllBlockers(beanID)) > 0
 }
 
+// ActiveBlockerIndex builds, in a single pass over all beans, the set of bean
+// IDs that actively block at least one non-resolved dependent. It is the
+// direction-symmetric inverse of IsBlocked: a bean "has blocking" if it is
+// named as an active blocker by a non-resolved dependent — via that dependent's
+// blocked_by field OR via the bean's own forward blocking list. Dependents that
+// are resolved (completed/scrapped) do not count.
+//
+// Building the index once avoids an O(N^2) FindIncomingLinks call per bean.
+func (c *Core) ActiveBlockerIndex() map[string]bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	index := make(map[string]bool, len(c.beans))
+	for _, dependent := range c.beans {
+		// Only non-resolved dependents contribute "active" blocking edges.
+		if isResolvedStatus(dependent.Status) {
+			continue
+		}
+		// Reverse edge: dependent.blocked_by names its blockers.
+		for _, blockerID := range dependent.BlockedBy {
+			if _, ok := c.beans[blockerID]; ok {
+				index[blockerID] = true
+			}
+		}
+	}
+	// Forward edge: a bean's own blocking list pointing at a non-resolved bean.
+	for _, blocker := range c.beans {
+		for _, blockedID := range blocker.Blocking {
+			if b, ok := c.beans[blockedID]; ok && !isResolvedStatus(b.Status) {
+				index[blocker.ID] = true
+				break
+			}
+		}
+	}
+	return index
+}
+
+// ActiveBlockersOfIndex builds, in a single pass over all beans, a map from each
+// non-resolved dependent's ID to the set of bean IDs that actively block it
+// (via the dependent's blocked_by field or another bean's forward blocking list).
+// Used to answer "which beans block <id>?" honoring reverse edges.
+func (c *Core) ActiveBlockersOfIndex() map[string]map[string]bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	index := make(map[string]map[string]bool, len(c.beans))
+	add := func(dependentID, blockerID string) {
+		set := index[dependentID]
+		if set == nil {
+			set = make(map[string]bool)
+			index[dependentID] = set
+		}
+		set[blockerID] = true
+	}
+	for _, dependent := range c.beans {
+		if isResolvedStatus(dependent.Status) {
+			continue
+		}
+		for _, blockerID := range dependent.BlockedBy {
+			if _, ok := c.beans[blockerID]; ok {
+				add(dependent.ID, blockerID)
+			}
+		}
+	}
+	for _, blocker := range c.beans {
+		for _, blockedID := range blocker.Blocking {
+			if b, ok := c.beans[blockedID]; ok && !isResolvedStatus(b.Status) {
+				add(blockedID, blocker.ID)
+			}
+		}
+	}
+	return index
+}
+
 // IsExplicitlyBlocked returns true if the bean has direct active blockers
 // (via blocked_by field or incoming blocking links).
 func (c *Core) IsExplicitlyBlocked(beanID string) bool {
