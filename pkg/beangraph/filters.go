@@ -2,8 +2,8 @@ package beangraph
 
 import (
 	"github.com/hmans/beans/pkg/bean"
-	"github.com/hmans/beans/pkg/beangraph/model"
 	"github.com/hmans/beans/pkg/beancore"
+	"github.com/hmans/beans/pkg/beangraph/model"
 )
 
 // ApplyFilter applies BeanFilter to a slice of beans and returns filtered results.
@@ -55,7 +55,11 @@ func ApplyFilter(beans []*bean.Bean, filter *model.BeanFilter, core *beancore.Co
 		result = filterByNoParent(result)
 	}
 	if filter.ParentID != nil && *filter.ParentID != "" {
-		result = filterByParentID(result, *filter.ParentID)
+		parentID, found := core.NormalizeID(*filter.ParentID)
+		if !found {
+			parentID = *filter.ParentID
+		}
+		result = filterByParentID(result, parentID)
 	}
 
 	// Blocking filters
