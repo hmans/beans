@@ -67,8 +67,8 @@ func TestSendMessageFirstUserMessageCallback(t *testing.T) {
 		},
 	}
 
-	// SendMessage will try to spawn a process, which will fail since there's no
-	// claude binary in test. But the callback should fire before spawning.
+	// The spawn fails because the manager has no agent command, but the
+	// callback fires before spawning.
 	_ = m.SendMessage("wt-test", "/tmp", "Fix the auth bug", nil)
 
 	select {

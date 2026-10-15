@@ -14,12 +14,23 @@ import (
 const (
 	// ConfigFileName is the name of the config file at project root
 	ConfigFileName = ".beans.yml"
+	// LocalConfigFileName is the per-user, gitignored file next to
+	// ConfigFileName. It carries only next.focus.
+	LocalConfigFileName = ".beans.local.yml"
 	// DefaultBeansPath is the default directory for storing beans
 	DefaultBeansPath = ".beans"
 	// LegacyConfigFile is the old config file location (deprecated)
 	LegacyConfigFile = "config.yaml"
 	// DefaultServerPort is the default port for the web server
 	DefaultServerPort = 8080
+	// DefaultStackedListHeight is the TUI list pane height in the stacked layout.
+	DefaultStackedListHeight = 15
+	// MinStackedListHeight keeps the border and a few rows of the stacked list visible.
+	MinStackedListHeight = 5
+	// FormatVersion names the Beans release that introduced the current data
+	// format (bean frontmatter and config). It changes only when a release
+	// breaks that format, so an updater can tell which migrations a project needs.
+	FormatVersion = "v0.3.0"
 )
 
 // DefaultStatuses defines the hardcoded status configuration.
@@ -156,14 +167,54 @@ type ServerConfig struct {
 	CORSOrigins []string `yaml:"cors_origins,omitempty"`
 }
 
+// NextConfig defines settings for `beans next`.
+type NextConfig struct {
+	// Focus is the ID of the milestone or epic whose children `beans next`
+	// ranks first. Empty: every in-progress milestone or epic is a front.
+	Focus string `yaml:"focus,omitempty"`
+}
+
+// TUIConfig defines settings for the terminal UI.
+type TUIConfig struct {
+	// StackedListHeight is the list pane height in terminal rows, border
+	// included, when the preview is shown below the list.
+	// Default: 15. Values below 5 are raised to 5.
+	StackedListHeight int `yaml:"stacked_list_height,omitempty"`
+
+	// PreviewPosition places the preview pane relative to the list.
+	// Valid values: "auto" (chosen by terminal size), "right", "below".
+	// A position that does not fit the terminal falls back to the other one.
+	// Default: "auto"
+	PreviewPosition PreviewPosition `yaml:"preview_position,omitempty"`
+}
+
+// PreviewPosition places the TUI preview pane relative to the list.
+type PreviewPosition string
+
+const (
+	PreviewPositionAuto  PreviewPosition = "auto"
+	PreviewPositionRight PreviewPosition = "right"
+	PreviewPositionBelow PreviewPosition = "below"
+)
+
 // Config holds the beans configuration.
 // Note: Statuses are no longer stored in config - they are hardcoded like types.
 type Config struct {
+	// FormatVersion is empty when the config file has no format_version;
+	// the project's data format is then unknown.
+	FormatVersion string `yaml:"format_version,omitempty"`
+
 	Project  ProjectConfig  `yaml:"project,omitempty"`
 	Beans    BeansConfig    `yaml:"beans"`
 	Worktree WorktreeConfig `yaml:"worktree,omitempty"`
 	Agent    AgentConfig    `yaml:"agent,omitempty"`
 	Server   ServerConfig   `yaml:"server,omitempty"`
+	TUI      TUIConfig      `yaml:"tui,omitempty"`
+	Next     NextConfig     `yaml:"next,omitempty"`
+
+	// localFocus is next.focus from LocalConfigFileName; it replaces
+	// Next.Focus but is never saved to ConfigFileName.
+	localFocus *string
 
 	// configDir is the directory containing the config file (not serialized)
 	// Used to resolve relative paths
@@ -184,6 +235,7 @@ type BeansConfig struct {
 // Default returns a Config with default values.
 func Default() *Config {
 	return &Config{
+		FormatVersion: FormatVersion,
 		Beans: BeansConfig{
 			Path:          DefaultBeansPath,
 			Prefix:        "",
@@ -261,7 +313,12 @@ func Load(configPath string) (*Config, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return Default(), nil
+			cfg := Default()
+			cfg.configDir = filepath.Dir(configPath)
+			if err := cfg.loadLocal(); err != nil {
+				return nil, err
+			}
+			return cfg, nil
 		}
 		return nil, err
 	}
@@ -273,6 +330,9 @@ func Load(configPath string) (*Config, error) {
 
 	// Store the config directory for resolving relative paths
 	cfg.configDir = filepath.Dir(configPath)
+	if err := cfg.loadLocal(); err != nil {
+		return nil, err
+	}
 
 	// Apply defaults for missing values
 	if cfg.Beans.Path == "" {
@@ -309,10 +369,75 @@ func LoadFromDirectoryWithin(startDir, rootDir string) (*Config, error) {
 		// No config found, return default anchored at startDir
 		cfg := Default()
 		cfg.configDir = startDir
+		if err := cfg.loadLocal(); err != nil {
+			return nil, err
+		}
 		return cfg, nil
 	}
 
 	return Load(configPath)
+}
+
+// localConfig is the part of LocalConfigFileName that is read.
+type localConfig struct {
+	Next struct {
+		Focus *string `yaml:"focus"`
+	} `yaml:"next"`
+}
+
+func (c *Config) localConfigPath() string {
+	return filepath.Join(c.configDir, LocalConfigFileName)
+}
+
+func (c *Config) loadLocal() error {
+	data, err := os.ReadFile(c.localConfigPath())
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var local localConfig
+	if err := yaml.Unmarshal(data, &local); err != nil {
+		return fmt.Errorf("parsing %s: %w", LocalConfigFileName, err)
+	}
+	c.localFocus = local.Next.Focus
+	return nil
+}
+
+// Focus returns next.focus and the name of the file it came from. The
+// local file wins whenever it sets the key. An empty id means no focus.
+func (c *Config) Focus() (id, source string) {
+	if c.localFocus != nil {
+		return *c.localFocus, LocalConfigFileName
+	}
+	if c.Next.Focus != "" {
+		return c.Next.Focus, ConfigFileName
+	}
+	return "", ""
+}
+
+// SetLocalFocus writes next.focus to LocalConfigFileName.
+func (c *Config) SetLocalFocus(id string) error {
+	data, err := yaml.Marshal(map[string]map[string]string{"next": {"focus": id}})
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(c.localConfigPath(), data, 0644); err != nil {
+		return err
+	}
+	c.localFocus = &id
+	return nil
+}
+
+// ClearLocalFocus removes LocalConfigFileName, so next.focus from
+// ConfigFileName applies again.
+func (c *Config) ClearLocalFocus() error {
+	if err := os.Remove(c.localConfigPath()); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	c.localFocus = nil
+	return nil
 }
 
 // ResolveBeansPath returns the absolute path to the beans directory.
@@ -462,11 +587,36 @@ func (c *Config) toYAMLNode() *yaml.Node {
 		serverMapping.Content = append(serverMapping.Content, portKey, intNode(c.Server.Port))
 	}
 
+	// Build the tui mapping
+	tuiMapping := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+	if c.TUI.StackedListHeight != 0 {
+		key := strNode("stacked_list_height")
+		key.HeadComment = "List height in rows when the preview is shown below the list (default: 15)"
+		tuiMapping.Content = append(tuiMapping.Content, key, intNode(c.TUI.StackedListHeight))
+	}
+	if c.TUI.PreviewPosition != "" {
+		key := strNode("preview_position")
+		key.HeadComment = "Preview position: auto, right, below (default: auto)"
+		tuiMapping.Content = append(tuiMapping.Content, key, strNode(string(c.TUI.PreviewPosition)))
+	}
+
+	nextMapping := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+	if c.Next.Focus != "" {
+		key := strNode("focus")
+		key.HeadComment = "Milestone or epic that `beans next` ranks first (overridden by .beans.local.yml)"
+		nextMapping.Content = append(nextMapping.Content, key, strNode(c.Next.Focus))
+	}
+
 	// Build the top-level mapping
 	topMapping := &yaml.Node{
 		Kind:        yaml.MappingNode,
 		Tag:         "!!map",
 		HeadComment: "Beans configuration\nSee: https://github.com/hmans/beans",
+	}
+	if c.FormatVersion != "" {
+		key := strNode("format_version")
+		key.HeadComment = "Beans release that introduced this project's data format"
+		topMapping.Content = append(topMapping.Content, key, strNode(c.FormatVersion))
 	}
 	if len(projectMapping.Content) > 0 {
 		topMapping.Content = append(topMapping.Content, strNode("project"), projectMapping)
@@ -484,6 +634,14 @@ func (c *Config) toYAMLNode() *yaml.Node {
 
 	if len(serverMapping.Content) > 0 {
 		topMapping.Content = append(topMapping.Content, strNode("server"), serverMapping)
+	}
+
+	if len(tuiMapping.Content) > 0 {
+		topMapping.Content = append(topMapping.Content, strNode("tui"), tuiMapping)
+	}
+
+	if len(nextMapping.Content) > 0 {
+		topMapping.Content = append(topMapping.Content, strNode("next"), nextMapping)
 	}
 
 	// Wrap in a document node
@@ -817,4 +975,51 @@ func (c *Config) GetCORSOrigins() []string {
 		return c.Server.CORSOrigins
 	}
 	return []string{"http://localhost:*", "http://127.0.0.1:*"}
+}
+
+// GetStackedListHeight returns the TUI list pane height for the stacked layout.
+func (c *Config) GetStackedListHeight() int {
+	if c.TUI.StackedListHeight == 0 {
+		return DefaultStackedListHeight
+	}
+	return max(c.TUI.StackedListHeight, MinStackedListHeight)
+}
+
+// GetPreviewPosition returns the TUI preview position, "auto" if unset or invalid.
+func (c *Config) GetPreviewPosition() PreviewPosition {
+	switch c.TUI.PreviewPosition {
+	case PreviewPositionRight, PreviewPositionBelow:
+		return c.TUI.PreviewPosition
+	default:
+		return PreviewPositionAuto
+	}
+}
+
+// IgnoreLocalConfig appends LocalConfigFileName to dir/.gitignore unless a
+// line already names it. It creates the file when absent.
+func IgnoreLocalConfig(dir string) error {
+	path := filepath.Join(dir, ".gitignore")
+	data, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if l := strings.TrimSpace(line); l == LocalConfigFileName || l == "/"+LocalConfigFileName {
+			return nil
+		}
+	}
+	var add string
+	if len(data) > 0 && !strings.HasSuffix(string(data), "\n") {
+		add = "\n"
+	}
+	add += LocalConfigFileName + "\n"
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	if _, err := f.WriteString(add); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
 }

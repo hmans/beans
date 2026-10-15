@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"log"
-	"os/exec"
 	"strings"
 	"time"
 )
@@ -29,10 +28,11 @@ What about error handling?
 Let's skip this for now`
 
 // GenerateQuickReplies runs a lightweight Claude Haiku call to suggest
-// follow-up replies based on the last assistant message and workspace context.
+// follow-up replies based on the last assistant message and workspace context,
+// using the agent executable command.
 // workspaceContext is optional — pass "" to omit it.
 // Returns a slice of suggestion strings, or nil on error.
-func GenerateQuickReplies(message string, workspaceContext string) []string {
+func GenerateQuickReplies(command, message, workspaceContext string) []string {
 	var sb strings.Builder
 	sb.WriteString(quickRepliesPrompt)
 	if workspaceContext != "" {
@@ -46,13 +46,16 @@ func GenerateQuickReplies(message string, workspaceContext string) []string {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "claude",
+	cmd, err := newAgentCmd(ctx, command,
 		"--print", "--model", "haiku",
 		"--no-session-persistence",
 		"--disable-slash-commands",
 		"--strict-mcp-config", "--mcp-config", `{"mcpServers":{}}`,
 	)
-	cmd.Env = buildClaudeEnv()
+	if err != nil {
+		log.Printf("[quickreplies] %v", err)
+		return nil
+	}
 	cmd.Stdin = strings.NewReader(prompt)
 
 	out, err := cmd.Output()
@@ -93,7 +96,7 @@ func (m *Manager) generateQuickReplies(beanID string) {
 		wsContext = m.quickReplyContext(beanID)
 	}
 
-	replies := GenerateQuickReplies(lastAssistant, wsContext)
+	replies := GenerateQuickReplies(m.agentCommand, lastAssistant, wsContext)
 	if len(replies) == 0 {
 		return
 	}

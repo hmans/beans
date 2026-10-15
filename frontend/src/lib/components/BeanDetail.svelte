@@ -245,6 +245,19 @@
     </div>
   {/if}
 
+  <!-- Properties -->
+  {#if bean.properties.length > 0}
+    <div class="mb-6" data-testid="bean-properties">
+      <h2 class="mb-2 text-xs font-semibold text-text-muted uppercase">Properties</h2>
+      <dl class="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-sm">
+        {#each bean.properties as prop (prop.key)}
+          <dt class="text-text-muted">{prop.key}</dt>
+          <dd class="break-words whitespace-pre-wrap">{prop.value}</dd>
+        {/each}
+      </dl>
+    </div>
+  {/if}
+
   <!-- Relationships -->
   {#if parent || children.length > 0 || blocking.length > 0 || blockedBy.length > 0}
     <div class="mb-6 space-y-3">

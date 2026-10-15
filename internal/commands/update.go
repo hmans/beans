@@ -34,6 +34,8 @@ var (
 	updateRemoveBlockedBy []string
 	updateTag             []string
 	updateRemoveTag       []string
+	updateProperty        []string
+	updateRemoveProperty  []string
 	updateIfMatch         string
 	updateJSON            bool
 )
@@ -102,7 +104,7 @@ var updateCmd = &cobra.Command{
 		// Require at least one change
 		if len(changes) == 0 {
 			return cmdError(updateJSON, output.ErrValidation,
-				"no changes specified (use --status, --type, --priority, --title, --body, --parent, --blocking, --blocked-by, --tag, or their --remove-* variants)")
+				"no changes specified (use --status, --type, --priority, --title, --body, --parent, --blocking, --blocked-by, --tag, --property, or their --remove-* variants)")
 		}
 
 		// Output result
@@ -202,6 +204,19 @@ func buildUpdateInput(cmd *cobra.Command, existingTags []string, currentBody str
 		changes = append(changes, "tags")
 	}
 
+	if len(updateProperty) > 0 {
+		props, err := parseProperties(updateProperty)
+		if err != nil {
+			return input, nil, err
+		}
+		input.SetProperties = props
+		changes = append(changes, "properties")
+	}
+	if len(updateRemoveProperty) > 0 {
+		input.RemoveProperties = updateRemoveProperty
+		changes = append(changes, "properties")
+	}
+
 	// Handle parent relationship
 	if cmd.Flags().Changed("parent") {
 		input.Parent = &updateParent
@@ -241,7 +256,8 @@ func hasFieldUpdates(input model.UpdateBeanInput) bool {
 		input.Title != nil || input.Body != nil || input.BodyMod != nil || input.Tags != nil ||
 		input.AddTags != nil || input.RemoveTags != nil ||
 		input.Parent != nil || input.AddBlocking != nil || input.RemoveBlocking != nil ||
-		input.AddBlockedBy != nil || input.RemoveBlockedBy != nil
+		input.AddBlockedBy != nil || input.RemoveBlockedBy != nil ||
+		input.SetProperties != nil || input.RemoveProperties != nil
 }
 
 // isConflictError returns true if the error is an ETag-related conflict error.
@@ -291,6 +307,8 @@ func RegisterUpdateCmd(root *cobra.Command) {
 	updateCmd.Flags().StringArrayVar(&updateRemoveBlockedBy, "remove-blocked-by", nil, "ID of blocker bean to remove (can be repeated)")
 	updateCmd.Flags().StringArrayVar(&updateTag, "tag", nil, "Add tag (can be repeated)")
 	updateCmd.Flags().StringArrayVar(&updateRemoveTag, "remove-tag", nil, "Remove tag (can be repeated)")
+	updateCmd.Flags().StringArrayVar(&updateProperty, "property", nil, "Set custom property as key=value (can be repeated)")
+	updateCmd.Flags().StringArrayVar(&updateRemoveProperty, "remove-property", nil, "Remove custom property by key (can be repeated)")
 	updateCmd.Flags().StringVar(&updateIfMatch, "if-match", "", "Only update if etag matches (optimistic locking)")
 	updateCmd.MarkFlagsMutuallyExclusive("parent", "remove-parent")
 	updateCmd.Flags().BoolVar(&updateJSON, "json", false, "Output as JSON")

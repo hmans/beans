@@ -4,6 +4,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+
+	"github.com/hmans/beans/internal/gittest"
 )
 
 // initTestRepo creates a temporary git repo with an initial commit.
@@ -18,11 +20,14 @@ func initTestRepo(t *testing.T) string {
 		{"git", "commit", "--allow-empty", "-m", "initial"},
 	}
 
-	for _, args := range commands {
+	for i, args := range commands {
 		cmd := exec.Command(args[0], args[1:]...)
 		cmd.Dir = dir
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("%v failed: %s: %v", args, out, err)
+		}
+		if i == 0 {
+			gittest.RequireGitDirInside(t, dir)
 		}
 	}
 

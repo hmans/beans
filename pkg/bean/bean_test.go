@@ -1709,3 +1709,67 @@ func TestETagChangesAfterModification(t *testing.T) {
 		t.Error("JSON etag should differ after modification")
 	}
 }
+
+func TestClone(t *testing.T) {
+	created := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	updated := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
+	newOriginal := func() *Bean {
+		c, u := created, updated
+		return &Bean{
+			ID:         "abc",
+			Title:      "Original",
+			Status:     "todo",
+			Tags:       []string{"one"},
+			Blocking:   []string{"b1"},
+			BlockedBy:  []string{"b2"},
+			Properties: map[string]string{"k": "v"},
+			CreatedAt:  &c,
+			UpdatedAt:  &u,
+		}
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*Bean)
+	}{
+		{"title", func(b *Bean) { b.Title = "Changed" }},
+		{"tags element", func(b *Bean) { b.Tags[0] = "changed" }},
+		{"tags append", func(b *Bean) { b.Tags = append(b.Tags, "two") }},
+		{"blocking element", func(b *Bean) { b.Blocking[0] = "changed" }},
+		{"blocked_by element", func(b *Bean) { b.BlockedBy[0] = "changed" }},
+		{"properties", func(b *Bean) { b.Properties["k"] = "changed"; b.Properties["new"] = "x" }},
+		{"created_at", func(b *Bean) { *b.CreatedAt = time.Time{} }},
+		{"updated_at", func(b *Bean) { *b.UpdatedAt = time.Time{} }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			orig := newOriginal()
+			want := orig.ETag()
+
+			clone := orig.Clone()
+			if clone.ETag() != want {
+				t.Fatalf("clone ETag = %s, want %s", clone.ETag(), want)
+			}
+			tt.mutate(clone)
+
+			if got := orig.ETag(); got != want {
+				t.Errorf("original ETag changed to %s after mutating the clone, want %s", got, want)
+			}
+			if !orig.CreatedAt.Equal(created) || !orig.UpdatedAt.Equal(updated) {
+				t.Errorf("original timestamps changed: %v, %v", orig.CreatedAt, orig.UpdatedAt)
+			}
+		})
+	}
+
+	t.Run("nil and empty fields keep their form", func(t *testing.T) {
+		orig := &Bean{Title: "T", Status: "todo", Tags: []string{}}
+		clone := orig.Clone()
+		if clone.Tags == nil {
+			t.Error("empty Tags became nil")
+		}
+		if clone.Blocking != nil || clone.Properties != nil || clone.CreatedAt != nil {
+			t.Error("nil fields became non-nil")
+		}
+	})
+}

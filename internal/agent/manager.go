@@ -60,6 +60,7 @@ type Manager struct {
 	quickReplyContext     QuickReplyContextFunc
 	defaultMode   DefaultMode
 	defaultEffort EffortLevel
+	agentCommand  string // empty: spawning fails with errNoAgentCommand
 
 	subMu       sync.Mutex
 	subscribers map[string][]chan struct{}
@@ -113,6 +114,14 @@ func (m *Manager) SetOnFirstUserMessage(fn OnFirstUserMessageFunc) {
 // Used to update workspace activity timestamps for sidebar sorting.
 func (m *Manager) SetOnTurnComplete(fn OnTurnCompleteFunc) {
 	m.onTurnComplete = fn
+}
+
+// SetAgentCommand sets the executable started for agent sessions, quick replies
+// and descriptions. Until it is set, every spawn fails with errNoAgentCommand,
+// so a Manager built without it can never start a real agent.
+// Must be called during initialization.
+func (m *Manager) SetAgentCommand(command string) {
+	m.agentCommand = command
 }
 
 // SetQuickReplyContext registers a callback that returns workspace context

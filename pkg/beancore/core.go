@@ -3,10 +3,8 @@
 package beancore
 
 import (
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"io"
 	"os"
 	"path/filepath"
@@ -29,9 +27,15 @@ var ErrNotFound = errors.New("bean not found")
 type ETagMismatchError struct {
 	Provided string
 	Current  string
+	// Concurrent marks a mismatch that Core.Update found: Provided is then the
+	// ETag the writer read, not one the client sent.
+	Concurrent bool
 }
 
 func (e *ETagMismatchError) Error() string {
+	if e.Concurrent {
+		return fmt.Sprintf("bean changed concurrently: read at %s, current is %s", e.Provided, e.Current)
+	}
 	return fmt.Sprintf("etag mismatch: provided %s, current is %s", e.Provided, e.Current)
 }
 
@@ -202,19 +206,7 @@ func (c *Core) loadBean(path string) (*bean.Bean, error) {
 	filename := filepath.Base(path)
 	b.ID, b.Slug = bean.ParseFilename(filename)
 
-	// Apply defaults for GraphQL non-nullable fields
-	if b.Type == "" {
-		b.Type = "task"
-	}
-	if b.Priority == "" {
-		b.Priority = "normal"
-	}
-	if b.Tags == nil {
-		b.Tags = []string{}
-	}
-	if b.Blocking == nil {
-		b.Blocking = []string{}
-	}
+	b.ApplyDefaults()
 	if b.CreatedAt == nil {
 		if b.UpdatedAt != nil {
 			b.CreatedAt = b.UpdatedAt
@@ -441,10 +433,12 @@ func (c *Core) SaveDirty() (int, error) {
 			continue
 		}
 
+		b = b.Clone()
 		if err := c.saveToDisk(b); err != nil {
 			return saved, fmt.Errorf("saving bean %s: %w", id, err)
 		}
 
+		c.beans[id] = b
 		delete(c.dirty, id)
 		saved++
 	}
@@ -467,10 +461,12 @@ func (c *Core) SaveBean(id string) error {
 		return ErrNotFound
 	}
 
+	b = b.Clone()
 	if err := c.saveToDisk(b); err != nil {
 		return fmt.Errorf("saving bean %s: %w", id, err)
 	}
 
+	c.beans[id] = b
 	delete(c.dirty, id)
 	return nil
 }
@@ -503,6 +499,8 @@ func (c *Core) Create(b *bean.Bean, opts ...UpdateOption) error {
 		b.ID = id
 	}
 
+	b.ApplyDefaults()
+
 	// Set timestamps
 	now := time.Now().UTC().Truncate(time.Second)
 	b.CreatedAt = &now
@@ -531,10 +529,14 @@ func (c *Core) Create(b *bean.Bean, opts ...UpdateOption) error {
 	return nil
 }
 
-// Update modifies an existing bean.
-// If ifMatch is provided, validates the current version's etag matches before updating.
+// Update replaces the stored bean b.ID with b, a modified clone of it.
+// base is the ETag of the stored bean that b was cloned from; Update writes
+// only if the stored bean still has that ETag, and otherwise returns
+// ETagMismatchError, so concurrent writers cannot overwrite each other.
+// It returns CycleError if a parent, blocking or blocked_by link that b adds
+// would close a cycle with the links stored now.
 // By default, persists to disk. Use WithPersist(false) to only update runtime state.
-func (c *Core) Update(b *bean.Bean, ifMatch *string, opts ...UpdateOption) error {
+func (c *Core) Update(b *bean.Bean, base string, opts ...UpdateOption) error {
 	o := defaultUpdateOptions()
 	for _, opt := range opts {
 		opt(&o)
@@ -543,49 +545,20 @@ func (c *Core) Update(b *bean.Bean, ifMatch *string, opts ...UpdateOption) error
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Verify bean exists in memory
 	storedBean, ok := c.beans[b.ID]
 	if !ok {
 		return ErrNotFound
 	}
 
-	// Validate etag if provided or required
-	requireIfMatch := c.config != nil && c.config.Beans.RequireIfMatch
-
-	if requireIfMatch && (ifMatch == nil || *ifMatch == "") {
-		return &ETagRequiredError{}
+	if current := storedBean.ETag(); current != base {
+		return &ETagMismatchError{Provided: base, Current: current, Concurrent: true}
 	}
 
-	if ifMatch != nil && *ifMatch != "" {
-		// Calculate etag from the on-disk version by reading the stored bean's path
-		// This is necessary because the in-memory bean may have already been modified
-		// (Go uses pointers, so modifying the bean passed to Update also modifies c.beans[id])
-		var currentETag string
-		if storedBean.Path != "" && !c.dirty[b.ID] {
-			// Read current file from disk to calculate etag
-			diskPath := filepath.Join(c.root, storedBean.Path)
-			content, err := os.ReadFile(diskPath)
-			if err != nil {
-				// If file doesn't exist yet, fall back to stored bean's etag
-				currentETag = storedBean.ETag()
-			} else {
-				// Calculate etag from on-disk content
-				h := fnv.New64a()
-				h.Write(content)
-				currentETag = hex.EncodeToString(h.Sum(nil))
-			}
-		} else {
-			// No path yet or bean is dirty (not on disk), use in-memory etag
-			currentETag = storedBean.ETag()
-		}
-
-		if currentETag != *ifMatch {
-			return &ETagMismatchError{
-				Provided: *ifMatch,
-				Current:  currentETag,
-			}
-		}
+	if err := c.addedLinkCycleLocked(storedBean, b); err != nil {
+		return err
 	}
+
+	b.ApplyDefaults()
 
 	// Update timestamp
 	now := time.Now().UTC().Truncate(time.Second)
@@ -762,13 +735,14 @@ func (c *Core) Archive(id string) error {
 	}
 
 	// Update bean's path in store and notify subscribers
-	targetBean.Path = newRelPath
-	c.beans[targetID] = targetBean
+	updated := targetBean.Clone()
+	updated.Path = newRelPath
+	c.beans[targetID] = updated
 	c.mu.Unlock()
 
 	c.fanOut([]BeanEvent{{
 		Type:   EventUpdated,
-		Bean:   targetBean,
+		Bean:   updated,
 		BeanID: targetID,
 	}})
 
@@ -802,8 +776,9 @@ func (c *Core) Unarchive(id string) error {
 	}
 
 	// Update bean's path
-	targetBean.Path = newRelPath
-	c.beans[targetID] = targetBean
+	updated := targetBean.Clone()
+	updated.Path = newRelPath
+	c.beans[targetID] = updated
 
 	return nil
 }
@@ -915,10 +890,11 @@ func (c *Core) LoadAndUnarchive(id string) (*bean.Bean, error) {
 	}
 
 	// Update bean's path
-	b.Path = newRelPath
-	c.beans[targetID] = b
+	updated := b.Clone()
+	updated.Path = newRelPath
+	c.beans[targetID] = updated
 
-	return b, nil
+	return updated, nil
 }
 
 // Init creates the .beans directory if it doesn't exist,

@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io"
+	"maps"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -69,6 +71,21 @@ func (b *Bean) RemoveTag(tag string) {
 		}
 	}
 	b.Tags = result
+}
+
+// propertyKeyPattern matches valid property keys: lowercase letters, numbers,
+// underscores, and hyphens, starting with a letter.
+var propertyKeyPattern = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
+
+// ValidatePropertyKey checks if a property key is valid.
+func ValidatePropertyKey(key string) error {
+	if key == "" {
+		return fmt.Errorf("property key cannot be empty")
+	}
+	if !propertyKeyPattern.MatchString(key) {
+		return fmt.Errorf("invalid property key %q: must be lowercase, start with a letter, and contain only letters, numbers, underscores, and hyphens", key)
+	}
+	return nil
 }
 
 // HasParent returns true if the bean has a parent.
@@ -164,6 +181,49 @@ type Bean struct {
 
 	// BlockedBy is a list of bean IDs that are blocking this bean.
 	BlockedBy []string `yaml:"blocked_by,omitempty" json:"blocked_by,omitempty"`
+
+	// Properties holds user-defined key-value pairs.
+	Properties map[string]string `yaml:"properties,omitempty" json:"properties,omitempty"`
+}
+
+// Clone returns a deep copy of b. Writers modify a clone and hand it to
+// beancore.Core.Update, so the bean stored in Core is never modified in place.
+func (b *Bean) Clone() *Bean {
+	c := *b
+	c.Tags = slices.Clone(b.Tags)
+	c.Blocking = slices.Clone(b.Blocking)
+	c.BlockedBy = slices.Clone(b.BlockedBy)
+	c.Properties = maps.Clone(b.Properties)
+	c.CreatedAt = cloneTime(b.CreatedAt)
+	c.UpdatedAt = cloneTime(b.UpdatedAt)
+	return &c
+}
+
+func cloneTime(t *time.Time) *time.Time {
+	if t == nil {
+		return nil
+	}
+	c := *t
+	return &c
+}
+
+// ApplyDefaults fills the fields that GraphQL declares non-nullable. Every
+// bean that Core stores goes through it, whether loaded, created or updated,
+// so a stored bean renders the same before and after a reload and keeps its
+// ETag.
+func (b *Bean) ApplyDefaults() {
+	if b.Type == "" {
+		b.Type = "task"
+	}
+	if b.Priority == "" {
+		b.Priority = "normal"
+	}
+	if b.Tags == nil {
+		b.Tags = []string{}
+	}
+	if b.Blocking == nil {
+		b.Blocking = []string{}
+	}
 }
 
 // frontMatter is the subset of Bean that gets serialized to YAML front matter.
@@ -179,6 +239,8 @@ type frontMatter struct {
 	Parent    string     `yaml:"parent,omitempty"`
 	Blocking  []string   `yaml:"blocking,omitempty"`
 	BlockedBy []string   `yaml:"blocked_by,omitempty"`
+
+	Properties map[string]string `yaml:"properties,omitempty"`
 }
 
 // Parse reads a bean from a reader (markdown with YAML front matter).
@@ -193,18 +255,19 @@ func Parse(r io.Reader) (*Bean, error) {
 	bodyStr := strings.TrimSuffix(string(body), "\n")
 
 	return &Bean{
-		Title:     fm.Title,
-		Status:    fm.Status,
-		Type:      fm.Type,
-		Priority:  fm.Priority,
-		Tags:      fm.Tags,
-		CreatedAt: fm.CreatedAt,
-		UpdatedAt: fm.UpdatedAt,
-		Order:     fm.Order,
-		Body:      bodyStr,
-		Parent:    fm.Parent,
-		Blocking:  fm.Blocking,
-		BlockedBy: fm.BlockedBy,
+		Title:      fm.Title,
+		Status:     fm.Status,
+		Type:       fm.Type,
+		Priority:   fm.Priority,
+		Tags:       fm.Tags,
+		CreatedAt:  fm.CreatedAt,
+		UpdatedAt:  fm.UpdatedAt,
+		Order:      fm.Order,
+		Body:       bodyStr,
+		Parent:     fm.Parent,
+		Blocking:   fm.Blocking,
+		BlockedBy:  fm.BlockedBy,
+		Properties: fm.Properties,
 	}, nil
 }
 
@@ -221,22 +284,25 @@ type renderFrontMatter struct {
 	Parent    string     `yaml:"parent,omitempty"`
 	Blocking  []string   `yaml:"blocking,omitempty"`
 	BlockedBy []string   `yaml:"blocked_by,omitempty"`
+
+	Properties map[string]string `yaml:"properties,omitempty"`
 }
 
 // Render serializes the bean back to markdown with YAML front matter.
 func (b *Bean) Render() ([]byte, error) {
 	fm := renderFrontMatter{
-		Title:     b.Title,
-		Status:    b.Status,
-		Type:      b.Type,
-		Priority:  b.Priority,
-		Tags:      b.Tags,
-		CreatedAt: b.CreatedAt,
-		UpdatedAt: b.UpdatedAt,
-		Order:     b.Order,
-		Parent:    b.Parent,
-		Blocking:  b.Blocking,
-		BlockedBy: b.BlockedBy,
+		Title:      b.Title,
+		Status:     b.Status,
+		Type:       b.Type,
+		Priority:   b.Priority,
+		Tags:       b.Tags,
+		CreatedAt:  b.CreatedAt,
+		UpdatedAt:  b.UpdatedAt,
+		Order:      b.Order,
+		Parent:     b.Parent,
+		Blocking:   b.Blocking,
+		BlockedBy:  b.BlockedBy,
+		Properties: b.Properties,
 	}
 
 	fmBytes, err := yaml.Marshal(&fm)

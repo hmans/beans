@@ -6,6 +6,17 @@ import (
 	"github.com/hmans/beans/pkg/beancore"
 )
 
+// AddReadyFilter restricts filter to beans available to start: not blocked,
+// not in-progress, completed, scrapped or draft, and not below a completed or
+// scrapped ancestor.
+func AddReadyFilter(filter *model.BeanFilter) {
+	isBlocked := false
+	excludeImplicitTerminal := true
+	filter.IsBlocked = &isBlocked
+	filter.ExcludeStatus = append(filter.ExcludeStatus, "in-progress", "completed", "scrapped", "draft")
+	filter.ExcludeImplicitTerminal = &excludeImplicitTerminal
+}
+
 // ApplyFilter applies BeanFilter to a slice of beans and returns filtered results.
 // This is used by both the top-level beans query and relationship field resolvers.
 func ApplyFilter(beans []*bean.Bean, filter *model.BeanFilter, core *beancore.Core) []*bean.Bean {

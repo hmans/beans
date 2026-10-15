@@ -35,14 +35,14 @@ Key packages:
 
 ## GraphQL
 
-- When making changes to the GraphQL schema (`internal/graph/schema.graphqls`), run `mise codegen` to regenerate both backend (`generated.go`) and frontend (`frontend/src/lib/graphql/generated.ts`) types.
-- When adding or changing frontend GraphQL operations (queries, mutations, subscriptions), update `frontend/src/lib/graphql/operations.graphql` and run `mise codegen`. Do NOT use inline `gql` strings — all operations must go through codegen for type safety.
+- When making changes to the GraphQL schema (`internal/graph/schema.graphqls`), run `just codegen` to regenerate both backend (`generated.go`) and frontend (`frontend/src/lib/graphql/generated.ts`) types.
+- When adding or changing frontend GraphQL operations (queries, mutations, subscriptions), update `frontend/src/lib/graphql/operations.graphql` and run `just codegen`. Do NOT use inline `gql` strings — all operations must go through codegen for type safety.
 - All CLI commands that interact with beans should internally use GraphQL queries/mutations against the local server.
 - Subscriptions use WebSocket transport. The `beanChanged` subscription supports `includeInitial: true` to send a full snapshot on connect, avoiding race conditions between initial load and live updates.
 
 ## Build
 
-- `mise build` to build a `./beans` executable
+- `just build` to build a `./beans` executable
 - The frontend is built and embedded into the Go binary at compile time
 
 # GraphQL Subscriptions
@@ -74,17 +74,17 @@ Key packages:
 
 ## Unit Tests
 
-- Run all tests: `mise test`
+- Run all tests: `just test`
 - Run specific package: `go test ./internal/bean/`
 - Use table-driven tests following Go conventions
 
 ## E2E Tests
 
 - Write or update Playwright e2e tests for any web UI changes.
-- Run e2e tests: `mise test:e2e`
+- Run e2e tests: `just test-e2e`
 - See `frontend/e2e/` for fixtures, page objects, and specs.
 
 ## Manual CLI Testing
 
-- `mise beans` will compile and run the beans CLI. Use it instead of building and running `./beans` manually.
+- `just beans` will compile and run the beans CLI. Use it instead of building and running `./beans` manually.
 - When testing read-only functionality, feel free to use this project's own `.beans/` directory. But for anything that modifies data, create a separate test project directory. All commands support the `--beans-path` flag to specify a custom path.

@@ -57,9 +57,35 @@ func SuccessWithWarnings(b *bean.Bean, message string, warnings []string) error 
 	})
 }
 
+// beanFields has the fields of bean.Bean without its MarshalJSON, so that
+// Bean can override blocked_by and etag.
+type beanFields bean.Bean
+
+// Bean is a bean as `show --json` and `list --json` print it. BlockedBy
+// lists every direct blocker, wherever the relation is stored; ETag is that
+// of the bean's file.
+type Bean struct {
+	*beanFields
+	BlockedBy []string `json:"blocked_by,omitempty"`
+	ETag      string   `json:"etag"`
+}
+
+// NewBean leaves b unchanged; without withBody the view omits the body, but
+// the etag stays that of the full bean.
+func NewBean(b *bean.Bean, blockedBy []string, withBody bool) Bean {
+	view := Bean{BlockedBy: blockedBy, ETag: b.ETag()}
+	if !withBody {
+		bodyless := *b
+		bodyless.Body = ""
+		b = &bodyless
+	}
+	view.beanFields = (*beanFields)(b)
+	return view
+}
+
 // SuccessSingle outputs a single bean directly (no wrapper).
 // This allows intuitive jq usage: beans show --json <id> | jq '.title'
-func SuccessSingle(b *bean.Bean) error {
+func SuccessSingle(b Bean) error {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(b)
@@ -67,7 +93,7 @@ func SuccessSingle(b *bean.Bean) error {
 
 // SuccessMultiple outputs a bean array directly (no wrapper).
 // This allows intuitive jq usage: beans list --json | jq '.[]'
-func SuccessMultiple(beans []*bean.Bean) error {
+func SuccessMultiple(beans []Bean) error {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(beans)

@@ -1,6 +1,8 @@
 package beancore
 
 import (
+	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/hmans/beans/pkg/bean"
@@ -851,5 +853,183 @@ func TestIsResolvedStatus(t *testing.T) {
 				t.Errorf("isResolvedStatus(%q) = %v, want %v", tt.status, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestClosedAncestor(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	// milestone (completed) -> epic (todo) -> task (in-progress), done (completed), dropped (scrapped)
+	for _, b := range []*bean.Bean{
+		{ID: "m001", Title: "Milestone", Status: "completed", Type: "milestone"},
+		{ID: "e001", Title: "Epic", Status: "todo", Type: "epic", Parent: "m001"},
+		{ID: "t001", Title: "Task", Status: "in-progress", Type: "task", Parent: "e001"},
+		{ID: "t002", Title: "Done", Status: "completed", Type: "task", Parent: "e001"},
+		{ID: "t003", Title: "Dropped", Status: "scrapped", Type: "task", Parent: "m001"},
+		{ID: "x001", Title: "Orphan", Status: "todo", Type: "task"},
+	} {
+		if err := core.Create(b); err != nil {
+			t.Fatalf("Create error: %v", err)
+		}
+	}
+
+	tests := []struct {
+		name       string
+		id         string
+		wantStatus string
+		wantFrom   string
+	}{
+		{"open child of closed parent", "e001", "completed", "m001"},
+		{"open grandchild of closed ancestor", "t001", "completed", "m001"},
+		{"completed bean needs no warning", "t002", "", ""},
+		{"scrapped bean needs no warning", "t003", "", ""},
+		{"no closed ancestor", "x001", "", ""},
+		{"closed root", "m001", "", ""},
+		{"unknown bean", "nope", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			status, from := core.ClosedAncestor(tt.id)
+			if status != tt.wantStatus || from != tt.wantFrom {
+				t.Errorf("ClosedAncestor(%q) = (%q, %q), want (%q, %q)", tt.id, status, from, tt.wantStatus, tt.wantFrom)
+			}
+		})
+	}
+}
+
+func TestRemoveLinksToConcurrentWithClone(t *testing.T) {
+	core, _ := setupTestCore(t)
+	for _, b := range []*bean.Bean{
+		{ID: "yyy1", Title: "Y", Status: "todo"},
+		{ID: "xxx1", Title: "X", Status: "todo", Blocking: []string{"yyy1"}},
+	} {
+		if err := core.Create(b); err != nil {
+			t.Fatalf("Create error: %v", err)
+		}
+	}
+	held, _ := core.Get("xxx1")
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if _, err := core.RemoveLinksTo("yyy1"); err != nil {
+			t.Errorf("RemoveLinksTo error: %v", err)
+		}
+	}()
+	for i := 0; i < 1000; i++ {
+		_ = held.Clone()
+	}
+	<-done
+
+	if !held.IsBlocking("yyy1") {
+		t.Error("RemoveLinksTo modified the bean a reader holds")
+	}
+}
+
+func TestUpdateRejectsAddedLinkThatClosesCycle(t *testing.T) {
+	type write struct {
+		id   string
+		link func(*bean.Bean)
+	}
+	tests := []struct {
+		name     string
+		stored   []*bean.Bean
+		first    *write // stored after both writers have read
+		second   write
+		linkType string
+	}{
+		{
+			name:     "crossing blocking",
+			first:    &write{"xxx1", func(b *bean.Bean) { b.AddBlocking("yyy1") }},
+			second:   write{"yyy1", func(b *bean.Bean) { b.AddBlocking("xxx1") }},
+			linkType: "blocking",
+		},
+		{
+			name:     "crossing blocked_by",
+			first:    &write{"xxx1", func(b *bean.Bean) { b.AddBlockedBy("yyy1") }},
+			second:   write{"yyy1", func(b *bean.Bean) { b.AddBlockedBy("xxx1") }},
+			linkType: "blocked_by",
+		},
+		{
+			name:     "crossing parent",
+			first:    &write{"xxx1", func(b *bean.Bean) { b.Parent = "yyy1" }},
+			second:   write{"yyy1", func(b *bean.Bean) { b.Parent = "xxx1" }},
+			linkType: "parent",
+		},
+		{
+			// The cycle closes only through blocked_by links: xxx1 is
+			// blocked by zzz1, and zzz1 becomes blocked by yyy1.
+			name:     "crossing blocking, cycle in blocked_by representation",
+			stored:   []*bean.Bean{{ID: "xxx1", Title: "X", Status: "todo", BlockedBy: []string{"zzz1"}}},
+			first:    &write{"zzz1", func(b *bean.Bean) { b.AddBlockedBy("yyy1") }},
+			second:   write{"xxx1", func(b *bean.Bean) { b.AddBlocking("yyy1") }},
+			linkType: "blocking",
+		},
+		{
+			// One update adds both links of the cycle xxx1 -> yyy1 -> zzz1 -> xxx1.
+			name:     "blocking and blocked_by in one update",
+			stored:   []*bean.Bean{{ID: "zzz1", Title: "Z", Status: "todo", BlockedBy: []string{"yyy1"}}},
+			second:   write{"xxx1", func(b *bean.Bean) { b.AddBlocking("yyy1"); b.AddBlockedBy("zzz1") }},
+			linkType: "blocking",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			core, _ := setupTestCore(t)
+			for _, b := range tt.stored {
+				if err := core.Create(b); err != nil {
+					t.Fatalf("Create error: %v", err)
+				}
+			}
+			for _, id := range []string{"xxx1", "yyy1", "zzz1"} {
+				if _, err := core.Get(id); err == nil {
+					continue
+				}
+				if err := core.Create(&bean.Bean{ID: id, Title: id, Status: "todo"}); err != nil {
+					t.Fatalf("Create error: %v", err)
+				}
+			}
+
+			second, baseSecond := cloneStored(t, core, tt.second.id)
+			before := second.Clone()
+			tt.second.link(second)
+			if tt.first != nil {
+				first, baseFirst := cloneStored(t, core, tt.first.id)
+				tt.first.link(first)
+				if err := core.Update(first, baseFirst); err != nil {
+					t.Fatalf("first Update error: %v", err)
+				}
+			}
+
+			err := core.Update(second, baseSecond)
+			var cycleErr *CycleError
+			if !errors.As(err, &cycleErr) {
+				t.Fatalf("second Update error = %v, want CycleError", err)
+			}
+			if cycleErr.LinkType != tt.linkType {
+				t.Errorf("LinkType = %q, want %q", cycleErr.LinkType, tt.linkType)
+			}
+			if stored, _ := core.Get(tt.second.id); !reflect.DeepEqual(stored, before) {
+				t.Errorf("rejected Update changed the stored bean:\n got  %+v\n want %+v", stored, before)
+			}
+		})
+	}
+}
+
+func TestUpdateAllowsStoredCycleWithoutAddedLinks(t *testing.T) {
+	core, _ := setupTestCore(t)
+	for _, b := range []*bean.Bean{
+		{ID: "xxx1", Title: "X", Status: "todo", Blocking: []string{"yyy1"}},
+		{ID: "yyy1", Title: "Y", Status: "todo", Blocking: []string{"xxx1"}},
+	} {
+		if err := core.Create(b); err != nil {
+			t.Fatalf("Create error: %v", err)
+		}
+	}
+	x, base := cloneStored(t, core, "xxx1")
+	x.Status = "completed"
+	if err := core.Update(x, base); err != nil {
+		t.Errorf("Update without new links error = %v, want nil", err)
 	}
 }

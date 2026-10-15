@@ -50,6 +50,11 @@ func (r *beanResolver) BlockedByIds(ctx context.Context, obj *bean.Bean) ([]stri
 	return r.CoreResolver.BeanBlockedByIds(ctx, obj)
 }
 
+// Properties is the resolver for the properties field.
+func (r *beanResolver) Properties(ctx context.Context, obj *bean.Bean) ([]*model.Property, error) {
+	return r.CoreResolver.BeanProperties(ctx, obj)
+}
+
 // BlockedBy is the resolver for the blockedBy field.
 func (r *beanResolver) BlockedBy(ctx context.Context, obj *bean.Bean, filter *model.BeanFilter) ([]*bean.Bean, error) {
 	return r.CoreResolver.BeanBlockedBy(ctx, obj, filter)

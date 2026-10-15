@@ -374,6 +374,8 @@ input CreateBeanInput {
   blocking: [String!]
   "Bean IDs that are blocking this bean"
   blockedBy: [String!]
+  "Custom key-value properties (keys must be lowercase and start with a letter)"
+  properties: [PropertyInput!]
   "Custom ID prefix (overrides config prefix for this bean)"
   prefix: String
 }
@@ -411,6 +413,11 @@ input UpdateBeanInput {
   addBlockedBy: [String!]
   "Remove beans from blocked-by list"
   removeBlockedBy: [String!]
+
+  "Set custom properties (adds new keys, overwrites existing ones)"
+  setProperties: [PropertyInput!]
+  "Remove custom properties by key"
+  removeProperties: [String!]
   
   "Fractional index for manual ordering (used by board drag-and-drop)"
   order: String
@@ -434,6 +441,22 @@ input BodyModification {
   Appended with blank line separator.
   """
   append: String
+}
+
+"""
+A custom key-value property to set on a bean.
+"""
+input PropertyInput {
+  key: String!
+  value: String!
+}
+
+"""
+A custom key-value property of a bean.
+"""
+type Property {
+  key: String!
+  value: String!
 }
 
 """
@@ -488,6 +511,9 @@ type Bean {
   blockingIds: [String!]!
   "IDs of beans that are blocking this bean (direct field)"
   blockedByIds: [String!]!
+
+  "Custom key-value properties, sorted by key"
+  properties: [Property!]!
 
   # Computed relationship fields
   "Beans that block this one (incoming blocking links)"

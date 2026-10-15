@@ -101,14 +101,8 @@ Search Syntax (--search/-S):
 			filter.IsBlocked = &listIsBlocked
 		}
 
-		// --ready: beans available to start (not blocked, excludes in-progress/completed/scrapped/draft,
-		// and excludes beans with implicit terminal status from a scrapped/completed ancestor)
 		if listReady {
-			isBlocked := false
-			excludeImplicitTerminal := true
-			filter.IsBlocked = &isBlocked
-			filter.ExcludeStatus = append(filter.ExcludeStatus, "in-progress", "completed", "scrapped", "draft")
-			filter.ExcludeImplicitTerminal = &excludeImplicitTerminal
+			beangraph.AddReadyFilter(filter)
 		}
 
 		// Execute query via core resolver
@@ -123,12 +117,7 @@ Search Syntax (--search/-S):
 
 		// JSON output (flat list)
 		if listJSON {
-			if !listFull {
-				for _, b := range beans {
-					b.Body = ""
-				}
-			}
-			return output.SuccessMultiple(beans)
+			return output.SuccessMultiple(jsonBeans(resolver, beans, listFull))
 		}
 
 		// Quiet mode: just IDs (flat)
@@ -149,7 +138,7 @@ Search Syntax (--search/-S):
 		// Pre-compute implicit statuses for all beans
 		implicitStatuses := make(map[string]string, len(allBeans))
 		for _, b := range allBeans {
-			if status, _ := core.ImplicitStatus(b.ID); status != "" {
+			if status, _ := core.ClosedAncestor(b.ID); status != "" {
 				implicitStatuses[b.ID] = status
 			}
 		}

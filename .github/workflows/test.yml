@@ -15,13 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install mise
-        shell: bash
-        run: |
-          if [ ! -f "$HOME/.local/bin/mise" ]; then
-            curl https://mise.run | sh
-          fi
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Install just
+        uses: extractions/setup-just@v4
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -37,11 +32,11 @@ jobs:
           cache: "pnpm"
           cache-dependency-path: "frontend/pnpm-lock.yaml"
       - name: Install dependencies
-        run: mise deps
+        run: just deps
       - name: Install Playwright browsers
         working-directory: frontend
         run: npx playwright install --with-deps chromium
       - name: Build
-        run: mise build
+        run: just build
       - name: Test
-        run: mise test
+        run: just test

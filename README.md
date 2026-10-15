@@ -1,10 +1,7 @@
-![beans](https://github.com/user-attachments/assets/776f094c-f2c4-4724-9a0b-5b87e88bc50d)
 
-[![License](https://img.shields.io/github/license/hmans/beans?style=for-the-badge)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/hmans/beans?style=for-the-badge)](https://github.com/hmans/beans/releases)
-[![CI](https://img.shields.io/github/actions/workflow/status/hmans/beans/test.yml?branch=main&label=tests&style=for-the-badge)](https://github.com/hmans/beans/actions/workflows/test.yml)
-[![Go Version](https://img.shields.io/github/go-mod/go-version/hmans/beans?style=for-the-badge)](https://go.dev/)
-[![Go Report Card](https://goreportcard.com/badge/github.com/hmans/beans?style=for-the-badge)](https://goreportcard.com/report/github.com/hmans/beans)
+[![License](https://img.shields.io/github/license/plasmobit/beans?style=for-the-badge)](LICENSE)
+
+> **Note:** This repository is a fork of [Beans](https://github.com/hmans/beans) by [Hendrik Mans](https://github.com/hmans). The original has seen no development since April 2026 (last release: v0.4.2), so this fork continues it. See [Credits](#credits).
 
 **Beans is an issue tracker for you, your team, and your coding agents.** Instead of tracking tasks in a separate application, Beans stores them right alongside your code. You can use the `beans` CLI to interact with your tasks, but more importantly, so can your favorite coding agent!
 
@@ -12,13 +9,9 @@ This gives your robot friends a juicy upgrade: now they get a complete view of y
 
 You've been programming all your life; now you get to be a product manager. Let's go! 🚀
 
-## Announcement Trailer ✨
-
-https://github.com/user-attachments/assets/dbe45408-d3ed-4681-a436-a5e3046163da
-
 ## Stability Warning ⚠️
 
-Beans is still under heavy development, and its features and APIs may still change significantly. If you decide to use it now, please follow the release notes closely.
+Beans is still under heavy development, and its features and APIs may still change significantly. If you decide to use it now, please follow the commit history closely; this fork publishes no releases yet.
 
 Since Beans emits its own prompt instructions for your coding agent, most changes will "just work"; but sometimes, we modify the schema of the underlying data files, which may require some manual migration steps. If you get caught by one of these changes, your agent will often be able to migrate your data for you:
 
@@ -32,8 +25,9 @@ The Beans data format has changed. Please migrate this project's beans to the ne
 - **Plain old Markdown files** stored in a `.beans` directory in your project. Easy to version control, readable and editable by humans and machines alike!
 - Use the `beans` CLI to create, list, view, update, and archive beans; but more importantly, **let your coding agent do it for you**!
 - **Supercharge your robot friend** with full context about your project and its open tasks. A built-in **GraphQL query engine** allows your agent to get exactly the information it needs, keeping token use to a minimum.
-- **Project memory**: Completed beans are archived and serve as project memory that your coding agent can query for context about past work.
-- A beautiful **built-in** TUI for browsing and managing your beans from the terminal.
+- **Project memory**: `beans archive` moves completed and scrapped beans to `.beans/archive/`, where they serve as project memory that your coding agent can query for context about past work.
+- A beautiful **TUI** (`beans-tui`) for browsing and managing your beans from the terminal.
+- A **web UI** (`beans-serve`) with a backlog board, per-bean agent chat (Claude Code), git worktree management, file change diffs, and embedded terminals.
 - Generates a **Markdown roadmap document** for your project from your data.
 
 ## Installation
@@ -44,17 +38,22 @@ We'll need to do three things:
 2. Configure your project to use it.
 3. Configure your coding agent to interact with it.
 
-Either download Beans from the [Releases section](https://github.com/hmans/beans/releases), or install it via Homebrew:
+This fork publishes no releases yet, so build it from source. The build needs Go, Node.js with corepack (pnpm runs through it), and [just](https://just.systems/):
 
 ```bash
-brew install hmans/beans/beans
+git clone https://github.com/plasmobit/beans.git
+cd beans
+
+just setup && just install
 ```
 
-Alternatively, install directly via Go:
+This builds three binaries and copies them to `~/.local/bin/`:
 
-```bash
-go install github.com/hmans/beans@latest
-```
+- `beans`: the CLI
+- `beans-tui`: the terminal UI
+- `beans-serve`: the web UI
+
+The releases and the Homebrew tap of the original project install upstream v0.4.2, which lacks this fork's changes and still ships the TUI as `beans tui`.
 
 ## Configure Your Project
 
@@ -64,7 +63,7 @@ Inside the root directory of your project, run:
 beans init
 ```
 
-This will create a `.beans/` directory and a `.beans.yml` configuration file at the project root. All of it is meant to be tracked in your version control system.
+This will create a `.beans/` directory and a `.beans.yml` configuration file at the project root. All of it is meant to be tracked in your version control system, except the agent chat logs in `.beans/.conversations/`, which `beans init` lists in `.beans/.gitignore`.
 
 From this point onward, you can interact with your Beans through the `beans` CLI. To get a list of available commands:
 
@@ -103,7 +102,7 @@ An official Beans plugin for Claude is in the works, but for the time being, ple
 
 ### OpenCode
 
-Beans integrates with OpenCode via a plugin that injects task context into your sessions. To set it up, **copy the plugin** from [`.opencode/plugin/beans-prime.ts`](.opencode/plugin/beans-prime.ts) to your project's `.opencode/plugin/` directory (or `~/.opencode/plugin/` for global availability across all projects).
+Beans integrates with OpenCode via a plugin that injects task context into your sessions. To set it up, **copy the plugin** from [`.opencode/plugin/beans-prime.ts`](.opencode/plugin/beans-prime.ts) to your project's `.opencode/plugins/` directory (or `~/.config/opencode/plugins/` for global availability across all projects).
 
 ## Usage Hints
 
@@ -116,7 +115,13 @@ beans help
 You might specifically be interested in the interactive TUI:
 
 ```bash
-beans tui
+beans-tui
+```
+
+Or in the web UI, served on the port that `server.port` in `.beans.yml` sets (8080 by default; `--port` overrides it):
+
+```bash
+beans-serve
 ```
 
 ### Example Workflows
@@ -154,15 +159,10 @@ You can also add Beans-specific instructions to your `AGENTS.md`, `CLAUDE.md` or
 When making a commit, include the relevant bean IDs in the commit message
 ```
 
-## Contributing
+## Credits
 
-This project currently does not accept contributions -- it's just way too early for that!
-But if you do have suggestions or feedback, please feel free to open an issue.
+Beans was created by [Hendrik Mans](https://github.com/hmans). This fork builds on the original project, [hmans/beans](https://github.com/hmans/beans); all credit for the original design and implementation goes to him and its contributors.
 
 ## License
 
 This project is licensed under the Apache-2.0 License. See the [LICENSE](LICENSE) file for details.
-
-## Getting in Touch
-
-If you have any questions, suggestions, or just want to say hi, feel free to reach out to me [on Bluesky](https://bsky.app/profile/hmans.dev), or [open an issue](https://github.com/hmans/beans/issues) in this repository.

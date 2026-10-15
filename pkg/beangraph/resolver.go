@@ -17,24 +17,6 @@ type CoreResolver struct {
 	Core *beancore.Core
 }
 
-// ETagMismatchError is returned when an ETag validation fails.
-// This allows callers to distinguish concurrency conflicts from other errors.
-type ETagMismatchError struct {
-	Provided string
-	Current  string
-}
-
-func (e *ETagMismatchError) Error() string {
-	return fmt.Sprintf("etag mismatch: provided %s, current is %s", e.Provided, e.Current)
-}
-
-// ETagRequiredError is returned when require_if_match is enabled and no ETag is provided.
-type ETagRequiredError struct{}
-
-func (e *ETagRequiredError) Error() string {
-	return "if-match etag is required (set require_if_match: false in config to disable)"
-}
-
 // validateETag checks if the provided ifMatch etag matches the bean's current etag.
 // Returns an error if validation fails or if require_if_match is enabled and no etag provided.
 func (r *CoreResolver) validateETag(b *bean.Bean, ifMatch *string) error {
@@ -43,18 +25,33 @@ func (r *CoreResolver) validateETag(b *bean.Bean, ifMatch *string) error {
 
 	// If require_if_match is enabled and no etag provided, reject
 	if requireIfMatch && (ifMatch == nil || *ifMatch == "") {
-		return &ETagRequiredError{}
+		return &beancore.ETagRequiredError{}
 	}
 
 	// If ifMatch provided, validate it
 	if ifMatch != nil && *ifMatch != "" {
 		currentETag := b.ETag()
 		if currentETag != *ifMatch {
-			return &ETagMismatchError{Provided: *ifMatch, Current: currentETag}
+			return &beancore.ETagMismatchError{Provided: *ifMatch, Current: currentETag}
 		}
 	}
 
 	return nil
+}
+
+// cloneForUpdate returns a clone of the stored bean id for the caller to
+// modify, and base, the ETag that Core.Update compares the stored bean against.
+// It rejects a stale ifMatch before the caller changes anything.
+func (r *CoreResolver) cloneForUpdate(id string, ifMatch *string) (*bean.Bean, string, error) {
+	stored, err := r.Core.Get(id)
+	if err != nil {
+		return nil, "", err
+	}
+	b := stored.Clone()
+	if err := r.validateETag(b, ifMatch); err != nil {
+		return nil, "", err
+	}
+	return b, b.ETag(), nil
 }
 
 // ValidateAndSetParent validates and sets the parent relationship.
@@ -73,7 +70,7 @@ func (r *CoreResolver) ValidateAndSetParent(b *bean.Bean, parentID string) error
 	}
 
 	// Check for cycles
-	if cycle := r.Core.DetectCycle(b.ID, "parent", normalizedParent); cycle != nil {
+	if cycle := r.Core.DetectCycleWith(b, b.ID, "parent", normalizedParent); cycle != nil {
 		return fmt.Errorf("setting parent would create cycle: %v", cycle)
 	}
 
@@ -98,10 +95,10 @@ func (r *CoreResolver) ValidateAndAddBlocking(b *bean.Bean, targetIDs []string) 
 		}
 
 		// Check for cycles in both directions
-		if cycle := r.Core.DetectCycle(b.ID, "blocking", normalizedTargetID); cycle != nil {
+		if cycle := r.Core.DetectCycleWith(b, b.ID, "blocking", normalizedTargetID); cycle != nil {
 			return fmt.Errorf("adding blocking relationship would create cycle: %v", cycle)
 		}
-		if cycle := r.Core.DetectCycle(normalizedTargetID, "blocked_by", b.ID); cycle != nil {
+		if cycle := r.Core.DetectCycleWith(b, normalizedTargetID, "blocked_by", b.ID); cycle != nil {
 			return fmt.Errorf("adding blocking relationship would create cycle: %v", cycle)
 		}
 
@@ -135,10 +132,10 @@ func (r *CoreResolver) ValidateAndAddBlockedBy(b *bean.Bean, targetIDs []string)
 		}
 
 		// Check for cycles in both directions
-		if cycle := r.Core.DetectCycle(normalizedTargetID, "blocking", b.ID); cycle != nil {
+		if cycle := r.Core.DetectCycleWith(b, normalizedTargetID, "blocking", b.ID); cycle != nil {
 			return fmt.Errorf("adding blocked-by relationship would create cycle: %v", cycle)
 		}
-		if cycle := r.Core.DetectCycle(b.ID, "blocked_by", normalizedTargetID); cycle != nil {
+		if cycle := r.Core.DetectCycleWith(b, b.ID, "blocked_by", normalizedTargetID); cycle != nil {
 			return fmt.Errorf("adding blocked-by relationship would create cycle: %v", cycle)
 		}
 

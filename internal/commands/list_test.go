@@ -1,12 +1,73 @@
 package commands
 
 import (
+	"encoding/json"
+	"io"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/hmans/beans/pkg/bean"
 	"github.com/hmans/beans/pkg/config"
 )
+
+func TestListJSONETag(t *testing.T) {
+	testCore, cleanup := setupQueryTestCore(t)
+	defer cleanup()
+	oldCfg, oldJSON, oldFull := cfg, listJSON, listFull
+	defer func() { cfg, listJSON, listFull = oldCfg, oldJSON, oldFull }()
+	cfg = config.Default()
+
+	b := &bean.Bean{ID: "t1", Slug: "t1", Title: "T", Status: "todo", Body: "Some body"}
+	if err := testCore.Create(b); err != nil {
+		t.Fatal(err)
+	}
+	fileETag := b.ETag()
+
+	for _, full := range []bool{false, true} {
+		listJSON, listFull = true, full
+		out := captureStdout(t, func() {
+			if err := listCmd.RunE(listCmd, nil); err != nil {
+				t.Fatal(err)
+			}
+		})
+		var got []struct {
+			ETag string  `json:"etag"`
+			Body *string `json:"body"`
+		}
+		if err := json.Unmarshal(out, &got); err != nil {
+			t.Fatalf("full=%v: %v\n%s", full, err, out)
+		}
+		if len(got) != 1 {
+			t.Fatalf("full=%v: got %d beans, want 1", full, len(got))
+		}
+		if got[0].ETag != fileETag {
+			t.Errorf("full=%v: etag = %s, want the file's %s", full, got[0].ETag, fileETag)
+		}
+		if hasBody := got[0].Body != nil; hasBody != full {
+			t.Errorf("full=%v: body printed = %v", full, hasBody)
+		}
+	}
+}
+
+// captureStdout returns what fn writes to os.Stdout.
+func captureStdout(t *testing.T, fn func()) []byte {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stdout
+	os.Stdout = w
+	defer func() { os.Stdout = old }()
+	fn()
+	w.Close()
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
 
 func TestSortBeans(t *testing.T) {
 	now := time.Now()

@@ -18,6 +18,10 @@ fragment BeanFields on Bean {
   parentId
   blockingIds
   worktreeId
+  properties {
+    key
+    value
+  }
 }
 
 fragment WorktreeFields on Worktree {

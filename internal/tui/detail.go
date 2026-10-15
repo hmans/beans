@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -30,12 +32,33 @@ func getGlamourRenderer() *glamour.TermRenderer {
 		var err error
 		// Use DarkStyle instead of WithAutoStyle() to avoid slow terminal detection
 		// that can cause multi-second delays in some terminals
-		glamourRenderer, err = glamour.NewTermRenderer(glamour.WithStylePath("dark"))
+		glamourRenderer, err = glamour.NewTermRenderer(glamour.WithStyles(ui.DarkMarkdownStyle()))
 		if err != nil {
 			glamourRenderer = nil
 		}
 	})
 	return glamourRenderer
+}
+
+var (
+	wrappedRenderers   = map[int]*glamour.TermRenderer{}
+	wrappedRenderersMu sync.Mutex
+)
+
+// getWrappedGlamourRenderer returns a cached renderer whose output lines are
+// at most width columns wide.
+func getWrappedGlamourRenderer(width int) *glamour.TermRenderer {
+	wrappedRenderersMu.Lock()
+	defer wrappedRenderersMu.Unlock()
+	if r, ok := wrappedRenderers[width]; ok {
+		return r
+	}
+	r, err := glamour.NewTermRenderer(glamour.WithStyles(ui.DarkMarkdownStyle()), glamour.WithWordWrap(width))
+	if err != nil {
+		r = nil
+	}
+	wrappedRenderers[width] = r
+	return r
 }
 
 // backToListMsg signals navigation back to the list
@@ -118,7 +141,9 @@ func (d linkDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 			ShowTags:      d.cols.ShowTags,
 			TagsColWidth:  d.cols.Tags,
 			MaxTags:       d.cols.MaxTags,
-			UseFullNames:  true, // Full type/status names in detail view
+			// Full type/status names in detail view
+			TypeColWidth:   ui.ColWidthTypeFull,
+			StatusColWidth: ui.ColWidthStatusFull,
 		},
 	)
 
@@ -387,8 +412,9 @@ func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
 		}
 	}
 
-	// Forward updates to the appropriate component
-	if m.linksActive && len(m.links) > 0 {
+	// Forward updates to the appropriate component. The mouse wheel always
+	// scrolls the body, since the links list has no mouse handling.
+	if _, isMouse := msg.(tea.MouseMsg); !isMouse && m.linksActive && len(m.links) > 0 {
 		m.linkList, cmd = m.linkList.Update(msg)
 		cmds = append(cmds, cmd)
 	} else {
@@ -476,6 +502,7 @@ func (m detailModel) View() string {
 func (m detailModel) calculateHeaderHeight() int {
 	// Base: title line + ID/status line + borders/padding = ~6
 	baseHeight := 6
+	baseHeight += len(m.bean.Properties)
 
 	// Add height for links section (separate bordered box)
 	if len(m.links) > 0 {
@@ -487,6 +514,17 @@ func (m detailModel) calculateHeaderHeight() int {
 	}
 
 	return baseHeight
+}
+
+// propertyLines renders custom properties as one "key: value" line each, sorted by key.
+// Newlines in a value become spaces so that each property occupies exactly one line.
+func propertyLines(props map[string]string) []string {
+	keyStyle := lipgloss.NewStyle().Foreground(ui.ColorMuted)
+	lines := make([]string, 0, len(props))
+	for _, key := range slices.Sorted(maps.Keys(props)) {
+		lines = append(lines, keyStyle.Render(key+":")+" "+strings.ReplaceAll(props[key], "\n", " "))
+	}
+	return lines
 }
 
 func (m detailModel) renderHeader() string {
@@ -515,6 +553,11 @@ func (m detailModel) renderHeader() string {
 	if len(m.bean.Tags) > 0 {
 		headerContent.WriteString("  ")
 		headerContent.WriteString(ui.RenderTags(m.bean.Tags))
+	}
+
+	for _, line := range propertyLines(m.bean.Properties) {
+		headerContent.WriteString("\n")
+		headerContent.WriteString(line)
 	}
 
 	// Header box style - always muted border (not focused, links section is separate)

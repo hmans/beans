@@ -22,11 +22,16 @@ type beanItem struct {
 	treePrefix      string // tree prefix for rendering (e.g., "├─" or "  └─")
 	matched         bool   // true if bean matched filter (vs. ancestor shown for context)
 	implicitStatus string // implicit terminal status from an ancestor, if any
+	blocked        bool   // open bean with an active blocker, directly or via an ancestor
 }
 
 func (i beanItem) Title() string       { return i.bean.Title }
 func (i beanItem) Description() string { return i.bean.ID + " · " + i.bean.Status }
 func (i beanItem) FilterValue() string { return i.bean.Title + " " + i.bean.ID }
+
+// showsBlocked reports whether the bean carries the blocked mark. A closed
+// ancestor takes precedence, because its blockers no longer matter.
+func (i beanItem) showsBlocked() bool { return i.blocked && i.implicitStatus == "" }
 
 // itemDelegate handles rendering of list items
 type itemDelegate struct {
@@ -94,8 +99,10 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 			TreePrefix:      item.treePrefix,
 			Dimmed:          !item.matched,
 			IDColWidth:      d.idColWidth,
-			UseFullNames:    d.cols.UseFullTypeStatus,
+			TypeColWidth:    d.cols.Type,
+			StatusColWidth:  d.cols.Status,
 			ImplicitStatus: item.implicitStatus,
+			Blocked:        item.blocked,
 		},
 	)
 
@@ -119,6 +126,9 @@ type listModel struct {
 	// Active filters
 	tagFilter string // if set, only show beans with this tag
 
+	// viewMode is not a filter, so clearFilter leaves it alone.
+	viewMode viewMode
+
 	// Multi-select state
 	selectedBeans map[string]bool // IDs of beans marked for multi-edit
 
@@ -126,17 +136,39 @@ type listModel struct {
 	statusMessage string
 }
 
+// viewMode selects which beans the list shows; each mode narrows the previous one.
+type viewMode int
+
+const (
+	viewAll viewMode = iota
+	// viewActive hides beans with an archive status and their descendants.
+	viewActive
+	// viewUnblocked additionally hides blocked beans.
+	viewUnblocked
+	// viewReady shows what `beans list --ready` shows.
+	viewReady
+	viewModeCount
+)
+
+func (v viewMode) String() string {
+	return [...]string{"all", "active", "unblocked", "ready"}[v]
+}
+
+func (v viewMode) next() viewMode {
+	return (v + 1) % viewModeCount
+}
+
 func newListModel(resolver *beangraph.CoreResolver, cfg *config.Config) listModel {
 	selectedBeans := make(map[string]bool)
 	delegate := itemDelegate{cfg: cfg, selectedBeans: &selectedBeans}
 
 	l := list.New([]list.Item{}, delegate, 0, 0)
-	l.Title = "Beans"
+	// The title and the filter input go into the pane's top border.
+	l.SetShowTitle(false)
+	l.SetShowFilter(false)
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(true)
 	l.SetShowHelp(false)
-	l.Styles.Title = listTitleStyle
-	l.Styles.TitleBar = lipgloss.NewStyle().Padding(0, 0, 1, 1)
 	l.Styles.FilterPrompt = lipgloss.NewStyle().Foreground(ui.ColorPrimary)
 	l.Styles.FilterCursor = lipgloss.NewStyle().Foreground(ui.ColorPrimary)
 
@@ -150,8 +182,9 @@ func newListModel(resolver *beangraph.CoreResolver, cfg *config.Config) listMode
 
 // beansLoadedMsg is sent when beans are loaded
 type beansLoadedMsg struct {
-	items      []ui.FlatItem // flattened tree items
-	idColWidth int           // calculated ID column width for tree
+	items      []ui.FlatItem   // flattened tree items
+	idColWidth int             // calculated ID column width for tree
+	blocked    map[string]bool // IDs of open beans with an active blocker
 }
 
 // errMsg is sent when an error occurs
@@ -174,6 +207,23 @@ func (m listModel) loadBeans() tea.Msg {
 	if m.tagFilter != "" {
 		filter = &model.BeanFilter{Tags: []string{m.tagFilter}}
 	}
+	if m.viewMode >= viewActive {
+		if filter == nil {
+			filter = &model.BeanFilter{}
+		}
+		for _, s := range m.config.StatusNames() {
+			if m.config.IsArchiveStatus(s) {
+				filter.ExcludeStatus = append(filter.ExcludeStatus, s)
+			}
+		}
+	}
+	if m.viewMode >= viewUnblocked {
+		isBlocked := false
+		filter.IsBlocked = &isBlocked
+	}
+	if m.viewMode >= viewReady {
+		beangraph.AddReadyFilter(filter)
+	}
 
 	// Query filtered beans
 	filteredBeans, err := m.resolver.Beans(context.Background(), filter)
@@ -195,9 +245,26 @@ func (m listModel) loadBeans() tea.Msg {
 	// Pre-compute implicit statuses for all beans
 	implicitStatuses := make(map[string]string, len(allBeans))
 	for _, b := range allBeans {
-		if status, _ := m.resolver.Core.ImplicitStatus(b.ID); status != "" {
+		if status, _ := m.resolver.Core.ClosedAncestor(b.ID); status != "" {
 			implicitStatuses[b.ID] = status
 		}
+	}
+
+	blocked := make(map[string]bool)
+	for _, b := range allBeans {
+		if !m.config.IsArchiveStatus(b.Status) && m.resolver.Core.IsBlocked(b.ID) {
+			blocked[b.ID] = true
+		}
+	}
+
+	if m.viewMode >= viewActive {
+		open := filteredBeans[:0]
+		for _, b := range filteredBeans {
+			if _, closed := implicitStatuses[b.ID]; !closed {
+				open = append(open, b)
+			}
+		}
+		filteredBeans = open
 	}
 
 	// Build tree and flatten it
@@ -218,7 +285,7 @@ func (m listModel) loadBeans() tea.Msg {
 		idColWidth += maxDepth * 3 // 3 chars per depth level (├─ + space)
 	}
 
-	return beansLoadedMsg{items: items, idColWidth: idColWidth}
+	return beansLoadedMsg{items: items, idColWidth: idColWidth, blocked: blocked}
 }
 
 // setTagFilter sets the tag filter
@@ -247,8 +314,7 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		// Reserve space for border and footer
-		m.list.SetSize(msg.Width-2, msg.Height-4)
+		m.list.SetSize(msg.Width-paneBorders, msg.Height-footerHeight-paneBorders-listBottomPadding)
 		// Recalculate responsive columns
 		m.cols = ui.CalculateResponsiveColumns(msg.Width, m.hasTags)
 		m.updateDelegate()
@@ -264,6 +330,7 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 				treePrefix:      flatItem.TreePrefix,
 				matched:         flatItem.Matched,
 				implicitStatus: flatItem.ImplicitStatus,
+				blocked:        msg.blocked[flatItem.Bean.ID],
 			}
 			if len(flatItem.Bean.Tags) > 0 {
 				m.hasTags = true
@@ -428,6 +495,9 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 						}
 					}
 				}
+			case "h":
+				m.viewMode = m.viewMode.next()
+				return m, m.loadBeans
 			case "y":
 				// Copy bean ID(s) to clipboard
 				if len(m.selectedBeans) > 0 {
@@ -471,12 +541,46 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 	if m.list.Index() != prevIndex {
 		if item, ok := m.list.SelectedItem().(beanItem); ok {
 			cmds = append(cmds, func() tea.Msg {
-				return cursorChangedMsg{beanID: item.bean.ID}
+				return cursorChangedMsg{beanID: item.bean.ID, blocked: item.showsBlocked()}
 			})
 		}
 	}
 
 	return m, tea.Batch(cmds...)
+}
+
+// itemIndexAt returns the index of the item rendered at pane-relative
+// position (x, y), for a list pane rendered by viewContent with the given
+// outer width and inner height.
+func (m listModel) itemIndexAt(x, y, paneWidth, innerHeight int) (int, bool) {
+	if x < paneBorder || x >= paneWidth-paneBorder {
+		return 0, false
+	}
+
+	// Paginate a copy at the rendered size, so the page matches the screen.
+	l := m.list
+	l.SetSize(paneWidth-paneBorders, innerHeight)
+
+	row := y - paneBorder
+	visible := len(l.VisibleItems())
+	if row < 0 || row >= l.Paginator.ItemsOnPage(visible) {
+		return 0, false
+	}
+	return l.Paginator.Page*l.Paginator.PerPage + row, true
+}
+
+// selectAt moves the cursor to the item at pane-relative position (x, y).
+func (m listModel) selectAt(x, y, paneWidth, innerHeight int) (listModel, tea.Cmd) {
+	index, ok := m.itemIndexAt(x, y, paneWidth, innerHeight)
+	if !ok || index == m.list.Index() {
+		return m, nil
+	}
+	m.list.Select(index)
+	item, ok := m.list.SelectedItem().(beanItem)
+	if !ok {
+		return m, nil
+	}
+	return m, func() tea.Msg { return cursorChangedMsg{beanID: item.bean.ID, blocked: item.showsBlocked()} }
 }
 
 // updateDelegate updates the list delegate with current responsive columns
@@ -501,15 +605,18 @@ func (m listModel) View() string {
 		return "Loading..."
 	}
 
-	// Update title based on active filter
-	if m.tagFilter != "" {
-		m.list.Title = fmt.Sprintf("Beans [tag: %s]", m.tagFilter)
-	} else {
-		m.list.Title = "Beans"
-	}
+	return m.viewContent(m.height-footerHeight-paneBorders-listBottomPadding) + "\n" + m.Footer()
+}
 
-	// Inner height: total height minus border (2) minus footer (1) minus padding (1)
-	return m.viewContent(m.height-4) + "\n" + m.Footer()
+func (m listModel) title() string {
+	title := "Beans"
+	if m.viewMode != viewAll {
+		title += " (" + m.viewMode.String() + ")"
+	}
+	if m.tagFilter != "" {
+		title += fmt.Sprintf(" [tag: %s]", m.tagFilter)
+	}
+	return title
 }
 
 // viewContent renders just the bordered list without footer.
@@ -518,10 +625,22 @@ func (m listModel) viewContent(innerHeight int) string {
 	border := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(ui.ColorMuted).
-		Width(m.width - 2).
+		Width(m.width - paneBorders).
 		Height(innerHeight)
 
-	return border.Render(m.list.View())
+	// Clip the content so an over-wide row cannot wrap and grow the pane.
+	content := lipgloss.NewStyle().MaxWidth(m.width - paneBorders).MaxHeight(innerHeight).Render(m.list.View())
+	return withBorderTitle(border.Render(content), m.borderTitle())
+}
+
+// borderTitle is the filter input while the user types a filter, else the title.
+func (m listModel) borderTitle() string {
+	if m.list.FilterState() == list.Filtering {
+		input := m.list.FilterInput
+		input.Width = 0 // the list sizes it to the pane, which would pad it with spaces
+		return input.View()
+	}
+	return listTitleStyle.Render(m.title())
 }
 
 // Footer renders the help/status footer for the list view.
@@ -556,6 +675,8 @@ func (m listModel) Footer() string {
 			helpKeyStyle.Render("s") + " " + helpStyle.Render("status") + "  " +
 			helpKeyStyle.Render("t") + " " + helpStyle.Render("type") + "  " +
 			helpKeyStyle.Render("y") + " " + helpStyle.Render("copy id") + "  " +
+			helpKeyStyle.Render("h") + " " + helpStyle.Render(m.viewModeHelp()) + "  " +
+			helpKeyStyle.Render("v") + " " + helpStyle.Render("layout") + "  " +
 			helpKeyStyle.Render("esc") + " " + helpStyle.Render("clear filter") + "  " +
 			helpKeyStyle.Render("?") + " " + helpStyle.Render("help") + "  " +
 			helpKeyStyle.Render("q") + " " + helpStyle.Render("quit")
@@ -570,7 +691,9 @@ func (m listModel) Footer() string {
 			helpKeyStyle.Render("s") + " " + helpStyle.Render("status") + "  " +
 			helpKeyStyle.Render("t") + " " + helpStyle.Render("type") + "  " +
 			helpKeyStyle.Render("y") + " " + helpStyle.Render("copy id") + "  " +
+			helpKeyStyle.Render("h") + " " + helpStyle.Render(m.viewModeHelp()) + "  " +
 			helpKeyStyle.Render("/") + " " + helpStyle.Render("filter") + "  " +
+			helpKeyStyle.Render("v") + " " + helpStyle.Render("layout") + "  " +
 			helpKeyStyle.Render("?") + " " + helpStyle.Render("help") + "  " +
 			helpKeyStyle.Render("q") + " " + helpStyle.Render("quit")
 	}
@@ -587,6 +710,10 @@ func (m listModel) Footer() string {
 	return footer
 }
 
+func (m listModel) viewModeHelp() string {
+	return "show " + m.viewMode.next().String()
+}
+
 // ViewConstrained renders the list constrained to the given width and height.
 // Used for the left pane in two-column mode. Returns only the content without footer.
 // The output will be exactly `height` lines tall.
@@ -595,20 +722,12 @@ func (m listModel) ViewConstrained(width, height int) string {
 	m.width = width
 	m.height = height
 
-	// Inner height for border content (height minus 2 for top/bottom border)
-	innerHeight := height - 2
-	m.list.SetSize(width-2, innerHeight)
+	innerHeight := height - paneBorders
+	m.list.SetSize(width-paneBorders, innerHeight)
 
 	// Recalculate columns for constrained width
 	m.cols = ui.CalculateResponsiveColumns(width, m.hasTags)
 	m.updateDelegate()
-
-	// Update title based on active filter
-	if m.tagFilter != "" {
-		m.list.Title = fmt.Sprintf("Beans [tag: %s]", m.tagFilter)
-	} else {
-		m.list.Title = "Beans"
-	}
 
 	return m.viewContent(innerHeight)
 }

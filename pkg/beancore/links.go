@@ -2,6 +2,7 @@ package beancore
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/hmans/beans/pkg/bean"
@@ -89,6 +90,13 @@ func (c *Core) FindIncomingLinks(targetID string) []IncomingLink {
 // Checks for blocking, blocked_by, and parent link types.
 // Returns the cycle path if a cycle would be created, nil otherwise.
 func (c *Core) DetectCycle(fromID, linkType, toID string) []string {
+	return c.DetectCycleWith(nil, fromID, linkType, toID)
+}
+
+// DetectCycleWith is DetectCycle on the store with pending in place of the
+// stored bean pending.ID, so links a caller has added to its clone but not
+// yet stored take part in the check. A nil pending checks the store as is.
+func (c *Core) DetectCycleWith(pending *bean.Bean, fromID, linkType, toID string) []string {
 	// Only check hierarchical link types
 	if linkType != "blocking" && linkType != "blocked_by" && linkType != "parent" {
 		return nil
@@ -103,12 +111,63 @@ func (c *Core) DetectCycle(fromID, linkType, toID string) []string {
 	visited := make(map[string]bool)
 	path := []string{fromID, toID}
 
-	return c.findPathToTarget(toID, fromID, linkType, visited, path)
+	return c.findPathToTarget(pending, toID, fromID, linkType, visited, path)
+}
+
+// CycleError is returned by Core.Update when a link the bean adds would close
+// a cycle in the store. LinkType is the type of the added link; Path may run
+// through the inverse link type, because both represent the same relation.
+type CycleError struct {
+	LinkType string
+	Path     []string
+}
+
+func (e *CycleError) Error() string {
+	return fmt.Sprintf("adding %s link would create cycle: %v", e.LinkType, e.Path)
+}
+
+// addedLinkCycleLocked checks the links that b adds over old, the stored
+// version of b. A blocking link is checked in both representations, as
+// "b blocking t" and as "t blocked_by b", and likewise a blocked_by link.
+// The check runs on b with all its added links in place, so it rejects some
+// cycles that the relationship validators, which add one link at a time,
+// let through.
+// It runs under the write lock, because two updates on different beans can
+// each pass the validators and close a cycle together.
+// Must be called with c.mu held.
+func (c *Core) addedLinkCycleLocked(old, b *bean.Bean) *CycleError {
+	type edge struct{ added, from, linkType, to string }
+	var edges []edge
+	if b.Parent != "" && b.Parent != old.Parent {
+		edges = append(edges, edge{"parent", b.ID, "parent", b.Parent})
+	}
+	for _, t := range b.Blocking {
+		if !slices.Contains(old.Blocking, t) {
+			edges = append(edges,
+				edge{"blocking", b.ID, "blocking", t},
+				edge{"blocking", t, "blocked_by", b.ID})
+		}
+	}
+	for _, t := range b.BlockedBy {
+		if !slices.Contains(old.BlockedBy, t) {
+			edges = append(edges,
+				edge{"blocked_by", t, "blocking", b.ID},
+				edge{"blocked_by", b.ID, "blocked_by", t})
+		}
+	}
+
+	for _, e := range edges {
+		path := []string{e.from, e.to}
+		if cycle := c.findPathToTarget(b, e.to, e.from, e.linkType, map[string]bool{}, path); cycle != nil {
+			return &CycleError{LinkType: e.added, Path: cycle}
+		}
+	}
+	return nil
 }
 
 // findPathToTarget uses DFS to find if there's a path from current to target.
 // Returns the path if found, nil otherwise.
-func (c *Core) findPathToTarget(current, target, linkType string, visited map[string]bool, path []string) []string {
+func (c *Core) findPathToTarget(pending *bean.Bean, current, target, linkType string, visited map[string]bool, path []string) []string {
 	if current == target {
 		return path
 	}
@@ -119,6 +178,9 @@ func (c *Core) findPathToTarget(current, target, linkType string, visited map[st
 	visited[current] = true
 
 	b, ok := c.beans[current]
+	if pending != nil && pending.ID == current {
+		b, ok = pending, true
+	}
 	if !ok {
 		return nil
 	}
@@ -138,7 +200,7 @@ func (c *Core) findPathToTarget(current, target, linkType string, visited map[st
 
 	for _, t := range targets {
 		newPath := append(path, t)
-		if result := c.findPathToTarget(t, target, linkType, visited, newPath); result != nil {
+		if result := c.findPathToTarget(pending, t, target, linkType, visited, newPath); result != nil {
 			return result
 		}
 	}
@@ -331,7 +393,13 @@ func (c *Core) RemoveLinksTo(targetID string) (int, error) {
 	defer c.mu.Unlock()
 
 	removed := 0
-	for _, b := range c.beans {
+	for id, stored := range c.beans {
+		if stored.Parent != targetID &&
+			!slices.Contains(stored.Blocking, targetID) &&
+			!slices.Contains(stored.BlockedBy, targetID) {
+			continue
+		}
+		b := stored.Clone()
 		changed := false
 
 		// Remove parent link
@@ -361,6 +429,7 @@ func (c *Core) RemoveLinksTo(targetID string) (int, error) {
 			if err := c.saveToDisk(b); err != nil {
 				return removed, err
 			}
+			c.beans[id] = b
 		}
 	}
 
@@ -374,7 +443,10 @@ func (c *Core) FixBrokenLinks() (int, error) {
 	defer c.mu.Unlock()
 
 	fixed := 0
-	for _, b := range c.beans {
+	for id, stored := range c.beans {
+		// A shallow copy suffices for the loop body, which only reassigns
+		// fields; a changed bean is deep-copied before it is stored.
+		b := *stored
 		changed := false
 
 		// Fix parent link
@@ -432,9 +504,11 @@ func (c *Core) FixBrokenLinks() (int, error) {
 		}
 
 		if changed {
-			if err := c.saveToDisk(b); err != nil {
+			updated := b.Clone()
+			if err := c.saveToDisk(updated); err != nil {
 				return fixed, err
 			}
+			c.beans[id] = updated
 		}
 	}
 
@@ -625,6 +699,19 @@ func (c *Core) ImplicitStatus(beanID string) (status, fromID string) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
+	return c.implicitStatusLocked(beanID)
+}
+
+// ClosedAncestor is ImplicitStatus restricted to open beans: a bean that is
+// itself scrapped or completed returns empty strings without walking its
+// ancestors. A non-empty result marks an open bean below a closed ancestor.
+func (c *Core) ClosedAncestor(beanID string) (status, fromID string) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if b, ok := c.beans[beanID]; !ok || isResolvedStatus(b.Status) {
+		return "", ""
+	}
 	return c.implicitStatusLocked(beanID)
 }
 

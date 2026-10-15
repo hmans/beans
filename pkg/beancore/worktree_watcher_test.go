@@ -308,12 +308,9 @@ Working on this in a worktree.
 		defer core.UnwatchWorktreeBeans(wtDir)
 
 		// Update the bean via Core.Update() — should auto-route to worktree
-		b, err := core.Get("wt-auto-1")
-		if err != nil {
-			t.Fatalf("Get() error = %v", err)
-		}
+		b, base := cloneStored(t, core, "wt-auto-1")
 		b.Title = "Updated via Core"
-		if err := core.Update(b, nil); err != nil {
+		if err := core.Update(b, base); err != nil {
 			t.Fatalf("Update() error = %v", err)
 		}
 

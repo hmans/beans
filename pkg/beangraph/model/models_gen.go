@@ -217,6 +217,8 @@ type CreateBeanInput struct {
 	Blocking []string `json:"blocking,omitempty"`
 	// Bean IDs that are blocking this bean
 	BlockedBy []string `json:"blockedBy,omitempty"`
+	// Custom key-value properties (keys must be lowercase and start with a letter)
+	Properties []*PropertyInput `json:"properties,omitempty"`
 	// Custom ID prefix (overrides config prefix for this bean)
 	Prefix *string `json:"prefix,omitempty"`
 }
@@ -266,6 +268,18 @@ type PendingInteraction struct {
 	PlanContent *string `json:"planContent,omitempty"`
 	// Structured questions with selectable options (for ASK_USER only)
 	Questions []*AskUserQuestion `json:"questions,omitempty"`
+}
+
+// A custom key-value property of a bean.
+type Property struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+// A custom key-value property to set on a bean.
+type PropertyInput struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
 // A pull/merge request on a git forge (GitHub, GitLab, etc.)
@@ -344,6 +358,10 @@ type UpdateBeanInput struct {
 	AddBlockedBy []string `json:"addBlockedBy,omitempty"`
 	// Remove beans from blocked-by list
 	RemoveBlockedBy []string `json:"removeBlockedBy,omitempty"`
+	// Set custom properties (adds new keys, overwrites existing ones)
+	SetProperties []*PropertyInput `json:"setProperties,omitempty"`
+	// Remove custom properties by key
+	RemoveProperties []string `json:"removeProperties,omitempty"`
 	// Fractional index for manual ordering (used by board drag-and-drop)
 	Order *string `json:"order,omitempty"`
 	// ETag for optimistic concurrency control (optional)

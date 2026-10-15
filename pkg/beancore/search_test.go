@@ -131,9 +131,10 @@ func TestSearch_UpdateUpdatesIndex(t *testing.T) {
 	_, _ = core.Search("Original")
 
 	// Update the bean
+	b, base := cloneStored(t, core, "upd1")
 	b.Title = "Updated Title"
 	b.Body = "Modified content"
-	if err := core.Update(b, nil); err != nil {
+	if err := core.Update(b, base); err != nil {
 		t.Fatalf("Update() error = %v", err)
 	}
 

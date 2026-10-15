@@ -37,6 +37,8 @@ var (
 	corsOrigins  []string
 )
 
+const agentCommand = "claude"
+
 const centralAgentPrompt = `You are the planning agent for this project. Your primary role is to help manage and organize work through beans (issues).
 
 IMPORTANT: Do NOT use Claude Code's built-in worktree system (EnterWorktree tool). This project has its own worktree management. To start work on a bean, use the GraphQL startWork mutation instead: mutation { startWork(beanId: "<id>") { path } }
@@ -205,6 +207,7 @@ func runServer(port int, origins []string) error {
 		}
 		return sb.String()
 	}, agent.DefaultMode(cfg.GetDefaultMode()))
+	agentMgr.SetAgentCommand(agentCommand)
 	if effort := cfg.GetDefaultEffort(); config.IsValidEffortLevel(effort) {
 		agentMgr.SetDefaultEffort(agent.EffortLevel(effort))
 	}
@@ -246,7 +249,7 @@ func runServer(port int, origins []string) error {
 		if wts, err := wtManager.List(); err == nil {
 			for _, wt := range wts {
 				if wt.ID == beanID && wt.Description == "" {
-					desc := agent.GenerateDescription(message)
+					desc := agent.GenerateDescription(agentCommand, message)
 					if desc != "" {
 						if err := wtManager.UpdateDescription(beanID, desc); err != nil {
 							log.Printf("[beans] failed to save workspace description for %s: %v", beanID, err)

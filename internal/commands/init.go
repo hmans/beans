@@ -74,6 +74,12 @@ var initCmd = &cobra.Command{
 				}
 				return fmt.Errorf("failed to create config: %w", err)
 			}
+			if err := config.IgnoreLocalConfig(projectDir); err != nil {
+				if initJSON {
+					return output.Error(output.ErrFileError, err.Error())
+				}
+				return fmt.Errorf("failed to update .gitignore: %w", err)
+			}
 		}
 
 		if initJSON {

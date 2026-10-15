@@ -423,19 +423,7 @@ func (c *Core) loadBeanFrom(path string, root string) (*bean.Bean, error) {
 	filename := filepath.Base(path)
 	b.ID, b.Slug = bean.ParseFilename(filename)
 
-	// Apply defaults
-	if b.Type == "" {
-		b.Type = "task"
-	}
-	if b.Priority == "" {
-		b.Priority = "normal"
-	}
-	if b.Tags == nil {
-		b.Tags = []string{}
-	}
-	if b.Blocking == nil {
-		b.Blocking = []string{}
-	}
+	b.ApplyDefaults()
 	if b.CreatedAt == nil {
 		if b.UpdatedAt != nil {
 			b.CreatedAt = b.UpdatedAt

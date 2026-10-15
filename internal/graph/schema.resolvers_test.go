@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hmans/beans/internal/agent"
+	"github.com/hmans/beans/internal/gittest"
 	"github.com/hmans/beans/pkg/beangraph"
 	"github.com/hmans/beans/pkg/beangraph/model"
 	"github.com/hmans/beans/pkg/bean"
@@ -1495,6 +1496,27 @@ func TestRequireIfMatchConfig(t *testing.T) {
 		}
 	})
 
+	t.Run("update with empty etag fails when require_if_match is true", func(t *testing.T) {
+		resolver, core := setupTestResolverWithRequireIfMatch(t)
+		ctx := context.Background()
+
+		b := &bean.Bean{ID: "require-etag-empty", Title: "Test", Status: "todo"}
+		core.Create(b)
+
+		mr := resolver.Mutation()
+		newTitle := "Updated"
+		emptyETag := ""
+		input := model.UpdateBeanInput{
+			Title:   &newTitle,
+			IfMatch: &emptyETag,
+		}
+		_, err := mr.UpdateBean(ctx, "require-etag-empty", input)
+		var requiredErr *beancore.ETagRequiredError
+		if !errors.As(err, &requiredErr) {
+			t.Errorf("UpdateBean() with empty etag error = %v, want ETagRequiredError", err)
+		}
+	})
+
 	t.Run("update with correct etag succeeds when require_if_match is true", func(t *testing.T) {
 		resolver, core := setupTestResolverWithRequireIfMatch(t)
 		ctx := context.Background()
@@ -2761,9 +2783,180 @@ func TestUpdateBeanWithETag(t *testing.T) {
 
 		var mismatchErr *beancore.ETagMismatchError
 		if !errors.As(err, &mismatchErr) {
-			t.Errorf("Expected ETagMismatchError, got %T: %v", err, err)
+			t.Fatalf("Expected ETagMismatchError, got %T: %v", err, err)
+		}
+		if mismatchErr.Concurrent || mismatchErr.Provided != wrongETag {
+			t.Errorf("ETagMismatchError = %+v, want Provided %q from the client and Concurrent false", mismatchErr, wrongETag)
 		}
 	})
+}
+
+func TestUpdateBeanAcceptsQueriedETag(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		rendered bool
+	}{
+		{
+			name:    "file without priority line",
+			content: "---\ntitle: Probe\nstatus: todo\ntype: task\ncreated_at: 2026-01-01T00:00:00Z\nupdated_at: 2026-01-01T00:00:00Z\n---\n\nBody\n",
+		},
+		{
+			name:     "file identical to its rendered form",
+			content:  "---\n# probe-1\ntitle: Probe\nstatus: todo\ntype: task\npriority: normal\ncreated_at: 2026-01-01T00:00:00Z\nupdated_at: 2026-01-01T00:00:00Z\n---\n\nBody\n",
+			rendered: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resolver, core := setupTestResolver(t)
+			ctx := context.Background()
+
+			path := filepath.Join(core.Root(), "probe-1--probe.md")
+			if err := os.WriteFile(path, []byte(tt.content), 0644); err != nil {
+				t.Fatalf("writing bean file: %v", err)
+			}
+			if err := core.Load(); err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+
+			shown, err := resolver.Query().Bean(ctx, "probe-1")
+			if err != nil || shown == nil {
+				t.Fatalf("Bean() = %v, %v", shown, err)
+			}
+			etag := shown.ETag()
+			if rendered, _ := shown.Render(); tt.rendered != (string(rendered) == tt.content) {
+				t.Fatalf("file identical to its rendered form = %v, want %v", !tt.rendered, tt.rendered)
+			}
+
+			status := "in-progress"
+			got, err := resolver.Mutation().UpdateBean(ctx, "probe-1", model.UpdateBeanInput{
+				Status:  &status,
+				IfMatch: &etag,
+			})
+			if err != nil {
+				t.Fatalf("UpdateBean() with the queried etag error = %v", err)
+			}
+			if got.Status != status {
+				t.Errorf("Status = %q, want %q", got.Status, status)
+			}
+		})
+	}
+}
+
+func TestUpdateBeanDirtyAcceptsCurrentETag(t *testing.T) {
+	resolver, core := setupTestResolver(t)
+	ctx := context.Background()
+	createTestBean(t, core, "dirty-1", "Dirty", "todo")
+
+	status := "in-progress"
+	if _, err := resolver.CoreResolver.UpdateBean(ctx, "dirty-1",
+		model.UpdateBeanInput{Status: &status}, beancore.WithPersist(false)); err != nil {
+		t.Fatalf("UpdateBean(WithPersist(false)) error = %v", err)
+	}
+	if !core.IsDirty("dirty-1") {
+		t.Fatal("bean should be dirty")
+	}
+
+	shown, _ := resolver.Query().Bean(ctx, "dirty-1")
+	etag := shown.ETag()
+	title := "Renamed"
+	got, err := resolver.Mutation().UpdateBean(ctx, "dirty-1", model.UpdateBeanInput{Title: &title, IfMatch: &etag})
+	if err != nil {
+		t.Fatalf("UpdateBean() on dirty bean with its current etag error = %v", err)
+	}
+	if got.Title != title {
+		t.Errorf("Title = %q, want %q", got.Title, title)
+	}
+}
+
+func TestRejectedUpdateLeavesStoredBeanUnchanged(t *testing.T) {
+	wrongETag := "0123456789abcdef"
+	title := "Should not stick"
+	tests := []struct {
+		name   string
+		mutate func(r *Resolver, ctx context.Context) error
+	}{
+		{"UpdateBean wrong etag", func(r *Resolver, ctx context.Context) error {
+			_, err := r.Mutation().UpdateBean(ctx, "keep-1", model.UpdateBeanInput{
+				Title: &title, AddTags: []string{"x"}, IfMatch: &wrongETag,
+			})
+			return err
+		}},
+		{"UpdateBean failed validation", func(r *Resolver, ctx context.Context) error {
+			_, err := r.Mutation().UpdateBean(ctx, "keep-1", model.UpdateBeanInput{
+				Title: &title, AddBlocking: []string{"does-not-exist"},
+			})
+			return err
+		}},
+		{"SetParent wrong etag", func(r *Resolver, ctx context.Context) error {
+			_, err := r.Mutation().SetParent(ctx, "keep-1", stringPtr("keep-epic"), &wrongETag)
+			return err
+		}},
+		{"AddBlocking wrong etag", func(r *Resolver, ctx context.Context) error {
+			_, err := r.Mutation().AddBlocking(ctx, "keep-1", "keep-other", &wrongETag)
+			return err
+		}},
+		{"RemoveBlocking wrong etag", func(r *Resolver, ctx context.Context) error {
+			_, err := r.Mutation().RemoveBlocking(ctx, "keep-1", "keep-blocked", &wrongETag)
+			return err
+		}},
+		{"AddBlockedBy wrong etag", func(r *Resolver, ctx context.Context) error {
+			_, err := r.Mutation().AddBlockedBy(ctx, "keep-1", "keep-other", &wrongETag)
+			return err
+		}},
+		{"RemoveBlockedBy wrong etag", func(r *Resolver, ctx context.Context) error {
+			_, err := r.Mutation().RemoveBlockedBy(ctx, "keep-1", "keep-blocker", &wrongETag)
+			return err
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resolver, core := setupTestResolver(t)
+			ctx := context.Background()
+			for _, b := range []*bean.Bean{
+				{ID: "keep-epic", Title: "Epic", Type: "epic", Status: "todo"},
+				{ID: "keep-other", Title: "Other", Type: "task", Status: "todo"},
+				{ID: "keep-blocked", Title: "Blocked", Type: "task", Status: "todo"},
+				{ID: "keep-blocker", Title: "Blocker", Type: "task", Status: "todo"},
+				{ID: "keep-1", Title: "Keep", Type: "task", Status: "todo",
+					Blocking: []string{"keep-blocked"}, BlockedBy: []string{"keep-blocker"}},
+			} {
+				if err := core.Create(b); err != nil {
+					t.Fatalf("Create(%s) error = %v", b.ID, err)
+				}
+			}
+			before, _ := core.Get("keep-1")
+			wantETag := before.ETag()
+
+			if err := tt.mutate(resolver, ctx); err == nil {
+				t.Fatal("mutation succeeded, want an error")
+			}
+
+			after, _ := core.Get("keep-1")
+			if after.ETag() != wantETag {
+				t.Errorf("stored bean changed by a rejected mutation: Title = %q, Tags = %v, Parent = %q, Blocking = %v, BlockedBy = %v",
+					after.Title, after.Tags, after.Parent, after.Blocking, after.BlockedBy)
+			}
+		})
+	}
+}
+
+func TestUpdateBeanDetectsCycleThroughPendingLinks(t *testing.T) {
+	resolver, core := setupTestResolver(t)
+	ctx := context.Background()
+	createTestBean(t, core, "pend-1", "One", "todo")
+	createTestBean(t, core, "pend-2", "Two", "todo")
+
+	_, err := resolver.Mutation().UpdateBean(ctx, "pend-1", model.UpdateBeanInput{
+		AddBlocking:  []string{"pend-2"},
+		AddBlockedBy: []string{"pend-2"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "cycle") {
+		t.Fatalf("UpdateBean() error = %v, want a cycle error", err)
+	}
 }
 
 func TestSetParentWithETag(t *testing.T) {
@@ -3154,6 +3347,7 @@ func TestListFiles(t *testing.T) {
 	}
 
 	run("init", "-b", "main")
+	gittest.RequireGitDirInside(t, tmpDir)
 	run("config", "user.email", "test@test.com")
 	run("config", "user.name", "Test")
 

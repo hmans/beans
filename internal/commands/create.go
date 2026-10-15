@@ -23,6 +23,7 @@ var (
 	createParent    string
 	createBlocking  []string
 	createBlockedBy []string
+	createProperty  []string
 	createPrefix    string
 	createJSON      bool
 )
@@ -93,6 +94,15 @@ var createCmd = &cobra.Command{
 			input.BlockedBy = createBlockedBy
 		}
 
+		// Add properties
+		if len(createProperty) > 0 {
+			props, err := parseProperties(createProperty)
+			if err != nil {
+				return cmdError(createJSON, output.ErrValidation, "%s", err)
+			}
+			input.Properties = props
+		}
+
 		// Add custom prefix
 		if createPrefix != "" {
 			input.Prefix = &createPrefix
@@ -138,6 +148,7 @@ func RegisterCreateCmd(root *cobra.Command) {
 	createCmd.Flags().StringVar(&createParent, "parent", "", "Parent bean ID")
 	createCmd.Flags().StringArrayVar(&createBlocking, "blocking", nil, "ID of bean this blocks (can be repeated)")
 	createCmd.Flags().StringArrayVar(&createBlockedBy, "blocked-by", nil, "ID of bean that blocks this one (can be repeated)")
+	createCmd.Flags().StringArrayVar(&createProperty, "property", nil, "Set custom property as key=value (can be repeated)")
 	createCmd.Flags().StringVar(&createPrefix, "prefix", "", "Custom ID prefix (overrides config prefix)")
 	createCmd.Flags().BoolVar(&createJSON, "json", false, "Output as JSON")
 	createCmd.MarkFlagsMutuallyExclusive("body", "body-file")

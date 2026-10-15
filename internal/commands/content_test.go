@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"maps"
 	"testing"
 
 	"github.com/hmans/beans/pkg/bean"
@@ -302,4 +303,43 @@ func indexOfSubstring(s, substr string) int {
 		}
 	}
 	return -1
+}
+
+func TestParseProperties(t *testing.T) {
+	tests := []struct {
+		name    string
+		values  []string
+		want    map[string]string
+		wantErr bool
+	}{
+		{name: "simple", values: []string{"github_issue=#135"}, want: map[string]string{"github_issue": "#135"}},
+		{name: "value contains equals", values: []string{"query=a=b"}, want: map[string]string{"query": "a=b"}},
+		{name: "empty value", values: []string{"note="}, want: map[string]string{"note": ""}},
+		{name: "backslash kept literally", values: []string{"path=C:\\new"}, want: map[string]string{"path": "C:\\new"}},
+		{name: "missing equals", values: []string{"estimate"}, wantErr: true},
+		{name: "invalid key", values: []string{"Bad=x"}, wantErr: true},
+		{name: "empty key", values: []string{"=x"}, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseProperties(tt.values)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("parseProperties(%q) = nil error, want error", tt.values)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseProperties(%q) error = %v", tt.values, err)
+			}
+			gotMap := make(map[string]string)
+			for _, p := range got {
+				gotMap[p.Key] = p.Value
+			}
+			if !maps.Equal(gotMap, tt.want) {
+				t.Errorf("parseProperties(%q) = %v, want %v", tt.values, gotMap, tt.want)
+			}
+		})
+	}
 }

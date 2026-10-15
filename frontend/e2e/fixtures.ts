@@ -10,6 +10,24 @@ import { BoardPage } from './pages/board-page';
 const PROJECT_ROOT = join(import.meta.dirname, '../..');
 const BASE_PORT = 22900;
 
+/**
+ * Make every git command of the e2e run, from the specs and from beans-serve,
+ * act only on the temp repos: git ranks GIT_DIR and its relatives above the
+ * working directory, and sets them itself for hooks and `rebase --exec`.
+ * Mirrors internal/gittest.Isolate. Runs at import, before any child process.
+ */
+function isolateGit(): void {
+  const localVars = execFileSync('git', ['rev-parse', '--local-env-vars'], { encoding: 'utf-8' });
+  for (const name of localVars.split(/\s+/).filter(Boolean)) {
+    delete process.env[name];
+  }
+  process.env.GIT_CONFIG_GLOBAL = '/dev/null';
+  process.env.GIT_CONFIG_NOSYSTEM = '1';
+  process.env.GIT_CEILING_DIRECTORIES = tmpdir();
+  process.env.GIT_ALLOW_PROTOCOL = 'file';
+}
+isolateGit();
+
 const GIT_ENV = {
   ...process.env,
   GIT_AUTHOR_NAME: 'test',

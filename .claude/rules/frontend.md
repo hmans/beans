@@ -120,7 +120,7 @@ Icons use `@iconify/tailwind4` — reference icons as `icon-[set--name]` Tailwin
 - Write or update Playwright e2e tests (`frontend/e2e/`) for any web UI changes.
 - Use the page object model (see `e2e/pages/`).
 - Tests run in parallel with per-test server isolation — see `e2e/fixtures.ts`.
-- Run e2e tests: `mise test:e2e` (or `bash frontend/e2e/run.sh`).
+- Run e2e tests: `just test-e2e` (or `bash frontend/e2e/run.sh`).
 
 ### Agent Chat E2E Testing
 
@@ -130,7 +130,7 @@ Icons use `@iconify/tailwind4` — reference icons as `icon-[set--name]` Tailwin
 
 ## Build Warnings
 
-Before finishing any frontend work, run `pnpm build` (or `mise build`) and check for **Svelte compiler warnings**. All warnings must be resolved before the work is considered complete.
+Before finishing any frontend work, run `pnpm build` (or `just build`) and check for **Svelte compiler warnings**. All warnings must be resolved before the work is considered complete.
 
 ## Bundle Size
 

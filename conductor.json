@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "setup": "mise trust && mise install && cd frontend && pnpm install",
-    "run": "BEANS_PORT=$CONDUCTOR_PORT VITE_PORT=$((CONDUCTOR_PORT + 1)) mise dev"
+    "setup": "just setup",
+    "run": "BEANS_PORT=$CONDUCTOR_PORT VITE_PORT=$((CONDUCTOR_PORT + 1)) just dev"
   }
 }

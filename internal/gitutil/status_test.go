@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/hmans/beans/internal/gittest"
 )
 
 // initStatusTestRepo creates a test repo with a tracked README.md file.
@@ -259,6 +261,7 @@ func initBranchedTestRepo(t *testing.T) string {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git init --bare failed: %s: %v", out, err)
 	}
+	gittest.RequireGitDirInside(t, bare)
 
 	// Clone it to create a working repo
 	dir := t.TempDir()
@@ -266,6 +269,7 @@ func initBranchedTestRepo(t *testing.T) string {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git clone failed: %s: %v", out, err)
 	}
+	gittest.RequireGitDirInside(t, dir)
 
 	gitRun(t, dir, "config", "user.email", "test@test.com")
 	gitRun(t, dir, "config", "user.name", "Test")
@@ -276,7 +280,10 @@ func initBranchedTestRepo(t *testing.T) string {
 	}
 	gitRun(t, dir, "add", "README.md")
 	gitRun(t, dir, "commit", "-m", "initial")
-	gitRun(t, dir, "push", "-u", "origin", "HEAD")
+	// Push by path, so the target never depends on how `origin` resolves.
+	gitRun(t, dir, "push", bare, "HEAD:main")
+	gitRun(t, dir, "fetch", "origin")
+	gitRun(t, dir, "branch", "--set-upstream-to=origin/main")
 
 	// Set origin/HEAD so MergeBase can find the default branch
 	gitRun(t, dir, "remote", "set-head", "origin", "--auto")

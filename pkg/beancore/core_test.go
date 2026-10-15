@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -63,6 +64,17 @@ func createTestBean(t *testing.T, core *Core, id, title, status string) *bean.Be
 		t.Fatalf("failed to create test bean: %v", err)
 	}
 	return b
+}
+
+// cloneStored returns a clone of the stored bean id and its ETag, the base
+// that Core.Update compares against.
+func cloneStored(t *testing.T, core *Core, id string) (*bean.Bean, string) {
+	t.Helper()
+	stored, err := core.Get(id)
+	if err != nil {
+		t.Fatalf("Get(%q) error = %v", id, err)
+	}
+	return stored.Clone(), stored.ETag()
 }
 
 func TestNew(t *testing.T) {
@@ -295,14 +307,15 @@ func TestGetShortID(t *testing.T) {
 func TestUpdate(t *testing.T) {
 	core, _ := setupTestCore(t)
 
-	b := createTestBean(t, core, "upd1", "Original Title", "todo")
+	createTestBean(t, core, "upd1", "Original Title", "todo")
+	b, base := cloneStored(t, core, "upd1")
 	originalCreatedAt := *b.CreatedAt
 
 	// Update the bean
 	b.Title = "Updated Title"
 	b.Status = "in-progress"
 
-	err := core.Update(b, nil)
+	err := core.Update(b, base)
 	if err != nil {
 		t.Fatalf("Update() error = %v", err)
 	}
@@ -339,7 +352,7 @@ func TestUpdateNotFound(t *testing.T) {
 		Status: "todo",
 	}
 
-	err := core.Update(b, nil)
+	err := core.Update(b, b.ETag())
 	if err != ErrNotFound {
 		t.Errorf("Update() error = %v, want ErrNotFound", err)
 	}
@@ -1724,157 +1737,109 @@ func TestNormalizeID(t *testing.T) {
 	})
 }
 
+func TestUpdateCompareAndSwap(t *testing.T) {
+	tests := []struct {
+		name      string
+		opts      []UpdateOption
+		staleETag bool
+		wantErr   bool
+	}{
+		{name: "current base, persisted", wantErr: false},
+		{name: "current base, dirty", opts: []UpdateOption{WithPersist(false)}, wantErr: false},
+		{name: "stale base, persisted", staleETag: true, wantErr: true},
+		{name: "stale base, dirty", opts: []UpdateOption{WithPersist(false)}, staleETag: true, wantErr: true},
+	}
 
-func TestUpdateWithETag(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			core, _ := setupTestCore(t)
+			createTestBean(t, core, "cas-1", "Original", "todo")
+
+			// A first update makes the bean dirty in the dirty cases, so the
+			// second update below runs against a dirty stored bean.
+			first, base := cloneStored(t, core, "cas-1")
+			first.Body = "first"
+			if err := core.Update(first, base, tt.opts...); err != nil {
+				t.Fatalf("first Update() error = %v", err)
+			}
+
+			b, base := cloneStored(t, core, "cas-1")
+			if tt.staleETag {
+				base = "0123456789abcdef"
+			}
+			before, _ := core.Get("cas-1")
+			wantETag := before.ETag()
+
+			b.Title = "Updated"
+			err := core.Update(b, base, tt.opts...)
+
+			got, _ := core.Get("cas-1")
+			if !tt.wantErr {
+				if err != nil {
+					t.Fatalf("Update() error = %v", err)
+				}
+				if got.Title != "Updated" {
+					t.Errorf("stored Title = %q, want %q", got.Title, "Updated")
+				}
+				return
+			}
+			var mismatchErr *ETagMismatchError
+			if !errors.As(err, &mismatchErr) {
+				t.Fatalf("Update() error = %T %v, want ETagMismatchError", err, err)
+			}
+			if !mismatchErr.Concurrent {
+				t.Errorf("ETagMismatchError.Concurrent = false, want true: Update found the mismatch, the client sent no etag")
+			}
+			if got.Title != "Original" || got.ETag() != wantETag {
+				t.Errorf("rejected Update() changed the stored bean: Title = %q, ETag = %s, want %s",
+					got.Title, got.ETag(), wantETag)
+			}
+		})
+	}
+}
+
+func TestUpdateSameBaseOnlyOneWins(t *testing.T) {
 	core, _ := setupTestCore(t)
+	createTestBean(t, core, "race-1", "Original", "todo")
 
-	t.Run("update with correct etag succeeds", func(t *testing.T) {
-		b := &bean.Bean{
-			ID:     "etag-test-1",
-			Title:  "ETag Test",
-			Status: "todo",
-			Body:   "Original",
-		}
-		if err := core.Create(b); err != nil {
-			t.Fatalf("Create() error = %v", err)
-		}
+	const writers = 8
+	clones := make([]*bean.Bean, writers)
+	var base string
+	for i := range clones {
+		clones[i], base = cloneStored(t, core, "race-1")
+		clones[i].Title = fmt.Sprintf("Writer %d", i)
+	}
 
-		currentETag := b.ETag()
-		b.Title = "Updated"
-		err := core.Update(b, &currentETag)
-		if err != nil {
-			t.Errorf("Update() with correct etag failed: %v", err)
-		}
-	})
+	errs := make([]error, writers)
+	var wg sync.WaitGroup
+	for i := range clones {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			errs[i] = core.Update(clones[i], base)
+		}(i)
+	}
+	wg.Wait()
 
-	t.Run("update with wrong etag fails", func(t *testing.T) {
-		b := &bean.Bean{
-			ID:     "etag-test-2",
-			Title:  "ETag Test",
-			Status: "todo",
-		}
-		if err := core.Create(b); err != nil {
-			t.Fatalf("Create() error = %v", err)
-		}
-
-		wrongETag := "wrongetag123"
-		b.Title = "Should Fail"
-		err := core.Update(b, &wrongETag)
-		
+	winners := 0
+	winner := -1
+	for i, err := range errs {
 		var mismatchErr *ETagMismatchError
-		if !errors.As(err, &mismatchErr) {
-			t.Errorf("Update() with wrong etag should return ETagMismatchError, got %T: %v", err, err)
+		switch {
+		case err == nil:
+			winners++
+			winner = i
+		case errors.As(err, &mismatchErr):
+		default:
+			t.Errorf("writer %d: Update() error = %v, want nil or ETagMismatchError", i, err)
 		}
-	})
-
-	t.Run("update without etag succeeds when not required", func(t *testing.T) {
-		b := &bean.Bean{
-			ID:     "etag-test-3",
-			Title:  "ETag Test",
-			Status: "todo",
-		}
-		if err := core.Create(b); err != nil {
-			t.Fatalf("Create() error = %v", err)
-		}
-
-		b.Title = "No ETag"
-		err := core.Update(b, nil)
-		if err != nil {
-			t.Errorf("Update() without etag failed: %v", err)
-		}
-	})
-}
-
-func TestUpdateWithETagRequired(t *testing.T) {
-	core, _ := setupTestCoreWithRequireIfMatch(t)
-
-	t.Run("update without etag fails when required", func(t *testing.T) {
-		b := &bean.Bean{
-			ID:     "etag-req-test-1",
-			Title:  "ETag Required Test",
-			Status: "todo",
-		}
-		if err := core.Create(b); err != nil {
-			t.Fatalf("Create() error = %v", err)
-		}
-
-		b.Title = "Should Fail"
-		err := core.Update(b, nil)
-		
-		var requiredErr *ETagRequiredError
-		if !errors.As(err, &requiredErr) {
-			t.Errorf("Update() without etag should return ETagRequiredError when required, got %T: %v", err, err)
-		}
-	})
-
-	t.Run("update with empty etag fails when required", func(t *testing.T) {
-		b := &bean.Bean{
-			ID:     "etag-req-test-2",
-			Title:  "ETag Required Test",
-			Status: "todo",
-		}
-		if err := core.Create(b); err != nil {
-			t.Fatalf("Create() error = %v", err)
-		}
-
-		emptyETag := ""
-		b.Title = "Should Fail"
-		err := core.Update(b, &emptyETag)
-		
-		var requiredErr *ETagRequiredError
-		if !errors.As(err, &requiredErr) {
-			t.Errorf("Update() with empty etag should return ETagRequiredError when required, got %T: %v", err, err)
-		}
-	})
-
-	t.Run("update with correct etag succeeds even when required", func(t *testing.T) {
-		b := &bean.Bean{
-			ID:     "etag-req-test-3",
-			Title:  "ETag Required Test",
-			Status: "todo",
-		}
-		if err := core.Create(b); err != nil {
-			t.Fatalf("Create() error = %v", err)
-		}
-
-		currentETag := b.ETag()
-		b.Title = "Success"
-		err := core.Update(b, &currentETag)
-		if err != nil {
-			t.Errorf("Update() with correct etag failed: %v", err)
-		}
-	})
-}
-func TestUpdateWithETagDebug(t *testing.T) {
-	core, _ := setupTestCore(t)
-
-	b := &bean.Bean{
-		ID:     "etag-debug",
-		Title:  "ETag Test",
-		Status: "todo",
-		Body:   "Original",
 	}
-	if err := core.Create(b); err != nil {
-		t.Fatalf("Create() error = %v", err)
+	if winners != 1 {
+		t.Fatalf("%d writers succeeded with the same base, want exactly 1", winners)
 	}
-
-	etagAfterCreate := b.ETag()
-	t.Logf("ETag after create: %s", etagAfterCreate)
-
-	// Get from core to see what's stored
-	stored, _ := core.Get("etag-debug")
-	storedEtag := stored.ETag()
-	t.Logf("ETag of stored bean: %s", storedEtag)
-
-	// Modify our local copy
-	b.Title = "Updated"
-	modifiedEtag := b.ETag()
-	t.Logf("ETag of modified local bean: %s", modifiedEtag)
-
-	// What will Update see?
-	err := core.Update(b, &etagAfterCreate)
-	if err != nil {
-		t.Logf("Update failed: %v", err)
+	got, _ := core.Get("race-1")
+	if want := fmt.Sprintf("Writer %d", winner); got.Title != want {
+		t.Errorf("stored Title = %q, want %q (the winner's)", got.Title, want)
 	}
 }
 
@@ -1940,8 +1905,9 @@ func TestDirtyTracking(t *testing.T) {
 			t.Error("should not be dirty after persisted create")
 		}
 
+		b, base := cloneStored(t, core, "d3")
 		b.Title = "Updated"
-		if err := core.Update(b, nil, WithPersist(false)); err != nil {
+		if err := core.Update(b, base, WithPersist(false)); err != nil {
 			t.Fatalf("Update() error = %v", err)
 		}
 
@@ -1965,8 +1931,9 @@ func TestDirtyTracking(t *testing.T) {
 		}
 
 		// Make it dirty
+		b, base := cloneStored(t, core, "d4")
 		b.Title = "Dirty"
-		if err := core.Update(b, nil, WithPersist(false)); err != nil {
+		if err := core.Update(b, base, WithPersist(false)); err != nil {
 			t.Fatalf("Update() error = %v", err)
 		}
 		if !core.IsDirty("d4") {
@@ -1974,8 +1941,9 @@ func TestDirtyTracking(t *testing.T) {
 		}
 
 		// Now persist
+		b, base = cloneStored(t, core, "d4")
 		b.Title = "Persisted"
-		if err := core.Update(b, nil); err != nil {
+		if err := core.Update(b, base); err != nil {
 			t.Fatalf("Update() error = %v", err)
 		}
 		if core.IsDirty("d4") {
@@ -2064,8 +2032,9 @@ func TestDirtyTracking(t *testing.T) {
 		b := &bean.Bean{ID: "d10", Title: "Will Reload", Status: "todo"}
 		core.Create(b) // persist to disk first
 
+		b, base := cloneStored(t, core, "d10")
 		b.Title = "Dirty"
-		core.Update(b, nil, WithPersist(false))
+		core.Update(b, base, WithPersist(false))
 
 		if !core.IsDirty("d10") {
 			t.Fatal("should be dirty")
@@ -2121,5 +2090,112 @@ func TestLoadSkipsDotPrefixedSubdirectories(t *testing.T) {
 	}
 	if all[0].ID != "test-real" {
 		t.Fatalf("expected bean id test-real, got %s", all[0].ID)
+	}
+}
+
+func TestStoredETagSurvivesReload(t *testing.T) {
+	tests := []struct {
+		name   string
+		modify func(b *bean.Bean)
+	}{
+		{name: "created without priority and type"},
+		{name: "updated to an empty priority", modify: func(b *bean.Bean) { b.Priority = "" }},
+		{name: "updated to an empty type", modify: func(b *bean.Bean) { b.Type = "" }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			core, _ := setupTestCore(t)
+			if err := core.Create(&bean.Bean{ID: "reload-1", Slug: "reload", Title: "Reload", Status: "todo"}); err != nil {
+				t.Fatalf("Create() error = %v", err)
+			}
+			if tt.modify != nil {
+				b, base := cloneStored(t, core, "reload-1")
+				tt.modify(b)
+				if err := core.Update(b, base); err != nil {
+					t.Fatalf("Update() error = %v", err)
+				}
+			}
+			stored, _ := core.Get("reload-1")
+			before := stored.ETag()
+
+			if err := core.Load(); err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			reloaded, _ := core.Get("reload-1")
+			if got := reloaded.ETag(); got != before {
+				t.Errorf("ETag after reload = %s, want %s (stored priority %q, type %q)", got, before, stored.Priority, stored.Type)
+			}
+		})
+	}
+}
+
+func TestWritersLeaveHeldBeansUnchanged(t *testing.T) {
+	archived := func(t *testing.T, core *Core) {
+		createTestBean(t, core, "held", "Held", "completed")
+		if err := core.Archive("held"); err != nil {
+			t.Fatalf("Archive() error = %v", err)
+		}
+	}
+	plain := func(t *testing.T, core *Core) {
+		createTestBean(t, core, "held", "Held", "todo")
+	}
+	linked := func(t *testing.T, core *Core) {
+		createTestBean(t, core, "gone", "Gone", "todo")
+		b := &bean.Bean{ID: "held", Title: "Held", Status: "todo",
+			Parent: "gone", Blocking: []string{"gone"}, BlockedBy: []string{"gone"}}
+		if err := core.Create(b); err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+	}
+	unsaved := func(t *testing.T, core *Core) {
+		b := &bean.Bean{ID: "held", Title: "Held", Status: "todo"}
+		if err := core.Create(b, WithPersist(false)); err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+	}
+
+	tests := []struct {
+		name  string
+		setup func(*testing.T, *Core)
+		write func(*Core) error
+	}{
+		{"Archive", plain, func(c *Core) error { return c.Archive("held") }},
+		{"Unarchive", archived, func(c *Core) error { return c.Unarchive("held") }},
+		{"LoadAndUnarchive", archived, func(c *Core) error { _, err := c.LoadAndUnarchive("held"); return err }},
+		{"RemoveLinksTo", linked, func(c *Core) error { _, err := c.RemoveLinksTo("gone"); return err }},
+		{"FixBrokenLinks", linked, func(c *Core) error {
+			if err := c.Delete("gone"); err != nil {
+				return err
+			}
+			_, err := c.FixBrokenLinks()
+			return err
+		}},
+		{"SaveDirty", unsaved, func(c *Core) error { _, err := c.SaveDirty(); return err }},
+		{"SaveBean", unsaved, func(c *Core) error { return c.SaveBean("held") }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			core, _ := setupTestCore(t)
+			tt.setup(t, core)
+			held, err := core.Get("held")
+			if err != nil {
+				t.Fatalf("Get() error = %v", err)
+			}
+			snapshot := held.Clone()
+
+			if err := tt.write(core); err != nil {
+				t.Fatalf("write error = %v", err)
+			}
+
+			if !reflect.DeepEqual(held, snapshot) {
+				t.Errorf("%s modified the bean a reader holds:\n got  %+v\n want %+v", tt.name, held, snapshot)
+			}
+			stored, _ := core.Get("held")
+			if stored == held {
+				t.Errorf("%s did not store a new bean", tt.name)
+			}
+		})
 	}
 }

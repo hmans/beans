@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -114,10 +115,13 @@ func (m *Manager) sendToProcess(proc *runningProcess, beanID, message string, im
 func (m *Manager) spawnAndRun(beanID string, session *Session) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	args := buildClaudeArgs(session)
-	cmd := exec.CommandContext(ctx, "claude", args...)
+	cmd, err := newAgentCmd(ctx, m.agentCommand, buildClaudeArgs(session)...)
+	if err != nil {
+		m.setError(beanID, err.Error())
+		cancel()
+		return
+	}
 	cmd.Dir = session.WorkDir
-	cmd.Env = buildClaudeEnv()
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -842,6 +846,19 @@ func buildClaudeArgs(session *Session) []string {
 		args = append(args, "--resume", session.SessionID)
 	}
 	return args
+}
+
+var errNoAgentCommand = errors.New("no agent command configured")
+
+// newAgentCmd builds the command for an agent process with the environment
+// from buildClaudeEnv.
+func newAgentCmd(ctx context.Context, command string, args ...string) (*exec.Cmd, error) {
+	if command == "" {
+		return nil, errNoAgentCommand
+	}
+	cmd := exec.CommandContext(ctx, command, args...)
+	cmd.Env = buildClaudeEnv()
+	return cmd, nil
 }
 
 // buildClaudeEnv creates the environment for the claude process,

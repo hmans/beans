@@ -282,6 +282,85 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	}
 }
 
+func TestFormatVersion(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		want   string
+	}{
+		{
+			name:   "missing field stays empty",
+			config: "beans:\n  prefix: my-\n",
+			want:   "",
+		},
+		{
+			name:   "older version is kept",
+			config: "format_version: v0.1.0\nbeans:\n  prefix: my-\n",
+			want:   "v0.1.0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configPath := filepath.Join(t.TempDir(), ConfigFileName)
+			if err := os.WriteFile(configPath, []byte(tt.config), 0644); err != nil {
+				t.Fatalf("WriteFile error = %v", err)
+			}
+			cfg, err := Load(configPath)
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if cfg.FormatVersion != tt.want {
+				t.Errorf("FormatVersion = %q, want %q (Load must not stamp the current version)", cfg.FormatVersion, tt.want)
+			}
+		})
+	}
+}
+
+func TestSaveWritesFormatVersion(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := DefaultWithPrefix("myapp-")
+	cfg.SetConfigDir(tmpDir)
+	if err := cfg.Save(tmpDir); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	configPath := filepath.Join(tmpDir, ConfigFileName)
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("ReadFile error = %v", err)
+	}
+	if !strings.Contains(string(data), "format_version: "+FormatVersion+"\n") {
+		t.Errorf("saved config lacks format_version %s:\n%s", FormatVersion, data)
+	}
+
+	loaded, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if loaded.FormatVersion != FormatVersion {
+		t.Errorf("FormatVersion = %q, want %q", loaded.FormatVersion, FormatVersion)
+	}
+}
+
+func TestSaveOmitsEmptyFormatVersion(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := DefaultWithPrefix("myapp-")
+	cfg.FormatVersion = ""
+	cfg.SetConfigDir(tmpDir)
+	if err := cfg.Save(tmpDir); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, ConfigFileName))
+	if err != nil {
+		t.Fatalf("ReadFile error = %v", err)
+	}
+	if strings.Contains(string(data), "format_version") {
+		t.Errorf("saved config contains format_version although it is unknown:\n%s", data)
+	}
+}
+
 func TestStatusesAreHardcoded(t *testing.T) {
 	// Statuses are hardcoded and not configurable (like types)
 	// Verify that any config only uses hardcoded statuses
@@ -1439,6 +1518,108 @@ func TestGetWorktreeFetchTimeout(t *testing.T) {
 	})
 }
 
+func TestGetStackedListHeight(t *testing.T) {
+	tests := []struct {
+		name       string
+		configured int
+		want       int
+	}{
+		{"unset uses default", 0, DefaultStackedListHeight},
+		{"custom value", 25, 25},
+		{"minimum kept", MinStackedListHeight, MinStackedListHeight},
+		{"too small is raised", 2, MinStackedListHeight},
+		{"negative is raised", -3, MinStackedListHeight},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Default()
+			cfg.TUI.StackedListHeight = tt.configured
+			if got := cfg.GetStackedListHeight(); got != tt.want {
+				t.Errorf("GetStackedListHeight() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+
+	t.Run("loads from config file and survives save", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		configPath := filepath.Join(tmpDir, ConfigFileName)
+		configContent := "beans:\n  prefix: test-\ntui:\n  stacked_list_height: 22\n"
+		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+			t.Fatalf("WriteFile error = %v", err)
+		}
+
+		cfg, err := Load(configPath)
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+		if got := cfg.GetStackedListHeight(); got != 22 {
+			t.Errorf("GetStackedListHeight() = %d, want 22", got)
+		}
+
+		if err := cfg.Save(tmpDir); err != nil {
+			t.Fatalf("Save() error = %v", err)
+		}
+		reloaded, err := Load(configPath)
+		if err != nil {
+			t.Fatalf("Load() after Save error = %v", err)
+		}
+		if got := reloaded.GetStackedListHeight(); got != 22 {
+			t.Errorf("GetStackedListHeight() after Save = %d, want 22", got)
+		}
+	})
+}
+
+func TestGetPreviewPosition(t *testing.T) {
+	tests := []struct {
+		name       string
+		configured PreviewPosition
+		want       PreviewPosition
+	}{
+		{"unset uses auto", "", PreviewPositionAuto},
+		{"auto", PreviewPositionAuto, PreviewPositionAuto},
+		{"right", PreviewPositionRight, PreviewPositionRight},
+		{"below", PreviewPositionBelow, PreviewPositionBelow},
+		{"invalid uses auto", "left", PreviewPositionAuto},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Default()
+			cfg.TUI.PreviewPosition = tt.configured
+			if got := cfg.GetPreviewPosition(); got != tt.want {
+				t.Errorf("GetPreviewPosition() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+
+	t.Run("loads from config file and survives save", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		configPath := filepath.Join(tmpDir, ConfigFileName)
+		configContent := "beans:\n  prefix: test-\ntui:\n  preview_position: below\n"
+		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+			t.Fatalf("WriteFile error = %v", err)
+		}
+
+		cfg, err := Load(configPath)
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+		if got := cfg.GetPreviewPosition(); got != PreviewPositionBelow {
+			t.Errorf("GetPreviewPosition() = %q, want %q", got, PreviewPositionBelow)
+		}
+
+		if err := cfg.Save(tmpDir); err != nil {
+			t.Fatalf("Save() error = %v", err)
+		}
+		reloaded, err := Load(configPath)
+		if err != nil {
+			t.Fatalf("Load() after Save error = %v", err)
+		}
+		if got := reloaded.GetPreviewPosition(); got != PreviewPositionBelow {
+			t.Errorf("GetPreviewPosition() after Save = %q, want %q", got, PreviewPositionBelow)
+		}
+	})
+}
+
 func TestGetServerPort(t *testing.T) {
 	t.Run("returns default when not configured", func(t *testing.T) {
 		cfg := Default()
@@ -1616,4 +1797,172 @@ server:
 			t.Errorf("origins[0] = %q, want %q", origins[0], "https://app.example.com")
 		}
 	})
+}
+
+func TestFocus(t *testing.T) {
+	tests := []struct {
+		name       string
+		shared     string // .beans.yml content; "" means no file
+		local      string // .beans.local.yml content; "" means no file
+		wantID     string
+		wantSource string
+	}{
+		{"no focus anywhere", "beans:\n  prefix: x-\n", "", "", ""},
+		{"shared only", "next:\n  focus: x-e1\n", "", "x-e1", ConfigFileName},
+		{"local replaces shared", "next:\n  focus: x-e1\n", "next:\n  focus: x-e2\n", "x-e2", LocalConfigFileName},
+		{"local without shared file", "", "next:\n  focus: x-e2\n", "x-e2", LocalConfigFileName},
+		{"local file without the key", "next:\n  focus: x-e1\n", "other: 1\n", "x-e1", ConfigFileName},
+		{"local ignores other keys", "beans:\n  prefix: x-\n", "beans:\n  prefix: y-\nnext:\n  focus: x-e2\n", "x-e2", LocalConfigFileName},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if tt.shared != "" {
+				if err := os.WriteFile(filepath.Join(dir, ConfigFileName), []byte(tt.shared), 0644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tt.local != "" {
+				if err := os.WriteFile(filepath.Join(dir, LocalConfigFileName), []byte(tt.local), 0644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			cfg, err := LoadFromDirectoryWithin(dir, dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			id, source := cfg.Focus()
+			if id != tt.wantID || source != tt.wantSource {
+				t.Errorf("Focus() = (%q, %q), want (%q, %q)", id, source, tt.wantID, tt.wantSource)
+			}
+			if tt.shared != "" && strings.Contains(tt.local, "prefix") && cfg.Beans.Prefix != "x-" {
+				t.Errorf("prefix = %q: local file must not override other keys", cfg.Beans.Prefix)
+			}
+		})
+	}
+}
+
+func TestSetAndClearLocalFocus(t *testing.T) {
+	dir := t.TempDir()
+	shared := filepath.Join(dir, ConfigFileName)
+	if err := os.WriteFile(shared, []byte("next:\n  focus: x-e1\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(shared)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := cfg.SetLocalFocus("x-e2"); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := Load(shared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id, src := reloaded.Focus(); id != "x-e2" || src != LocalConfigFileName {
+		t.Errorf("after set: Focus() = (%q, %q), want (x-e2, %s)", id, src, LocalConfigFileName)
+	}
+	sharedData, _ := os.ReadFile(shared)
+	if strings.Contains(string(sharedData), "x-e2") {
+		t.Errorf("SetLocalFocus wrote to %s", ConfigFileName)
+	}
+
+	if err := reloaded.ClearLocalFocus(); err != nil {
+		t.Fatal(err)
+	}
+	if id, src := reloaded.Focus(); id != "x-e1" || src != ConfigFileName {
+		t.Errorf("after clear: Focus() = (%q, %q), want (x-e1, %s)", id, src, ConfigFileName)
+	}
+	if err := reloaded.ClearLocalFocus(); err != nil {
+		t.Errorf("second clear: %v", err)
+	}
+}
+
+func TestSaveKeepsLocalFocusOut(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, LocalConfigFileName), []byte("next:\n  focus: x-local\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadFromDirectoryWithin(dir, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.Save(dir); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, ConfigFileName))
+	if strings.Contains(string(data), "x-local") {
+		t.Errorf("Save wrote the local focus into %s:\n%s", ConfigFileName, data)
+	}
+}
+
+func TestSaveRoundTripsSharedFocus(t *testing.T) {
+	dir := t.TempDir()
+	cfg := Default()
+	cfg.SetConfigDir(dir)
+	cfg.Next.Focus = "x-e1"
+	if err := cfg.Save(dir); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := Load(filepath.Join(dir, ConfigFileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id, src := loaded.Focus(); id != "x-e1" || src != ConfigFileName {
+		t.Errorf("Focus() = (%q, %q), want (x-e1, %s)", id, src, ConfigFileName)
+	}
+}
+
+func TestIgnoreLocalConfig(t *testing.T) {
+	tests := []struct {
+		name     string
+		existing *string
+		want     string
+	}{
+		{"creates missing file", nil, ".beans.local.yml\n"},
+		{"appends to file with newline", ptr("/dist/\n"), "/dist/\n.beans.local.yml\n"},
+		{"appends to file without newline", ptr("/dist/"), "/dist/\n.beans.local.yml\n"},
+		{"keeps existing entry", ptr("a\n.beans.local.yml\nb\n"), "a\n.beans.local.yml\nb\n"},
+		{"keeps rooted entry", ptr("/.beans.local.yml\n"), "/.beans.local.yml\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, ".gitignore")
+			if tt.existing != nil {
+				if err := os.WriteFile(path, []byte(*tt.existing), 0644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for range 2 {
+				if err := IgnoreLocalConfig(dir); err != nil {
+					t.Fatal(err)
+				}
+			}
+			got, _ := os.ReadFile(path)
+			if string(got) != tt.want {
+				t.Errorf(".gitignore = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func ptr(s string) *string { return &s }
+
+func TestLoadMissingFileUsesItsDirForLocalFocus(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, LocalConfigFileName), []byte("next:\n  focus: x-e1\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(filepath.Join(dir, ConfigFileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id, src := cfg.Focus(); id != "x-e1" || src != LocalConfigFileName {
+		t.Errorf("Focus() = (%q, %q), want (x-e1, %s)", id, src, LocalConfigFileName)
+	}
+	if cfg.ConfigDir() != dir {
+		t.Errorf("ConfigDir() = %q, want %q", cfg.ConfigDir(), dir)
+	}
 }

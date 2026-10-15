@@ -2,7 +2,9 @@ package beangraph
 
 import (
 	"context"
+	"maps"
 	"path/filepath"
+	"slices"
 
 	"github.com/hmans/beans/pkg/bean"
 	"github.com/hmans/beans/pkg/beangraph/model"
@@ -41,6 +43,15 @@ func (r *CoreResolver) BeanBlockingIds(ctx context.Context, obj *bean.Bean) ([]s
 // BeanBlockedByIds returns the blocked-by IDs slice.
 func (r *CoreResolver) BeanBlockedByIds(ctx context.Context, obj *bean.Bean) ([]string, error) {
 	return obj.BlockedBy, nil
+}
+
+// BeanProperties returns the bean's custom properties sorted by key.
+func (r *CoreResolver) BeanProperties(ctx context.Context, obj *bean.Bean) ([]*model.Property, error) {
+	result := make([]*model.Property, 0, len(obj.Properties))
+	for _, key := range slices.Sorted(maps.Keys(obj.Properties)) {
+		result = append(result, &model.Property{Key: key, Value: obj.Properties[key]})
+	}
+	return result, nil
 }
 
 // BeanBlockedBy resolves the full list of beans blocking this one.

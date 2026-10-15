@@ -30,8 +30,11 @@ AFTER finishing any task:
 When the user asks what to work on next:
 
 ```bash
-# Find beans ready to start (not blocked, excludes in-progress/completed/scrapped/draft)
-beans list --json --ready
+# Ranked list of beans to start next, with lane and reason per row
+beans next --json
+
+# Beans already in progress, to resume
+beans next --json --in-progress
 
 # View full details of specific beans (supports multiple IDs)
 beans show --json <id> [id...]
@@ -48,6 +51,11 @@ beans list --json -t bug -s todo       # Filter by type and status
 beans list --json -S "authentication"  # Full-text search
 beans list --help                      # Full options
 
+# What to work on next
+beans next --json                      # Ranked: high/critical bugs, beans under the focus or in-progress epics/milestones, drafts to refine
+beans next --json --all                # Also beans outside every focus
+beans focus set --json <epic-or-milestone-id>  # Rank this milestone's or epic's beans first (per user, .beans.local.yml)
+
 # View beans (supports multiple IDs)
 beans show --json <id> [id...]
 
@@ -61,6 +69,8 @@ beans update --json <id> --blocking <other-id>                 # Mark as blockin
 beans update --json <id> --blocked-by <other-id>               # Mark as blocked by another bean
 beans update --json <id> --body-replace-old "old" --body-replace-new "new"  # Replace text
 beans update --json <id> --body-append "## Notes"              # Append to body
+beans update --json <id> --property github_issue=#135          # Set a custom property (string key=value)
+beans update --json <id> --remove-property github_issue        # Remove a custom property
 beans update --json <id> -s completed --body-replace-old "- [ ] Task" --body-replace-new "- [x] Task"  # Combined
 
 # Archive completed/scrapped beans (only when user requests)
@@ -74,8 +84,8 @@ Use `beans <command> --help` for full options. Use `--json` for machine-readable
 - **Parent**: Hierarchy (milestone → epic → feature → task/bug). Set with `--parent <id>`.
 - **Blocking**: Use `--blocking <id>` when THIS bean blocks another (the other bean can't proceed until this is done).
 - **Blocked-by**: Use `--blocked-by <id>` when THIS bean is blocked by another (this bean can't proceed until the other is done). **Prefer this when creating dependent work.**
-- **Implicit blocking**: A bean is also considered blocked if any of its ancestors (via parent chain) are blocked. Commands like `ready`, `next`, and `start` respect this automatically.
-- **Implicit status**: If a parent/ancestor has a terminal status (scrapped or completed), children inherit that status implicitly. `ready`/`next` exclude these beans.
+- **Implicit blocking**: A bean is also considered blocked if any of its ancestors (via parent chain) are blocked. `beans next` and `beans list --ready` respect this automatically.
+- **Implicit status**: If a parent/ancestor has a terminal status (scrapped or completed), children inherit that status implicitly. `beans next` and `beans list --ready` exclude these beans.
 
 ## Issue Types
 

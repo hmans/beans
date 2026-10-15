@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/hmans/beans/pkg/bean"
+	"github.com/hmans/beans/pkg/beangraph/model"
 	"github.com/hmans/beans/internal/output"
 )
 
@@ -48,6 +49,23 @@ func applyTags(b *bean.Bean, tags []string) error {
 		}
 	}
 	return nil
+}
+
+// parseProperties converts "key=value" flag values into property inputs.
+// The value may contain "=" and may be empty; the key is validated.
+func parseProperties(values []string) ([]*model.PropertyInput, error) {
+	result := make([]*model.PropertyInput, 0, len(values))
+	for _, v := range values {
+		key, value, ok := strings.Cut(v, "=")
+		if !ok {
+			return nil, fmt.Errorf("invalid property %q: must be key=value", v)
+		}
+		if err := bean.ValidatePropertyKey(key); err != nil {
+			return nil, err
+		}
+		result = append(result, &model.PropertyInput{Key: key, Value: value})
+	}
+	return result, nil
 }
 
 // formatCycle formats a cycle path for display.

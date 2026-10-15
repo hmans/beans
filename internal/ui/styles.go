@@ -363,8 +363,10 @@ type BeanRowConfig struct {
 	TreePrefix      string   // Tree prefix (e.g., "├─" or "  └─") to prepend to ID
 	Dimmed          bool     // Render row dimmed (for unmatched ancestor beans in tree)
 	IDColWidth      int      // Width of ID column (0 = default of ColWidthID)
-	UseFullNames    bool     // Use full type/status names instead of single-char abbreviations
-	ImplicitStatus string   // Implicit terminal status from an ancestor (e.g., "scrapped")
+	TypeColWidth    int      // Width of type column (0 = ColWidthType); see typeStatusText
+	StatusColWidth  int      // Width of status column (0 = ColWidthStatus); see typeStatusText
+	ImplicitStatus string   // Status of a closed ancestor of this open bean; marks the status column with a red ↑
+	Blocked        bool     // Bean has an active blocker; marks the status column with ⊘ unless ImplicitStatus is set
 }
 
 // Base column widths for bean lists (minimum sizes)
@@ -373,84 +375,103 @@ const (
 	ColWidthStatus = 3
 	ColWidthType   = 3
 	ColWidthTags   = 24
+
+	// Narrowest type/status column that shows the name instead of one letter.
+	ColWidthNameMin = 5
+
+	// Column widths for full type/status names; "in-progress" needs 11.
+	ColWidthStatusFull = 12
+	ColWidthTypeFull   = 12
+
+	ColWidthTagsMax = 70
+)
+
+// Widths at which the type/status and tags columns appear and reach full width.
+const (
+	minWidthForNames  = 120
+	fullWidthForNames = 160
+	minWidthForTags   = 140
+	fullWidthForTags  = 220
 )
 
 // ResponsiveColumns holds calculated column widths based on available space
 type ResponsiveColumns struct {
-	ID                int
-	Status            int
-	Type              int
-	Tags              int
-	MaxTags           int  // How many tags to show
-	ShowTags          bool
-	UseFullTypeStatus bool // Use full names instead of single-char abbreviations
+	ID       int
+	Status   int
+	Type     int
+	Tags     int
+	MaxTags  int // How many tags to show
+	ShowTags bool
 }
 
 // CalculateResponsiveColumns determines column widths based on available width.
-// Prioritizes title width - tags are only shown when there's plenty of room.
+// The type/status and tags columns each appear once at a threshold width and
+// then grow in proportion to the width up to their full size, so the title
+// width changes only at those two thresholds by more than one column.
 func CalculateResponsiveColumns(totalWidth int, hasTags bool) ResponsiveColumns {
 	cols := ResponsiveColumns{
-		ID:       ColWidthID,
-		Status:   ColWidthStatus,
-		Type:     ColWidthType,
-		Tags:     0,
-		MaxTags:  0,
-		ShowTags: false,
+		ID:     ColWidthID,
+		Status: ColWidthStatus,
+		Type:   ColWidthType,
 	}
 
-	// Use full type/status names when terminal is wide enough
-	const minWidthForFullNames = 120
-	if totalWidth >= minWidthForFullNames {
-		cols.UseFullTypeStatus = true
-		cols.Status = 12 // "in-progress" needs 11 chars
-		cols.Type = 10   // "milestone" needs 9 chars
+	if totalWidth >= minWidthForNames {
+		// Type and status take turns growing, so together they gain at most
+		// one column per column of width.
+		maxGrowth := ColWidthTypeFull - ColWidthNameMin + ColWidthStatusFull - ColWidthNameMin
+		growth := interpolate(totalWidth, minWidthForNames, fullWidthForNames, 0, maxGrowth)
+		cols.Type = ColWidthNameMin + (growth+1)/2
+		cols.Status = ColWidthNameMin + growth/2
 	}
 
-	// Don't show tags in narrow viewports - prioritize title space
-	// Only consider showing tags if terminal is wide enough (140+ columns)
-	const minWidthForTags = 140
-
-	if !hasTags || totalWidth < minWidthForTags {
-		return cols
-	}
-
-	// At this point we have at least 140 columns
-	// Base usage: cursor (2) + ID + status + type (use responsive widths)
-	cursorWidth := 2
-	baseWidth := cursorWidth + cols.ID + cols.Status + cols.Type
-	available := totalWidth - baseWidth
-
-	// Reserve generous space for title, then allocate remaining to tags
-	minTitleWidth := 50
-	spaceForTags := available - minTitleWidth
-
-	if spaceForTags >= ColWidthTags {
+	if hasTags && totalWidth >= minWidthForTags {
+		// The tags column grows only once type and status are full; growing
+		// both at once could take two columns from the title in one step.
 		cols.ShowTags = true
-
-		if spaceForTags >= 80 {
-			// Lots of space: show all tags (up to 5)
-			cols.Tags = 70
-			cols.MaxTags = 5
-		} else if spaceForTags >= 60 {
-			// Good space: show 4 tags
-			cols.Tags = 55
-			cols.MaxTags = 4
-		} else if spaceForTags >= 45 {
-			// Moderate space: show 3 tags
-			cols.Tags = 42
-			cols.MaxTags = 3
-		} else if spaceForTags >= 35 {
-			// Limited space: show 2 tags
-			cols.Tags = 32
-			cols.MaxTags = 2
-		} else {
-			// Minimal: show 1 tag
-			cols.Tags = ColWidthTags
-			cols.MaxTags = 1
+		cols.Tags = ColWidthTags
+		if totalWidth > fullWidthForNames {
+			cols.Tags = interpolate(totalWidth, fullWidthForNames, fullWidthForTags, ColWidthTags, ColWidthTagsMax)
 		}
+		cols.MaxTags = maxTagsForWidth(cols.Tags)
 	}
 
 	return cols
+}
+
+// interpolate maps x in [x0, x1] linearly onto [y0, y1], clamped to y1 above x1.
+func interpolate(x, x0, x1, y0, y1 int) int {
+	if x >= x1 {
+		return y1
+	}
+	return y0 + (y1-y0)*(x-x0)/(x1-x0)
+}
+
+// maxTagsForWidth returns how many tags fit a tags column of the given width.
+func maxTagsForWidth(width int) int {
+	switch {
+	case width >= 70:
+		return 5
+	case width >= 55:
+		return 4
+	case width >= 42:
+		return 3
+	case width >= 32:
+		return 2
+	default:
+		return 1
+	}
+}
+
+// typeStatusText returns the text of a type or status column: the one-letter
+// code below ColWidthNameMin, otherwise the name cut hard to the column width.
+func typeStatusText(name, code string, width int) string {
+	if width < ColWidthNameMin {
+		return code
+	}
+	if len(name) > width {
+		return name[:width]
+	}
+	return name
 }
 
 // RenderBeanRow renders a bean as a single row with ID, Type, Status, Tags (optional), Title
@@ -460,8 +481,16 @@ func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string
 	if cfg.IDColWidth > 0 {
 		idColWidth = cfg.IDColWidth
 	}
-	typeStyle := lipgloss.NewStyle().Width(ColWidthType)
-	statusStyle := lipgloss.NewStyle().Width(ColWidthStatus)
+	typeColWidth := ColWidthType
+	if cfg.TypeColWidth > 0 {
+		typeColWidth = cfg.TypeColWidth
+	}
+	statusColWidth := ColWidthStatus
+	if cfg.StatusColWidth > 0 {
+		statusColWidth = cfg.StatusColWidth
+	}
+	typeStyle := lipgloss.NewStyle().Width(typeColWidth)
+	statusStyle := lipgloss.NewStyle().Width(statusColWidth)
 
 	tagsColWidth := ColWidthTags
 	if cfg.TagsColWidth > 0 {
@@ -495,14 +524,7 @@ func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string
 		idCol = TreeLine.Render(cfg.TreePrefix) + ID.Render(id) + padding
 	}
 
-	// Type column - single character or full name
-	var typeStr string
-	if cfg.UseFullNames {
-		typeStr = typeName
-		typeStyle = typeStyle.Width(12) // wider for full names
-	} else {
-		typeStr = ShortType(typeName)
-	}
+	typeStr := typeStatusText(typeName, ShortType(typeName), typeColWidth)
 	var typeCol string
 	if cfg.Dimmed {
 		typeCol = typeStyle.Render(Muted.Render(typeStr))
@@ -510,19 +532,24 @@ func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string
 		typeCol = typeStyle.Render(RenderTypeText(typeStr, cfg.TypeColor))
 	}
 
-	// Status column - single character or full name
-	var statusStr string
-	if cfg.UseFullNames {
-		statusStr = status
-		statusStyle = statusStyle.Width(12) // wider for full names
-	} else {
-		statusStr = ShortStatus(status)
-	}
+	statusStr := typeStatusText(status, ShortStatus(status), statusColWidth)
 	var statusCol string
 	if cfg.Dimmed {
 		statusCol = statusStyle.Render(Muted.Render(statusStr))
 	} else {
 		statusCol = statusStyle.Render(RenderStatusTextWithColor(statusStr, cfg.StatusColor, cfg.IsArchive))
+	}
+
+	// The closed-ancestor and blocked marks take the place of the separator
+	// before the status, so the status column stays aligned with unmarked
+	// rows. A closed ancestor wins: its blockers no longer matter.
+	statusSep := " "
+	if !cfg.Dimmed {
+		if cfg.ImplicitStatus != "" {
+			statusSep = lipgloss.NewStyle().Foreground(ColorDanger).Render("↑")
+		} else if cfg.Blocked {
+			statusSep = lipgloss.NewStyle().Foreground(ColorWarning).Render("⊘")
+		}
 	}
 
 	// Tags column (optional)
@@ -585,12 +612,6 @@ func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string
 		}
 	}
 
-	// Implicit status annotation (muted suffix, only when not dimmed)
-	var implicitAnnotation string
-	if cfg.ImplicitStatus != "" && !cfg.Dimmed {
-		implicitAnnotation = Muted.Render(" ↑" + cfg.ImplicitStatus)
-	}
-
 	if cfg.ShowTags {
 		// Pad title column to fixed width so tags align in a column
 		// Calculate padding needed: titleColWidth - (priority symbol width + title length)
@@ -602,7 +623,7 @@ func RenderBeanRow(id, status, typeName, title string, cfg BeanRowConfig) string
 		if titleColWidth > titleLen {
 			padding = strings.Repeat(" ", titleColWidth-titleLen)
 		}
-		return cursor + idCol + " " + typeCol + " " + statusCol + " " + prioritySymbol + titleStyled + padding + " " + tagsCol + implicitAnnotation
+		return cursor + idCol + " " + typeCol + statusSep + statusCol + " " + prioritySymbol + titleStyled + padding + " " + tagsCol
 	}
-	return cursor + idCol + " " + typeCol + " " + statusCol + " " + prioritySymbol + titleStyled + implicitAnnotation
+	return cursor + idCol + " " + typeCol + statusSep + statusCol + " " + prioritySymbol + titleStyled
 }

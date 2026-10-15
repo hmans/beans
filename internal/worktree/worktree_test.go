@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/hmans/beans/internal/gittest"
 )
 
 // initTestRepo creates a temporary git repo with an initial commit,
@@ -22,11 +24,14 @@ func initTestRepo(t *testing.T) (repoDir, beansDir, worktreeRoot string) {
 		{"git", "commit", "--allow-empty", "-m", "initial"},
 	}
 
-	for _, args := range commands {
+	for i, args := range commands {
 		cmd := exec.Command(args[0], args[1:]...)
 		cmd.Dir = dir
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("%v failed: %s: %v", args, out, err)
+		}
+		if i == 0 {
+			gittest.RequireGitDirInside(t, dir)
 		}
 	}
 
@@ -400,6 +405,8 @@ func TestFetchTimeoutZeroSkipsFetch(t *testing.T) {
 
 func TestFetchBaseRefTimesOut(t *testing.T) {
 	repoDir, _, _ := initTestRepo(t)
+	// The ssh transport only reaches the local `sleep` configured below.
+	t.Setenv("GIT_ALLOW_PROTOCOL", "file:ssh")
 
 	// Configure git to use a "fetch" command that just sleeps, simulating a hanging remote.
 	// GIT_SSH_COMMAND is used by git when fetching over SSH.
@@ -409,8 +416,9 @@ func TestFetchBaseRefTimesOut(t *testing.T) {
 		t.Fatalf("add remote: %s: %v", out, err)
 	}
 
-	// Override the SSH command to just sleep forever
-	gitConfigCmd := exec.Command("git", "config", "core.sshCommand", "sleep 60")
+	// Override the SSH command to just sleep; the trailing "#" turns the host
+	// and command git appends into a shell comment.
+	gitConfigCmd := exec.Command("git", "config", "core.sshCommand", "sleep 60 #")
 	gitConfigCmd.Dir = repoDir
 	if out, err := gitConfigCmd.CombinedOutput(); err != nil {
 		t.Fatalf("config sshCommand: %s: %v", out, err)
@@ -428,6 +436,9 @@ func TestFetchBaseRefTimesOut(t *testing.T) {
 	// Should complete within ~3s (1s timeout + process cleanup overhead), not 60s
 	if elapsed > 5*time.Second {
 		t.Errorf("fetchBaseRef took %v, expected it to time out within ~1s", elapsed)
+	}
+	if elapsed < 1*time.Second {
+		t.Errorf("fetchBaseRef returned after %v, before the 1s timeout: the fetch did not hang", elapsed)
 	}
 }
 

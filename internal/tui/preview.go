@@ -9,11 +9,13 @@ import (
 )
 
 // previewModel is a read-only detail preview for the two-column layout.
-// It has no focus, no interaction - just renders bean details.
+// It has no focus; the only interaction is scrolling the body.
 type previewModel struct {
-	bean   *bean.Bean
-	width  int
-	height int
+	bean    *bean.Bean
+	blocked bool // renders a ⊘ blocked mark after the status
+	width   int
+	height  int
+	scroll  int // first visible body line
 }
 
 func newPreviewModel(b *bean.Bean, width, height int) previewModel {
@@ -41,45 +43,23 @@ func (m previewModel) renderEmpty() string {
 	return style.Render("No bean selected")
 }
 
+// previewScrollStep is the number of body lines one mouse wheel notch scrolls.
+const previewScrollStep = 3
+
 func (m previewModel) renderBean() string {
-	// Header: ID and Title
-	idStyle := lipgloss.NewStyle().Foreground(ui.ColorPrimary).Bold(true)
-	titleStyle := lipgloss.NewStyle().Bold(true)
-
-	header := idStyle.Render(m.bean.ID) + "\n" + titleStyle.Render(m.bean.Title)
-
-	// Metadata: Status, Type, Priority
-	metaStyle := lipgloss.NewStyle().Foreground(ui.ColorMuted)
-	meta := metaStyle.Render("Status: " + m.bean.Status + "  Type: " + m.bean.Type)
-	if m.bean.Priority != "" && m.bean.Priority != "normal" {
-		meta += metaStyle.Render("  Priority: " + m.bean.Priority)
+	header := m.renderHeader()
+	bodyLines := m.bodyLines()
+	window := m.bodyWindow(header)
+	scroll := min(max(0, m.scroll), max(0, len(bodyLines)-window))
+	visible := bodyLines[scroll:min(len(bodyLines), scroll+window)]
+	if scroll+window < len(bodyLines) && len(visible) > 0 {
+		visible[len(visible)-1] = lipgloss.NewStyle().Foreground(ui.ColorMuted).Render("...")
 	}
 
-	// Tags
-	var tagsLine string
-	if len(m.bean.Tags) > 0 {
-		tagsLine = ui.RenderTags(m.bean.Tags)
-	}
+	content := header + "\n" + strings.Join(visible, "\n")
 
-	// Body (truncated to fit)
-	body := m.renderBody()
-
-	// Compose
-	var parts []string
-	parts = append(parts, header)
-	parts = append(parts, "")
-	parts = append(parts, meta)
-	if tagsLine != "" {
-		parts = append(parts, tagsLine)
-	}
-	parts = append(parts, "")
-	parts = append(parts, body)
-
-	content := lipgloss.JoinVertical(lipgloss.Left, parts...)
-
-	// Truncate content to fit within available height
-	// Border takes 2 lines (top + bottom), padding takes 0 vertical
-	innerHeight := m.height - 2
+	// Truncate content to fit within available height; there is no vertical padding.
+	innerHeight := m.height - paneBorders
 	contentLines := strings.Split(content, "\n")
 	if len(contentLines) > innerHeight {
 		contentLines = contentLines[:innerHeight]
@@ -90,19 +70,19 @@ func (m previewModel) renderBean() string {
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(ui.ColorMuted).
-		Padding(0, 1).
-		Width(m.width - 2).
+		Padding(0, previewPaddingX).
+		Width(m.width - paneBorders).
 		Height(innerHeight)
 
-	result := borderStyle.Render(content)
+	idStyle := lipgloss.NewStyle().Foreground(ui.ColorPrimary).Bold(true)
+	result := withBorderTitle(borderStyle.Render(content), idStyle.Render(m.bean.ID))
 
 	// Ensure output is exactly m.height lines
 	// When truncating, preserve the bottom border (last line)
 	resultLines := strings.Split(result, "\n")
 	if len(resultLines) > m.height {
-		// Keep first (m.height-1) lines + the last line (bottom border)
 		bottomBorder := resultLines[len(resultLines)-1]
-		resultLines = resultLines[:m.height-1]
+		resultLines = resultLines[:m.height-paneBorder]
 		resultLines = append(resultLines, bottomBorder)
 		result = strings.Join(resultLines, "\n")
 	}
@@ -110,13 +90,80 @@ func (m previewModel) renderBean() string {
 	return result
 }
 
+// scrollBy moves the body window by delta lines, clamped to the body.
+func (m *previewModel) scrollBy(delta int) {
+	if m.bean == nil {
+		return
+	}
+	maxScroll := max(0, len(m.bodyLines())-m.bodyWindow(m.renderHeader()))
+	m.scroll = min(max(0, m.scroll+delta), maxScroll)
+}
+
+// wrap breaks s into the lines the bordered, padded pane displays, so that
+// line counts match the screen.
+func (m previewModel) wrap(s string) string {
+	return lipgloss.NewStyle().Width(m.contentWidth()).Render(s)
+}
+
+// contentWidth is the pane width minus border and horizontal padding.
+func (m previewModel) contentWidth() int {
+	return max(1, m.width-paneBorders-2*previewPaddingX)
+}
+
+// renderHeader renders title, metadata, tags and properties, ending in a blank line.
+// The ID sits in the top border.
+func (m previewModel) renderHeader() string {
+	titleStyle := lipgloss.NewStyle().Bold(true)
+
+	header := titleStyle.Render(m.bean.Title)
+
+	// Metadata: Status, Type, Priority
+	metaStyle := lipgloss.NewStyle().Foreground(ui.ColorMuted)
+	meta := metaStyle.Render("Status: " + m.bean.Status)
+	if m.blocked {
+		meta += " " + lipgloss.NewStyle().Foreground(ui.ColorWarning).Render("⊘ blocked")
+	}
+	meta += metaStyle.Render("  Type: " + m.bean.Type)
+	if m.bean.Priority != "" && m.bean.Priority != "normal" {
+		meta += metaStyle.Render("  Priority: " + m.bean.Priority)
+	}
+
+	// Tags
+	var tagsLine string
+	if len(m.bean.Tags) > 0 {
+		tagsLine = ui.RenderTags(m.bean.Tags)
+	}
+
+	// Compose
+	var parts []string
+	parts = append(parts, header)
+	parts = append(parts, "")
+	parts = append(parts, meta)
+	if tagsLine != "" {
+		parts = append(parts, tagsLine)
+	}
+	parts = append(parts, propertyLines(m.bean.Properties)...)
+	parts = append(parts, "")
+
+	return m.wrap(lipgloss.JoinVertical(lipgloss.Left, parts...))
+}
+
+// bodyWindow returns how many body lines fit below the given header.
+func (m previewModel) bodyWindow(header string) int {
+	return max(1, m.height-paneBorders-lipgloss.Height(header))
+}
+
+// bodyLines returns the rendered body, wrapped to the pane width.
+func (m previewModel) bodyLines() []string {
+	return strings.Split(m.wrap(m.renderBody()), "\n")
+}
+
 func (m previewModel) renderBody() string {
 	if m.bean.Body == "" {
 		return lipgloss.NewStyle().Foreground(ui.ColorMuted).Render("No description")
 	}
 
-	// Render markdown (reuse existing glamour renderer from detail.go)
-	renderer := getGlamourRenderer()
+	renderer := getWrappedGlamourRenderer(m.contentWidth())
 	if renderer == nil {
 		return m.bean.Body
 	}
@@ -126,19 +173,5 @@ func (m previewModel) renderBody() string {
 		return m.bean.Body
 	}
 
-	// Truncate to available height
-	lines := strings.Split(rendered, "\n")
-	// Account for header (2 lines), blank line, meta (1 line), tags (0-1 line), blank line, borders/padding
-	// Estimate ~8 lines for header/meta
-	availableLines := m.height - 8
-	if availableLines < 1 {
-		availableLines = 1
-	}
-
-	if len(lines) > availableLines {
-		lines = lines[:availableLines]
-		lines = append(lines, lipgloss.NewStyle().Foreground(ui.ColorMuted).Render("..."))
-	}
-
-	return strings.TrimSpace(strings.Join(lines, "\n"))
+	return strings.TrimSpace(rendered)
 }

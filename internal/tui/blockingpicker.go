@@ -148,14 +148,14 @@ func newBlockingPickerModel(beanID, beanTitle string, currentBlocking []string, 
 	modalWidth := max(40, min(80, width*60/100))
 	modalHeight := max(10, min(20, height*60/100))
 	listWidth := modalWidth - 6
-	// Account for: header(1) + subtitle(1) + blank(1) + blank(1) + description(1) + blank(1) + help(1) + border(2) = 9
-	listHeight := modalHeight - 9
+	// Account for: header(1) + subtitle(1) + blank(1) + blank(1) + description(2) + blank(1) + help(1) + border(2) = 10
+	listHeight := modalHeight - 10
 
 	// Create delegate with pointer to pending state (so it can read live updates)
 	delegate := blockingItemDelegate{cfg: cfg, pendingBlocking: &pendingBlocking}
 
 	l := list.New(items, delegate, listWidth, listHeight)
-	l.Title = "Manage Blocking"
+	l.Title = "Blocks:"
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(true)
 	l.SetShowHelp(false)
@@ -191,7 +191,7 @@ func (m blockingPickerModel) Update(msg tea.Msg) (blockingPickerModel, tea.Cmd) 
 		modalWidth := max(40, min(80, msg.Width*60/100))
 		modalHeight := max(10, min(20, msg.Height*60/100))
 		listWidth := modalWidth - 6
-		listHeight := modalHeight - 9 // Account for description line
+		listHeight := modalHeight - 10 // Account for two description lines
 		m.list.SetSize(listWidth, listHeight)
 
 	case tea.KeyMsg:
@@ -255,11 +255,11 @@ func (m blockingPickerModel) View() string {
 	}
 
 	return renderPickerModal(pickerModalConfig{
-		Title:       "Manage Blocking",
+		Title:       "Blocks:",
 		BeanTitle:   m.beanTitle,
 		BeanID:      m.beanID,
 		ListContent: m.list.View(),
-		Description: "space toggle, enter confirm, esc cancel",
+		Description: "● = blocked by " + m.beanID + "\nspace toggle, enter confirm, esc cancel",
 		Width:       m.width,
 		WidthPct:    60,
 		MaxWidth:    80,

@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"log"
-	"os/exec"
 	"strings"
 	"time"
 )
@@ -41,8 +40,9 @@ func truncate(s string, maxLen int) string {
 }
 
 // GenerateDescription runs a lightweight Claude call to summarize what a workspace
-// is doing based on the first user message. Returns the description or empty string on error.
-func GenerateDescription(message string) string {
+// is doing based on the first user message, using the agent executable command.
+// Returns the description or empty string on error.
+func GenerateDescription(command, message string) string {
 	prompt := buildDescribePrompt(message)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -50,13 +50,16 @@ func GenerateDescription(message string) string {
 
 	// Pass prompt via stdin (not as CLI arg) to avoid leaking conversation
 	// content into `ps` output and to avoid OS argument length limits.
-	cmd := exec.CommandContext(ctx, "claude",
+	cmd, err := newAgentCmd(ctx, command,
 		"--print", "--model", "haiku",
 		"--no-session-persistence",
 		"--disable-slash-commands",
 		"--strict-mcp-config", "--mcp-config", `{"mcpServers":{}}`,
 	)
-	cmd.Env = buildClaudeEnv()
+	if err != nil {
+		log.Printf("[describe] %v", err)
+		return ""
+	}
 	cmd.Stdin = strings.NewReader(prompt)
 
 	out, err := cmd.Output()

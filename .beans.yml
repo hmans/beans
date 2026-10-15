@@ -1,5 +1,7 @@
 # Beans configuration
 # See: https://github.com/hmans/beans
+# Beans release that introduced this project's data format
+format_version: v0.3.0
 project:
   # Human-readable project name (displayed in the UI)
   name: beans
@@ -19,9 +21,9 @@ worktree:
   base_ref: origin/main
   integrate: pr
   # Shell command to run inside a worktree after creation (e.g. "pnpm install")
-  setup: mise trust && mise setup
+  setup: just setup
   # Shell command to run the project (adds a "Run" button to workspace toolbar)
-  run: mise dev
+  run: just dev
 agent:
   # Enable agent functionality in the web UI (true, false)
   enabled: true
